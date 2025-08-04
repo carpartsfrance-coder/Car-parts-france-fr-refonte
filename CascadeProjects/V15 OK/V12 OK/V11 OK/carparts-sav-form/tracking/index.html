@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi de votre demande SAV | Car Parts France</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        :root {
+            --primary-color: #dc3545;
+            --primary-rgb: 220, 53, 69;
+            --secondary-color: #6c757d;
+            --secondary-rgb: 108, 117, 125;
+            --success-color: #28a745;
+            --success-rgb: 40, 167, 69;
+            --warning-color: #ffc107;
+            --warning-rgb: 255, 193, 7;
+            --danger-color: #dc3545;
+            --danger-rgb: 220, 53, 69;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            --border-color: #dee2e6;
+            --light-gray: #f5f5f5;
+            --primary-hover: #c82333;
+        }
+        
+        .tracking-container {
+            max-width: 1200px;
+            width: 90%;
+            margin: 40px auto;
+            padding: 30px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+        }
+        
+        .tracking-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .tracking-header h1 {
+            color: var(--primary-color);
+            font-size: 32px;
+            margin-bottom: 12px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tracking-header h1::after {
+            content: '';
+            position: absolute;
+            width: 60%;
+            height: 4px;
+            background-color: var(--primary-color);
+            bottom: -8px;
+            left: 0;
+            border-radius: 2px;
+        }
+        
+        .tracking-form {
+            display: flex;
+            margin-bottom: 30px;
+            gap: 15px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 2px solid var(--primary-color);
+            position: relative;
+        }
+        
+        .tracking-form::before {
+            content: 'Entrez votre numéro de ticket';
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background-color: white;
+            padding: 0 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .tracking-form input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+        
+        .tracking-form input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
+        }
+        
+        .tracking-form input::placeholder {
+            color: #adb5bd;
+        }
+        
+        .tracking-form button {
+            padding: 0 25px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 140px;
+            box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.3);
+        }
+        
+        .tracking-form button i {
+            margin-right: 8px;
+        }
+        
+        .tracking-form button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(var(--primary-rgb), 0.4);
+        }
+        
+        /* Animation de pulsation pour mettre en évidence la barre de recherche */
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0); }
+            100% { box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0); }
+        }
+        
+        .highlight-pulse {
+            animation: pulse-border 2s infinite;
+        }
+        
+        .search-section {
+            margin: 40px 0;
+            text-align: center;
+        }
+        
+        .search-title {
+            color: var(--primary-color);
+            font-size: 24px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .tracking-result {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .ticket-info {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .ticket-header-flex {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        @media (min-width: 768px) {
+            .ticket-header-flex {
+                flex-direction: row;
+                justify-content: space-between;
+            }
+            
+            .ticket-header-flex > div:first-child {
+                flex: 2;
+            }
+            
+            .ticket-status-box {
+                flex: 1;
+                min-width: 200px;
+            }
+        }
+        
+        .ticket-info h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        
+        .ticket-info p {
+            margin: 5px 0;
+        }
+        
+        .status-timeline {
+            position: relative;
+            margin: 30px 0;
+            padding-left: 30px;
+        }
+        
+        .status-timeline::before {
+            content: '';
+            position: absolute;
+            left: 9px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: var(--border-color);
+        }
+        
+        .status-item {
+            position: relative;
+            margin-bottom: 30px;
+        }
+        
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .status-dot {
+            position: absolute;
+            left: -30px;
+            top: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px var(--secondary-color, #6c757d);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            z-index: 2;
+        }
+        
+        .status-item.active .status-dot {
+            background-color: var(--success-color);
+            box-shadow: 0 0 0 2px var(--success-color, #28a745), 0 0 10px rgba(var(--success-rgb), 0.5);
+            transform: scale(1.1);
+        }
+        
+        /* Couleurs spécifiques pour chaque type de statut */
+        .status-item[data-status="nouveau"] .status-dot {
+            background-color: #6c757d;
+            box-shadow: 0 0 0 2px #6c757d;
+        }
+        
+        .status-item[data-status="en_analyse"] .status-dot {
+            background-color: #17a2b8;
+            box-shadow: 0 0 0 2px #17a2b8;
+        }
+        
+        .status-item[data-status="info_complementaire"] .status-dot {
+            background-color: var(--warning-color);
+            box-shadow: 0 0 0 2px var(--warning-color);
+        }
+        
+        .status-item[data-status="validé"] .status-dot {
+            background-color: var(--success-color);
+            box-shadow: 0 0 0 2px var(--success-color);
+        }
+        
+        .status-item[data-status="refusé"] .status-dot {
+            background-color: var(--danger-color);
+            box-shadow: 0 0 0 2px var(--danger-color);
+        }
+        
+        .status-item[data-status="en_cours_traitement"] .status-dot {
+            background-color: #6f42c1;
+            box-shadow: 0 0 0 2px #6f42c1;
+        }
+        
+        .status-item[data-status="expédié"] .status-dot {
+            background-color: #007bff;
+            box-shadow: 0 0 0 2px #007bff;
+        }
+        
+        .status-item[data-status="clôturé"] .status-dot {
+            background-color: #28a745;
+            box-shadow: 0 0 0 2px #28a745;
+        }
+        
+        .status-content {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid transparent;
+            transition: transform 0.2s ease;
+        }
+        
+        .status-item:hover .status-content {
+            transform: translateX(5px);
+        }
+        
+        /* Bordures colorées selon le statut */
+        .status-item[data-status="nouveau"] .status-content {
+            border-left-color: #6c757d;
+        }
+        
+        .status-item[data-status="en_analyse"] .status-content {
+            border-left-color: #17a2b8;
+        }
+        
+        .status-item[data-status="info_complementaire"] .status-content {
+            border-left-color: var(--warning-color);
+        }
+        
+        .status-item[data-status="validé"] .status-content {
+            border-left-color: var(--success-color);
+        }
+        
+        .status-item[data-status="refusé"] .status-content {
+            border-left-color: var(--danger-color);
+        }
+        
+        .status-item[data-status="en_cours_traitement"] .status-content {
+            border-left-color: #6f42c1;
+        }
+        
+        .status-item[data-status="expédié"] .status-content {
+            border-left-color: #007bff;
+        }
+        
+        .status-item[data-status="clôturé"] .status-content {
+            border-left-color: #28a745;
+        }
+        
+        .status-date {
+            font-size: 12px;
+            color: #777;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .status-date:before {
+            content: "\f017";
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            margin-right: 5px;
+            font-size: 11px;
+            opacity: 0.7;
+        }
+        
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: var(--dark-color);
+            display: flex;
+            align-items: center;
+        }
+        
+        .status-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            position: relative;
+            padding-left: 0;
+        }
+        
+        .error-message {
+            color: var(--primary-color);
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .loading i {
+            font-size: 24px;
+            color: var(--secondary-color);
+            animation: spin 1s infinite linear;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status-description {
+            color: var(--text-color);
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        
+        /* Styles pour la section de communication */
+        .communication-section {
+            margin-top: 40px;
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        @media (min-width: 768px) {
+            .form-group {
+                display: flex;
+                flex-direction: column;
+                max-width: 100%;
+            }
+            
+            textarea {
+                min-height: 120px;
+            }
+        }
+        
+        .additional-info-form {
+            margin-top: 15px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            resize: vertical;
+        }
+        
+        .file-upload-container {
+            position: relative;
+            margin-top: 5px;
+        }
+        
+        .file-input {
+            position: absolute;
+            width: 0.1px;
+            height: 0.1px;
+            opacity: 0;
+            overflow: hidden;
+            z-index: -1;
+        }
+        
+        .file-label {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: var(--secondary-color);
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .file-label:hover {
+            background-color: var(--secondary-hover);
+        }
+        
+        .selected-files {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .submit-btn {
+            padding: 12px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        
+        .submit-btn:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .info-request-message {
+            padding: 10px 15px;
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 15px;
+            display: none;
+        }
+        
+        /* Styles pour l'affichage des documents */
+        .documents-section {
+            margin: 30px 0;
+        }
+        
+        .documents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        @media (min-width: 768px) {
+            .documents-grid {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            }
+        }
+        
+        @media (min-width: 1200px) {
+            .documents-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+        }
+        
+        .document-item {
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        
+        .document-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .document-thumbnail {
+            height: 120px;
+            background-color: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .document-thumbnail img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
+        }
+        
+        .document-thumbnail i {
+            font-size: 40px;
+            color: var(--secondary-color);
+        }
+        
+        .document-info {
+            padding: 10px;
+            font-size: 12px;
+        }
+        
+        .document-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .document-type {
+            color: var(--text-secondary);
+        }
+        
+        /* Styles pour la barre de progression */
+        .progress-container {
+            margin: 30px 0;
+        }
+        
+        .progress-bar-container {
+            position: relative;
+            margin-top: 20px;
+            padding: 0 10px;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background-color: var(--primary-color);
+            border-radius: 3px;
+            position: relative;
+            z-index: 1;
+            width: 0;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            position: relative;
+            padding: 0 30px;
+        }
+        
+        /* Ligne de base du fil d'Ariane */
+        .progress-steps::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            right: 60px;
+            height: 2px;
+            background-color: #e0e0e0;
+            z-index: 1;
+        }
+        
+        /* Ligne active du fil d'Ariane */
+        .progress-steps {
+            --active-line-width: 0px;
+        }
+        
+        .progress-steps::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            height: 2px;
+            width: var(--active-line-width);
+            background-color: var(--primary-color);
+            z-index: 1;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            width: 60px;
+        }
+        
+        .step-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            z-index: 2;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px #e0e0e0;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .step-dot.active {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 0 0 2px var(--primary-color), 0 0 10px rgba(0,0,0,0.2);
+        }
+        
+        .has-tooltip {
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .has-tooltip::before {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 12px;
+            background-color: rgba(0,0,0,0.8);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+        
+        .has-tooltip:hover::before {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .step-dot i {
+            font-size: 14px;
+        }
+        
+        .step-label {
+            font-size: 11px;
+            text-align: center;
+            color: var(--text-secondary);
+            max-width: 80px;
+        }
+        
+        .step-label.active {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        .progress-explanation {
+            margin: 15px 0;
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--secondary-color);
+            border-radius: 4px;
+            font-size: 14px;
+            color: #555;
+            line-height: 1.5;
+        }
+        
+        .info-request-message {
+            background-color: rgba(255, 193, 7, 0.15);
+            border-left: 4px solid var(--warning-color);
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 15px;
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        
+        .info-request-content {
+            flex-grow: 1;
+            padding-right: 10px;
+        }
+        
+        .close-info-request {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+        
+        .close-info-request:hover {
+            opacity: 1;
+            color: var(--danger-color);
+        }
+        
+        .progress-explanation i {
+            color: var(--secondary-color);
+            margin-right: 8px;
+        }
+        
+        /* Styles pour les informations du ticket */
+        .ticket-info {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .ticket-info-title {
+            color: var(--primary-color);
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        .ticket-info-title i {
+            margin-right: 8px;
+        }
+        
+        .ticket-header-flex {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 25px;
+        }
+        
+        .ticket-details {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            background-color: var(--light-bg-color, #f8f9fa);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .ticket-detail-item {
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--primary-color, #007bff);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .ticket-detail-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Classes spécifiques pour chaque type d'information */
+        .ticket-detail-item.ticket-number {
+            border-left-color: var(--primary-color, #007bff);
+            background-color: rgba(0, 123, 255, 0.04);
+        }
+        
+        .ticket-detail-item.date-info {
+            border-left-color: #6f42c1;
+        }
+        
+        .ticket-detail-item.date-info .detail-label i {
+            color: #6f42c1;
+        }
+        
+        .ticket-detail-item.client-info {
+            border-left-color: #20c997;
+        }
+        
+        .ticket-detail-item.client-info .detail-label i {
+            color: #20c997;
+        }
+        
+        .ticket-detail-item.part-type {
+            border-left-color: var(--secondary-color, #6c757d);
+        }
+        
+        .ticket-detail-item.part-type .detail-label i {
+            color: var(--secondary-color, #6c757d);
+        }
+        
+        .ticket-detail-item.claim-type {
+            border-left-color: var(--warning-color, #ffc107);
+        }
+        
+        .ticket-detail-item.claim-type .detail-label i {
+            color: var(--warning-color, #ffc107);
+        }
+        
+        .detail-label {
+            font-size: 13px;
+            color: #6c757d;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+        
+        .detail-label i {
+            margin-right: 8px;
+            color: var(--primary-color, #007bff);
+            font-size: 14px;
+            width: 16px;
+            text-align: center;
+        }
+        
+        .detail-value {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--dark-color, #212529);
+            overflow-wrap: break-word;
+            word-break: break-word;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .ticket-status-box {
+            background: linear-gradient(145deg, #f8f9fa, #ffffff);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            min-width: 250px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border: 1px solid rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ticket-status-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--primary-color);
+        }
+        
+        .status-container {
+            margin-top: 10px;
+            position: relative;
+            padding: 10px 0;
+        }
+        
+        .status-icon {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: var(--secondary-color);
+        }
+        
+        .status-updated {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+        }
+        
+        #status-date {
+            font-weight: 500;
+        }
+        
+        .priority-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 10px;
+            background-color: #e0e0e0;
+        }
+        
+        .priority-badge.high {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .priority-badge.medium {
+            background-color: #fff8e1;
+            color: #ff8f00;
+        }
+        
+        .priority-badge.low {
+            background-color: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .status-label {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .current-status {
+            font-weight: 600;
+            font-size: 18px;
+            margin: 0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            background-color: rgba(0,0,0,0.04);
+            display: inline-block;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        /* Styles spécifiques pour les différents statuts */
+        .current-status[style*="--primary-color"] {
+            background-color: rgba(var(--primary-rgb), 0.1);
+            color: var(--primary-color);
+        }
+        
+        .current-status[style*="--success-color"] {
+            background-color: rgba(var(--success-rgb), 0.1);
+            color: var(--success-color);
+        }
+        
+        .current-status[style*="--warning-color"] {
+            background-color: rgba(var(--warning-rgb), 0.1);
+            color: var(--warning-color);
+        }
+        
+        .current-status[style*="--danger-color"] {
+            background-color: rgba(var(--danger-rgb), 0.1);
+            color: var(--danger-color);
+        }
+        
+        .btn-icon {
+            background: none;
+            border: none;
+            color: var(--secondary-color);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-icon:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        
+        /* Modal pour l'agrandissement des images */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.8);
+        }
+        
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 90%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            color: #f1f1f1;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        @media (max-width: 768px) {
+            .tracking-form {
+                flex-direction: column;
+            }
+            
+            .document-info {
+                padding: 10px;
+                font-size: 12px;
+            }
+            
+            .document-name {
+                font-weight: 600;
+                margin-bottom: 3px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .document-type {
+                color: var(--text-secondary);
+            }
+            
+            /* Styles pour la barre de progression */
+            .progress-container {
+                margin: 30px 0;
+            }
+            
+            .progress-bar-container {
+                position: relative;
+                margin-top: 20px;
+                padding: 0 10px;
+            }
+            
+            .progress-bar {
+                height: 6px;
+                background-color: var(--primary-color);
+                border-radius: 3px;
+                position: relative;
+                z-index: 1;
+                width: 0;
+                transition: width 0.5s ease;
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            
+            .progress-steps {
+                overflow-x: auto;
+                padding-bottom: 10px;
+            }
+            
+            .progress-step {
+                min-width: 60px;
+                margin: 0 10px;
+            }
+        }
+        
+        /* Nouveaux styles pour le contenu explicatif */
+        .tracking-subtitle {
+            color: var(--text-secondary);
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+        
+        .tracking-intro {
+            margin-bottom: 40px;
+        }
+        
+        .info-box {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        
+        .info-box h2 {
+            color: var(--primary-color);
+            font-size: 20px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .info-box h2 i {
+            margin-right: 10px;
+        }
+        
+        /* Style des sections principales */
+        .ticket-info, .progress-container, .documents-section, .ticket-history, .communication-section {
+            margin-bottom: 30px;
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        /* Ajout de bordures colorées pour différencier les sections */
+        .ticket-info {
+            border-top: 4px solid var(--primary-color, #007bff);
+        }
+        
+        .progress-container {
+            border-top: 4px solid #28a745;
+        }
+        
+        .ticket-history {
+            border-top: 4px solid #6f42c1;
+            margin-top: 40px;
+        }
+        
+        .documents-section {
+            border-top: 4px solid #fd7e14;
+        }
+        
+        .communication-section {
+            border-top: 4px solid #20c997;
+        }
+        
+        .steps-container {
+            margin-top: 35px;
+            margin-bottom: 35px;
+            background-color: #fafafa;
+            border-radius: 10px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @media (min-width: 992px) {
+            .steps-container {
+                flex-direction: row;
+                flex-wrap: nowrap;
+                justify-content: space-between;
+                gap: 20px;
+            }
+        }
+        
+        .step {
+            display: flex;
+            margin-bottom: 30px;
+            align-items: flex-start;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            border-left: 4px solid var(--primary-color);
+            flex: 1;
+        }
+        
+        @media (min-width: 992px) {
+            .step {
+                margin-bottom: 0;
+                height: 100%;
+            }
+        }
+        
+        .step-number {
+            background-color: var(--primary-color);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+            box-shadow: 0 3px 6px rgba(220, 53, 69, 0.2);
+            font-size: 18px;
+        }
+        
+        .step-content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            flex: 1;
+        }
+        
+        .step-content h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 18px;
+            color: var(--dark-color);
+        }
+        
+        .status-section {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 35px;
+            margin-bottom: 35px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .status-section h2 {
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-section p {
+            margin-bottom: 20px;
+        }
+        
+        .status-list {
+            list-style-type: none;
+            padding-left: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .status-list li {
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            background-color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            border: 1px solid #eee;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 15px;
+            min-width: 120px;
+            text-align: center;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            letter-spacing: 0.3px;
+        }
+        
+        .status-badge.new {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        
+        .status-badge.analysis {
+            background-color: #cff4fc;
+            color: #055160;
+        }
+        
+        .status-badge.info {
+            background-color: #fff3cd;
+            color: #664d03;
+        }
+        
+        .status-badge.validated {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        
+        .status-badge.refused {
+            background-color: #f8d7da;
+            color: #842029;
+        }
+        
+        .status-badge.processing {
+            background-color: #cfe2ff;
+            color: #084298;
+        }
+        
+        .status-badge.shipped {
+            background-color: #e2e3e5;
+            color: #41464b;
+        }
+        
+        .status-badge.closed {
+            background-color: #d3d3d3;
+            color: #212529;
+        }
+        
+        .contact-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 35px;
+            border-left: 4px solid var(--warning-color);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+        }
+        
+        .contact-info p {
+            margin: 0;
+        }
+        
+        .contact-info a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .tracking-container {
+                width: 95%;
+                padding: 20px 15px;
+                margin: 20px auto;
+            }
+            
+            .tracking-header h1 {
+                font-size: 24px;
+            }
+            
+            .tracking-form {
+                flex-direction: column;
+                padding: 15px;
+                gap: 10px;
+            }
+            
+            .tracking-form::before {
+                left: 10px;
+            }
+            
+            .tracking-form button {
+                width: 100%;
+                padding: 12px 0;
+            }
+            
+            .step {
+                flex-direction: column;
+            }
+            
+            .step-number {
+                margin-bottom: 15px;
+            }
+            
+            .status-list {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-list li {
+                margin-bottom: 15px;
+            }
+            
+            .status-badge {
+                margin-bottom: 8px;
+                width: 100%;
+            }
+            
+            .contact-info {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .contact-info i {
+                margin-right: 0;
+                margin-bottom: 15px;
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tracking-container">
+        <div class="tracking-header">
+            <h1>Suivi de votre demande SAV</h1>
+            <p class="tracking-subtitle">Consultez l'état de traitement de votre dossier SAV en temps réel</p>
+        </div>
+        
+        <div class="search-section">
+            <h2 class="search-title"><i class="fas fa-search-location"></i> Rechercher votre ticket</h2>
+            <div class="tracking-form highlight-pulse">
+                <input type="text" id="ticket-number" placeholder="Ex: CPF-250725-3842" autocomplete="off">
+                <button id="search-ticket"><i class="fas fa-search"></i> Rechercher</button>
+            </div>
+        </div>
+        
+        <div class="loading">
+            <i class="fas fa-circle-notch"></i> Chargement en cours...
+        </div>
+        
+        <div class="error-message" id="error-message"></div>
+        
+        <div class="tracking-result" id="tracking-result">
+            <div class="ticket-info">
+                <h3 class="ticket-info-title"><i class="fas fa-clipboard-list"></i> Informations de la demande</h3>
+                <div class="ticket-header-flex">
+                    <div class="ticket-details">
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-hashtag"></i> Numéro de ticket</div>
+                            <div class="detail-value"><span id="display-ticket-number"></span> <button id="copy-ticket-number" class="btn-icon" title="Copier le numéro de ticket"><i class="fas fa-copy"></i></button></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-calendar-alt"></i> Date de création</div>
+                            <div class="detail-value"><span id="creation-date"></span></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-user"></i> Client</div>
+                            <div class="detail-value"><span id="client-name"></span></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-cog"></i> Type de pièce</div>
+                            <div class="detail-value"><span id="part-type"></span></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-exclamation-circle"></i> Type de réclamation</div>
+                            <div class="detail-value"><span id="claim-type"></span></div>
+                        </div>
+                    </div>
+                    <div class="ticket-status-box">
+                        <div class="ticket-status-container">
+                            <div class="detail-label"><i class="fas fa-info-circle"></i> Statut actuel</div>
+                            <div class="current-status"><span id="display-status" class=""></span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ticket-history">
+                    <h4><i class="fas fa-history"></i> Historique du traitement</h4>
+                    <div class="status-timeline" id="status-timeline">
+                        <!-- Status timeline items will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tracking-intro">
+            <div class="info-box">
+                <h2><i class="fas fa-info-circle"></i> Comment utiliser cet outil de suivi ?</h2>
+                <p>Cette page vous permet de suivre l'avancement du traitement de votre demande SAV chez Car Parts France. Vous pouvez vérifier à tout moment l'état de votre dossier, consulter l'historique des mises à jour et comprendre les prochaines étapes.</p>
+                
+                <div class="steps-container">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Saisissez votre numéro de ticket</h3>
+                            <p>Entrez le numéro de référence de votre ticket SAV dans le format <strong>CPF-JJMMAA-XXXX</strong> (exemple : CPF-250725-8079). Ce numéro vous a été communiqué par email lors de votre demande initiale.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Consultez les informations de votre dossier</h3>
+                            <p>Visualisez instantanément l'état actuel de votre dossier, les informations que vous avez fournies et l'historique complet des traitements effectués.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Comprenez les différents statuts</h3>
+                            <p>Tout au long du traitement, votre demande passera par différentes étapes. Chaque changement de statut vous sera notifié par email et visible dans l'historique de votre dossier.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="status-section">
+                    <h2><i class="fas fa-tag"></i> Légende des statuts</h2>
+                    <p>Votre demande SAV peut avoir les statuts suivants au cours de son traitement :</p>
+                    <ul class="status-list">
+                        <li><span class="status-badge new">Nouveau</span> Votre demande a été reçue et est en attente de traitement</li>
+                        <li><span class="status-badge analysis">En analyse</span> Nos équipes techniques étudient votre dossier</li>
+                        <li><span class="status-badge info">Info complémentaire</span> Des informations supplémentaires sont nécessaires</li>
+                        <li><span class="status-badge validated">Validé</span> Votre demande a été acceptée</li>
+                        <li><span class="status-badge refused">Refusé</span> Votre demande n'a pas pu être acceptée</li>
+                        <li><span class="status-badge processing">En cours de traitement</span> Nous préparons votre solution</li>
+                        <li><span class="status-badge shipped">Expédié</span> Votre commande/solution est en route</li>
+                        <li><span class="status-badge closed">Clôturé</span> Votre dossier est terminé</li>
+                    </ul>
+                </div>
+                
+                <div class="contact-info">
+                    <i class="fas fa-headset" style="font-size: 24px; color: var(--warning-color); margin-right: 20px;"></i>
+                    <p><strong>Besoin d'aide ?</strong> Si vous ne trouvez pas votre numéro de ticket ou avez des questions sur votre dossier, contactez notre service client au <a href="tel:+33123456789">01 23 45 67 89</a> ou par email à <a href="mailto:sav@carpartsfrance.com">sav@carpartsfrance.com</a>.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tracking-result" style="display: none;">
+            <!-- Informations principales du ticket et statut -->
+            <div class="ticket-info">
+                <h3 class="ticket-info-title"><i class="fas fa-clipboard-list"></i> Informations de la demande</h3>
+                <div class="ticket-header-flex">
+                    <div class="ticket-details">
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-hashtag"></i> Numéro de ticket</div>
+                            <div class="detail-value"><span id="display-ticket-number"></span> <button id="copy-ticket-number" class="btn-icon" title="Copier le numéro de ticket"><i class="fas fa-copy"></i></button></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-calendar-alt"></i> Date de création</div>
+                            <div class="detail-value"><span id="creation-date"></span></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-user"></i> Client</div>
+                            <div class="detail-value"><span id="client-name"></span></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-cog"></i> Type de pièce</div>
+                            <div class="detail-value"><span id="part-type"></span></div>
+                        </div>
+                        <div class="ticket-detail-item">
+                            <div class="detail-label"><i class="fas fa-exclamation-circle"></i> Type de réclamation</div>
+                            <div class="detail-value"><span id="claim-type"></span></div>
+                        </div>
+                    </div>
+                    <!-- Statut actuel du ticket bien visible -->
+                    <div class="ticket-status-box">
+                        <h4><i class="fas fa-info-circle"></i> Statut actuel</h4>
+                        <div class="current-status"><span id="display-status" class=""></span></div>
+                        <div class="status-date-container">Dernière mise à jour: <span id="status-date"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barre de progression pour une vision claire de l'avancement -->
+            <div class="progress-container">
+                <h3 data-percent="0%">Progression du dossier (0%)</h3>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar" style="width: 0%;"></div>
+                    <div class="progress-steps" id="progress-steps"></div>
+                </div>
+            </div>
+
+            <!-- Historique du ticket déplacé avant les documents pour plus de logique -->
+            <div class="ticket-history">
+                <h4><i class="fas fa-history"></i> Historique du traitement</h4>
+                <div class="status-timeline" id="status-timeline"></div>
+            </div>
+
+            <!-- Documents associés -->
+            <div class="documents-section">
+                <h3><i class="fas fa-file-alt"></i> Documents associés</h3>
+                <div class="documents-grid" id="documents-grid"></div>
+            </div>
+
+            <!-- Section de communication en dernier car c'est une action -->
+            <div class="communication-section" id="communication-section">
+                <h3><i class="fas fa-comment-dots"></i> Envoyer des informations complémentaires</h3>
+                <div class="info-request-message" id="info-request-message" style="display: none;">
+                    <!-- Message de demande d'informations s'affichera ici si nécessaire -->
+                </div>
+                <form id="additional-info-form" class="additional-info-form">
+                    <div class="form-group">
+                        <label for="additional-message">Votre message:</label>
+                        <textarea id="additional-message" rows="4" placeholder="Saisissez votre message ou les informations demandées..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="additional-files">Joindre des fichiers:</label>
+                        <div class="file-upload-container">
+                            <input type="file" id="additional-files" multiple class="file-input">
+                            <label for="additional-files" class="file-label"><i class="fas fa-cloud-upload-alt"></i> Sélectionner des fichiers</label>
+                            <div class="selected-files" id="selected-files"></div>
+                        </div>
+                    </div>
+                    <button type="submit" class="submit-btn"><i class="fas fa-paper-plane"></i> Envoyer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="tracking.js"></script>
+</body>
+</html>

@@ -1,0 +1,1572 @@
+// Rendre certaines variables et fonctions accessibles globalement pour kanban.js
+window.authToken = localStorage.getItem('authToken');
+
+// Traduction des types de pièces (globale)
+window.partTypeTranslations = {
+    'boite_vitesses': 'Boîte de vitesses',
+    'moteur': 'Moteur',
+    'mecatronique': 'Mécatronique',
+    'boite_transfert': 'Boîte de transfert',
+    'pont': 'Pont',
+    'autres': 'Autres pièces'
+};
+
+// Traductions des statuts (globale)
+window.statusTranslations = {
+    'nouveau': 'Nouveau',
+    'en_analyse': 'En analyse',
+    'info_complementaire': 'Info complémentaire',
+    'validé': 'Validé',
+    'refusé': 'Refusé',
+    'en_cours_traitement': 'En traitement',
+    'expédié': 'Expédié',
+    'clôturé': 'Clôturé'
+};
+
+// Traductions des priorités (globale)
+window.priorityTranslations = {
+    'urgent': 'Urgent',
+    'élevé': 'Élevé',
+    'moyen': 'Moyen',
+    'faible': 'Faible'
+};
+
+// Fonction pour formater une date (globale)
+window.formatDate = function(dateString) {
+    const options = { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    };
+    return new Date(dateString).toLocaleDateString('fr-FR', options);
+};
+
+// Fonction pour supprimer un ticket (globale)
+window.deleteTicket = async function(ticketId, ticketNumber, event) {
+    // Si l'événement est fourni, empêcher le comportement par défaut
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    try {
+        console.log('Suppression du ticket:', ticketId, ticketNumber);
+        
+        // Vérifier que l'ID du ticket est valide
+        if (!ticketId) {
+            throw new Error('ID du ticket manquant');
+        }
+        
+        // Demander confirmation avant de supprimer
+        const confirmed = confirm(`Êtes-vous sûr de vouloir supprimer le ticket ${ticketNumber} ? Cette action est irréversible.`);
+        
+        if (!confirmed) {
+            return; // Annuler si l'utilisateur n'a pas confirmé
+        }
+        
+        console.log('Envoi de la requête DELETE pour le ticket:', ticketId);
+        
+        // Forcer l'utilisation du port 3000
+        const baseUrl = 'http://localhost:3000';
+        console.log('URL de base forcée:', baseUrl);
+        
+        // Utiliser l'URL complète avec le port 3000
+        const deleteUrl = `${baseUrl}/api/admin/tickets/${ticketId}`;
+        console.log('URL de suppression:', deleteUrl);
+        
+        try {
+            const response = await fetch(deleteUrl, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Basic ${authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                // Ajouter des options pour s'assurer que les cookies sont envoyés
+                credentials: 'same-origin'
+            });
+            
+            console.log('Statut de la réponse:', response.status);
+            
+            // Gérer les réponses non-JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('Réponse non-JSON reçue:', text);
+                throw new Error(`Erreur serveur: ${response.status} ${response.statusText}`);
+            }
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    // Cas spécifique pour les tickets non trouvés
+                    showNotification('error', `Le ticket ${ticketNumber} n'existe plus dans la base de données. La page va être rechargée.`);
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                    return;
+                } else if (response.status === 401) {
+                    throw new Error('Accès non autorisé. Veuillez vous reconnecter.');
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Erreur lors de la suppression du ticket');
+                }
+            }
+        } catch (fetchError) {
+            console.error('Erreur lors de la requête fetch:', fetchError);
+            if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
+                showNotification('error', 'Erreur de connexion au serveur. Vérifiez que le serveur est en cours d\'exécution sur le port 3000.');
+                throw new Error('Erreur de connexion au serveur');
+            }
+            throw fetchError;
+        }
+        
+        // Afficher une notification de succès
+        window.showNotification(`Le ticket ${ticketNumber} a été supprimé avec succès`, 'success');
+        
+        // Éviter tout rechargement automatique de la page
+        
+        // Vérifier quelle vue est actuellement active
+        const isKanbanActive = document.getElementById('kanban-view') && 
+                            window.getComputedStyle(document.getElementById('kanban-view')).display !== 'none';
+        const isListActive = document.getElementById('list-view') && 
+                          window.getComputedStyle(document.getElementById('list-view')).display !== 'none';
+        
+        console.log('Vue active:', isKanbanActive ? 'Kanban' : (isListActive ? 'Liste' : 'Inconnue'));
+        
+        // Si nous sommes dans la vue Kanban, rafraîchir la vue
+        if (isKanbanActive) {
+            console.log('Vue Kanban détectée, rafraîchissement...');
+            if (typeof refreshKanbanView === 'function') {
+                refreshKanbanView();
+            }
+        } else {
+            console.log('Vue liste détectée, suppression de la ligne...');
+            console.log('ID du ticket à supprimer:', ticketId);
+            
+            // Afficher toutes les lignes de tickets disponibles pour débogage
+            const allRows = document.querySelectorAll('tr.ticket-row');
+            console.log('Nombre total de lignes de tickets:', allRows.length);
+            allRows.forEach(row => {
+                console.log('Ligne trouvée avec ID:', row.getAttribute('data-ticket-id'), 
+                          'Contenu:', row.textContent.substring(0, 30) + '...');
+            });
+            
+            // Trouver la ligne du ticket dans le tableau (plusieurs sélecteurs possibles)
+            let ticketRow = document.querySelector(`tr[data-ticket-id="${ticketId}"]`);
+            console.log('Résultat de recherche avec tr[data-ticket-id]:', ticketRow);
+            
+            if (!ticketRow) {
+                ticketRow = document.querySelector(`.ticket-row[data-id="${ticketId}"]`);
+                console.log('Résultat de recherche avec .ticket-row[data-id]:', ticketRow);
+            }
+            
+            if (!ticketRow) {
+                console.log('Recherche par contenu textuel...');
+                // Essayer de trouver par le numéro de ticket
+                const rows = document.querySelectorAll('tr');
+                for (const row of rows) {
+                    if (row.textContent.includes(ticketNumber)) {
+                        ticketRow = row;
+                        console.log('Ligne trouvée par contenu textuel:', row);
+                        break;
+                    }
+                }
+            }
+            
+            if (ticketRow) {
+                console.log('Ligne de ticket trouvée:', ticketRow);
+                // Désactiver tous les boutons d'action dans cette ligne
+                const actionButtons = ticketRow.querySelectorAll('button');
+                actionButtons.forEach(button => {
+                    button.disabled = true;
+                    button.style.opacity = '0.5';
+                    button.style.cursor = 'not-allowed';
+                });
+                
+                // Animation de suppression
+                ticketRow.style.transition = 'all 0.5s ease';
+                ticketRow.style.backgroundColor = '#ffcccc';
+                
+                setTimeout(() => {
+                    ticketRow.style.opacity = '0';
+                    ticketRow.style.height = '0';
+                    ticketRow.style.overflow = 'hidden';
+                    
+                    setTimeout(() => {
+                        ticketRow.remove();
+                        // Mettre à jour les compteurs
+                        if (typeof updateTicketCounters === 'function') {
+                            updateTicketCounters();
+                        }
+                    }, 500);
+                }, 300);
+            } else {
+                console.log('Ligne du ticket non trouvée dans le DOM');
+            }
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors de la suppression du ticket:', error);
+        window.showNotification(error.message, 'error');
+        
+        if (error.message === 'Unauthorized') {
+            logout();
+        }
+    }
+};
+
+// Fonction auxiliaire pour mettre à jour les compteurs de tickets
+window.updateTicketCounters = function() {
+    // Récupérer tous les tickets actuellement affichés
+    const tickets = document.querySelectorAll('.ticket-row');
+    
+    // Compteurs
+    let pendingCount = 0;
+    let resolvedCount = 0;
+    let urgentCount = 0;
+    
+    // Analyser chaque ticket
+    tickets.forEach(ticket => {
+        const status = ticket.getAttribute('data-status');
+        const priority = ticket.getAttribute('data-priority');
+        const dateCreated = ticket.getAttribute('data-date');
+        
+        if (status === 'clôturé') {
+            resolvedCount++;
+        } else {
+            pendingCount++;
+            
+            // Vérifier si le ticket est urgent (nouveau et plus de 2 jours)
+            if (status === 'nouveau' && dateCreated) {
+                const ticketDate = new Date(dateCreated);
+                const now = new Date();
+                const diffTime = Math.abs(now - ticketDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays >= 2 || priority === 'urgent') {
+                    urgentCount++;
+                }
+            }
+        }
+    });
+    
+    // Mettre à jour les compteurs dans l'interface
+    const pendingElement = document.getElementById('pending-tickets');
+    const resolvedElement = document.getElementById('resolved-tickets');
+    const urgentElement = document.getElementById('urgent-tickets');
+    
+    if (pendingElement) pendingElement.textContent = pendingCount;
+    if (resolvedElement) resolvedElement.textContent = resolvedCount;
+    if (urgentElement) urgentElement.textContent = urgentCount;
+};
+
+// Fonction pour afficher les détails d'un ticket (globale)
+window.viewTicket = async function(ticketId) {
+    try {
+        window.currentTicketId = ticketId;
+        
+        // Récupérer les détails du ticket
+        const response = await fetch(`/api/admin/tickets/${ticketId}`, {
+            headers: {
+                'Authorization': `Basic ${window.authToken}`
+            }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('Unauthorized');
+            }
+            throw new Error('Erreur lors de la récupération des détails du ticket');
+        }
+        
+        const ticket = await response.json();
+        
+        // Masquer la liste des tickets et afficher les détails
+        document.getElementById('admin-dashboard').style.display = 'none';
+        document.getElementById('ticket-details').style.display = 'block';
+        
+        // Remplir les détails du ticket
+        window.displayTicketDetails(ticket);
+        
+    } catch (error) {
+        console.error('Erreur lors de la récupération des détails du ticket:', error);
+        if (error.message === 'Unauthorized') {
+            logout();
+        }
+        window.showNotification('Erreur lors de la récupération des détails du ticket', 'error');
+    }
+};
+
+// Fonction pour afficher les détails d'un ticket (globale)
+window.displayTicketDetails = function(ticket, statusHistory) {
+    // Mettre à jour le fil d'Ariane
+    document.getElementById('breadcrumb-ticket-number').textContent = ticket.ticketNumber;
+    
+    // Informations générales
+    document.getElementById('detail-ticket-number').textContent = ticket.ticketNumber;
+    
+    // Afficher la priorité actuelle
+    const priorityElement = document.getElementById('detail-ticket-priority');
+    if (ticket.priority) {
+        const priorityText = window.priorityTranslations[ticket.priority] || ticket.priority;
+        priorityElement.textContent = `Priorité: ${priorityText}`;
+        priorityElement.className = `priority-badge priority-${ticket.priority}`;
+        priorityElement.style.display = 'inline-block';
+    } else {
+        priorityElement.textContent = 'Priorité: Moyenne';
+        priorityElement.className = 'priority-badge priority-moyen';
+        priorityElement.style.display = 'inline-block';
+    }
+    
+    // Informations client
+    document.getElementById('detail-client-name').textContent = `${ticket.clientInfo.firstName} ${ticket.clientInfo.lastName}`;
+    document.getElementById('detail-client-email').textContent = ticket.clientInfo.email;
+    document.getElementById('detail-client-phone').textContent = ticket.clientInfo.phone;
+    document.getElementById('detail-order-number').textContent = ticket.orderInfo.orderNumber;
+    
+    // Informations véhicule
+    document.getElementById('detail-vehicle-vin').textContent = ticket.vehicleInfo.vin || 'Non spécifié';
+    document.getElementById('detail-installation-date').textContent = ticket.vehicleInfo.installationDate ? formatDate(ticket.vehicleInfo.installationDate) : 'Non spécifié';
+    
+    // Informations pièce et problème
+    document.getElementById('detail-part-type').textContent = partTypeTranslations[ticket.partInfo.partType] || ticket.partInfo.partType;
+    document.getElementById('detail-symptom').textContent = ticket.partInfo.symptom || 'Non spécifié';
+    document.getElementById('detail-failure-time').textContent = ticket.partInfo.failureTime || 'Non spécifié';
+    document.getElementById('detail-error-codes').textContent = ticket.partInfo.errorCodes || 'Non spécifié';
+    document.getElementById('detail-pro-installation').textContent = ticket.partInfo.professionalInstallation ? 'Oui' : 'Non';
+    document.getElementById('detail-oil-filled').textContent = ticket.partInfo.oilFilled ? 'Oui' : 'Non';
+    document.getElementById('detail-oil-quantity').textContent = ticket.partInfo.oilQuantity ? `${ticket.partInfo.oilQuantity} L` : 'Non spécifié';
+    document.getElementById('detail-oil-reference').textContent = ticket.partInfo.oilReference || 'Non spécifié';
+    document.getElementById('detail-new-parts').textContent = ticket.partInfo.newParts ? 'Oui' : 'Non';
+    document.getElementById('detail-parts-details').textContent = ticket.partInfo.newPartsDetails || 'Non spécifié';
+    
+    // Notes internes
+    document.getElementById('internal-notes').value = ticket.internalNotes || '';
+};
+
+// Fonction de notification (globale)
+window.showNotification = function(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 3000);
+};
+function initCollapsibleFilters() {
+    const toggleFilters = document.getElementById('toggle-filters');
+    const filtersContent = document.getElementById('filters-content');
+    const toggleIcon = document.querySelector('.toggle-icon i');
+    
+    // Vérifier si les éléments existent
+    if (!toggleFilters || !filtersContent || !toggleIcon) return;
+    
+    // Récupérer l'état précédent des filtres (ouvert ou fermé)
+    const isCollapsed = localStorage.getItem('filtersCollapsed') === 'true';
+    
+    // Appliquer l'état initial
+    if (isCollapsed) {
+        filtersContent.classList.add('collapsed');
+        toggleIcon.classList.remove('fa-chevron-down');
+        toggleIcon.classList.add('fa-chevron-right');
+    }
+    
+    // Ajouter l'événement de clic pour basculer l'état
+    toggleFilters.addEventListener('click', function() {
+        filtersContent.classList.toggle('collapsed');
+        
+        // Mettre à jour l'icône
+        const isCollapsed = filtersContent.classList.contains('collapsed');
+        toggleIcon.classList.toggle('fa-chevron-down', !isCollapsed);
+        toggleIcon.classList.toggle('fa-chevron-right', isCollapsed);
+        
+        // Sauvegarder l'état dans le localStorage
+        localStorage.setItem('filtersCollapsed', isCollapsed);
+    });
+    
+    // Initialiser les onglets de filtres
+    initFilterTabs();
+}
+
+// Fonction pour initialiser les onglets de filtres
+function initFilterTabs() {
+    const tabButtons = document.querySelectorAll('.filter-tab-btn');
+    const tabContents = document.querySelectorAll('.filter-tab-content');
+    
+    // Vérifier si les éléments existent
+    if (!tabButtons.length || !tabContents.length) return;
+    
+    // Récupérer l'onglet actif précédent
+    const activeTab = localStorage.getItem('activeFilterTab') || 'basic';
+    
+    // Activer l'onglet par défaut ou celui sauvegardé
+    activateTab(activeTab);
+    
+    // Ajouter les événements de clic pour chaque bouton d'onglet
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const tabName = this.getAttribute('data-tab');
+            activateTab(tabName);
+            
+            // Sauvegarder l'onglet actif dans le localStorage
+            localStorage.setItem('activeFilterTab', tabName);
+        });
+    });
+    
+    // Synchroniser les filtres entre les onglets
+    setupFilterSync();
+    
+    // Fonction pour activer un onglet spécifique
+    function activateTab(tabName) {
+        // Désactiver tous les onglets
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
+        
+        // Activer l'onglet sélectionné
+        const selectedButton = document.querySelector(`.filter-tab-btn[data-tab="${tabName}"]`);
+        const selectedContent = document.getElementById(`tab-${tabName}`);
+        
+        if (selectedButton && selectedContent) {
+            selectedButton.classList.add('active');
+            selectedContent.classList.add('active');
+        }
+    }
+
+// Fonction pour initialiser les filtres et la recherche
+function initFilters() {
+// Initialiser les onglets de filtres
+initFilterTabs();
+
+// Synchroniser les filtres de statut entre les onglets
+const statusFilterBasic = document.getElementById('status-filter');
+const statusFilterAdvanced = document.getElementById('status-filter-advanced');
+
+if (statusFilterBasic && statusFilterAdvanced) {
+    statusFilterBasic.addEventListener('change', function() {
+        statusFilterAdvanced.value = this.value;
+    });
+
+    statusFilterAdvanced.addEventListener('change', function() {
+        statusFilterBasic.value = this.value;
+    });
+}
+
+// Synchroniser les filtres de type de pièce entre les onglets
+const partFilterBasic = document.getElementById('part-filter');
+const partFilterAdvanced = document.getElementById('part-filter-advanced');
+
+if (partFilterBasic && partFilterAdvanced) {
+    partFilterBasic.addEventListener('change', function() {
+        partFilterAdvanced.value = this.value;
+    });
+
+    partFilterAdvanced.addEventListener('change', function() {
+        partFilterBasic.value = this.value;
+    });
+}
+
+// Synchroniser les filtres de priorité entre les onglets
+const priorityFilterBasic = document.getElementById('priority-filter-basic');
+const priorityFilter = document.getElementById('priority-filter');
+
+if (priorityFilterBasic && priorityFilter) {
+    priorityFilterBasic.addEventListener('change', function() {
+        priorityFilter.value = this.value;
+    });
+
+    priorityFilter.addEventListener('change', function() {
+        priorityFilterBasic.value = this.value;
+    });
+}
+}    
+
+document.addEventListener('DOMContentLoaded', function() {
+// Initialiser les filtres collapsibles
+initCollapsibleFilters();
+
+// Gestion des onglets dans la vue détaillée
+function initTabsSystem() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.getAttribute('data-tab');
+
+            // Désactiver tous les onglets
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            // Activer l'onglet sélectionné
+            button.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+    // Initialiser les filtres collapsibles
+    initCollapsibleFilters();
+    
+    // Gestion des onglets dans la vue détaillée
+    function initTabsSystem() {
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                
+                // Désactiver tous les onglets
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Activer l'onglet sélectionné
+                button.classList.add('active');
+                document.getElementById(`tab-${tabId}`).classList.add('active');
+            });
+        });
+    }
+    
+    // Initialisation des variables globales
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const adminLogin = document.getElementById('admin-login');
+    const adminDashboard = document.getElementById('admin-dashboard');
+    const ticketDetails = document.getElementById('ticket-details');
+    const logoutBtn = document.getElementById('logout-btn');
+    const backToListBtn = document.getElementById('back-to-list');
+    const searchBtn = document.getElementById('search-btn');
+    const searchInput = document.getElementById('search-input');
+    const statusFilter = document.getElementById('status-filter');
+    const partFilter = document.getElementById('part-filter');
+    const ticketsList = document.getElementById('tickets-list');
+    const pagination = document.getElementById('pagination');
+    const updateStatusForm = document.getElementById('update-status-form');
+    const newStatusSelect = document.getElementById('new-status');
+    const additionalInfoGroup = document.getElementById('additional-info-group');
+    const saveNotesBtn = document.getElementById('save-notes');
+    
+    // Variables globales
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentTicketId = null;
+    let authToken = window.authToken;
+    
+    // Traduction des types de pièces
+    const partTypeTranslations = {
+        'boite_vitesses': 'Boîte de vitesses',
+        'moteur': 'Moteur',
+        'mecatronique': 'Mécatronique',
+        'boite_transfert': 'Boîte de transfert',
+        'pont': 'Pont',
+        'autres': 'Autres pièces'
+    };
+    
+    // Traductions des statuts et types de pièces
+    const statusTranslations = {
+        'nouveau': 'Nouveau',
+        'en_analyse': 'En analyse',
+        'info_complementaire': 'Info complémentaire',
+        'validé': 'Validé',
+        'refusé': 'Refusé',
+        'en_cours_traitement': 'En traitement',
+        'expédié': 'Expédié',
+        'clôturé': 'Clôturé'
+    };
+    
+    // Traductions des priorités
+    const priorityTranslations = {
+        'faible': 'Faible',
+        'moyen': 'Moyenne',
+        'élevé': 'Élevée',
+        'urgent': 'Urgente'
+    };
+    
+    // Icônes pour les statuts
+    const statusIcons = {
+        'nouveau': 'fa-file',
+        'en_analyse': 'fa-magnifying-glass',
+        'info_complementaire': 'fa-circle-question',
+        'validé': 'fa-check',
+        'refusé': 'fa-xmark',
+        'en_cours_traitement': 'fa-gear',
+        'expédié': 'fa-truck',
+        'clôturé': 'fa-flag-checkered'
+    };
+    
+    // Icônes pour les types de documents
+    const documentTypeIcons = {
+        'lecture_obd': 'fa-microchip',
+        'photo_piece': 'fa-image',
+        'factures_pieces': 'fa-receipt',
+        'media_transmission': 'fa-film',
+        'factures_transmission': 'fa-file-invoice-dollar',
+        'photos_moteur': 'fa-camera',
+        'factures_entretien': 'fa-wrench',
+        'documents_autres': 'fa-file'
+    };
+    
+    // Traductions pour les types de documents
+    const documentTypeTranslations = {
+        'lecture_obd': 'Lecture OBD',
+        'photo_piece': 'Photos de la pièce',
+        'factures_pieces': 'Factures des pièces',
+        'media_transmission': 'Vidéo symptôme',
+        'factures_transmission': 'Factures de transmission',
+        'photos_moteur': 'Photos du moteur',
+        'factures_entretien': 'Factures d\'entretien',
+        'documents_autres': 'Autres documents'
+    };
+    
+    // Ordre d'affichage des types de documents
+    const documentTypeOrder = [
+        'factures_pieces',
+        'factures_transmission',
+        'factures_entretien',
+        'lecture_obd',
+        'media_transmission',
+        'photo_piece',
+        'photos_moteur',
+        'documents_autres'
+    ];
+    
+    // Fonction pour formater une date
+    function formatDate(dateString) {
+        const options = { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        };
+        return new Date(dateString).toLocaleDateString('fr-FR', options);
+    }
+    
+    // Vérifier si l'utilisateur est connecté
+    function checkAuth() {
+        if (authToken) {
+            adminLogin.style.display = 'none';
+            adminDashboard.style.display = 'block';
+            loadDashboard();
+        } else {
+            adminLogin.style.display = 'flex';
+            adminDashboard.style.display = 'none';
+            ticketDetails.style.display = 'none';
+        }
+    }
+    
+    // Fonction de connexion
+    async function login(username, password) {
+        try {
+            // Créer le token Basic Auth
+            const token = btoa(`${username}:${password}`);
+            
+            // Tester la connexion en récupérant la liste des tickets
+            const response = await fetch('/api/admin/tickets', {
+                headers: {
+                    'Authorization': `Basic ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                // Stocker le token et afficher le tableau de bord
+                localStorage.setItem('authToken', token);
+                authToken = token;
+                checkAuth();
+            } else {
+                throw new Error('Identifiants incorrects');
+            }
+        } catch (error) {
+            loginError.textContent = error.message;
+            loginError.style.display = 'block';
+        }
+    }
+    
+    // Fonction de déconnexion
+    function logout() {
+        localStorage.removeItem('authToken');
+        authToken = null;
+        checkAuth();
+    }
+    
+    // Charger le tableau de bord
+    async function loadDashboard() {
+        try {
+            await loadTickets();
+            await loadStats();
+        } catch (error) {
+            console.error('Erreur lors du chargement du tableau de bord:', error);
+            if (error.message === 'Unauthorized') {
+                logout();
+            }
+        }
+    }
+    
+    // Charger les statistiques
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/admin/tickets?limit=0', {
+                headers: {
+                    'Authorization': `Basic ${authToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Unauthorized');
+                }
+                throw new Error('Erreur lors de la récupération des statistiques');
+            }
+            
+            const data = await response.json();
+            
+            // Compter les tickets par statut
+            const totalTickets = data.pagination.total;
+            let pendingTickets = 0;
+            let resolvedTickets = 0;
+            let urgentTickets = 0;
+            
+            data.tickets.forEach(ticket => {
+                if (['nouveau', 'en_analyse', 'info_complementaire', 'en_cours_traitement'].includes(ticket.currentStatus)) {
+                    pendingTickets++;
+                }
+                
+                if (['validé', 'expédié', 'clôturé'].includes(ticket.currentStatus)) {
+                    resolvedTickets++;
+                }
+                
+                // Considérer comme urgent les tickets nouveaux de plus de 48h
+                const ticketDate = new Date(ticket.createdAt);
+                const now = new Date();
+                const diffTime = Math.abs(now - ticketDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (ticket.currentStatus === 'nouveau' && diffDays >= 2) {
+                    urgentTickets++;
+                }
+            });
+            
+            // Mettre à jour les compteurs
+            document.getElementById('total-tickets').textContent = totalTickets;
+            document.getElementById('pending-tickets').textContent = pendingTickets;
+            document.getElementById('resolved-tickets').textContent = resolvedTickets;
+            document.getElementById('urgent-tickets').textContent = urgentTickets;
+            
+        } catch (error) {
+            console.error('Erreur lors du chargement des statistiques:', error);
+            throw error;
+        }
+    }
+    
+    // Charger la liste des tickets
+    async function loadTickets(page = 1, filters = {}) {
+        try {
+            currentPage = page;
+            
+            console.log('loadTickets appelé avec les filtres:', filters);
+            
+            // Construire l'URL avec les paramètres
+            let url = `/api/admin/tickets?page=${page}&limit=10`;
+            
+            // Ajouter les filtres à l'URL
+            if (filters.search) url += `&search=${encodeURIComponent(filters.search)}`;
+            if (filters.status) url += `&status=${encodeURIComponent(filters.status)}`;
+            if (filters.partType) url += `&partType=${encodeURIComponent(filters.partType)}`;
+            if (filters.ticketNumber) url += `&ticketNumber=${encodeURIComponent(filters.ticketNumber)}`;
+            if (filters.orderNumber) url += `&orderNumber=${encodeURIComponent(filters.orderNumber)}`;
+            if (filters.clientFirstName) url += `&clientFirstName=${encodeURIComponent(filters.clientFirstName)}`;
+            if (filters.clientName) url += `&clientName=${encodeURIComponent(filters.clientName)}`;
+            if (filters.dateFrom) url += `&dateFrom=${encodeURIComponent(filters.dateFrom)}`;
+            if (filters.dateTo) url += `&dateTo=${encodeURIComponent(filters.dateTo)}`;
+            if (filters.priority) url += `&priority=${encodeURIComponent(filters.priority)}`;
+            
+            console.log('URL de requête construite:', url);
+            
+            // Vérifier que le token d'authentification est disponible
+            if (!authToken) {
+                console.error('Erreur: Token d\'authentification manquant');
+                logout(); // Rediriger vers la page de connexion
+                return;
+            }
+            
+            console.log('Token d\'authentification utilisé:', authToken);
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Basic ${authToken}`
+                }
+            });
+            
+            console.log('Statut de la réponse:', response.status);
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    console.error('Erreur 401: Non autorisé');
+                    throw new Error('Unauthorized');
+                }
+                console.error('Erreur HTTP:', response.status);
+                throw new Error('Erreur lors de la récupération des tickets');
+            }
+            
+            const data = await response.json();
+            console.log('Données reçues du serveur:', data);
+            
+            // Mettre à jour la pagination
+            totalPages = data.pagination.pages;
+            updatePagination();
+            
+            // Afficher les tickets
+            displayTickets(data.tickets);
+            
+            // Rafraîchir la vue Kanban si elle existe
+            if (typeof window.refreshKanbanView === 'function') {
+                window.refreshKanbanView();
+            }
+            
+        } catch (error) {
+            console.error('Erreur lors du chargement des tickets:', error);
+            showNotification('Erreur lors du chargement des tickets', 'error');
+            throw error;
+        }
+    }
+    
+    // Afficher la liste des tickets
+    function displayTickets(tickets) {
+        ticketsList.innerHTML = '';
+        
+        // Supprimer le compteur de résultats précédent s'il existe
+        const existingResultCount = document.querySelector('.result-count');
+        if (existingResultCount) {
+            existingResultCount.remove();
+        }
+        
+        // Créer un élément pour afficher le nombre de résultats
+        const resultCount = document.createElement('div');
+        resultCount.className = 'result-count';
+        resultCount.textContent = `${tickets.length} ticket(s) trouvé(s)`;
+        resultCount.style.margin = '10px 0';
+        resultCount.style.fontWeight = 'bold';
+        
+        // Insérer avant la table des tickets
+        const ticketsTable = document.querySelector('.tickets-table');
+        ticketsTable.parentNode.insertBefore(resultCount, ticketsTable);
+        
+        if (tickets.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="7" style="text-align: center;">Aucun ticket trouvé</td>';
+            ticketsList.appendChild(emptyRow);
+            return;
+        }
+        
+        tickets.forEach(ticket => {
+            const row = document.createElement('tr');
+            row.className = 'ticket-row';
+            row.setAttribute('data-ticket-id', ticket._id);
+            row.setAttribute('data-status', ticket.currentStatus);
+            row.setAttribute('data-priority', ticket.priority || 'moyen');
+            row.setAttribute('data-date', ticket.createdAt);
+            
+            // Appliquer un style en fonction de la priorité
+            if (ticket.priority) {
+                switch(ticket.priority) {
+                    case 'urgent':
+                        row.classList.add('priority-urgent');
+                        break;
+                    case 'élevé':
+                        row.classList.add('priority-high');
+                        break;
+                    case 'moyen':
+                        row.classList.add('priority-medium');
+                        break;
+                    case 'faible':
+                        row.classList.add('priority-low');
+                        break;
+                }
+            }
+            
+            // Formater la date
+            const createdAt = formatDate(ticket.createdAt);
+            
+            // Créer la cellule de priorité
+            const priorityCell = document.createElement('td');
+            const priorityBadge = document.createElement('span');
+            priorityBadge.className = `priority-badge priority-${ticket.priority || 'moyen'}`;
+            priorityBadge.textContent = priorityTranslations[ticket.priority] || priorityTranslations['moyen'];
+            priorityCell.appendChild(priorityBadge);
+            
+            // Créer la cellule de statut avec badge
+            const statusCell = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `status-badge status-${ticket.currentStatus}`;
+            statusBadge.textContent = statusTranslations[ticket.currentStatus] || ticket.currentStatus;
+            statusCell.appendChild(statusBadge);
+            
+            // Créer la cellule d'actions
+            const actionsCell = document.createElement('td');
+            const viewButton = document.createElement('button');
+            viewButton.className = 'btn-view';
+            viewButton.innerHTML = '<i class="fas fa-eye"></i>';
+            viewButton.title = 'Voir les détails';
+            viewButton.addEventListener('click', () => viewTicket(ticket._id));
+            actionsCell.appendChild(viewButton);
+            
+            // Ajouter un bouton de suppression
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'btn-delete';
+            deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+            deleteButton.title = 'Supprimer le ticket';
+            deleteButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                deleteTicket(ticket._id, ticket.ticketNumber, event);
+                return false;
+            });
+            actionsCell.appendChild(deleteButton);
+            
+            // Créer les cellules individuellement pour éviter d'écraser les attributs
+            const tdTicketNumber = document.createElement('td');
+            tdTicketNumber.textContent = ticket.ticketNumber;
+            
+            const tdClientName = document.createElement('td');
+            tdClientName.textContent = `${ticket.clientInfo.firstName} ${ticket.clientInfo.lastName}`;
+            
+            const tdPartType = document.createElement('td');
+            tdPartType.textContent = partTypeTranslations[ticket.partInfo.partType] || ticket.partInfo.partType;
+            
+            const tdCreatedAt = document.createElement('td');
+            tdCreatedAt.textContent = createdAt;
+            
+            // Ajouter les cellules à la ligne
+            row.appendChild(tdTicketNumber);
+            row.appendChild(tdClientName);
+            row.appendChild(tdPartType);
+            row.appendChild(tdCreatedAt);
+            row.appendChild(priorityCell);
+            row.appendChild(statusCell);
+            row.appendChild(actionsCell);
+            
+            ticketsList.appendChild(row);
+        });
+    }
+    
+    // Mettre à jour la pagination
+    function updatePagination() {
+        pagination.innerHTML = '';
+        
+        // Bouton précédent
+        const prevButton = document.createElement('button');
+        prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+        prevButton.disabled = currentPage === 1;
+        prevButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                loadTickets(currentPage - 1, collectFilters());
+            }
+        });
+        pagination.appendChild(prevButton);
+        
+        // Pages
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(totalPages, startPage + 4);
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const pageButton = document.createElement('button');
+            pageButton.textContent = i;
+            if (i === currentPage) {
+                pageButton.className = 'active';
+            }
+            pageButton.addEventListener('click', () => {
+                loadTickets(i, collectFilters());
+            });
+            pagination.appendChild(pageButton);
+        }
+        
+        // Bouton suivant
+        const nextButton = document.createElement('button');
+        nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                loadTickets(currentPage + 1, collectFilters());
+            }
+        });
+        pagination.appendChild(nextButton);
+    }
+    
+    // Voir les détails d'un ticket
+    async function viewTicket(ticketId) {
+        try {
+            currentTicketId = ticketId;
+            
+            // Récupérer les détails du ticket
+            const response = await fetch(`/api/admin/tickets/${ticketId}`, {
+                headers: {
+                    'Authorization': `Basic ${authToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Unauthorized');
+                }
+                throw new Error('Erreur lors de la récupération des détails du ticket');
+            }
+            
+            const data = await response.json();
+            const ticket = data.ticket;
+            const statusHistory = data.statusHistory;
+            
+            // Afficher les détails du ticket
+            displayTicketDetails(ticket, statusHistory);
+            
+            // Afficher la vue détaillée
+            adminDashboard.style.display = 'none';
+            ticketDetails.style.display = 'block';
+            
+        } catch (error) {
+            console.error('Erreur lors de la récupération des détails du ticket:', error);
+            if (error.message === 'Unauthorized') {
+                logout();
+            }
+        }
+    }
+
+    // Mettre à jour la pagination
+    function updatePagination() {
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        
+        // Bouton précédent
+        const prevButton = document.createElement('button');
+        prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+        prevButton.disabled = currentPage === 1;
+        prevButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                loadTickets(currentPage - 1, collectFilters());
+            }
+        });
+        pagination.appendChild(prevButton);
+        
+        // Boutons de page
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(totalPages, startPage + 4);
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const pageButton = document.createElement('button');
+            pageButton.textContent = i;
+            pageButton.className = i === currentPage ? 'active' : '';
+            pageButton.addEventListener('click', () => {
+                loadTickets(i, collectFilters());
+            });
+            pagination.appendChild(pageButton);
+        }
+        
+        // Bouton suivant
+        const nextButton = document.createElement('button');
+        nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                loadTickets(currentPage + 1, collectFilters());
+            }
+        });
+        pagination.appendChild(nextButton);
+    }
+    
+    // Fonction pour afficher les détails d'un ticket
+    function displayTicketDetails(ticket, statusHistory) {
+        // Mettre à jour le fil d'Ariane
+        document.getElementById('breadcrumb-ticket-number').textContent = ticket.ticketNumber;
+        
+        // Informations générales
+        document.getElementById('detail-ticket-number').textContent = ticket.ticketNumber;
+        
+        // Afficher la priorité actuelle
+        const priorityElement = document.getElementById('detail-ticket-priority');
+        if (ticket.priority) {
+            const priorityText = window.priorityTranslations[ticket.priority] || ticket.priority;
+            priorityElement.textContent = `Priorité: ${priorityText}`;
+            priorityElement.className = `priority-badge priority-${ticket.priority}`;
+            priorityElement.style.display = 'inline-block';
+        } else {
+            priorityElement.textContent = 'Priorité: Moyenne';
+            priorityElement.className = 'priority-badge priority-moyen';
+            priorityElement.style.display = 'inline-block';
+        }
+        
+        // Informations client
+        document.getElementById('detail-client-name').textContent = `${ticket.clientInfo.firstName} ${ticket.clientInfo.lastName}`;
+        document.getElementById('detail-client-email').textContent = ticket.clientInfo.email;
+        document.getElementById('detail-client-phone').textContent = ticket.clientInfo.phone;
+        document.getElementById('detail-order-number').textContent = ticket.orderInfo.orderNumber;
+        
+        // Informations véhicule
+        document.getElementById('detail-vehicle-vin').textContent = ticket.vehicleInfo.vin || 'Non spécifié';
+        document.getElementById('detail-installation-date').textContent = ticket.vehicleInfo.installationDate ? formatDate(ticket.vehicleInfo.installationDate) : 'Non spécifié';
+        
+        // Informations pièce et problème
+        document.getElementById('detail-part-type').textContent = partTypeTranslations[ticket.partInfo.partType] || ticket.partInfo.partType;
+        document.getElementById('detail-symptom').textContent = ticket.partInfo.symptom || 'Non spécifié';
+        document.getElementById('detail-failure-time').textContent = ticket.partInfo.failureTime || 'Non spécifié';
+        document.getElementById('detail-error-codes').textContent = ticket.partInfo.errorCodes || 'Non spécifié';
+        document.getElementById('detail-pro-installation').textContent = ticket.partInfo.professionalInstallation ? 'Oui' : 'Non';
+        document.getElementById('detail-oil-filled').textContent = ticket.partInfo.oilFilled ? 'Oui' : 'Non';
+        document.getElementById('detail-oil-quantity').textContent = ticket.partInfo.oilQuantity ? `${ticket.partInfo.oilQuantity} L` : 'Non spécifié';
+        document.getElementById('detail-oil-reference').textContent = ticket.partInfo.oilReference || 'Non spécifié';
+        document.getElementById('detail-new-parts').textContent = ticket.partInfo.newParts ? 'Oui' : 'Non';
+        document.getElementById('detail-parts-details').textContent = ticket.partInfo.newPartsDetails || 'Non spécifié';
+        
+        // Notes internes
+        document.getElementById('internal-notes').value = ticket.internalNotes || '';
+        
+        // Documents
+        const documentsList = document.getElementById('documents-list');
+        documentsList.innerHTML = '';
+        
+        if (ticket.documents && ticket.documents.length > 0) {
+            // Regrouper les documents par type
+            const documentsByType = {};
+            
+            // Initialiser les groupes de documents
+            documentTypeOrder.forEach(type => {
+                documentsByType[type] = [];
+            });
+            
+            // Ajouter les documents à leurs groupes respectifs
+            ticket.documents.forEach(doc => {
+                const docType = doc.type || 'documents_autres';
+                if (!documentsByType[docType]) {
+                    documentsByType[docType] = [];
+                }
+                documentsByType[docType].push(doc);
+            });
+            
+            // Afficher les documents par groupe dans l'ordre défini
+            documentTypeOrder.forEach(type => {
+                const docs = documentsByType[type];
+                if (docs && docs.length > 0) {
+                    // Créer un en-tête pour le groupe de documents
+                    const groupHeader = document.createElement('div');
+                    groupHeader.className = 'document-group-header';
+                    groupHeader.innerHTML = `
+                        <h4>
+                            <i class="fas ${documentTypeIcons[type] || 'fa-file'}"></i>
+                            ${documentTypeTranslations[type] || type}
+                            <span class="document-count">(${docs.length})</span>
+                        </h4>
+                    `;
+                    documentsList.appendChild(groupHeader);
+                    
+                    // Créer un conteneur pour les documents de ce groupe
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'document-group';
+                    
+                    // Ajouter chaque document au groupe
+                    docs.forEach(doc => {
+                        const docItem = document.createElement('div');
+                        docItem.className = 'document-item';
+                        
+                        const docIcon = document.createElement('div');
+                        docIcon.className = 'document-icon';
+                        docIcon.innerHTML = `<i class="fas ${documentTypeIcons[doc.type] || 'fa-file'}"></i>`;
+                        
+                        const docName = document.createElement('div');
+                        docName.className = 'document-name';
+                        docName.textContent = doc.fileName;
+                        
+                        const docActions = document.createElement('div');
+                        docActions.className = 'document-actions';
+                        
+                        // Vérifier si le chemin du fichier est défini
+                        let filePath = '';
+                        if (doc.filePath) {
+                            // Extraire uniquement la partie relative du chemin (après 'uploads/')
+                            filePath = doc.filePath.includes('uploads/') 
+                                ? '/uploads/' + doc.filePath.split('uploads/')[1] 
+                                : '/uploads/' + doc.filePath.split('/').pop();
+                        } else if (doc.fileId) {
+                            // Si filePath n'est pas défini mais fileId oui, utiliser fileId
+                            filePath = `/uploads/${doc.fileId}`;
+                        }
+                        
+                        // Créer un conteneur pour la prévisualisation
+                        const docPreview = document.createElement('div');
+                        docPreview.className = 'document-preview';
+                        
+                        // Déterminer le type de fichier pour la prévisualisation
+                        const fileExtension = doc.fileName ? doc.fileName.split('.').pop().toLowerCase() : '';
+                        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension);
+                        const isPDF = fileExtension === 'pdf';
+                        
+                        if (filePath && isImage) {
+                            // Prévisualisation d'image
+                            docPreview.innerHTML = `<img src="${filePath}" alt="${doc.fileName}" class="document-thumbnail">`;
+                        } else if (filePath && isPDF) {
+                            // Icône PDF avec miniature
+                            docPreview.innerHTML = `
+                                <div class="pdf-preview">
+                                    <i class="fas fa-file-pdf"></i>
+                                    <span>PDF</span>
+                                </div>
+                            `;
+                        } else {
+                            // Icône par défaut pour les autres types de fichiers
+                            docPreview.innerHTML = `<i class="fas ${documentTypeIcons[doc.type] || 'fa-file'} document-icon-large"></i>`;
+                        }
+                        
+                        // Ajouter les actions (liens)
+                        if (filePath) {
+                            docActions.innerHTML = `<a href="${filePath}" target="_blank" class="btn-view-doc">Voir</a>`;
+                        } else {
+                            // Si ni filePath ni fileId ne sont définis, désactiver le lien
+                            docActions.innerHTML = `<span class="disabled-link" title="Fichier non disponible">Voir</span>`;
+                        }
+                        
+                        docItem.appendChild(docPreview);
+                        docItem.appendChild(docName);
+                        docItem.appendChild(docActions);
+                        
+                        groupContainer.appendChild(docItem);
+                    });
+                    
+                    documentsList.appendChild(groupContainer);
+                }
+            });
+        } else {
+            documentsList.innerHTML = '<p>Aucun document joint</p>';
+        }
+        
+        // Historique des statuts
+        const statusTimeline = document.getElementById('detail-status-timeline');
+        statusTimeline.innerHTML = '';
+        
+        if (statusHistory && statusHistory.length > 0) {
+            statusHistory.forEach((status, index) => {
+                const statusItem = document.createElement('div');
+                statusItem.className = 'status-item';
+                if (index === 0) statusItem.classList.add('active');
+                
+                const statusDot = document.createElement('div');
+                statusDot.className = 'status-dot';
+                const icon = document.createElement('i');
+                icon.className = `fas ${statusIcons[status.status] || 'fa-circle-info'}`;
+                statusDot.appendChild(icon);
+                
+                const statusContent = document.createElement('div');
+                statusContent.className = 'status-content';
+                
+                const statusDate = document.createElement('div');
+                statusDate.className = 'status-date';
+                statusDate.textContent = formatDate(status.updatedAt);
+                
+                const statusTitle = document.createElement('div');
+                statusTitle.className = 'status-title';
+                statusTitle.textContent = statusTranslations[status.status] || status.status;
+                
+                const statusDescription = document.createElement('div');
+                statusDescription.className = 'status-description';
+                statusDescription.textContent = status.comment || 'Mise à jour du statut';
+                
+                // Ajouter des informations supplémentaires si demandées
+                if (status.additionalInfoRequested) {
+                    const additionalInfo = document.createElement('div');
+                    additionalInfo.className = 'additional-info';
+                    additionalInfo.innerHTML = `<strong>Informations demandées:</strong> ${status.additionalInfoRequested}`;
+                    statusContent.appendChild(additionalInfo);
+                }
+                
+                statusContent.appendChild(statusDate);
+                statusContent.appendChild(statusTitle);
+                statusContent.appendChild(statusDescription);
+                
+                statusItem.appendChild(statusDot);
+                statusItem.appendChild(statusContent);
+                
+                statusTimeline.appendChild(statusItem);
+            });
+        } else {
+            statusTimeline.innerHTML = '<p>Aucun historique de statut disponible</p>';
+        }
+        
+        // Réinitialiser le formulaire de mise à jour de statut
+        updateStatusForm.reset();
+    }
+    
+    // Mettre à jour le statut d'un ticket
+    async function updateTicketStatus(ticketId, status, comment, additionalInfoRequested, clientNotified, priority) {
+        try {
+            const response = await fetch(`/api/admin/tickets/${ticketId}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Basic ${authToken}`
+                },
+                body: JSON.stringify({
+                    status,
+                    comment,
+                    additionalInfoRequested,
+                    clientNotified,
+                    priority,
+                    updatedBy: 'admin'
+                })
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Unauthorized');
+                }
+                throw new Error('Erreur lors de la mise à jour du statut');
+            }
+            
+            // Recharger les détails du ticket
+            viewTicket(ticketId);
+            
+            // Rafraîchir la vue Kanban si elle existe
+            if (typeof window.refreshKanbanView === 'function') {
+                window.refreshKanbanView();
+            }
+            
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour du statut:', error);
+            if (error.message === 'Unauthorized') {
+                logout();
+            }
+            alert('Une erreur est survenue lors de la mise à jour du statut');
+        }
+    }
+    
+    // Enregistrer les notes internes
+    async function saveInternalNotes(ticketId, notes) {
+        try {
+            const response = await fetch(`/api/admin/tickets/${ticketId}/notes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Basic ${authToken}`
+                },
+                body: JSON.stringify({
+                    notes
+                })
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Unauthorized');
+                }
+                throw new Error('Erreur lors de l\'enregistrement des notes');
+            }
+            
+            alert('Notes enregistrées avec succès');
+            
+        } catch (error) {
+            console.error('Erreur lors de l\'enregistrement des notes:', error);
+            if (error.message === 'Unauthorized') {
+                logout();
+            }
+            alert('Une erreur est survenue lors de l\'enregistrement des notes');
+        }
+    }
+    
+    // Événements
+    
+    // Connexion
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        login(username, password);
+    });
+    
+    // Déconnexion
+    logoutBtn.addEventListener('click', () => {
+        logout();
+    });
+    
+    // Initialiser le système d'onglets
+    initTabsSystem();
+    
+    // Retour à la liste
+    document.getElementById('back-to-list').addEventListener('click', () => {
+        ticketDetails.style.display = 'none';
+        adminDashboard.style.display = 'block';
+    });
+    
+    document.getElementById('breadcrumb-tickets').addEventListener('click', (e) => {
+        e.preventDefault();
+        ticketDetails.style.display = 'none';
+        adminDashboard.style.display = 'block';
+    });
+    
+    // Gestionnaire d'événement pour le bouton de suppression dans la vue détaillée
+    document.getElementById('delete-ticket-detail').addEventListener('click', (event) => {
+        const ticketId = currentTicketId;
+        const ticketNumber = document.getElementById('detail-ticket-number').textContent;
+        
+        if (confirm(`Êtes-vous sûr de vouloir supprimer le ticket ${ticketNumber} ? Cette action est irréversible.`)) {
+            deleteTicket(ticketId, ticketNumber, event);
+            // Retourner à la liste après la suppression
+            ticketDetails.style.display = 'none';
+            adminDashboard.style.display = 'block';
+        }
+    });
+    
+    // Fonction pour collecter tous les filtres
+    function collectFilters() {
+        const ticketNumberValue = document.getElementById('ticket-number-filter').value;
+        const orderNumberValue = document.getElementById('order-number-filter').value;
+        const clientFirstNameValue = document.getElementById('client-firstname-filter').value;
+        const clientNameValue = document.getElementById('client-name-filter').value;
+        const dateFromValue = document.getElementById('date-from').value;
+        const dateToValue = document.getElementById('date-to').value;
+        
+        // Récupérer la priorité du filtre actif (basique ou avancé)
+        const priorityFilterBasic = document.getElementById('priority-filter-basic');
+        const priorityFilter = document.getElementById('priority-filter');
+        const priorityValue = priorityFilterBasic?.value || priorityFilter?.value || '';
+        
+        console.log('Valeurs des filtres récupérées:');
+        console.log('- Numéro de ticket:', ticketNumberValue);
+        console.log('- Numéro de commande:', orderNumberValue);
+        console.log('- Prénom du client:', clientFirstNameValue);
+        console.log('- Nom du client:', clientNameValue);
+        console.log('- Date du:', dateFromValue);
+        console.log('- Date au:', dateToValue);
+        console.log('- Priorité:', priorityValue);
+        
+        return {
+            search: searchInput.value,
+            status: statusFilter.value,
+            partType: partFilter.value,
+            ticketNumber: ticketNumberValue,
+            orderNumber: orderNumberValue,
+            clientFirstName: clientFirstNameValue,
+            clientName: clientNameValue,
+            dateFrom: dateFromValue,
+            dateTo: dateToValue,
+            priority: priorityValue
+        };
+    }
+    
+    // Recherche
+    searchBtn.addEventListener('click', () => {
+        loadTickets(1, collectFilters());
+    });
+    
+    // Appliquer les filtres
+    const applyFiltersBtn = document.getElementById('apply-filters');
+    if (applyFiltersBtn) {
+        console.log('Bouton "Appliquer les filtres" trouvé, ajout du gestionnaire d\'événements');
+        applyFiltersBtn.addEventListener('click', (e) => {
+            console.log('Bouton "Appliquer les filtres" cliqué');
+            e.preventDefault(); // Empêcher le comportement par défaut
+            loadTickets(1, collectFilters());
+        });
+    } else {
+        console.error('Bouton "Appliquer les filtres" non trouvé dans le DOM');
+    }
+    
+    // Ajouter des gestionnaires d'événements pour les touches Entrée sur les champs de recherche
+    document.getElementById('ticket-number-filter').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            loadTickets(1, collectFilters());
+        }
+    });
+    
+    document.getElementById('order-number-filter').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            loadTickets(1, collectFilters());
+        }
+    });
+    
+    document.getElementById('client-name-filter').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            loadTickets(1, collectFilters());
+        }
+    });
+    
+    // Réinitialiser les filtres
+    document.getElementById('reset-filters').addEventListener('click', () => {
+        // Réinitialiser tous les champs de filtres
+        searchInput.value = '';
+        statusFilter.value = '';
+        partFilter.value = '';
+        document.getElementById('ticket-number-filter').value = '';
+        document.getElementById('order-number-filter').value = '';
+        document.getElementById('client-name-filter').value = '';
+        document.getElementById('date-from').value = '';
+        document.getElementById('date-to').value = '';
+        
+        // Recharger les tickets sans filtres
+        loadTickets(1, {});
+    });
+    
+    // Recherche avec touche Entrée
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            loadTickets(1, collectFilters());
+        }
+    });
+    
+    // Recherche avancée avec touche Entrée pour les autres champs
+    const filterInputs = [
+        document.getElementById('ticket-number-filter'),
+        document.getElementById('order-number-filter'),
+        document.getElementById('client-name-filter')
+    ];
+    
+    filterInputs.forEach(input => {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadTickets(1, collectFilters());
+            }
+        });
+    });
+    
+    // Afficher/masquer le champ d'informations complémentaires
+    newStatusSelect.addEventListener('change', () => {
+        if (newStatusSelect.value === 'info_complementaire') {
+            additionalInfoGroup.style.display = 'block';
+        } else {
+            additionalInfoGroup.style.display = 'none';
+        }
+    });
+    
+    // Mise à jour du statut
+    updateStatusForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const status = document.getElementById('new-status').value;
+        const comment = document.getElementById('status-comment').value;
+        const additionalInfo = document.getElementById('additional-info').value;
+        const notifyClient = document.getElementById('notify-client').checked;
+        const priority = document.getElementById('ticket-priority').value;
+        
+        if (!status) {
+            alert('Veuillez sélectionner un statut');
+            return;
+        }
+        
+        updateTicketStatus(
+            currentTicketId,
+            status,
+            comment,
+            status === 'info_complementaire' ? additionalInfo : '',
+            notifyClient,
+            priority
+        );
+    });
+    
+    // Enregistrer les notes
+    saveNotesBtn.addEventListener('click', () => {
+        const notes = document.getElementById('internal-notes').value;
+        saveInternalNotes(currentTicketId, notes);
+    });
+    
+    // Initialisation
+    checkAuth();
+});

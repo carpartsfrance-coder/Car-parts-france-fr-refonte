@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration SAV | Car Parts France</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="kanban.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="users.css">
+    <link rel="stylesheet" href="users-fix.css">
+    <!-- Ajouter script d'authentification -->
+    <script>
+        // Vérifier si un token existe avant de charger la page
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                window.location.href = '/admin/login.html';
+            }
+        });
+    </script>
+    <script src="fetch-auth.js"></script>
+    <script src="auth.js"></script>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <div class="logo">
+                <h1>Car Parts France</h1>
+                <span>Administration SAV</span>
+            </div>
+            <div class="horizontal-nav">
+                <nav>
+                    <ul>
+                        <li class="active"><a href="#tickets"><i class="fas fa-ticket-alt"></i> Tickets</a></li>
+                        <li><a href="#settings"><i class="fas fa-cog"></i> Paramètres</a></li>
+                        <li class="admin-only"><a href="users-page.html"><i class="fas fa-users"></i> Utilisateurs</a></li>
+                    </ul>
+                </nav>
+            </div>
+            <div class="user-info">
+                <i class="fas fa-user"></i>
+                <span id="user-name"></span>
+                <button id="logout-btn" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
+            </div>
+        </header>
+        
+        <div class="admin-content">
+            
+            <main class="admin-main">
+                <div class="admin-login" id="admin-login">
+                    <div class="login-container">
+                        <h2>Connexion Administration</h2>
+                        <form id="login-form">
+                            <div class="form-group">
+                                <label for="username">Nom d'utilisateur</label>
+                                <input type="text" id="username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Mot de passe</label>
+                                <input type="password" id="password" required>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn-primary">Se connecter</button>
+                            </div>
+                            <div class="login-error" id="login-error"></div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="admin-dashboard" id="admin-dashboard" style="display: none;">
+                    <div class="dashboard-layout">
+                        <!-- Volet latéral des filtres (à gauche) -->
+                        <div class="filters-sidebar" id="filters-sidebar">
+                            <div class="filters-sidebar-header">
+                                <h3><i class="fas fa-filter"></i> Filtres</h3>
+                                <button id="toggle-filters-sidebar" class="toggle-filters-btn" title="Masquer/Afficher les filtres">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="filters-sidebar-content">
+                                <!-- Recherche globale -->
+                                <div class="search-container">
+                                    <input type="text" id="search-input" placeholder="Recherche globale...">
+                                    <button id="search-btn" aria-label="Rechercher"><i class="fas fa-search"></i></button>
+                                </div>
+                                
+                                <!-- Contenu des filtres -->
+                                <div class="filter-container">
+                                    <h3 id="toggle-filters"><i class="fas fa-filter"></i> Options de filtrage <span class="toggle-icon"><i class="fas fa-chevron-down"></i></span></h3>
+                                    <div id="filters-content" class="filters-content">
+                                    <!-- Onglets des filtres -->
+                                    <div class="filter-tabs">
+                                        <button class="filter-tab-btn active" data-tab="basic">Filtres de base</button>
+                                        <button class="filter-tab-btn" data-tab="status">Statut & Type</button>
+                                        <button class="filter-tab-btn" data-tab="client">Client & Commande</button>
+                                        <button class="filter-tab-btn" data-tab="dates">Dates</button>
+                                    </div>
+                                    
+                                    <!-- Contenu des onglets -->
+                                    <div class="filter-tab-content active" id="tab-basic">
+                                        <div class="filter-row">
+                                            <div class="filter-group">
+                                                <label for="status-filter">Statut</label>
+                                                <select id="status-filter">
+                                                    <option value="">Tous les statuts</option>
+                                                    <option value="nouveau">Nouveau</option>
+                                                    <option value="en_analyse">En analyse</option>
+                                                    <option value="info_complementaire">Info complémentaire</option>
+                                                    <option value="validé">Validé</option>
+                                                    <option value="refusé">Refusé</option>
+                                                    <option value="en_cours_traitement">En traitement</option>
+                                                    <option value="expédié">Expédié</option>
+                                                    <option value="clôturé">Clôturé</option>
+                                                </select>
+                                            </div>
+                                            <div class="filter-group">
+                                                <label for="part-filter">Type de pièce</label>
+                                                <select id="part-filter">
+                                                    <option value="">Tous les types</option>
+                                                    <option value="boite_vitesses">Boîte de vitesses</option>
+                                                    <option value="moteur">Moteur</option>
+                                                    <option value="mecatronique">Mécatronique</option>
+                                                    <option value="boite_transfert">Boîte de transfert</option>
+                                                    <option value="pont">Pont</option>
+                                                    <option value="autres">Autres pièces</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="filter-tab-content" id="tab-status">
+                                        <div class="filter-row">
+                                            <div class="filter-group">
+                                                <label for="status-filter-full">Statut</label>
+                                                <select id="status-filter-full">
+                                                    <option value="">Tous les statuts</option>
+                                                    <option value="nouveau">Nouveau</option>
+                                                    <option value="en_analyse">En analyse</option>
+                                                    <option value="info_complementaire">Info complémentaire</option>
+                                                    <option value="validé">Validé</option>
+                                                    <option value="refusé">Refusé</option>
+                                                    <option value="en_cours_traitement">En traitement</option>
+                                                    <option value="expédié">Expédié</option>
+                                                    <option value="clôturé">Clôturé</option>
+                                                </select>
+                                            </div>
+                                            <div class="filter-group">
+                                                <label for="part-filter-full">Type de pièce</label>
+                                                <select id="part-filter-full">
+                                                    <option value="">Tous les types</option>
+                                                    <option value="boite_vitesses">Boîte de vitesses</option>
+                                                    <option value="moteur">Moteur</option>
+                                                    <option value="mecatronique">Mécatronique</option>
+                                                    <option value="boite_transfert">Boîte de transfert</option>
+                                                    <option value="pont">Pont</option>
+                                                    <option value="autres">Autres pièces</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="filter-row">
+                                            <div class="filter-group">
+                                                <label for="priority-filter">Priorité</label>
+                                                <select id="priority-filter">
+                                                    <option value="">Toutes les priorités</option>
+                                                    <option value="urgent">Urgent</option>
+                                                    <option value="élevé">Élevé</option>
+                                                    <option value="moyen">Moyen</option>
+                                                    <option value="faible">Faible</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="filter-tab-content" id="tab-client">
+                                        <div class="filter-row">
+                                            <div class="filter-group">
+                                                <label for="ticket-number-filter">N° de ticket</label>
+                                                <input type="text" id="ticket-number-filter" placeholder="Ex: SAV-12345">
+                                            </div>
+                                            <div class="filter-group">
+                                                <label for="order-number-filter">N° de commande</label>
+                                                <input type="text" id="order-number-filter" placeholder="Ex: CMD-12345">
+                                            </div>
+                                        </div>
+                                        <div class="filter-row">
+                                            <div class="filter-group">
+                                                <label for="client-firstname-filter">Prénom client</label>
+                                                <input type="text" id="client-firstname-filter" placeholder="Prénom">
+                                            </div>
+                                            <div class="filter-group">
+                                                <label for="client-name-filter">Nom client</label>
+                                                <input type="text" id="client-name-filter" placeholder="Nom">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="filter-tab-content" id="tab-dates">
+                                        <div class="filter-row">
+                                            <div class="filter-group date-filter">
+                                                <label for="date-from">Date du</label>
+                                                <input type="date" id="date-from">
+                                            </div>
+                                            <div class="filter-group date-filter">
+                                                <label for="date-to">au</label>
+                                                <input type="date" id="date-to">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Boutons d'action -->
+                                    <div class="filter-actions">
+                                        <button id="apply-filters" class="btn-primary"><i class="fas fa-check"></i> Appliquer les filtres</button>
+                                        <button id="clear-filters" class="btn-secondary"><i class="fas fa-times"></i> Effacer les filtres</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenu principal (à droite) -->
+                    <div class="dashboard-main-content">
+                        <!-- Stats du dashboard -->
+                        <div class="dashboard-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-ticket-alt"></i></div>
+                            <div class="stat-info">
+                                <h3>Total Tickets 
+                                    <span class="tooltip">
+                                        <i class="fas fa-info-circle info-icon"></i>
+                                        <span class="tooltiptext">Nombre total de tickets SAV créés dans le système, tous statuts confondus.</span>
+                                    </span>
+                                </h3>
+                                <p id="total-tickets">51</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                            <div class="stat-info">
+                                <h3>En attente 
+                                    <span class="tooltip">
+                                        <i class="fas fa-info-circle info-icon"></i>
+                                        <span class="tooltiptext">Tickets avec le statut 'en attente' qui nécessitent une action ou une décision. Inclut les nouveaux tickets et ceux en cours de traitement.</span>
+                                    </span>
+                                </h3>
+                                <p id="pending-tickets">21</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-info">
+                                <h3>Résolus 
+                                    <span class="tooltip">
+                                        <i class="fas fa-info-circle info-icon"></i>
+                                        <span class="tooltiptext">Tickets marqués comme 'résolus' après traitement complet. Indique les demandes SAV qui ont été traitées avec succès.</span>
+                                    </span>
+                                </h3>
+                                <p id="resolved-tickets">22</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
+                            <div class="stat-info">
+                                <h3>Urgents 
+                                    <span class="tooltip">
+                                        <i class="fas fa-info-circle info-icon"></i>
+                                        <span class="tooltiptext">Tickets marqués comme 'urgents' qui nécessitent une attention immédiate. Ces tickets ont une priorité élevée et doivent être traités en priorité.</span>
+                                    </span>
+                                </h3>
+                                <p id="urgent-tickets">18</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="view-toggle">
+                        <button id="list-view-btn" class="view-btn active"><i class="fas fa-list"></i> Vue Liste</button>
+                        <button id="kanban-view-btn" class="view-btn"><i class="fas fa-columns"></i> Vue Kanban</button>
+                    </div>
+                    
+                    <div class="tickets-list-container" id="list-view">
+                        <h3>Tickets récents</h3>
+                        <table class="tickets-table">
+                            <thead>
+                                <tr>
+                                    <th>N° Ticket</th>
+                                    <th>Client</th>
+                                    <th>Type de pièce</th>
+                                    <th>Date</th>
+                                    <th>Priorité</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tickets-list">
+                                <!-- Les tickets seront ajoutés ici dynamiquement -->
+                            </tbody>
+                        </table>
+                        
+                        <div class="pagination" id="pagination">
+                            <!-- La pagination sera ajoutée ici dynamiquement -->
+                        </div>
+                    </div>
+                    
+                    <div id="kanban-view" style="display: none;">
+                        <h3>Vue Kanban des tickets</h3>
+                        <div class="kanban-container">
+                            <div class="kanban-board">
+                                <!-- Les colonnes Kanban seront générées dynamiquement -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div> <!-- Fin dashboard-layout -->
+                </div> <!-- Fin admin-dashboard -->
+                
+                <div class="ticket-details" id="ticket-details" style="display: none; z-index: 9999; position: relative; background-color: white; border: 2px solid red;">
+                    <div class="breadcrumb">
+                        <ul>
+                            <li><a href="#"><i class="fas fa-home"></i> Dashboard</a></li>
+                            <li><a href="#" id="breadcrumb-tickets">Liste des tickets</a></li>
+                            <li class="active">Détails du ticket <span id="breadcrumb-ticket-number"></span></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="ticket-header">
+                        <div class="ticket-header-actions">
+                            <button class="btn-back" id="back-to-list"><i class="fas fa-arrow-left"></i> Retour</button>
+                            <button class="btn-delete" id="delete-ticket-detail"><i class="fas fa-trash"></i> Supprimer</button>
+                        </div>
+                        <h2>Détails du ticket <span id="detail-ticket-number"></span></h2>
+                        <div class="ticket-status-priority">
+                            <span id="detail-ticket-priority" class="priority-badge"></span>
+                            <span id="detail-ticket-status" class="ticket-current-status" style="display:none"></span>
+                            <span id="detail-ticket-current-priority" style="display:none"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="tabs-container">
+                        <div class="tabs-nav">
+                            <button class="tab-btn active" data-tab="client"><i class="fas fa-user"></i> Client</button>
+                            <button class="tab-btn" data-tab="vehicle"><i class="fas fa-car"></i> Véhicule</button>
+                            <button class="tab-btn" data-tab="part"><i class="fas fa-cogs"></i> Pièce & Problème</button>
+                            <button class="tab-btn" data-tab="documents"><i class="fas fa-file-alt"></i> Documents</button>
+                            <button class="tab-btn" data-tab="history"><i class="fas fa-history"></i> Historique</button>
+                        </div>
+                        
+                        <div class="tab-content active" id="tab-client">
+                            <div class="ticket-section section-action">
+                                <h3>Informations client</h3>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <label>Nom</label>
+                                        <p id="detail-client-name"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Email</label>
+                                        <p id="detail-client-email"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Téléphone</label>
+                                        <p id="detail-client-phone"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>N° Commande</label>
+                                        <p id="detail-order-number"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content" id="tab-vehicle">
+                            <div class="ticket-section vehicle-info">
+                                <h3>Informations véhicule</h3>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <label>VIN</label>
+                                        <p id="detail-vehicle-vin"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Date d'installation</label>
+                                        <p id="detail-installation-date"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content" id="tab-part">
+                            <div class="ticket-section section-action">
+                                <h3>Informations pièce et problème</h3>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <label>Type de réclamation</label>
+                                        <p id="detail-claim-type"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Type de pièce</label>
+                                        <p id="detail-part-type"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Symptôme</label>
+                                        <p id="detail-symptom"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Moment de la panne</label>
+                                        <p id="detail-failure-time"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Codes défaut</label>
+                                        <p id="detail-error-codes"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Installation pro</label>
+                                        <p id="detail-pro-installation"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Mise en huile</label>
+                                        <p id="detail-oil-filled"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Quantité huile</label>
+                                        <p id="detail-oil-quantity"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Référence huile</label>
+                                        <p id="detail-oil-reference"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Pièces neuves</label>
+                                        <p id="detail-new-parts"></p>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Détails pièces</label>
+                                        <p id="detail-parts-details"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content" id="tab-documents">
+                            <div class="ticket-section section-action">
+                                <h3>Documents</h3>
+                                <div class="documents-list" id="documents-list">
+                                    <!-- Les documents seront ajoutés ici dynamiquement -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content" id="tab-history">
+                            <div class="ticket-section section-action">
+                                <h3>Historique des statuts</h3>
+                                <div class="status-timeline" id="detail-status-timeline">
+                                    <!-- L'historique des statuts sera ajouté ici dynamiquement -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="ticket-section status-update">
+                            <h3>Mettre à jour le statut</h3>
+                            <form id="update-status-form">
+                                <div class="form-group">
+                                    <label for="new-status">Nouveau statut <i class="fas fa-info-circle help-icon" title="Modifie l'état actuel du ticket et déclenche des notifications"></i></label>
+                                    <span class="current-value-indicator">Statut actuel: <span id="visible-current-status"></span></span>
+                                    <small class="help-text">Ce statut sera visible par le client et indique l'étape actuelle du processus SAV</small>
+                                    <select id="new-status" required>
+                                        <option value="same_status">Conserver le même statut</option>
+                                        <option value="">Sélectionner un statut</option>
+                                        <option value="nouveau">Nouveau</option>
+                                        <option value="en_analyse">En analyse</option>
+                                        <option value="info_complementaire">Informations complémentaires requises</option>
+                                        <option value="validé">Validé</option>
+                                        <option value="refusé">Refusé</option>
+                                        <option value="en_cours_traitement">En cours de traitement</option>
+                                        <option value="expédié">Expédié</option>
+                                        <option value="clôturé">Clôturé</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ticket-priority">Priorité <i class="fas fa-info-circle help-icon" title="Détermine l'urgence du traitement du ticket"></i></label>
+                                    <span class="current-value-indicator">Priorité actuelle: <span id="visible-current-priority"></span></span>
+                                    <small class="help-text">Aide à organiser le traitement des demandes par ordre d'importance (non visible par le client)</small>
+                                    <select id="ticket-priority">
+                                        <option value="">Conserver la priorité actuelle</option>
+                                        <option value="faible">Faible</option>
+                                        <option value="moyen">Moyenne</option>
+                                        <option value="élevé">Élevée</option>
+                                        <option value="urgent">Urgente</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="status-comment">Commentaire <i class="fas fa-info-circle help-icon" title="Visible par le client dans le suivi du ticket"></i></label>
+                                    <small class="help-text">Ce commentaire sera visible par le client et lui explique le changement de statut</small>
+                                    <textarea id="status-comment" rows="3"></textarea>
+                                </div>
+                                <div class="form-group" id="additional-info-group" style="display: none;">
+                                    <label for="additional-info">Informations complémentaires demandées <i class="fas fa-info-circle help-icon" title="Précisez les documents ou informations nécessaires au client"></i></label>
+                                    <small class="help-text">Détaillez précisément les informations manquantes pour traiter le dossier</small>
+                                    <textarea id="additional-info" rows="3"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-container" title="Envoie un email automatique au client pour l'informer du changement">
+                                        <input type="checkbox" id="notify-client" checked>
+                                        <span class="checkmark"></span>
+                                        Notifier le client par email <i class="fas fa-info-circle help-icon" title="Un email automatique sera envoyé avec le nouveau statut et commentaire"></i>
+                                    </label>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn-primary" title="Enregistrer les modifications et mettre à jour le ticket">Mettre à jour</button>
+                                    <small class="help-text btn-help">Les modifications seront immédiatement enregistrées et le client sera notifié si l'option est sélectionnée</small>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="ticket-section internal-notes">
+                            <h3>Notes internes <i class="fas fa-info-circle help-icon" title="Réservées à l'équipe interne, jamais visibles par le client"></i></h3>
+                            <p class="section-description">Ces notes sont uniquement visibles par l'équipe SAV et permettent de partager des informations confidentielles sur le dossier</p>
+                            <div class="form-group">
+                                <textarea id="internal-notes" rows="5"></textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button id="save-notes" class="btn-secondary">Enregistrer les notes</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div> <!-- Fin ticket-details -->
+                
+                <section id="users" class="section admin-only">
+                    <h2><i class="fas fa-users"></i> Gestion des utilisateurs</h2>
+                    <div class="user-actions">
+                        <button id="add-user-btn" class="btn-primary"><i class="fas fa-plus"></i> Ajouter un utilisateur</button>
+                    </div>
+                    
+                    <div class="users-list-container">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Nom d'utilisateur</th>
+                                    <th>Nom complet</th>
+                                    <th>Rôle</th>
+                                    <th>Date de création</th>
+                                    <th>Dernière connexion</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-list">
+                                <!-- Les utilisateurs seront ajoutés ici dynamiquement -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Modal pour ajouter/éditer un utilisateur -->
+                    <div id="user-modal" class="modal">
+                        <div class="modal-content">
+                            <span class="close">&times;</span>
+                            <h3 id="modal-title">Ajouter un utilisateur</h3>
+                            <form id="user-form">
+                                <input type="hidden" id="user-id">
+                                <div class="form-group">
+                                    <label for="user-username">Nom d'utilisateur</label>
+                                    <input type="text" id="user-username" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="user-name">Nom complet</label>
+                                    <input type="text" id="user-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="user-role">Rôle</label>
+                                    <select id="user-role" required>
+                                        <option value="agent_sav">Agent SAV</option>
+                                        <option value="admin">Administrateur</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="password-group">
+                                    <label for="user-password">Mot de passe</label>
+                                    <input type="password" id="user-password" required>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn-primary">Enregistrer</button>
+                                    <button type="button" class="btn-secondary" id="cancel-user-btn">Annuler</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal de confirmation de suppression -->
+                    <div id="delete-modal" class="modal">
+                        <div class="modal-content">
+                            <span class="close">&times;</span>
+                            <h3>Confirmer la suppression</h3>
+                            <p>Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.</p>
+                            <div class="form-actions">
+                                <button id="confirm-delete-btn" class="btn-danger">Supprimer</button>
+                                <button id="cancel-delete-btn" class="btn-secondary">Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal pour réinitialiser un mot de passe -->
+                    <div id="reset-password-modal" class="modal">
+                        <div class="modal-content">
+                            <span class="close">&times;</span>
+                            <h3>Réinitialiser le mot de passe</h3>
+                            <p>Un nouveau mot de passe temporaire sera généré pour l'utilisateur. Il devra le changer lors de sa prochaine connexion.</p>
+                            <div id="new-password-container" style="display: none;">
+                                <p>Nouveau mot de passe temporaire :</p>
+                                <div class="password-display">
+                                    <span id="new-password"></span>
+                                    <button id="copy-password-btn" class="btn-icon"><i class="fas fa-copy"></i></button>
+                                </div>
+                                <p class="note">Veuillez copier ce mot de passe et le communiquer à l'utilisateur de façon sécurisée.</p>
+                            </div>
+                            <div class="form-actions">
+                                <button id="confirm-reset-btn" class="btn-warning">Réinitialiser</button>
+                                <button id="cancel-reset-btn" class="btn-secondary">Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        
+        <!-- CSS spécifique à la section utilisateurs -->
+        <link rel="stylesheet" href="users-fix.css">
+        
+        <!-- Scripts principaux -->
+        <script src="admin.js"></script>
+        <script src="kanban.js"></script>
+        
+        <!-- Script de gestion des utilisateurs désactivé - utiliser users-page.html à la place -->
+        <!-- <script src="users-integrated.js"></script> -->
+    </body>
+</html>

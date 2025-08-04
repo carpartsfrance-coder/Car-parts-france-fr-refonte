@@ -1,0 +1,295 @@
+/* Styles pour la vue Kanban - Solution de défilement horizontal fixe */
+.view-toggle {
+    display: flex;
+    margin: 20px 0;
+    gap: 10px;
+}
+
+.view-btn {
+    padding: 8px 15px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.view-btn.active {
+    background-color: #3a7bd5;
+    color: white;
+    border-color: #3a7bd5;
+}
+
+.view-btn:hover:not(.active) {
+    background-color: #eaeaea;
+}
+
+.view-btn i {
+    font-size: 14px;
+}
+
+/* Fix pour empêcher le défilement horizontal de la page entière */
+#kanban-view {
+    width: 100%;
+    overflow: hidden; /* Empêche le débordement horizontal */
+    position: relative; /* Pour le positionnement absolu des filtres */
+}
+
+/* Conteneur Kanban avec défilement horizontal */
+.kanban-container {
+    width: 100%;
+    overflow-x: auto; /* Permet le défilement horizontal uniquement pour ce conteneur */
+    margin-top: 20px;
+    padding-bottom: 15px;
+    /* Assurer que la barre de défilement est visible */
+    scrollbar-width: thin;
+    scrollbar-color: #3a7bd5 #f5f5f5;
+    /* Bordure pour mieux visualiser la zone défilante */
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    /* Empêcher le débordement vertical */
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.kanban-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.kanban-container::-webkit-scrollbar-track {
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.kanban-container::-webkit-scrollbar-thumb {
+    background-color: #3a7bd5;
+    border-radius: 4px;
+}
+
+/* Kanban Board */
+.kanban-board {
+    display: flex;
+    gap: 20px;
+    padding: 20px 0;
+    min-height: 600px;
+    /* Largeur minimale pour assurer que toutes les colonnes sont visibles en défilant */
+    min-width: max-content;
+}
+
+.kanban-column {
+    min-width: 280px;
+    width: 280px;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+}
+
+.kanban-column-header {
+    padding: 12px 15px;
+    background-color: #e0e0e0;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.kanban-column-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kanban-column-header .count {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.kanban-column.nouveau .kanban-column-header {
+    background-color: #6c757d;
+    color: white;
+}
+
+.kanban-column.en_analyse .kanban-column-header {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.kanban-column.info_complementaire .kanban-column-header {
+    background-color: #ffc107;
+    color: #343a40;
+}
+
+.kanban-column.validé .kanban-column-header {
+    background-color: #28a745;
+    color: white;
+}
+
+.kanban-column.refusé .kanban-column-header {
+    background-color: #dc3545;
+    color: white;
+}
+
+.kanban-column.en_cours_traitement .kanban-column-header {
+    background-color: #fd7e14;
+    color: white;
+}
+
+.kanban-column.expédié .kanban-column-header {
+    background-color: #6f42c1;
+    color: white;
+}
+
+.kanban-column.clôturé .kanban-column-header {
+    background-color: #20c997;
+    color: white;
+}
+
+.kanban-column-body {
+    padding: 10px;
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 100px;
+}
+
+.kanban-card {
+    background-color: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: grab;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.kanban-card:hover {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+    transform: translateY(-2px);
+}
+
+.kanban-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.kanban-card-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.kanban-card-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+}
+
+.kanban-card-priority {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.kanban-card-priority.urgent {
+    background-color: #ff4d4f;
+    color: white;
+}
+
+.kanban-card-priority.élevé {
+    background-color: #ff7a45;
+    color: white;
+}
+
+.kanban-card-priority.moyen {
+    background-color: #ffc53d;
+    color: #5c3c10;
+}
+
+.kanban-card-priority.faible {
+    background-color: #52c41a;
+    color: white;
+}
+
+.kanban-card-content {
+    font-size: 13px;
+    color: #666;
+}
+
+.kanban-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #999;
+}
+
+.kanban-card-date {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kanban-card-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.kanban-card-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    padding: 2px;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.kanban-card-actions button:hover {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.kanban-card-actions .delete-ticket-btn {
+    color: #dc3545;
+}
+
+.kanban-card-actions .delete-ticket-btn:hover {
+    background-color: #ffeeee;
+    color: #b30000;
+}
+
+/* Styles pour le drag and drop */
+.kanban-column-body.drag-over {
+    background-color: rgba(58, 123, 213, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .kanban-board {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .kanban-column {
+        width: 100%;
+        min-width: 100%;
+        margin-bottom: 20px;
+    }
+}

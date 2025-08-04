@@ -1,0 +1,52 @@
+/* Styles spécifiques pour Safari */
+@media not all and (min-resolution:.001dpcm) { 
+    @supports (-webkit-appearance:none) {
+        /* Styles pour les cases à cocher personnalisées */
+        .custom-checkbox input[type="checkbox"] {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            position: absolute !important;
+            opacity: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+        
+        .custom-checkbox .checkmark {
+            border: 1px solid #ccc !important;
+            background-color: #fff !important;
+        }
+        
+        .custom-checkbox input:checked ~ .checkmark:after {
+            display: block !important;
+            border-color: #e60000 !important;
+        }
+
+        /* Styles pour les boutons radio personnalisés */
+        .custom-radio input[type="radio"] {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            position: absolute !important;
+            opacity: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+        
+        .custom-radio .radio-checkmark {
+            border: 1px solid #ccc !important;
+            background-color: #fff !important;
+        }
+        
+        .custom-radio input:checked ~ .radio-checkmark:after {
+            display: block !important;
+            background-color: #e60000 !important;
+        }
+
+        /* Styles pour les select */
+        select {
+            -webkit-appearance: menulist !important;
+            appearance: menulist !important;
+            background-image: none !important;
+            background-image: none !important;
+        }
+    }
+}
