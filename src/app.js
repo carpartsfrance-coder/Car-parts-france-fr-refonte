@@ -23,6 +23,7 @@ const shouldUseSecureCookie = secureCookieFromEnv === null ? isProd : secureCook
 const indexRouter = require('./routes');
 const productsRouter = require('./routes/products');
 const categoriesRouter = require('./routes/categories');
+const searchRouter = require('./routes/search');
 const cartRouter = require('./routes/cart');
 const accountRouter = require('./routes/account');
 const checkoutRouter = require('./routes/checkout');
@@ -151,6 +152,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), staticOptions));
 app.use('/', indexRouter);
 app.use('/blog', blogRouter);
 app.use('/categorie', categoriesRouter);
+app.use('/rechercher', searchRouter);
 app.use('/produits', productsRouter);
 app.use('/panier', cartRouter);
 app.use('/commande', checkoutRouter);

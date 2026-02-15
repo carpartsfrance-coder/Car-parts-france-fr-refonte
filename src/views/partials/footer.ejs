@@ -75,9 +75,9 @@
           <span>Accueil</span>
         </a>
 
-        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/categorie') ? 'text-primary' : 'text-slate-600' %>" href="/categorie" <% if (_isActive('/categorie')) { %>aria-current="page"<% } %>>
-          <span class="material-symbols-rounded text-[22px]">category</span>
-          <span>Catégories</span>
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/rechercher') ? 'text-primary' : 'text-slate-600' %>" href="/rechercher" <% if (_isActive('/rechercher')) { %>aria-current="page"<% } %>>
+          <span class="material-symbols-rounded text-[22px]">search</span>
+          <span>Rechercher</span>
         </a>
 
         <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/produits') ? 'text-primary' : 'text-slate-600' %>" href="/produits" <% if (_isActive('/produits')) { %>aria-current="page"<% } %>>

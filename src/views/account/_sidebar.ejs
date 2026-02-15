@@ -1,63 +1,41 @@
 <% const activeKey = typeof active !== 'undefined' ? active : ''; %>
 
-<div class="bg-white rounded-2xl border border-slate-200 p-4">
-  <div class="flex items-center justify-between">
-    <div class="text-xs font-black uppercase tracking-widest text-slate-400">Type de compte</div>
-    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= accountType === 'pro' ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-700' %>">
-      <%= accountType === 'pro' ? 'PRO' : 'PERSO' %>
-    </span>
-  </div>
-
-  <% if (!currentUser) { %>
-    <form action="/compte/type" class="mt-4 rounded-xl bg-slate-100 p-1 flex gap-1" method="POST">
-      <input name="returnTo" type="hidden" value="<%= typeof currentPath !== 'undefined' ? currentPath : '/compte' %>" />
-      <button class="flex-1 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wider transition <%= accountType === 'particulier' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900' %>" name="type" type="submit" value="particulier">Particulier</button>
-      <button class="flex-1 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wider transition <%= accountType === 'pro' ? 'bg-white text-primary shadow-sm' : 'text-slate-600 hover:text-primary' %>" name="type" type="submit" value="pro">Professionnel</button>
-    </form>
-  <% } else { %>
-    <div class="mt-4 rounded-xl bg-slate-100 p-1 flex gap-1">
-      <div class="flex-1 rounded-lg px-3 py-2 text-center text-xs font-black uppercase tracking-wider <%= accountType === 'particulier' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600' %>">Particulier</div>
-      <div class="flex-1 rounded-lg px-3 py-2 text-center text-xs font-black uppercase tracking-wider <%= accountType === 'pro' ? 'bg-white text-primary shadow-sm' : 'text-slate-600' %>">Professionnel</div>
-    </div>
-  <% } %>
-</div>
-
-<nav class="mt-6 bg-white rounded-2xl border border-slate-200 overflow-hidden">
-  <div class="p-2 flex flex-col gap-1">
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'dashboard' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte">
+<nav class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+  <div class="p-2 flex gap-1 overflow-x-auto no-scrollbar lg:flex-col lg:overflow-visible">
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'dashboard' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte">
       <span class="material-symbols-outlined">dashboard</span>
       Tableau de bord
     </a>
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'commandes' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte/commandes">
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'commandes' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/commandes">
       <span class="material-symbols-outlined">shopping_bag</span>
       Mes commandes
     </a>
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'garage' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte/garage">
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'garage' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/garage">
       <span class="material-symbols-outlined">directions_car</span>
       Mon garage
     </a>
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'adresses' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte/adresses">
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'adresses' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/adresses">
       <span class="material-symbols-outlined">location_on</span>
       Mes adresses
     </a>
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'factures' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte/factures">
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'factures' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/factures">
       <span class="material-symbols-outlined">receipt_long</span>
       Mes factures
     </a>
-    <div class="h-px bg-slate-200 my-2 mx-4"></div>
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'profil' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte/profil">
+    <div class="hidden lg:block h-px bg-slate-200 my-2 mx-4"></div>
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'profil' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/profil">
       <span class="material-symbols-outlined">settings</span>
       Paramètres
     </a>
 
-    <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'securite' ? 'bg-primary/10 text-primary text-sm font-bold' : 'hover:bg-slate-50 transition text-sm font-semibold text-slate-600' %>" href="/compte/securite">
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'securite' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/securite">
       <span class="material-symbols-outlined">lock</span>
       Sécurité
     </a>
 
     <form action="/compte/deconnexion" class="px-2" method="POST">
       <input name="returnTo" type="hidden" value="<%= typeof currentPath !== 'undefined' ? currentPath : '/compte' %>" />
-      <button class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 transition text-sm font-semibold text-slate-600" type="submit">
+      <button class="w-full flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600" type="submit">
         <span class="material-symbols-outlined">logout</span>
         Déconnexion
       </button>
@@ -65,7 +43,7 @@
   </div>
 </nav>
 
-<div class="mt-6 rounded-2xl border border-slate-200 bg-slate-900 p-6 text-white">
+<div class="hidden lg:block mt-6 rounded-2xl border border-slate-200 bg-slate-900 p-6 text-white">
   <div class="text-xs font-black uppercase tracking-widest text-white/60">Besoin d'aide ?</div>
   <div class="mt-3 font-black">Un expert est disponible pour vous conseiller sur vos pièces.</div>
   <a class="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-primary px-4 py-3 text-xs font-black uppercase tracking-wider hover:bg-red-700 transition" href="/compte">

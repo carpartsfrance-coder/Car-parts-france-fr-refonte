@@ -1,0 +1,158 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+
+<main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+    <div class="bg-white/80 dark:bg-surface-dark/70 backdrop-blur rounded-3xl border border-slate-100 dark:border-slate-800 p-4 sm:p-6 shadow-premium">
+      <h1 class="text-xl sm:text-2xl font-black tracking-tight">Rechercher</h1>
+      <p class="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">Tape le nom d’un produit, une référence (SKU) ou une marque.</p>
+
+      <div class="mt-4 sm:mt-6">
+        <div class="relative">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+          <input autocomplete="off" class="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-10 pr-3 py-3 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-primary focus:border-primary" data-search-input name="q" placeholder="Ex : démarreur, alternateur, 8200..., BOSCH" type="text" />
+        </div>
+
+        <div class="mt-3 hidden" data-search-panel>
+          <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+            <div class="divide-y divide-slate-100 dark:divide-slate-800" data-search-results></div>
+          </div>
+          <div class="mt-2 text-[11px] text-slate-500">Astuce : tu peux aussi aller au catalogue et utiliser les filtres si tu connais la marque ou le modèle.</div>
+        </div>
+
+        <div class="mt-3 hidden" data-search-empty>
+          <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4 text-sm text-slate-600 dark:text-slate-300">
+            Aucun résultat pour le moment.
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
+        <a class="inline-flex items-center justify-center rounded-2xl bg-primary hover:bg-red-700 text-white py-3 px-5 font-black text-xs sm:text-sm shadow-xl shadow-red-500/20 transition-all" href="/produits">
+          Ouvrir le catalogue
+          <span class="material-symbols-outlined ml-2">arrow_forward</span>
+        </a>
+        <a class="inline-flex items-center justify-center rounded-2xl bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 py-3 px-5 font-black text-xs sm:text-sm transition-colors" href="/panier">
+          Voir le panier
+          <span class="material-symbols-outlined ml-2">shopping_cart</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  (function () {
+    var input = document.querySelector('[data-search-input]');
+    var panel = document.querySelector('[data-search-panel]');
+    var resultsEl = document.querySelector('[data-search-results]');
+    var emptyEl = document.querySelector('[data-search-empty]');
+
+    if (!input || !panel || !resultsEl) return;
+
+    var timer = null;
+    var lastQuery = '';
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function setVisible(el, visible) {
+      if (!el) return;
+      if (visible) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+
+    function render(items) {
+      resultsEl.innerHTML = '';
+
+      items.forEach(function (item) {
+        var image = item.imageUrl
+          ? '<img class="w-10 h-10 rounded-xl object-cover bg-slate-100" alt="" src="' + escapeHtml(item.imageUrl) + '" />'
+          : '<div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400"><span class="material-symbols-outlined text-xl">inventory_2</span></div>';
+
+        var line2 = [];
+        if (item.sku) line2.push('Réf: ' + escapeHtml(item.sku));
+        if (item.brand) line2.push(escapeHtml(item.brand));
+
+        var row = document.createElement('a');
+        row.href = item.publicPath || '/produits';
+        row.className = 'flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+        row.innerHTML =
+          image +
+          '<div class="min-w-0 flex-1">' +
+          '<div class="font-black text-sm text-slate-900 dark:text-white truncate">' + escapeHtml(item.name) + '</div>' +
+          '<div class="mt-0.5 text-[11px] text-slate-500 truncate">' + (line2.join(' • ') || '') + '</div>' +
+          '</div>' +
+          '<div class="text-right">' +
+          '<div class="font-black text-sm text-slate-900 dark:text-white">' + escapeHtml(item.price || '') + '</div>' +
+          '</div>';
+
+        resultsEl.appendChild(row);
+      });
+    }
+
+    function fetchSuggest(q) {
+      var url = '/rechercher/suggest?q=' + encodeURIComponent(q);
+
+      return fetch(url, {
+        headers: { 'Accept': 'application/json' },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var items = (data && data.results) ? data.results : [];
+          return Array.isArray(items) ? items : [];
+        });
+    }
+
+    function onChange() {
+      var q = String(input.value || '').trim();
+      lastQuery = q;
+
+      if (!q || q.length < 2) {
+        setVisible(panel, false);
+        setVisible(emptyEl, false);
+        resultsEl.innerHTML = '';
+        return;
+      }
+
+      setVisible(panel, true);
+      setVisible(emptyEl, false);
+
+      fetchSuggest(q)
+        .then(function (items) {
+          if (q !== lastQuery) return;
+
+          if (!items.length) {
+            resultsEl.innerHTML = '';
+            setVisible(emptyEl, true);
+            return;
+          }
+
+          setVisible(emptyEl, false);
+          render(items);
+        })
+        .catch(function () {
+          if (q !== lastQuery) return;
+          resultsEl.innerHTML = '';
+          setVisible(emptyEl, true);
+        });
+    }
+
+    input.addEventListener('input', function () {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(onChange, 150);
+    });
+
+    input.addEventListener('focus', function () {
+      if (String(input.value || '').trim().length >= 2) onChange();
+    });
+  })();
+</script>
+
+<%- include('../partials/footer') %>
