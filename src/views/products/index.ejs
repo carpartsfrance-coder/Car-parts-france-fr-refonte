@@ -25,35 +25,13 @@
   details > summary::-webkit-details-marker { display: none; }
 </style>
 
-<div class="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-3 shadow-sm">
-  <div class="container mx-auto px-4 lg:px-8 flex flex-wrap items-center gap-4">
-    <span class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-      <span class="material-symbols-outlined text-primary text-lg">tune</span>
-      Votre Véhicule :
-    </span>
-    <div class="flex-grow grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
-        <option>Marque</option>
-        <option>BMW</option>
-        <option>Audi</option>
-        <option>Mercedes</option>
-      </select>
-      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
-        <option>Modèle</option>
-      </select>
-      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
-        <option>Année</option>
-      </select>
-      <a class="bg-primary hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-all shadow-md shadow-red-500/20 text-center" href="/produits">Mettre à jour</a>
-    </div>
-  </div>
-</div>
-
 <main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
   <% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round((Number(cents) || 0) / 100)); %>
   <% const buildUrl = (overrides = {}) => {
     const params = new URLSearchParams();
     const qVal = overrides.q !== undefined ? overrides.q : (typeof searchQuery !== 'undefined' ? searchQuery : '');
+    const vehicleMakeVal = overrides.vehicleMake !== undefined ? overrides.vehicleMake : (typeof selectedVehicleMake !== 'undefined' ? selectedVehicleMake : '');
+    const vehicleModelVal = overrides.vehicleModel !== undefined ? overrides.vehicleModel : (typeof selectedVehicleModel !== 'undefined' ? selectedVehicleModel : '');
     const mainCatVal = overrides.mainCategory !== undefined ? overrides.mainCategory : (typeof selectedMainCategory !== 'undefined' ? selectedMainCategory : '');
     const subCatVal = overrides.subCategory !== undefined ? overrides.subCategory : (typeof selectedSubCategory !== 'undefined' ? selectedSubCategory : '');
     const stockVal = overrides.stock !== undefined ? overrides.stock : (typeof selectedStock !== 'undefined' ? selectedStock : '');
@@ -63,6 +41,8 @@
     const pageVal = overrides.page !== undefined ? overrides.page : (typeof page !== 'undefined' ? page : 1);
 
     if (qVal) params.set('q', qVal);
+    if (vehicleMakeVal) params.set('vehicleMake', vehicleMakeVal);
+    if (vehicleModelVal) params.set('vehicleModel', vehicleModelVal);
     if (mainCatVal) params.set('mainCategory', mainCatVal);
     if (mainCatVal && subCatVal) params.set('subCategory', subCatVal);
     if (stockVal) params.set('stock', stockVal);
@@ -75,19 +55,69 @@
     return qs ? `/produits?${qs}` : '/produits';
   }; %>
 
-  <div class="container mx-auto px-4 lg:px-8 py-8">
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      <aside class="lg:col-span-3">
-        <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 lg:sticky lg:top-28">
-          <div class="flex items-center justify-between mb-8">
-            <h2 class="font-bold text-lg">Filtres</h2>
-            <a class="text-primary text-xs font-bold uppercase tracking-widest hover:underline" href="/produits">Effacer tout</a>
-          </div>
+  <% const activeFilterCount = [
+    (typeof searchQuery !== 'undefined' && searchQuery) ? 1 : 0,
+    (typeof selectedVehicleMake !== 'undefined' && selectedVehicleMake) ? 1 : 0,
+    (typeof selectedVehicleModel !== 'undefined' && selectedVehicleModel) ? 1 : 0,
+    selectedStock === 'in' ? 1 : 0,
+    selectedMainCategory ? 1 : 0,
+    selectedSubCategory ? 1 : 0,
+    (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' && String(minPriceEuros)) ? 1 : 0,
+    (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' && String(maxPriceEuros)) ? 1 : 0,
+  ].reduce((sum, v) => sum + v, 0); %>
+
+  <div class="container mx-auto px-4 lg:px-8 py-6 sm:py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+      <aside aria-hidden="true" class="lg:col-span-3 hidden fixed inset-0 z-50 lg:static lg:z-auto lg:block" data-filters-drawer id="filtersDrawer" role="dialog">
+        <div class="absolute inset-0 bg-black/40 lg:hidden" data-filters-close></div>
+        <div class="absolute inset-y-0 left-0 w-full max-w-sm overflow-y-auto bg-white dark:bg-surface-dark p-4 lg:static lg:w-auto lg:max-w-none lg:overflow-visible lg:bg-transparent lg:p-0">
+          <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 lg:sticky lg:top-28">
+            <div class="flex items-center justify-between mb-6 lg:mb-8">
+              <div class="flex items-center gap-3">
+                <h2 class="font-bold text-lg">Filtres</h2>
+                <% if (activeFilterCount > 0) { %>
+                  <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary/10 px-2 text-xs font-black text-primary"><%= activeFilterCount %></span>
+                <% } %>
+              </div>
+              <div class="flex items-center gap-3">
+                <a class="text-primary text-xs font-bold uppercase tracking-widest hover:underline" href="/produits">Effacer</a>
+                <button class="lg:hidden h-9 px-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs" data-filters-close type="button">Fermer</button>
+              </div>
+            </div>
 
           <form action="/produits" method="GET">
             <input name="q" type="hidden" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" />
             <input name="sort" type="hidden" value="<%= typeof sort !== 'undefined' ? sort : '' %>" />
             <input name="page" type="hidden" value="1" />
+
+            <div class="filter-section">
+              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
+                Véhicule
+                <span class="material-symbols-outlined text-slate-400">expand_less</span>
+              </button>
+              <div class="grid grid-cols-1 gap-3">
+                <div>
+                  <div class="text-xs font-semibold text-slate-500 mb-2">Marque véhicule</div>
+                  <% const vehicleMakeOptions = Array.isArray(vehicleMakes) ? vehicleMakes : []; %>
+                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="vehicleMake" data-vehicle-make>
+                    <option value="" <%= !selectedVehicleMake ? 'selected' : '' %>>Toutes</option>
+                    <% vehicleMakeOptions.forEach((mk) => { %>
+                      <option value="<%= mk %>" <%= selectedVehicleMake === mk ? 'selected' : '' %>><%= mk %></option>
+                    <% }) %>
+                  </select>
+                </div>
+                <div>
+                  <div class="text-xs font-semibold text-slate-500 mb-2">Modèle véhicule</div>
+                  <% const modelsForSelectedMake = (selectedVehicleMake && vehicleModelsByMake && vehicleModelsByMake[selectedVehicleMake]) ? vehicleModelsByMake[selectedVehicleMake] : []; %>
+                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="vehicleModel" data-vehicle-model <%= selectedVehicleMake ? '' : 'disabled' %>>
+                    <option value="" <%= selectedVehicleMake && !selectedVehicleModel ? 'selected' : '' %>><%= selectedVehicleMake ? 'Tous' : 'Choisis une marque' %></option>
+                    <% (modelsForSelectedMake || []).forEach((md) => { %>
+                      <option value="<%= md %>" <%= selectedVehicleModel === md ? 'selected' : '' %>><%= md %></option>
+                    <% }) %>
+                  </select>
+                </div>
+              </div>
+            </div>
 
             <div class="filter-section">
               <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
@@ -162,18 +192,19 @@
               <a class="text-center bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 px-6 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" href="/produits">Réinitialiser</a>
             </div>
           </form>
+          </div>
         </div>
       </aside>
 
       <div class="lg:col-span-9">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div>
             <nav class="flex items-center gap-2 text-xs text-slate-400 mb-2">
               <a class="hover:text-primary" href="/">Accueil</a>
               <span class="material-symbols-outlined text-[10px]">chevron_right</span>
               <span class="text-slate-600 dark:text-slate-300 font-medium"><%= selectedCategoryLabel ? selectedCategoryLabel : 'Catalogue' %></span>
             </nav>
-            <h1 class="text-2xl font-display font-bold"><%= typeof totalCount !== 'undefined' ? totalCount.toLocaleString('fr-FR') : products.length %> pièces trouvées</h1>
+            <h1 class="text-xl sm:text-2xl font-display font-bold"><%= typeof totalCount !== 'undefined' ? totalCount.toLocaleString('fr-FR') : products.length %> pièces trouvées</h1>
             <% if (!dbConnected) { %>
               <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
                 <span class="font-bold">Mode démo activé</span> — le catalogue fonctionne avec des produits d'exemple.
@@ -183,15 +214,24 @@
 
           <form action="/produits" method="GET">
             <input name="q" type="hidden" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" />
+            <input name="vehicleMake" type="hidden" value="<%= typeof selectedVehicleMake !== 'undefined' ? selectedVehicleMake : '' %>" />
+            <input name="vehicleModel" type="hidden" value="<%= typeof selectedVehicleModel !== 'undefined' ? selectedVehicleModel : '' %>" />
             <input name="mainCategory" type="hidden" value="<%= typeof selectedMainCategory !== 'undefined' ? selectedMainCategory : '' %>" />
             <input name="subCategory" type="hidden" value="<%= typeof selectedSubCategory !== 'undefined' ? selectedSubCategory : '' %>" />
             <input name="stock" type="hidden" value="<%= typeof selectedStock !== 'undefined' ? selectedStock : '' %>" />
             <input name="minPrice" type="hidden" value="<%= (minPriceEuros !== null && typeof minPriceEuros !== 'undefined') ? minPriceEuros : '' %>" />
             <input name="maxPrice" type="hidden" value="<%= (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined') ? maxPriceEuros : '' %>" />
             <input name="page" type="hidden" value="1" />
-            <div class="flex items-center gap-4">
-              <span class="text-sm text-slate-500 whitespace-nowrap">Trier par :</span>
-              <select class="bg-white dark:bg-surface-dark border-slate-200 dark:border-slate-700 rounded-xl text-sm py-2 pl-4 pr-10 focus:ring-primary focus:border-primary min-w-[180px]" name="sort" onchange="this.form.submit()">
+            <div class="flex items-center gap-3 w-full md:w-auto">
+              <button aria-controls="filtersDrawer" aria-expanded="false" class="lg:hidden inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700" data-filters-open type="button">
+                <span class="material-symbols-outlined text-base text-slate-400">tune</span>
+                Filtres
+                <% if (activeFilterCount > 0) { %>
+                  <span class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-white"><%= activeFilterCount > 99 ? '99+' : activeFilterCount %></span>
+                <% } %>
+              </button>
+              <span class="hidden sm:block text-sm text-slate-500 whitespace-nowrap">Trier :</span>
+              <select class="bg-white dark:bg-surface-dark border-slate-200 dark:border-slate-700 rounded-xl text-sm py-2 pl-4 pr-10 focus:ring-primary focus:border-primary min-w-[160px] flex-1" name="sort" onchange="this.form.submit()">
                 <option <%= !sort || sort === 'newest' ? 'selected' : '' %> value="newest">Nouveautés</option>
                 <option <%= sort === 'price_asc' ? 'selected' : '' %> value="price_asc">Prix croissant</option>
                 <option <%= sort === 'price_desc' ? 'selected' : '' %> value="price_desc">Prix décroissant</option>
@@ -200,33 +240,45 @@
           </form>
         </div>
 
-        <div class="flex flex-wrap gap-2 mb-8">
+        <div class="flex gap-2 mb-6 overflow-x-auto no-scrollbar -mx-4 px-4 md:flex-wrap md:overflow-visible md:mx-0 md:px-0">
+          <% if (typeof selectedVehicleMake !== 'undefined' && selectedVehicleMake) { %>
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ vehicleMake: '', page: 1 }) %>">
+              Marque : <%= selectedVehicleMake %>
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
+          <% if (typeof selectedVehicleModel !== 'undefined' && selectedVehicleModel) { %>
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ vehicleModel: '', page: 1 }) %>">
+              Modèle : <%= selectedVehicleModel %>
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
           <% if (selectedStock === 'in') { %>
-            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ stock: '', page: 1 }) %>">
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ stock: '', page: 1 }) %>">
               En stock
               <span class="material-symbols-outlined text-sm">close</span>
             </a>
           <% } %>
           <% if (selectedMainCategory) { %>
-            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ mainCategory: '', subCategory: '', page: 1 }) %>">
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ mainCategory: '', subCategory: '', page: 1 }) %>">
               <%= selectedCategoryLabel || selectedMainCategory %>
               <span class="material-symbols-outlined text-sm">close</span>
             </a>
           <% } %>
           <% if (typeof searchQuery !== 'undefined' && searchQuery) { %>
-            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ q: '', page: 1 }) %>">
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ q: '', page: 1 }) %>">
               <%= searchQuery %>
               <span class="material-symbols-outlined text-sm">close</span>
             </a>
           <% } %>
           <% if (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' && String(minPriceEuros)) { %>
-            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ minPrice: '', page: 1 }) %>">
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ minPrice: '', page: 1 }) %>">
               Min <%= minPriceEuros %> €
               <span class="material-symbols-outlined text-sm">close</span>
             </a>
           <% } %>
           <% if (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' && String(maxPriceEuros)) { %>
-            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ maxPrice: '', page: 1 }) %>">
+            <a class="shrink-0 bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ maxPrice: '', page: 1 }) %>">
               Max <%= maxPriceEuros %> €
               <span class="material-symbols-outlined text-sm">close</span>
             </a>
@@ -239,7 +291,7 @@
             <div class="mt-2 text-sm text-slate-500">Essaie d’enlever un filtre ou de modifier ta recherche.</div>
           </div>
         <% } else { %>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+          <div class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 mb-10 sm:mb-12">
             <% products.forEach((p) => { %>
               <% const imgUrl = (p && typeof p.imageUrl === 'string' && p.imageUrl.trim()) ? p.imageUrl.trim() : (Array.isArray(p.galleryUrls) && p.galleryUrls[0] ? p.galleryUrls[0] : ''); %>
               <% const badge = (p && p.badges && p.badges.topLeft) ? p.badges.topLeft : 'GARANTIE'; %>
@@ -255,12 +307,12 @@
                       </div>
                     <% } %>
                   </a>
-                  <span class="absolute top-3 left-3 bg-primary text-[9px] text-white font-bold px-2.5 py-1 rounded-full shadow-lg"><%= badge %></span>
-                  <button class="absolute top-3 right-3 w-8 h-8 bg-white/90 dark:bg-slate-900/70 backdrop-blur-md rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors" type="button">
-                    <span class="material-symbols-outlined text-lg">favorite</span>
+                  <span class="absolute top-2 left-2 sm:top-3 sm:left-3 bg-primary text-[8px] sm:text-[9px] text-white font-bold px-2 py-1 sm:px-2.5 sm:py-1 rounded-full shadow-lg"><%= badge %></span>
+                  <button class="absolute top-2 right-2 sm:top-3 sm:right-3 w-7 h-7 sm:w-8 sm:h-8 bg-white/90 dark:bg-slate-900/70 backdrop-blur-md rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors" type="button">
+                    <span class="material-symbols-outlined text-base sm:text-lg">favorite</span>
                   </button>
                 </div>
-                <div class="p-4 flex flex-col flex-grow">
+                <div class="p-3 sm:p-4 flex flex-col flex-grow">
                   <div class="flex text-amber-400 mb-2">
                     <span class="material-symbols-outlined text-xs">star</span>
                     <span class="material-symbols-outlined text-xs">star</span>
@@ -269,19 +321,19 @@
                     <span class="material-symbols-outlined text-xs">star</span>
                     <span class="text-slate-400 text-[9px] ml-1 mt-0.5">(0)</span>
                   </div>
-                  <a class="font-bold text-slate-800 dark:text-slate-100 leading-snug mb-4 group-hover:text-primary transition-colors h-12 overflow-hidden text-sm" href="<%= productUrl %>">
+                  <a class="font-bold text-slate-800 dark:text-slate-100 leading-snug mb-3 sm:mb-4 group-hover:text-primary transition-colors h-10 sm:h-12 overflow-hidden text-[12px] sm:text-sm" href="<%= productUrl %>">
                     <%= p.name %>
                   </a>
-                  <div class="mt-auto pt-4 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                  <div class="mt-auto pt-3 sm:pt-4 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between gap-3">
                     <div>
                       <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Prix TTC</p>
-                      <p class="text-lg font-display font-bold text-slate-900 dark:text-white"><%= formatMoney(p.priceCents) %> €</p>
+                      <p class="text-base sm:text-lg font-display font-bold text-slate-900 dark:text-white"><%= formatMoney(p.priceCents) %> €</p>
                     </div>
                     <form action="/panier/ajouter/<%= p._id %>" method="POST">
                       <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/produits' %>" />
                       <input name="qty" type="hidden" value="1" />
-                      <button class="cart-btn-premium disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">
-                        <span class="material-symbols-outlined text-xl">shopping_cart</span>
+                      <button class="cart-btn-premium p-2 sm:p-2.5 disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">
+                        <span class="material-symbols-outlined text-lg sm:text-xl">shopping_cart</span>
                       </button>
                     </form>
                   </div>
@@ -290,7 +342,7 @@
             <% }) %>
           </div>
 
-          <div class="flex flex-col sm:flex-row items-center justify-between gap-6 py-12 border-t border-slate-100 dark:border-slate-800">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-6 py-8 sm:py-12 border-t border-slate-100 dark:border-slate-800">
             <a class="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors <%= page <= 1 ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.max(1, (page || 1) - 1) }) %>">
               <span class="material-symbols-outlined">chevron_left</span>
               Précédent
@@ -337,3 +389,110 @@
     <span class="material-symbols-outlined text-3xl">chat</span>
   </button>
 </div>
+
+<script id="vehicleModelsByMakeJson" type="application/json"><%- JSON.stringify(vehicleModelsByMake || {}) %></script>
+
+<script>
+  (function () {
+    var drawer = document.querySelector('[data-filters-drawer]');
+    var openBtn = document.querySelector('[data-filters-open]');
+    var closeEls = Array.from(document.querySelectorAll('[data-filters-close]'));
+    if (!window.__cpOverlayLockCount) window.__cpOverlayLockCount = 0;
+    if (window.__cpPrevOverflow === undefined) window.__cpPrevOverflow = '';
+
+    var vehicleModelsByMake = {};
+    try {
+      var jsonEl = document.getElementById('vehicleModelsByMakeJson');
+      if (jsonEl && jsonEl.textContent) {
+        vehicleModelsByMake = JSON.parse(jsonEl.textContent);
+      }
+    } catch (e) {
+      vehicleModelsByMake = {};
+    }
+
+    function lockScroll() {
+      if (window.__cpOverlayLockCount === 0) {
+        window.__cpPrevOverflow = document.documentElement.style.overflow;
+        document.documentElement.style.overflow = 'hidden';
+      }
+      window.__cpOverlayLockCount += 1;
+    }
+
+    function unlockScroll() {
+      window.__cpOverlayLockCount = Math.max(0, (window.__cpOverlayLockCount || 0) - 1);
+      if (window.__cpOverlayLockCount === 0) {
+        document.documentElement.style.overflow = window.__cpPrevOverflow || '';
+      }
+    }
+
+    function openDrawer() {
+      if (!drawer) return;
+      drawer.classList.remove('hidden');
+      drawer.setAttribute('aria-hidden', 'false');
+      drawer.setAttribute('aria-modal', 'true');
+      if (openBtn) openBtn.setAttribute('aria-expanded', 'true');
+      lockScroll();
+    }
+
+    function closeDrawer() {
+      if (!drawer) return;
+      drawer.classList.add('hidden');
+      drawer.setAttribute('aria-hidden', 'true');
+      drawer.removeAttribute('aria-modal');
+      if (openBtn) openBtn.setAttribute('aria-expanded', 'false');
+      unlockScroll();
+    }
+
+    if (openBtn) {
+      openBtn.addEventListener('click', openDrawer);
+    }
+
+    closeEls.forEach(function (el) {
+      el.addEventListener('click', closeDrawer);
+    });
+
+    if (drawer) {
+      drawer.addEventListener('keydown', function (e) {
+        if (e && e.key === 'Escape') closeDrawer();
+      });
+    }
+
+    var makeSelect = drawer ? drawer.querySelector('[data-vehicle-make]') : null;
+    var modelSelect = drawer ? drawer.querySelector('[data-vehicle-model]') : null;
+
+    function setModelOptions(make, selectedModel) {
+      if (!modelSelect) return;
+      var models = (make && vehicleModelsByMake && vehicleModelsByMake[make]) ? vehicleModelsByMake[make] : [];
+      modelSelect.innerHTML = '';
+
+      var first = document.createElement('option');
+      first.value = '';
+      if (!make) {
+        first.textContent = 'Choisis une marque';
+        modelSelect.appendChild(first);
+        modelSelect.disabled = true;
+        return;
+      }
+
+      first.textContent = 'Tous';
+      modelSelect.appendChild(first);
+      modelSelect.disabled = false;
+
+      (models || []).forEach(function (md) {
+        var opt = document.createElement('option');
+        opt.value = md;
+        opt.textContent = md;
+        if (selectedModel && String(selectedModel) === String(md)) opt.selected = true;
+        modelSelect.appendChild(opt);
+      });
+    }
+
+    if (makeSelect && modelSelect) {
+      makeSelect.addEventListener('change', function () {
+        setModelOptions(makeSelect.value, '');
+      });
+
+      setModelOptions(makeSelect.value, modelSelect.value);
+    }
+  })();
+</script>

@@ -256,6 +256,8 @@ async function listProducts(req, res, next) {
     const dbConnected = mongoose.connection.readyState === 1;
 
     const searchQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    let selectedVehicleMake = typeof req.query.vehicleMake === 'string' ? req.query.vehicleMake.trim() : '';
+    let selectedVehicleModel = typeof req.query.vehicleModel === 'string' ? req.query.vehicleModel.trim() : '';
     const legacySelectedCategory = typeof req.query.category === 'string' ? req.query.category.trim() : '';
     let selectedMainCategory = typeof req.query.mainCategory === 'string' ? req.query.mainCategory.trim() : '';
     let selectedSubCategory = typeof req.query.subCategory === 'string' ? req.query.subCategory.trim() : '';
@@ -416,6 +418,17 @@ async function listProducts(req, res, next) {
       filter.name = { $regex: escapeRegex(searchQuery), $options: 'i' };
     }
 
+    if (selectedVehicleMake || selectedVehicleModel) {
+      const elem = {};
+      if (selectedVehicleMake) {
+        elem.make = { $regex: escapeRegex(selectedVehicleMake), $options: 'i' };
+      }
+      if (selectedVehicleModel) {
+        elem.model = { $regex: escapeRegex(selectedVehicleModel), $options: 'i' };
+      }
+      filter.compatibility = { $elemMatch: elem };
+    }
+
     if (selectedMainCategory) {
       if (selectedSubCategory) {
         filter.category = `${selectedMainCategory} > ${selectedSubCategory}`;
@@ -438,6 +451,80 @@ async function listProducts(req, res, next) {
     }
     if (Object.keys(priceFilter).length > 0) {
       filter.priceCents = priceFilter;
+    }
+
+    let vehicleMakes = [];
+    let vehicleModelsByMake = {};
+    if (dbConnected) {
+      const rows = await Product.aggregate([
+        { $unwind: '$compatibility' },
+        {
+          $match: {
+            'compatibility.make': { $type: 'string', $ne: '' },
+          },
+        },
+        {
+          $project: {
+            make: { $trim: { input: '$compatibility.make' } },
+            model: { $trim: { input: '$compatibility.model' } },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              make: '$make',
+              model: '$model',
+            },
+          },
+        },
+      ]);
+
+      const map = new Map();
+      for (const r of rows) {
+        const make = r && r._id && typeof r._id.make === 'string' ? r._id.make.trim() : '';
+        const model = r && r._id && typeof r._id.model === 'string' ? r._id.model.trim() : '';
+        if (!make) continue;
+        if (!map.has(make)) map.set(make, new Set());
+        if (model) map.get(make).add(model);
+      }
+
+      vehicleMakes = Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+      vehicleModelsByMake = {};
+      for (const mk of vehicleMakes) {
+        const set = map.get(mk);
+        vehicleModelsByMake[mk] = set ? Array.from(set).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' })) : [];
+      }
+    } else {
+      const map = new Map();
+      for (const p of Array.isArray(demoProducts) ? demoProducts : []) {
+        const compat = Array.isArray(p.compatibility) ? p.compatibility : [];
+        for (const c of compat) {
+          const make = c && typeof c.make === 'string' ? c.make.trim() : '';
+          const model = c && typeof c.model === 'string' ? c.model.trim() : '';
+          if (!make) continue;
+          if (!map.has(make)) map.set(make, new Set());
+          if (model) map.get(make).add(model);
+        }
+      }
+
+      vehicleMakes = Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+      vehicleModelsByMake = {};
+      for (const mk of vehicleMakes) {
+        const set = map.get(mk);
+        vehicleModelsByMake[mk] = set ? Array.from(set).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' })) : [];
+      }
+    }
+
+    if (selectedVehicleMake && vehicleMakes.length) {
+      const needle = selectedVehicleMake.toLowerCase();
+      const match = vehicleMakes.find((mk) => String(mk).toLowerCase() === needle);
+      if (match) selectedVehicleMake = match;
+    }
+    if (selectedVehicleModel && selectedVehicleMake && vehicleModelsByMake[selectedVehicleMake]) {
+      const models = Array.isArray(vehicleModelsByMake[selectedVehicleMake]) ? vehicleModelsByMake[selectedVehicleMake] : [];
+      const needle = selectedVehicleModel.toLowerCase();
+      const match = models.find((md) => String(md).toLowerCase() === needle);
+      if (match) selectedVehicleModel = match;
     }
 
     let sortSpec = { createdAt: -1 };
@@ -483,6 +570,21 @@ async function listProducts(req, res, next) {
           if (searchQuery) {
             const haystack = `${p.name} ${p.brand || ''} ${p.sku || ''}`.toLowerCase();
             if (!haystack.includes(q)) return false;
+          }
+
+          if (selectedVehicleMake || selectedVehicleModel) {
+            const compat = Array.isArray(p.compatibility) ? p.compatibility : [];
+            const mk = String(selectedVehicleMake || '').toLowerCase();
+            const md = String(selectedVehicleModel || '').toLowerCase();
+            const ok = compat.some((c) => {
+              if (!c) return false;
+              const cMake = String(c.make || '').toLowerCase();
+              const cModel = String(c.model || '').toLowerCase();
+              if (mk && !cMake.includes(mk)) return false;
+              if (md && !cModel.includes(md)) return false;
+              return true;
+            });
+            if (!ok) return false;
           }
 
           if (selectedMainCategory) {
@@ -533,6 +635,8 @@ async function listProducts(req, res, next) {
 
     const hasAnyFilter =
       !!searchQuery ||
+      !!selectedVehicleMake ||
+      !!selectedVehicleModel ||
       !!selectedMainCategory ||
       !!selectedSubCategory ||
       !!selectedStock ||
@@ -561,6 +665,10 @@ async function listProducts(req, res, next) {
       metaRobots,
       dbConnected,
       searchQuery,
+      selectedVehicleMake,
+      selectedVehicleModel,
+      vehicleMakes,
+      vehicleModelsByMake,
       selectedMainCategory,
       selectedSubCategory,
       selectedCategoryLabel,
