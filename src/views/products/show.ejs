@@ -26,7 +26,7 @@
 </style>
 
 <main class="flex-1 bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200 transition-colors duration-200">
-  <div class="max-w-7xl mx-auto px-6 py-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
     <% if (!dbConnected) { %>
       <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 mb-10">
         <div class="font-bold">Mode démo activé</div>
@@ -89,7 +89,7 @@
         <span class="font-semibold text-slate-900 dark:text-slate-100"><%= product.name %></span>
       </nav>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-16 mb-24">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-16 mb-16 sm:mb-24">
         <div class="lg:col-span-7 space-y-6">
           <div class="relative bg-slate-50 dark:bg-slate-800 rounded-3xl overflow-hidden aspect-[16/11] refined-shadow">
             <% if (mainImage) { %>
@@ -130,7 +130,7 @@
 
         <div class="lg:col-span-5 flex flex-col justify-center space-y-10">
           <div class="space-y-4">
-            <h1 class="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight"><%= product.name %></h1>
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight"><%= product.name %></h1>
             <div class="flex items-center gap-4">
               <p class="text-slate-500 text-sm"><%= makes.length ? makes.join(', ') : (product.brand ? product.brand : ref) %></p>
               <div class="w-1 h-1 bg-slate-300 rounded-full"></div>

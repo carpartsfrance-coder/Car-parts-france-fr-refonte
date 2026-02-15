@@ -55,6 +55,53 @@
 </div>
 </div>
 </footer>
+
+<% const _cp = typeof currentPath === 'string' ? currentPath : ''; %>
+<% const _pathOnly = _cp.split('?')[0].split('#')[0]; %>
+<% const _isActive = (href) => {
+  if (!href) return false;
+  if (href === '/') return _pathOnly === '/';
+  return _pathOnly === href || _pathOnly.startsWith(href + '/');
+}; %>
+
+<% const _showMobileNav = !/^\/(admin|commande)(\/|$)/.test(_cp); %>
+
+<% if (_showMobileNav) { %>
+  <nav aria-label="Navigation rapide" class="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+    <div class="mx-auto max-w-[1440px] px-3 pb-[env(safe-area-inset-bottom)]">
+      <div class="grid grid-cols-5 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-xl">
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/') ? 'text-primary' : 'text-slate-600' %>" href="/" <% if (_isActive('/')) { %>aria-current="page"<% } %>>
+          <span class="material-symbols-rounded text-[22px]">home</span>
+          <span>Accueil</span>
+        </a>
+
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/categorie') ? 'text-primary' : 'text-slate-600' %>" href="/categorie" <% if (_isActive('/categorie')) { %>aria-current="page"<% } %>>
+          <span class="material-symbols-rounded text-[22px]">category</span>
+          <span>Catégories</span>
+        </a>
+
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/produits') ? 'text-primary' : 'text-slate-600' %>" href="/produits" <% if (_isActive('/produits')) { %>aria-current="page"<% } %>>
+          <span class="material-symbols-rounded text-[22px]">storefront</span>
+          <span>Catalogue</span>
+        </a>
+
+        <a class="relative flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/panier') ? 'text-primary' : 'text-slate-600' %>" href="/panier" <% if (_isActive('/panier')) { %>aria-current="page"<% } %>>
+          <span class="material-symbols-rounded text-[22px]">shopping_cart</span>
+          <% const _cartCount = typeof cartItemCount !== 'undefined' ? Number(cartItemCount) : 0; %>
+          <% if (_cartCount > 0) { %>
+            <span class="absolute top-2 right-3 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white"><%= _cartCount > 99 ? '99+' : _cartCount %></span>
+          <% } %>
+          <span>Panier</span>
+        </a>
+
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/compte') ? 'text-primary' : 'text-slate-600' %>" href="/compte" <% if (_isActive('/compte')) { %>aria-current="page"<% } %>>
+          <span class="material-symbols-rounded text-[22px]">account_circle</span>
+          <span>Compte</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+<% } %>
 </div>
 
 </body></html>

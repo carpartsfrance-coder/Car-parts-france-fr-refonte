@@ -8,7 +8,7 @@
     @apply bg-white dark:bg-surface-dark rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 transition-all duration-300 flex flex-col;
   }
   .summary-card {
-    @apply bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-8 border border-slate-100 dark:border-slate-800 sticky top-28;
+    @apply bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-8 border border-slate-100 dark:border-slate-800;
   }
 </style>
 
@@ -144,7 +144,7 @@
     </div>
 
     <div class="lg:col-span-4">
-      <div class="summary-card">
+      <div class="summary-card lg:sticky lg:top-28">
         <h2 class="text-xl font-bold mb-6">Récapitulatif</h2>
 
         <div class="space-y-4 mb-8">

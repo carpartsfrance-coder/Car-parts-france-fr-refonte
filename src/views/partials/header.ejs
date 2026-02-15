@@ -43,6 +43,10 @@
 </div>
 <% } %>
 
+<a aria-label="Rechercher" class="flex md:hidden items-center justify-center rounded-lg h-9 w-9 text-slate-700 hover:bg-slate-100 transition-colors" href="/produits">
+<span class="material-symbols-outlined">search</span>
+</a>
+
 <a class="relative flex items-center justify-center rounded-lg h-9 w-9 text-slate-700 hover:bg-slate-100 transition-colors" href="/panier">
 <span class="material-symbols-outlined">shopping_cart</span>
 <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-white font-semibold"><%= typeof cartItemCount !== 'undefined' ? cartItemCount : 0 %></span>
