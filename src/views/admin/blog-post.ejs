@@ -157,6 +157,11 @@
             </label>
 
             <label class="inline-flex items-center gap-3 text-sm font-bold text-slate-700">
+              <input <%= form && form.isHomeFeatured ? 'checked' : '' %> class="h-4 w-4" name="isHomeFeatured" type="checkbox" />
+              En avant sur la home
+            </label>
+
+            <label class="inline-flex items-center gap-3 text-sm font-bold text-slate-700">
               <input <%= form && form.isPublished ? 'checked' : '' %> class="h-4 w-4" name="isPublished" type="checkbox" />
               Publié
             </label>

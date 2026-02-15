@@ -335,6 +335,90 @@ async function getAdminProductSearchApi(req, res, next) {
   }
 }
 
+async function getAdminBlogPostSearchApi(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      return res.status(503).json({ ok: false, items: [], error: "La base de données n'est pas disponible." });
+    }
+
+    const q = getTrimmedString(req.query.q);
+    const idsRaw = getTrimmedString(req.query.ids);
+    const limitRaw = getTrimmedString(req.query.limit);
+    const limit = Math.max(1, Math.min(20, Number.parseInt(limitRaw || '10', 10) || 10));
+
+    const projection = '_id slug title excerpt coverImageUrl category isPublished publishedAt createdAt';
+
+    if (idsRaw) {
+      const ids = idsRaw
+        .split(',')
+        .map((v) => String(v || '').trim())
+        .filter(Boolean)
+        .filter((v) => mongoose.Types.ObjectId.isValid(v))
+        .slice(0, 50)
+        .map((v) => new mongoose.Types.ObjectId(v));
+
+      if (!ids.length) {
+        return res.json({ ok: true, items: [] });
+      }
+
+      const docs = await BlogPost.find({ _id: { $in: ids } })
+        .select(projection)
+        .lean();
+
+      const byId = new Map((docs || []).map((p) => [String(p._id), p]));
+      const ordered = ids
+        .map((id) => byId.get(String(id)))
+        .filter(Boolean);
+
+      const items = ordered.map((p) => ({
+        id: String(p._id),
+        slug: p.slug || '',
+        title: p.title || '',
+        excerpt: p.excerpt || '',
+        imageUrl: p.coverImageUrl || '',
+        categoryLabel: p.category && p.category.label ? p.category.label : (p.category && p.category.slug ? p.category.slug : ''),
+        isPublished: p.isPublished === true,
+      }));
+
+      return res.json({ ok: true, items });
+    }
+
+    if (!q || q.length < 2) {
+      return res.json({ ok: true, items: [] });
+    }
+
+    const safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(safe, 'i');
+
+    const docs = await BlogPost.find({
+      $or: [
+        { title: { $regex: rx } },
+        { slug: { $regex: rx } },
+        { excerpt: { $regex: rx } },
+      ],
+    })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(limit)
+      .select(projection)
+      .lean();
+
+    const items = (docs || []).map((p) => ({
+      id: String(p._id),
+      slug: p.slug || '',
+      title: p.title || '',
+      excerpt: p.excerpt || '',
+      imageUrl: p.coverImageUrl || '',
+      categoryLabel: p.category && p.category.label ? p.category.label : (p.category && p.category.slug ? p.category.slug : ''),
+      isPublished: p.isPublished === true,
+    }));
+
+    return res.json({ ok: true, items });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 function buildBlogPostForm(post) {
   const categorySlug = post && post.category && post.category.slug ? post.category.slug : '';
   const categoryLabel = post && post.category && post.category.label ? post.category.label : '';
@@ -352,6 +436,7 @@ function buildBlogPostForm(post) {
       ? post.relatedProductIds.map((id) => String(id)).join('\n')
       : '',
     isFeatured: post && post.isFeatured === true,
+    isHomeFeatured: post && post.isHomeFeatured === true,
     isPublished: post && post.isPublished === true,
     publishedAt: post && post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 10) : '',
     contentMarkdown: post && post.contentMarkdown ? post.contentMarkdown : '',
@@ -408,6 +493,7 @@ async function getAdminBlogPostsPage(req, res, next) {
       categoryLabel: p.category && p.category.label ? p.category.label : '',
       isPublished: p.isPublished === true,
       isFeatured: p.isFeatured === true,
+      isHomeFeatured: p.isHomeFeatured === true,
       publishedAt: p.publishedAt ? new Date(p.publishedAt).toISOString().slice(0, 10) : '',
       updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString().slice(0, 10) : '',
       publicUrl: `/blog/${encodeURIComponent(p.slug || '')}`,
@@ -463,6 +549,7 @@ async function postAdminCreateBlogPost(req, res, next) {
       readingTimeMinutes: getTrimmedString(req.body.readingTimeMinutes),
       relatedProductIds: typeof req.body.relatedProductIds === 'string' ? req.body.relatedProductIds : '',
       isFeatured: req.body.isFeatured === 'on' || req.body.isFeatured === 'true',
+      isHomeFeatured: req.body.isHomeFeatured === 'on' || req.body.isHomeFeatured === 'true',
       isPublished: req.body.isPublished === 'on' || req.body.isPublished === 'true',
       publishedAt: getTrimmedString(req.body.publishedAt),
       contentMarkdown: typeof req.body.contentMarkdown === 'string' ? req.body.contentMarkdown : '',
@@ -535,6 +622,7 @@ async function postAdminCreateBlogPost(req, res, next) {
       readingTimeMinutes: readingTimeMinutes !== null ? readingTimeMinutes : 0,
       relatedProductIds: parseObjectIdListFromLines(form.relatedProductIds),
       isFeatured: form.isFeatured === true,
+      isHomeFeatured: form.isHomeFeatured === true,
       isPublished,
       publishedAt,
       seo: {
@@ -652,6 +740,7 @@ async function postAdminUpdateBlogPost(req, res, next) {
       readingTimeMinutes: getTrimmedString(req.body.readingTimeMinutes),
       relatedProductIds: typeof req.body.relatedProductIds === 'string' ? req.body.relatedProductIds : '',
       isFeatured: req.body.isFeatured === 'on' || req.body.isFeatured === 'true',
+      isHomeFeatured: req.body.isHomeFeatured === 'on' || req.body.isHomeFeatured === 'true',
       isPublished: req.body.isPublished === 'on' || req.body.isPublished === 'true',
       publishedAt: getTrimmedString(req.body.publishedAt),
       contentMarkdown: typeof req.body.contentMarkdown === 'string' ? req.body.contentMarkdown : '',
@@ -722,6 +811,7 @@ async function postAdminUpdateBlogPost(req, res, next) {
             : (Number.isFinite(existing.readingTimeMinutes) ? existing.readingTimeMinutes : 0),
           relatedProductIds: parseObjectIdListFromLines(form.relatedProductIds),
           isFeatured: form.isFeatured === true,
+          isHomeFeatured: form.isHomeFeatured === true,
           isPublished,
           publishedAt,
           seo: {
@@ -805,8 +895,9 @@ module.exports = {
   getAdminNewBlogPostPage,
   postAdminCreateBlogPost,
   getAdminEditBlogPostPage,
-  getAdminProductSearchApi,
   postAdminUpdateBlogPost,
   postAdminDeleteBlogPost,
   postAdminBlogMediaUploadApi,
+  getAdminProductSearchApi,
+  getAdminBlogPostSearchApi,
 };

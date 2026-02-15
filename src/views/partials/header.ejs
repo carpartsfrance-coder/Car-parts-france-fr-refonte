@@ -25,11 +25,21 @@
 }; %>
 
 <div class="hidden md:flex flex-1 max-w-2xl">
-<form action="/produits" class="relative w-full" method="GET">
+<form action="/produits" class="relative w-full" method="GET" data-header-search>
 <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
 <span class="material-symbols-outlined text-xl">search</span>
  </div>
-<input class="block w-full px-3 py-2.5 pl-10 text-sm text-slate-900 border border-slate-200 rounded-lg bg-slate-50 focus:ring-primary focus:border-primary" name="q" placeholder="Rechercher une pièce, une référence ou une marque..." type="text" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>"/>
+<input class="block w-full px-3 py-2.5 pl-10 text-sm text-slate-900 border border-slate-200 rounded-lg bg-slate-50 focus:ring-primary focus:border-primary" name="q" placeholder="Rechercher une pièce, une référence ou une marque..." type="text" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" autocomplete="off" data-header-search-input />
+
+<div class="absolute left-0 right-0 top-full mt-2 hidden" data-header-search-suggest>
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+    <div class="px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Produits</div>
+    <div class="divide-y divide-slate-100" data-header-search-results></div>
+    <a class="block px-4 py-3 text-xs font-black text-primary hover:bg-slate-50" href="/produits" data-header-search-all>
+      Voir le catalogue
+    </a>
+  </div>
+</div>
 </form>
 </div>
 
@@ -168,3 +178,160 @@
   })();
 </script>
 
+<script>
+  (function () {
+    var form = document.querySelector('[data-header-search]');
+    if (!form) return;
+
+    var input = form.querySelector('[data-header-search-input]');
+    var suggestBox = form.querySelector('[data-header-search-suggest]');
+    var resultsEl = form.querySelector('[data-header-search-results]');
+    var allLink = form.querySelector('[data-header-search-all]');
+
+    if (!input || !suggestBox || !resultsEl || !allLink) return;
+
+    var lastQuery = '';
+    var timer = null;
+    var abort = null;
+
+    function closeSuggest() {
+      suggestBox.classList.add('hidden');
+      resultsEl.innerHTML = '';
+    }
+
+    function openSuggest() {
+      suggestBox.classList.remove('hidden');
+    }
+
+    function setAllLink(q) {
+      var safe = (q || '').trim();
+      allLink.href = safe ? ('/produits?q=' + encodeURIComponent(safe)) : '/produits';
+      allLink.textContent = safe ? ('Voir tous les résultats pour "' + safe + '"') : 'Voir le catalogue';
+    }
+
+    function renderResults(results, q) {
+      resultsEl.innerHTML = '';
+      setAllLink(q);
+
+      if (!Array.isArray(results) || results.length === 0) {
+        closeSuggest();
+        return;
+      }
+
+      results.forEach(function (r) {
+        if (!r || !r.publicPath) return;
+
+        var a = document.createElement('a');
+        a.href = r.publicPath;
+        a.className = 'flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition';
+
+        var imgWrap = document.createElement('div');
+        imgWrap.className = 'h-10 w-10 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0';
+
+        if (r.imageUrl) {
+          var img = document.createElement('img');
+          img.src = r.imageUrl;
+          img.alt = '';
+          img.className = 'h-full w-full object-cover';
+          img.loading = 'lazy';
+          imgWrap.appendChild(img);
+        } else {
+          var placeholder = document.createElement('span');
+          placeholder.className = 'material-symbols-outlined text-slate-400';
+          placeholder.textContent = 'inventory_2';
+          imgWrap.appendChild(placeholder);
+        }
+
+        var meta = document.createElement('div');
+        meta.className = 'min-w-0 flex-1';
+
+        var title = document.createElement('div');
+        title.className = 'text-sm font-black text-slate-900 truncate';
+        title.textContent = r.name || 'Produit';
+
+        var sub = document.createElement('div');
+        sub.className = 'mt-0.5 text-[11px] text-slate-500 flex items-center gap-2';
+
+        var sku = document.createElement('span');
+        sku.className = 'font-semibold';
+        sku.textContent = r.sku ? ('Ref: ' + r.sku) : '';
+
+        var price = document.createElement('span');
+        price.className = 'ml-auto font-black text-slate-700';
+        price.textContent = r.price || '';
+
+        sub.appendChild(sku);
+        sub.appendChild(price);
+
+        meta.appendChild(title);
+        meta.appendChild(sub);
+
+        a.appendChild(imgWrap);
+        a.appendChild(meta);
+
+        resultsEl.appendChild(a);
+      });
+
+      openSuggest();
+    }
+
+    function fetchSuggest(q) {
+      if (abort) {
+        try { abort.abort(); } catch (e) {}
+      }
+      abort = new AbortController();
+
+      return fetch('/rechercher/suggest?q=' + encodeURIComponent(q), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: abort.signal,
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var results = data && Array.isArray(data.results) ? data.results : [];
+          return results;
+        })
+        .catch(function () {
+          return [];
+        });
+    }
+
+    function schedule() {
+      var q = (input.value || '').trim();
+      lastQuery = q;
+
+      if (timer) window.clearTimeout(timer);
+
+      if (!q || q.length < 2) {
+        closeSuggest();
+        setAllLink(q);
+        return;
+      }
+
+      timer = window.setTimeout(function () {
+        fetchSuggest(q).then(function (results) {
+          if (q !== lastQuery) return;
+          renderResults(results, q);
+        });
+      }, 180);
+    }
+
+    input.addEventListener('input', schedule);
+    input.addEventListener('focus', function () {
+      var q = (input.value || '').trim();
+      if (q && q.length >= 2 && resultsEl.children.length) openSuggest();
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!e || !e.target) return;
+      if (form.contains(e.target)) return;
+      closeSuggest();
+    });
+
+    form.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Escape') closeSuggest();
+    });
+
+    setAllLink((input.value || '').trim());
+  })();
+</script>

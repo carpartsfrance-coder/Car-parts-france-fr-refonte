@@ -71,6 +71,7 @@
                     <div class="font-bold text-slate-900"><%= p.title %></div>
                     <div class="mt-1 text-xs text-slate-500">
                       <%= p.isFeatured ? '★ À la une • ' : '' %>
+                      <%= p.isHomeFeatured ? '🏠 Home • ' : '' %>
                       <%= p.publishedAt ? ('Publié le ' + p.publishedAt) : (p.isPublished ? 'Publié' : 'Brouillon') %>
                     </div>
                   </td>

@@ -362,9 +362,9 @@
               <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest">Select Brand to Manage</label>
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2" for="compatMakeInput">Marque</label>
-                  <input class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm" id="compatMakeInput" type="text" list="compatMakeOptions" placeholder="Commence à taper (ex: Audi)" autocomplete="off" />
-                  <datalist id="compatMakeOptions"></datalist>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2" for="compatMakeSelect">Marque</label>
+                  <select class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm" id="compatMakeSelect"></select>
+                  <input class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm hidden mt-2" id="compatMakeCustom" type="text" placeholder="Nouvelle marque (ex: Audi)" autocomplete="off" />
                 </div>
 
                 <div>
@@ -425,6 +425,38 @@
       </section>
 
       <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between flex-wrap gap-4">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">article</span>
+            Articles de blog liés
+          </h2>
+          <div class="text-[11px] text-gray-500">Ces articles apparaîtront sur la fiche produit.</div>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest">Rechercher un article</label>
+            <input
+              id="relatedBlogSearch"
+              class="mt-2 w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm"
+              type="text"
+              placeholder="Tape au moins 2 lettres (titre, slug, extrait...)"
+              autocomplete="off"
+            />
+            <div id="relatedBlogResults" class="mt-2 max-h-56 overflow-auto rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900"></div>
+          </div>
+
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">Sélection</div>
+            <div id="relatedBlogSelected" class="mt-2 space-y-2"></div>
+          </div>
+
+          <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4"><%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %></textarea>
+          <div class="text-xs text-gray-500">Astuce : si tu ne sélectionnes rien ici, tu peux quand même lier un produit depuis l’article (admin blog).</div>
+        </div>
+      </section>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark">
           <h2 class="font-bold flex items-center gap-2">
             <span class="material-symbols-outlined text-gray-400">language</span>
@@ -432,6 +464,49 @@
           </h2>
         </div>
         <div class="p-6 space-y-6">
+          <% if (typeof seoAssistant !== 'undefined' && seoAssistant) { %>
+            <div class="rounded-xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/40 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">Score SEO</div>
+                  <div id="seoScoreValue" class="mt-1 text-2xl font-black text-gray-900 dark:text-white"><%= seoAssistant.score %>/100</div>
+                </div>
+                <div class="w-40">
+                  <div class="h-2 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+                    <div id="seoProgressFill" class="h-2 bg-primary" data-width="<%= Math.max(0, Math.min(100, seoAssistant.score)) %>"></div>
+                  </div>
+                  <div class="mt-2 text-[10px] font-bold text-gray-500">Objectif : 85+</div>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">Prévisualisation Google</div>
+                <div class="mt-2 rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 p-4">
+                  <div id="seoPreviewTitle" class="text-[#1a0dab] text-sm font-bold leading-snug"><%= seoAssistant.preview && seoAssistant.preview.title ? seoAssistant.preview.title : '' %></div>
+                  <div id="seoPreviewUrl" class="mt-1 text-[11px] text-[#006621] break-all"><%= seoAssistant.preview && seoAssistant.preview.url ? seoAssistant.preview.url : '' %></div>
+                  <div id="seoPreviewDescription" class="mt-2 text-[12px] text-gray-700 dark:text-gray-300 leading-snug"><%= seoAssistant.preview && seoAssistant.preview.description ? seoAssistant.preview.description : '' %></div>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                <div class="text-[10px] font-black uppercase tracking-widest text-gray-400">Checklist</div>
+                <div id="seoChecklist" class="mt-2 space-y-2">
+                  <% (seoAssistant.checks || []).forEach((c) => { %>
+                    <div class="flex items-start gap-2">
+                      <span class="material-symbols-outlined text-base <%= c.ok ? 'text-green-600' : 'text-red-600' %>"><%= c.ok ? 'check_circle' : 'cancel' %></span>
+                      <div class="flex-1">
+                        <div class="text-xs font-bold text-gray-900 dark:text-white"><%= c.label %></div>
+                        <% if (c.detail) { %>
+                          <div class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400"><%= c.detail %></div>
+                        <% } %>
+                      </div>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+          <% } %>
+
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaTitle">Meta Title</label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="metaTitle" name="metaTitle" type="text" value="<%= form && form.metaTitle ? form.metaTitle : '' %>" />
@@ -445,6 +520,11 @@
     </form>
 
     <script id="compatIndexJson" type="application/json"><%- JSON.stringify((typeof compatIndex !== 'undefined' && compatIndex) ? compatIndex : { makes: [], modelsByMake: {} }) %></script>
+
+    <script id="seoAssistantSeed" type="application/json"><%- JSON.stringify({
+      baseUrl: (seoAssistant && seoAssistant.computed && seoAssistant.computed.baseUrl) ? seoAssistant.computed.baseUrl : '',
+      productId: productId ? String(productId) : 'ID',
+    }) %></script>
 
     <script>
       (function () {
@@ -562,8 +642,8 @@
         const stepsGrid = document.getElementById('stepsGrid');
         const stepsField = document.getElementById('reconditioningSteps');
         const compatField = document.getElementById('compatibility');
-        const compatMakeInput = document.getElementById('compatMakeInput');
-        const compatMakeOptions = document.getElementById('compatMakeOptions');
+        const compatMakeSelect = document.getElementById('compatMakeSelect');
+        const compatMakeCustom = document.getElementById('compatMakeCustom');
         const compatModelSelect = document.getElementById('compatModelSelect');
         const compatModelCustom = document.getElementById('compatModelCustom');
         const compatYears = document.getElementById('compatYears');
@@ -587,6 +667,16 @@
           SERVER_COMPAT_INDEX = { makes: [], modelsByMake: {} };
         }
 
+        const seoSeedEl = document.getElementById('seoAssistantSeed');
+        let SEO_SEED = { baseUrl: '', productId: 'ID' };
+        try {
+          SEO_SEED = seoSeedEl && seoSeedEl.textContent
+            ? JSON.parse(seoSeedEl.textContent)
+            : { baseUrl: '', productId: 'ID' };
+        } catch (e) {
+          SEO_SEED = { baseUrl: '', productId: 'ID' };
+        }
+
         const DEFAULT_MAKES = [
           'Audi',
           'BMW',
@@ -608,14 +698,14 @@
           'Volvo',
         ];
 
-        const parseLines = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        const parseLinesValue = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 
         const specsField = document.getElementById('specs');
         const specTypeInput = document.getElementById('specType');
         const specProgrammationInput = document.getElementById('specProgrammation');
 
         const parseSpecPairs = (value) => {
-          const lines = parseLines(value);
+          const lines = parseLinesValue(value);
           const pairs = [];
 
           lines.forEach((line) => {
@@ -663,7 +753,7 @@
         }
 
         const parseSteps = () => {
-          const lines = parseLines(stepsField ? stepsField.value : '');
+          const lines = parseLinesValue(stepsField ? stepsField.value : '');
           const out = [];
           lines.forEach((line) => {
             const idx = line.indexOf(':');
@@ -803,7 +893,7 @@
         }
 
         const parseCompatibility = () => {
-          const lines = parseLines(compatField ? compatField.value : '');
+          const lines = parseLinesValue(compatField ? compatField.value : '');
           return lines
             .map((line) => {
               const parts = line.split('|').map((p) => String(p || '').trim());
@@ -822,6 +912,8 @@
           compatField.value = items
             .map((x) => `${x.make} | ${x.model} | ${x.years} | ${x.engine}`.trim())
             .join('\n');
+
+          if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
         };
 
         let compatItems = parseCompatibility();
@@ -841,6 +933,31 @@
           const all = makeList();
           const exact = all.find((m) => String(m).toLowerCase() === low);
           return exact || raw;
+        };
+
+        const setSelectMakeOptions = (select, values) => {
+          if (!select) return;
+          const current = select.value;
+          select.innerHTML = '';
+
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Choisir une marque...';
+          select.appendChild(placeholder);
+
+          values.forEach((v) => {
+            const o = document.createElement('option');
+            o.value = v;
+            o.textContent = v;
+            select.appendChild(o);
+          });
+
+          const custom = document.createElement('option');
+          custom.value = '__custom__';
+          custom.textContent = 'Autre (nouvelle marque)';
+          select.appendChild(custom);
+
+          if (current) select.value = current;
         };
 
         const setSelectModelOptions = (select, values) => {
@@ -878,16 +995,6 @@
           const all = Array.from(new Set([...(Array.isArray(fromServer) ? fromServer : []), ...fromData]))
             .sort((a, b) => String(a).localeCompare(String(b), 'fr'));
           return all;
-        };
-
-        const setDatalistOptions = (datalist, values) => {
-          if (!datalist) return;
-          datalist.innerHTML = '';
-          values.forEach((v) => {
-            const o = document.createElement('option');
-            o.value = v;
-            datalist.appendChild(o);
-          });
         };
 
         const renderModelsList = () => {
@@ -928,12 +1035,19 @@
         };
 
         const renderCompatibilityUI = () => {
-          if (!compatMakeInput || !compatModelSelect) return;
+          if (!compatMakeSelect || !compatModelSelect) return;
           const makes = makeList();
-          setDatalistOptions(compatMakeOptions, makes);
+          setSelectMakeOptions(compatMakeSelect, makes);
 
-          const activeMake = String(compatMakeInput.value || '').trim();
-          const canonicalMake = resolveMakeKey(activeMake);
+          let canonicalMake = '';
+          if (compatMakeSelect.value === '__custom__') {
+            if (compatMakeCustom) compatMakeCustom.classList.remove('hidden');
+            canonicalMake = resolveMakeKey(String((compatMakeCustom || {}).value || '').trim());
+          } else {
+            if (compatMakeCustom) compatMakeCustom.classList.add('hidden');
+            canonicalMake = resolveMakeKey(String(compatMakeSelect.value || '').trim());
+          }
+
           if (canonicalMake) selectedMake = canonicalMake;
 
           const models = canonicalMake ? modelsForMake(canonicalMake) : [];
@@ -948,16 +1062,43 @@
           renderModelsList();
         };
 
-        const readMakeFromUI = () => resolveMakeKey(compatMakeInput ? String(compatMakeInput.value || '').trim() : '');
+        const readMakeFromUI = () => {
+          if (!compatMakeSelect) return '';
+          if (compatMakeSelect.value === '__custom__') return resolveMakeKey(String((compatMakeCustom || {}).value || '').trim());
+          return resolveMakeKey(String(compatMakeSelect.value || '').trim());
+        };
         const readModelFromUI = () => {
           if (!compatModelSelect) return '';
           if (compatModelSelect.value === '__custom__') return String((compatModelCustom || {}).value || '').trim();
           return String(compatModelSelect.value || '').trim();
         };
 
-        if (compatMakeInput) {
-          compatMakeInput.addEventListener('input', () => {
-            selectedMake = resolveMakeKey(String(compatMakeInput.value || '').trim());
+        if (compatMakeSelect) {
+          compatMakeSelect.addEventListener('change', () => {
+            selectedMake = readMakeFromUI();
+            if (compatModelSelect) compatModelSelect.value = '';
+            if (compatModelCustom) {
+              compatModelCustom.value = '';
+              compatModelCustom.classList.add('hidden');
+            }
+
+            if (compatMakeSelect.value !== '__custom__') {
+              if (compatMakeCustom) {
+                compatMakeCustom.value = '';
+                compatMakeCustom.classList.add('hidden');
+              }
+            } else {
+              if (compatMakeCustom) compatMakeCustom.classList.remove('hidden');
+              if (compatMakeCustom) compatMakeCustom.focus();
+            }
+
+            renderCompatibilityUI();
+          });
+        }
+
+        if (compatMakeCustom) {
+          compatMakeCustom.addEventListener('input', () => {
+            selectedMake = readMakeFromUI();
             if (compatModelSelect) compatModelSelect.value = '';
             if (compatModelCustom) {
               compatModelCustom.value = '';
@@ -993,7 +1134,7 @@
 
             if (!make) {
               window.alert('Choisis une marque (ou ajoute une nouvelle marque).');
-              if (compatMakeInput) compatMakeInput.focus();
+              if (compatMakeSelect) compatMakeSelect.focus();
               return;
             }
 
@@ -1010,7 +1151,11 @@
 
             if (compatYears) compatYears.value = '';
             if (compatEngine) compatEngine.value = '';
-            if (compatMakeInput) compatMakeInput.value = make;
+            if (compatMakeSelect) compatMakeSelect.value = make;
+            if (compatMakeCustom) {
+              compatMakeCustom.value = '';
+              compatMakeCustom.classList.add('hidden');
+            }
             if (compatModelSelect) compatModelSelect.value = '';
             if (compatModelCustom) {
               compatModelCustom.value = '';
@@ -1023,17 +1168,29 @@
 
         if (compatAddBtn) {
           compatAddBtn.addEventListener('click', () => {
-            if (compatMakeInput) compatMakeInput.focus();
+            if (compatMakeSelect) compatMakeSelect.focus();
           });
         }
 
-        if (compatField && compatMakeInput && compatModelSelect && compatModels) {
-          if (selectedMake && !compatMakeInput.value) compatMakeInput.value = selectedMake;
+        if (compatMakeSelect && compatModelSelect) {
+          if (selectedMake && !compatMakeSelect.value) {
+            const hasMakeInList = makeList().some((m) => String(m) === String(selectedMake));
+            if (hasMakeInList) {
+              compatMakeSelect.value = selectedMake;
+            } else {
+              compatMakeSelect.value = '__custom__';
+              if (compatMakeCustom) {
+                compatMakeCustom.classList.remove('hidden');
+                compatMakeCustom.value = selectedMake;
+              }
+            }
+          }
+
           renderCompatibilityUI();
         }
 
         const parseFaqs = () => {
-          const lines = parseLines(faqField ? faqField.value : '');
+          const lines = parseLinesValue(faqField ? faqField.value : '');
           return lines
             .map((line) => {
               const parts = line.split('|').map((p) => String(p || '').trim());
@@ -1045,6 +1202,8 @@
         const syncFaqField = (items) => {
           if (!faqField) return;
           faqField.value = items.map((x) => `${x.question} | ${x.answer}`.trim()).join('\n');
+
+          if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
         };
 
         let faqItems = parseFaqs();
@@ -1138,6 +1297,366 @@
         if (faqField && faqList) {
           renderFaqs();
         }
+
+        var scoreValueEl = document.getElementById('seoScoreValue');
+        var fill = document.getElementById('seoProgressFill');
+        var previewTitleEl = document.getElementById('seoPreviewTitle');
+        var previewUrlEl = document.getElementById('seoPreviewUrl');
+        var previewDescEl = document.getElementById('seoPreviewDescription');
+        var checklistEl = document.getElementById('seoChecklist');
+
+        function normalizeMetaText(value) {
+          return String(value || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        }
+
+        function stripHtml(value) {
+          return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        }
+
+        function stripMarkdown(value) {
+          return String(value || '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/^\s*[-*]\s+/gm, '')
+            .replace(/^\s*\d+[).]\s+/gm, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        }
+
+        function countWords(value) {
+          var plain = stripMarkdown(stripHtml(value));
+          if (!plain) return 0;
+          return plain.split(/\s+/).filter(Boolean).length;
+        }
+
+        function truncateText(value, max) {
+          var s = String(value || '').trim();
+          if (!s) return '';
+          if (!Number.isFinite(max) || max <= 0) return s;
+          if (s.length <= max) return s;
+          return s.slice(0, Math.max(0, max - 1)).trim() + '…';
+        }
+
+        function slugify(value) {
+          var s = String(value || '');
+          try {
+            s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          } catch (e) {}
+          return s
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+/, '')
+            .replace(/-+$/, '');
+        }
+
+        function updateSeoAssistant() {
+          if (!scoreValueEl || !previewTitleEl || !previewUrlEl || !previewDescEl || !checklistEl) return;
+
+          var siteName = 'CarParts France';
+          var nameEl = document.getElementById('name');
+          var skuEl = document.getElementById('sku');
+          var brandEl = document.getElementById('brand');
+          var categoryEl = document.getElementById('category');
+          var imageUrlEl = document.getElementById('imageUrl');
+          var galleryUrlsEl = document.getElementById('galleryUrls');
+          var shortDescEl = document.getElementById('shortDescription');
+          var descEl = document.getElementById('description');
+          var metaTitleEl = document.getElementById('metaTitle');
+          var metaDescEl = document.getElementById('metaDescription');
+          var faqsEl = document.getElementById('faqs');
+          var compatEl = document.getElementById('compatibility');
+
+          var name = String((nameEl || {}).value || '').trim();
+          var sku = String((skuEl || {}).value || '').trim();
+          var brand = String((brandEl || {}).value || '').trim();
+          var category = String((categoryEl || {}).value || '').trim();
+          var imageUrl = String((imageUrlEl || {}).value || '').trim();
+          var galleryUrls = String((galleryUrlsEl || {}).value || '').trim();
+          var shortDescription = String((shortDescEl || {}).value || '').trim();
+          var description = String((descEl || {}).value || '').trim();
+          var metaTitle = normalizeMetaText(String((metaTitleEl || {}).value || ''));
+          var metaDescription = normalizeMetaText(String((metaDescEl || {}).value || ''));
+          var faqsText = String((faqsEl || {}).value || '');
+          var compatText = String((compatEl || {}).value || '');
+
+          var galleryCount = parseLinesValue(galleryUrls).length + (imageUrl ? 1 : 0);
+          var words = countWords(description || shortDescription);
+          var faqCount = parseLinesValue(faqsText).filter(function (l) { return l.indexOf('|') !== -1; }).length;
+          var compatCount = parseLinesValue(compatText).filter(function (l) { return l.indexOf('|') !== -1; }).length;
+          var hasRef = !!sku || /\b[A-Z0-9]{5,}\b/i.test(name);
+
+          var urlId = (SEO_SEED && SEO_SEED.productId) ? SEO_SEED.productId : 'ID';
+          var urlPath = '/produits/' + encodeURIComponent(slugify(name) || 'produit') + '-' + encodeURIComponent(String(urlId));
+          var baseUrl = (SEO_SEED && SEO_SEED.baseUrl) ? SEO_SEED.baseUrl : '';
+          var url = baseUrl ? (String(baseUrl).replace(/\/$/, '') + urlPath) : urlPath;
+
+          var autoTitle = ((name || siteName)
+            + (brand ? ' - ' + brand : '')
+            + (sku ? ' (Réf ' + sku + ')' : '')
+            + ' | ' + siteName).trim();
+          var finalTitle = metaTitle || autoTitle;
+
+          var fallbackDesc = truncateText(stripMarkdown(stripHtml(shortDescription || description)), 160);
+          var finalDesc = metaDescription || fallbackDesc;
+
+          var checks = [];
+          checks.push({ key: 'name', label: 'Nom du produit', ok: !!name, detail: name ? '' : 'Ajoute un nom clair (idéalement avec la référence OEM).', weight: 20 });
+          checks.push({ key: 'brand', label: 'Marque', ok: !!brand, detail: brand ? '' : 'Ajoute la marque (Volkswagen, Audi…).', weight: 5 });
+          checks.push({ key: 'category', label: 'Catégorie', ok: !!category, detail: category ? '' : 'Choisis une catégorie.', weight: 5 });
+          checks.push({ key: 'ref', label: 'Référence (SKU / OEM) présente', ok: hasRef, detail: hasRef ? '' : 'Ajoute un SKU ou une référence OEM dans le nom.', weight: 8 });
+          checks.push({
+            key: 'metaTitle',
+            label: 'Meta title (50–60 caractères)',
+            ok: finalTitle.length >= 45 && finalTitle.length <= 65,
+            detail: metaTitle ? ('Longueur actuelle : ' + finalTitle.length) : ('Auto : ' + finalTitle.length + ' (tu peux optimiser)'),
+            weight: 10,
+          });
+          checks.push({
+            key: 'metaDescription',
+            label: 'Meta description (120–160 caractères)',
+            ok: finalDesc.length >= 110 && finalDesc.length <= 170,
+            detail: metaDescription ? ('Longueur actuelle : ' + finalDesc.length) : ('Auto : ' + finalDesc.length + ' (tu peux optimiser)'),
+            weight: 10,
+          });
+          checks.push({ key: 'image', label: 'Image principale', ok: !!imageUrl, detail: imageUrl ? '' : 'Ajoute une image principale (important pour le clic).', weight: 10 });
+          checks.push({ key: 'gallery', label: 'Plusieurs images (2+)', ok: galleryCount >= 2, detail: 'Images détectées : ' + galleryCount, weight: 4 });
+          checks.push({ key: 'content', label: 'Description suffisante (200+ mots)', ok: words >= 200, detail: 'Mots : ' + words, weight: 12 });
+          checks.push({ key: 'faq', label: 'FAQ (4+ questions)', ok: faqCount >= 4, detail: 'FAQ : ' + faqCount, weight: 10 });
+          checks.push({ key: 'compat', label: 'Compatibilité (3+ lignes)', ok: compatCount >= 3, detail: 'Compatibilités : ' + compatCount, weight: 8 });
+
+          var score = 100;
+          checks.forEach(function (c) { if (!c.ok) score -= (Number.isFinite(c.weight) ? c.weight : 10); });
+          if (score < 0) score = 0;
+          if (score > 100) score = 100;
+
+          scoreValueEl.textContent = String(score) + '/100';
+          previewTitleEl.textContent = finalTitle;
+          previewUrlEl.textContent = url;
+          previewDescEl.textContent = finalDesc;
+
+          if (fill) {
+            var w = Math.max(0, Math.min(100, score));
+            fill.style.width = w + '%';
+            fill.setAttribute('data-width', String(w));
+          }
+
+          checklistEl.innerHTML = '';
+          checks.forEach(function (c) {
+            var row = document.createElement('div');
+            row.className = 'flex items-start gap-2';
+
+            var icon = document.createElement('span');
+            icon.className = 'material-symbols-outlined text-base ' + (c.ok ? 'text-green-600' : 'text-red-600');
+            icon.textContent = c.ok ? 'check_circle' : 'cancel';
+
+            var right = document.createElement('div');
+            right.className = 'flex-1';
+
+            var title = document.createElement('div');
+            title.className = 'text-xs font-bold text-gray-900 dark:text-white';
+            title.textContent = c.label;
+
+            right.appendChild(title);
+            if (c.detail) {
+              var detail = document.createElement('div');
+              detail.className = 'mt-0.5 text-[11px] text-gray-500 dark:text-gray-400';
+              detail.textContent = c.detail;
+              right.appendChild(detail);
+            }
+
+            row.appendChild(icon);
+            row.appendChild(right);
+            checklistEl.appendChild(row);
+          });
+        }
+
+        updateSeoAssistant();
+        ['name', 'sku', 'brand', 'category', 'imageUrl', 'galleryUrls', 'shortDescription', 'description', 'metaTitle', 'metaDescription', 'faqs', 'compatibility'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener('input', updateSeoAssistant);
+          el.addEventListener('change', updateSeoAssistant);
+        });
+
+        function fetchJson(url, cb) {
+          fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { cb(null, data); })
+            .catch(function (err) { cb(err); });
+        }
+
+        function setupRelatedBlogPostsPicker() {
+          var searchInput = document.getElementById('relatedBlogSearch');
+          var resultsEl = document.getElementById('relatedBlogResults');
+          var selectedEl = document.getElementById('relatedBlogSelected');
+          var idsTextarea = document.getElementById('relatedBlogPostIds');
+
+          if (!searchInput || !resultsEl || !selectedEl || !idsTextarea) return;
+
+          function getSelectedIds() {
+            return String(idsTextarea.value || '')
+              .split(/\r?\n/)
+              .map(function (s) { return String(s || '').trim(); })
+              .filter(Boolean);
+          }
+
+          function setSelectedIds(ids) {
+            idsTextarea.value = (ids || []).join('\n');
+            if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
+          }
+
+          function badge(html) {
+            var wrap = document.createElement('span');
+            wrap.className = 'inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-700';
+            wrap.innerHTML = html;
+            return wrap;
+          }
+
+          function renderSelected(itemsById) {
+            var ids = getSelectedIds();
+            selectedEl.innerHTML = '';
+            ids.forEach(function (id) {
+              var it = itemsById && itemsById[id] ? itemsById[id] : null;
+
+              var row = document.createElement('div');
+              row.className = 'flex items-center justify-between gap-3 rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3';
+
+              var left = document.createElement('div');
+              left.className = 'min-w-0';
+
+              var title = document.createElement('div');
+              title.className = 'font-bold text-sm text-gray-900 dark:text-white truncate';
+              title.textContent = it ? (it.title || it.slug || id) : id;
+
+              var meta = document.createElement('div');
+              meta.className = 'mt-1 text-[11px] text-gray-500 truncate';
+              meta.textContent = it ? ((it.categoryLabel ? it.categoryLabel : 'Blog') + (it.isPublished ? ' • publié' : ' • brouillon')) : '';
+
+              left.appendChild(title);
+              left.appendChild(meta);
+
+              var del = document.createElement('button');
+              del.type = 'button';
+              del.className = 'text-gray-400 hover:text-red-600 transition-colors';
+              del.innerHTML = '<span class="material-symbols-outlined">close</span>';
+              del.addEventListener('click', function () {
+                var next = getSelectedIds().filter(function (x) { return x !== id; });
+                setSelectedIds(next);
+                hydrateSelected();
+              });
+
+              row.appendChild(left);
+              row.appendChild(del);
+              selectedEl.appendChild(row);
+            });
+          }
+
+          function hydrateSelected() {
+            var ids = getSelectedIds();
+            if (!ids.length) {
+              selectedEl.innerHTML = '<div class="text-xs text-gray-500">Aucun article lié.</div>';
+              return;
+            }
+
+            var url = '/admin/api/blog/search?ids=' + encodeURIComponent(ids.join(','));
+            fetchJson(url, function (_err, data) {
+              var map = {};
+              if (data && data.ok === true && Array.isArray(data.items)) {
+                data.items.forEach(function (it) { map[String(it.id)] = it; });
+              }
+              renderSelected(map);
+            });
+          }
+
+          function setResults(html) {
+            resultsEl.innerHTML = html;
+          }
+
+          var lastQuery = '';
+          function runSearch() {
+            var query = String(searchInput.value || '').trim();
+            if (query.length < 2) {
+              setResults('<div class="px-3 py-3 text-xs text-gray-500">Tape au moins 2 lettres.</div>');
+              return;
+            }
+
+            lastQuery = query;
+            setResults('<div class="px-3 py-3 text-xs text-gray-500">Recherche…</div>');
+            var url = '/admin/api/blog/search?q=' + encodeURIComponent(query) + '&limit=10';
+            fetchJson(url, function (_err, data) {
+              if (String(searchInput.value || '').trim() !== lastQuery) return;
+              if (!data || data.ok !== true || !Array.isArray(data.items)) {
+                setResults('<div class="px-3 py-3 text-xs text-red-600">Erreur de recherche.</div>');
+                return;
+              }
+
+              var selected = new Set(getSelectedIds());
+              if (!data.items.length) {
+                setResults('<div class="px-3 py-3 text-xs text-gray-500">Aucun résultat.</div>');
+                return;
+              }
+
+              resultsEl.innerHTML = '';
+              data.items.forEach(function (it) {
+                var row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'w-full text-left px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition border-b border-border-light dark:border-border-dark last:border-0';
+
+                var top = document.createElement('div');
+                top.className = 'flex items-start justify-between gap-3';
+
+                var left = document.createElement('div');
+                left.className = 'min-w-0';
+
+                var title = document.createElement('div');
+                title.className = 'font-bold text-sm text-gray-900 dark:text-white truncate';
+                title.textContent = it.title || it.slug;
+
+                var meta = document.createElement('div');
+                meta.className = 'mt-1 text-[11px] text-gray-500 truncate';
+                meta.textContent = (it.categoryLabel ? it.categoryLabel : 'Blog') + (it.isPublished ? ' • publié' : ' • brouillon');
+
+                left.appendChild(title);
+                left.appendChild(meta);
+
+                var right = document.createElement('div');
+                right.className = 'shrink-0';
+                var already = selected.has(String(it.id));
+                var tag = document.createElement('span');
+                tag.className = 'inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-widest ' + (already ? 'bg-slate-100 text-slate-700' : 'bg-primary/10 text-primary');
+                tag.textContent = already ? 'Déjà ajouté' : 'Ajouter';
+                right.appendChild(tag);
+
+                top.appendChild(left);
+                top.appendChild(right);
+                row.appendChild(top);
+
+                row.addEventListener('click', function () {
+                  var ids = getSelectedIds();
+                  var id = String(it.id);
+                  if (!ids.includes(id)) ids.push(id);
+                  setSelectedIds(ids);
+                  hydrateSelected();
+                  runSearch();
+                });
+
+                resultsEl.appendChild(row);
+              });
+            });
+          }
+
+          var t = null;
+          searchInput.addEventListener('input', function () {
+            if (t) window.clearTimeout(t);
+            t = window.setTimeout(runSearch, 220);
+          });
+
+          hydrateSelected();
+          setResults('<div class="px-3 py-3 text-xs text-gray-500">Tape au moins 2 lettres.</div>');
+        }
+
+        setupRelatedBlogPostsPicker();
       })();
     </script>
   </div>

@@ -66,7 +66,14 @@ router.get('/catalogue/:productId', requireAdminAuth, adminController.getAdminEd
 router.post('/catalogue/:productId', requireAdminAuth, handleProductImageUpload, adminController.postAdminUpdateProduct);
 router.post('/catalogue/:productId/supprimer', requireAdminAuth, adminController.postAdminDeleteProduct);
 
-router.get('/api/products/search', requireAdminAuth, blogAdminController.getAdminProductSearchApi);
+const adminProductSearchHandler = typeof blogAdminController.getAdminProductSearchApi === 'function'
+  ? blogAdminController.getAdminProductSearchApi
+  : (req, res) => res.status(501).json({ ok: false, items: [], error: 'Recherche produits non disponible.' });
+router.get('/api/products/search', requireAdminAuth, adminProductSearchHandler);
+const adminBlogSearchHandler = typeof blogAdminController.getAdminBlogPostSearchApi === 'function'
+  ? blogAdminController.getAdminBlogPostSearchApi
+  : (req, res) => res.status(501).json({ ok: false, items: [], error: 'Recherche blog non disponible.' });
+router.get('/api/blog/search', requireAdminAuth, adminBlogSearchHandler);
 
 router.get('/clients', requireAdminAuth, adminController.getAdminClientsPage);
 router.get('/clients/:userId', requireAdminAuth, adminController.getAdminClientDetailPage);

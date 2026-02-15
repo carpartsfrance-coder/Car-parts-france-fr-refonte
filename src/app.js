@@ -45,6 +45,13 @@ try {
   compression = null;
 }
 
+let MongoStore = null;
+try {
+  MongoStore = require('connect-mongo');
+} catch (err) {
+  MongoStore = null;
+}
+
 if (compression) {
   app.use(compression());
 }
@@ -54,20 +61,32 @@ app.get('/favicon.ico', (req, res) => {
 });
 
 app.use(
-  session({
-    name: 'carpartsfrance.sid',
-    secret: process.env.SESSION_SECRET || 'dev_secret_change_me',
-    proxy: isProd,
-    resave: false,
-    saveUninitialized: false,
-    rolling: true,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: shouldUseSecureCookie,
-      maxAge: 30 * oneDayMs,
-    },
-  })
+  session((() => {
+    const sessionOptions = {
+      name: 'carpartsfrance.sid',
+      secret: process.env.SESSION_SECRET || 'dev_secret_change_me',
+      proxy: isProd,
+      resave: false,
+      saveUninitialized: false,
+      rolling: true,
+      cookie: {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: shouldUseSecureCookie,
+        maxAge: 30 * oneDayMs,
+      },
+    };
+
+    const mongoUrl = typeof process.env.MONGODB_URI === 'string' ? process.env.MONGODB_URI.trim() : '';
+    if (MongoStore && mongoUrl) {
+      sessionOptions.store = MongoStore.create({
+        mongoUrl,
+        ttl: 30 * 24 * 60 * 60,
+      });
+    }
+
+    return sessionOptions;
+  })())
 );
 
 app.use((req, res, next) => {

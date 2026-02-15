@@ -7,6 +7,12 @@
   .compatibility-table tr:nth-child(even) {
     @apply bg-slate-50/30 dark:bg-slate-800/20;
   }
+  .product-html p { margin: 0.75rem 0; }
+  .product-html ul, .product-html ol { margin: 0.75rem 0; padding-left: 1.25rem; }
+  .product-html ul { list-style: disc; }
+  .product-html ol { list-style: decimal; }
+  .product-html li { margin: 0.25rem 0; }
+  .product-html a { color: #dc2626; text-decoration: underline; }
   #tab-description:checked ~ .tabs-nav label[for="tab-description"],
   #tab-process:checked ~ .tabs-nav label[for="tab-process"],
   #tab-compatibility:checked ~ .tabs-nav label[for="tab-compatibility"],
@@ -232,7 +238,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
               <div class="space-y-6">
                 <h3 class="text-2xl font-bold">Aperçu technique</h3>
-                <p class="text-slate-500 leading-relaxed text-sm whitespace-pre-line"><%= product.description || product.shortDescription || '' %></p>
+                <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
+                <% if (hasSafeHtml) { %>
+                  <div class="text-slate-500 leading-relaxed text-sm product-html"><%- product.descriptionHtmlSafe %></div>
+                <% } else { %>
+                  <p class="text-slate-500 leading-relaxed text-sm whitespace-pre-line"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
+                <% } %>
 
                 <% if (product.sections && product.sections.showKeyPoints && (keyType || keyEtat || keyProgrammation || keyGarantie)) { %>
                   <div class="grid grid-cols-2 gap-4 pt-4">
@@ -340,6 +351,49 @@
           </div>
         </div>
       </div>
+
+      <% if (Array.isArray(relatedBlogPosts) && relatedBlogPosts.length) { %>
+        <section class="mt-24 pt-16 border-t border-slate-100 dark:border-slate-800">
+          <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+            <div>
+              <h2 class="text-3xl font-bold">Guides &amp; articles liés</h2>
+              <p class="mt-1 text-sm text-slate-500">Conseils utiles pour mieux choisir, diagnostiquer et monter la pièce.</p>
+            </div>
+            <a class="inline-flex items-center gap-2 text-primary font-bold hover:underline" href="/blog">
+              Voir le blog
+              <span class="material-symbols-outlined text-base">arrow_forward</span>
+            </a>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <% relatedBlogPosts.slice(0, 3).forEach((a) => { %>
+              <article class="group rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 refined-shadow">
+                <a class="block" href="<%= a.url %>">
+                  <div class="relative aspect-[16/10] bg-slate-50 dark:bg-slate-800 overflow-hidden">
+                    <% if (a.imageUrl) { %>
+                      <img alt="<%= a.title %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" src="<%= a.imageUrl %>" />
+                    <% } else { %>
+                      <div class="w-full h-full flex items-center justify-center text-slate-400">
+                        <span class="material-symbols-outlined text-6xl">article</span>
+                      </div>
+                    <% } %>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    <div class="absolute bottom-4 left-4 flex flex-wrap gap-2">
+                      <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded"><%= a.categoryLabel ? a.categoryLabel.toUpperCase() : 'BLOG' %></span>
+                      <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded"><%= a.readTimeLabel ? a.readTimeLabel.toUpperCase() : '' %></span>
+                    </div>
+                  </div>
+                  <div class="p-6">
+                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-bold"><%= a.dateLabel || '' %></div>
+                    <h3 class="mt-2 text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2"><%= a.title %></h3>
+                    <p class="mt-2 text-sm text-slate-500 leading-relaxed line-clamp-3"><%= a.excerpt %></p>
+                  </div>
+                </a>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
 
       <% if (product.sections && product.sections.showRelatedProducts && Array.isArray(relatedProducts) && relatedProducts.length) { %>
         <section class="mt-32 pt-16 border-t border-slate-100 dark:border-slate-800">

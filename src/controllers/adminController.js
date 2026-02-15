@@ -2031,12 +2031,214 @@ function getTrimmedString(value, fallback = '') {
   return value.trim();
 }
 
+function normalizeMetaText(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+function truncateText(value, max) {
+  const input = typeof value === 'string' ? value.trim() : '';
+  if (!input) return '';
+  if (!Number.isFinite(max) || max <= 0) return input;
+  if (input.length <= max) return input;
+  return `${input.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+function stripHtml(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+function stripMarkdown(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/^\s*\d+[).]\s+/gm, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function countWords(value) {
+  const plain = stripMarkdown(stripHtml(value));
+  if (!plain) return 0;
+  return plain.split(/\s+/).filter(Boolean).length;
+}
+
+function getPublicBaseUrlFromEnv() {
+  const base = getTrimmedString(process.env.PUBLIC_BASE_URL) || getTrimmedString(process.env.COMPANY_WEBSITE_URL);
+  return base ? base.replace(/\/$/, '') : '';
+}
+
+function buildProductSeoAssistant({ form, mode, productId } = {}) {
+  const siteName = 'CarParts France';
+  const baseUrl = getPublicBaseUrlFromEnv();
+
+  const name = getTrimmedString(form && form.name);
+  const brand = getTrimmedString(form && form.brand);
+  const sku = getTrimmedString(form && form.sku);
+  const category = getTrimmedString(form && form.category);
+
+  const metaTitle = normalizeMetaText(getTrimmedString(form && form.metaTitle));
+  const metaDescription = normalizeMetaText(getTrimmedString(form && form.metaDescription));
+
+  const imageUrl = getTrimmedString(form && form.imageUrl);
+  const galleryUrlsText = typeof (form && form.galleryUrls) === 'string' ? form.galleryUrls : '';
+  const galleryCount = parseLinesToArray(galleryUrlsText).length + (imageUrl ? 1 : 0);
+
+  const shortDescription = getTrimmedString(form && form.shortDescription);
+  const description = getTrimmedString(form && form.description);
+  const contentText = shortDescription || description;
+  const words = countWords(description || shortDescription);
+
+  const faqsText = typeof (form && form.faqs) === 'string' ? form.faqs : '';
+  const faqCount = parseLinesToArray(faqsText)
+    .filter((l) => l.includes('|'))
+    .length;
+
+  const compatibilityText = typeof (form && form.compatibility) === 'string' ? form.compatibility : '';
+  const compatCount = parseLinesToArray(compatibilityText)
+    .filter((l) => l.includes('|'))
+    .length;
+
+  const urlStubSlug = slugify(name) || 'produit';
+  const urlStubId = productId ? String(productId) : 'ID';
+  const urlPath = `/produits/${encodeURIComponent(urlStubSlug)}-${encodeURIComponent(urlStubId)}`;
+  const url = baseUrl ? `${baseUrl}${urlPath}` : urlPath;
+
+  const autoTitle = `${name || siteName}${brand ? ` - ${brand}` : ''}${sku ? ` (Réf ${sku})` : ''} | ${siteName}`.trim();
+  const finalTitle = metaTitle || autoTitle;
+
+  const fallbackDesc = truncateText(stripMarkdown(stripHtml(contentText)), 160);
+  const finalDescription = metaDescription || fallbackDesc;
+
+  const metaTitleLen = finalTitle.length;
+  const metaDescLen = finalDescription.length;
+
+  const hasRef = Boolean(sku) || /\b[A-Z0-9]{5,}\b/.test(String(name || ''));
+
+  const checks = [];
+  checks.push({
+    key: 'name',
+    label: 'Nom du produit',
+    ok: Boolean(name),
+    detail: name ? '' : 'Ajoute un nom clair (idéalement avec la référence OEM).',
+    weight: 20,
+  });
+  checks.push({
+    key: 'brand',
+    label: 'Marque',
+    ok: Boolean(brand),
+    detail: brand ? '' : 'Ajoute la marque (Volkswagen, Audi…).',
+    weight: 5,
+  });
+  checks.push({
+    key: 'category',
+    label: 'Catégorie',
+    ok: Boolean(category),
+    detail: category ? '' : 'Choisis une catégorie.',
+    weight: 5,
+  });
+  checks.push({
+    key: 'ref',
+    label: 'Référence (SKU / OEM) présente',
+    ok: hasRef,
+    detail: hasRef ? '' : 'Ajoute un SKU ou une référence OEM dans le nom.',
+    weight: 8,
+  });
+  checks.push({
+    key: 'metaTitle',
+    label: 'Meta title (50–60 caractères)',
+    ok: metaTitleLen >= 45 && metaTitleLen <= 65,
+    detail: metaTitle ? `Longueur actuelle : ${metaTitleLen}` : `Auto : ${metaTitleLen} (tu peux optimiser)`,
+    weight: 10,
+  });
+  checks.push({
+    key: 'metaDescription',
+    label: 'Meta description (120–160 caractères)',
+    ok: metaDescLen >= 110 && metaDescLen <= 170,
+    detail: metaDescription ? `Longueur actuelle : ${metaDescLen}` : `Auto : ${metaDescLen} (tu peux optimiser)`,
+    weight: 10,
+  });
+  checks.push({
+    key: 'image',
+    label: 'Image principale',
+    ok: Boolean(imageUrl),
+    detail: imageUrl ? '' : 'Ajoute une image principale (important pour le clic).',
+    weight: 10,
+  });
+  checks.push({
+    key: 'gallery',
+    label: 'Plusieurs images (2+)',
+    ok: galleryCount >= 2,
+    detail: `Images détectées : ${galleryCount}`,
+    weight: 4,
+  });
+  checks.push({
+    key: 'content',
+    label: 'Description suffisante (200+ mots)',
+    ok: words >= 200,
+    detail: `Mots : ${words}`,
+    weight: 12,
+  });
+  checks.push({
+    key: 'faq',
+    label: 'FAQ (4+ questions)',
+    ok: faqCount >= 4,
+    detail: `FAQ : ${faqCount}`,
+    weight: 10,
+  });
+  checks.push({
+    key: 'compat',
+    label: 'Compatibilité (3+ lignes)',
+    ok: compatCount >= 3,
+    detail: `Compatibilités : ${compatCount}`,
+    weight: 8,
+  });
+
+  let score = 100;
+  for (const c of checks) {
+    if (!c.ok) score -= (Number.isFinite(c.weight) ? c.weight : 10);
+  }
+  if (score < 0) score = 0;
+  if (score > 100) score = 100;
+
+  return {
+    mode,
+    score,
+    preview: {
+      title: finalTitle,
+      url,
+      description: finalDescription,
+    },
+    computed: {
+      baseUrl,
+      urlPath,
+      metaTitle: finalTitle,
+      metaDescription: finalDescription,
+    },
+    checks,
+  };
+}
+
 function parseLinesToArray(value) {
   if (typeof value !== 'string') return [];
   return value
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function parseObjectIdListFromLines(value) {
+  const lines = parseLinesToArray(value);
+  const ids = [];
+  for (const line of lines) {
+    if (mongoose.Types.ObjectId.isValid(line)) {
+      ids.push(new mongoose.Types.ObjectId(line));
+    }
+  }
+  return ids;
 }
 
 function parsePairsFromLines(value) {
@@ -2506,6 +2708,24 @@ async function getAdminCatalogPage(req, res, next) {
       .lean();
 
     const viewProducts = products.map((p) => ({
+      seoScore: buildProductSeoAssistant({
+        form: {
+          name: p.name || '',
+          sku: p.sku || '',
+          brand: p.brand || '',
+          category: p.category || '',
+          imageUrl: p.imageUrl || '',
+          galleryUrls: Array.isArray(p.galleryUrls) ? p.galleryUrls.filter(Boolean).join('\n') : '',
+          shortDescription: p.shortDescription || '',
+          description: p.description || '',
+          faqs: Array.isArray(p.faqs) ? p.faqs.filter((f) => f && (f.question || f.answer)).map((f) => `${f.question || ''} | ${f.answer || ''}`.trim()).join('\n') : '',
+          compatibility: Array.isArray(p.compatibility) ? p.compatibility.filter((c) => c && (c.make || c.model || c.years || c.engine)).map((c) => `${c.make || ''} | ${c.model || ''} | ${c.years || ''} | ${c.engine || ''}`.trim()).join('\n') : '',
+          metaTitle: p.seo && p.seo.metaTitle ? p.seo.metaTitle : '',
+          metaDescription: p.seo && p.seo.metaDescription ? p.seo.metaDescription : '',
+        },
+        mode: 'catalog',
+        productId: String(p._id),
+      }).score,
       id: String(p._id),
       name: p.name,
       sku: p.sku,
@@ -2807,6 +3027,7 @@ async function getAdminNewProductPage(req, res) {
       reconditioningSteps: '',
       compatibility: '',
       faqs: '',
+      relatedBlogPostIds: '',
       videoUrl: '',
       metaTitle: '',
       metaDescription: '',
@@ -2822,6 +3043,24 @@ async function getAdminNewProductPage(req, res) {
       showSupportBox: true,
       showRelatedProducts: true,
     },
+    seoAssistant: buildProductSeoAssistant({
+      form: {
+        name: '',
+        sku: '',
+        brand: '',
+        category: '',
+        imageUrl: '',
+        galleryUrls: '',
+        shortDescription: '',
+        description: '',
+        faqs: '',
+        compatibility: '',
+        metaTitle: '',
+        metaDescription: '',
+      },
+      mode: 'new',
+      productId: null,
+    }),
     categories,
     shippingClasses: shippingClasses.map((c) => ({
       id: String(c._id),
@@ -2865,6 +3104,7 @@ async function postAdminCreateProduct(req, res, next) {
       reconditioningSteps: getTrimmedString(req.body.reconditioningSteps),
       compatibility: getTrimmedString(req.body.compatibility),
       faqs: getTrimmedString(req.body.faqs),
+      relatedBlogPostIds: getTrimmedString(req.body.relatedBlogPostIds),
       videoUrl: getTrimmedString(req.body.videoUrl),
       metaTitle: getTrimmedString(req.body.metaTitle),
       metaDescription: getTrimmedString(req.body.metaDescription),
@@ -2907,6 +3147,7 @@ async function postAdminCreateProduct(req, res, next) {
         mode: 'new',
         errorMessage: req.uploadError,
         form,
+        seoAssistant: buildProductSeoAssistant({ form, mode: 'new', productId: null }),
         categories: dbConnected
           ? await Category.find({ isActive: true })
               .sort({ sortOrder: 1, name: 1 })
@@ -2933,6 +3174,7 @@ async function postAdminCreateProduct(req, res, next) {
         mode: 'new',
         errorMessage: "La base de données n'est pas disponible.",
         form,
+        seoAssistant: buildProductSeoAssistant({ form, mode: 'new', productId: null }),
         categories: [],
         shippingClasses: [],
         compatIndex,
@@ -2983,6 +3225,7 @@ async function postAdminCreateProduct(req, res, next) {
               ? 'Le montant de consigne est invalide.'
             : 'Merci de renseigner au minimum un nom et un prix valide.',
         form,
+        seoAssistant: buildProductSeoAssistant({ form, mode: 'new', productId: null }),
         categories: dbConnected
           ? await Category.find({ isActive: true })
               .sort({ sortOrder: 1, name: 1 })
@@ -3031,6 +3274,7 @@ async function postAdminCreateProduct(req, res, next) {
     const reconditioningSteps = parseStepsFromLines(form.reconditioningSteps);
     const compatibility = parseCompatibilityFromLines(form.compatibility);
     const faqs = parseFaqsFromLines(form.faqs);
+    const relatedBlogPostIds = parseObjectIdListFromLines(form.relatedBlogPostIds);
 
     const baseSlug = slugify(form.name) || 'produit';
     const createData = {
@@ -3062,6 +3306,7 @@ async function postAdminCreateProduct(req, res, next) {
       reconditioningSteps,
       compatibility,
       faqs,
+      relatedBlogPostIds,
       media: {
         videoUrl: form.videoUrl,
       },
@@ -3113,6 +3358,7 @@ async function getAdminEditProductPage(req, res, next) {
         mode: 'edit',
         errorMessage: "La base de données n'est pas disponible.",
         form: null,
+        seoAssistant: null,
         categories: [],
         shippingClasses: [],
         compatIndex: { makes: [], modelsByMake: {} },
@@ -3202,6 +3448,9 @@ async function getAdminEditProductPage(req, res, next) {
               .map((f) => `${f.question || ''} | ${f.answer || ''}`.trim())
               .join('\n')
           : '',
+        relatedBlogPostIds: Array.isArray(product.relatedBlogPostIds)
+          ? product.relatedBlogPostIds.map((id) => String(id)).join('\n')
+          : '',
         videoUrl: product.media && product.media.videoUrl ? product.media.videoUrl : '',
         metaTitle: product.seo && product.seo.metaTitle ? product.seo.metaTitle : '',
         metaDescription: product.seo && product.seo.metaDescription ? product.seo.metaDescription : '',
@@ -3217,6 +3466,34 @@ async function getAdminEditProductPage(req, res, next) {
         showSupportBox: !product.sections || product.sections.showSupportBox !== false,
         showRelatedProducts: !product.sections || product.sections.showRelatedProducts !== false,
       },
+      seoAssistant: buildProductSeoAssistant({
+        form: {
+          name: product.name || '',
+          sku: product.sku || '',
+          brand: product.brand || '',
+          category: product.category || '',
+          imageUrl: product.imageUrl || '',
+          galleryUrls: Array.isArray(product.galleryUrls) ? product.galleryUrls.filter(Boolean).join('\n') : '',
+          shortDescription: product.shortDescription || '',
+          description: product.description || '',
+          faqs: Array.isArray(product.faqs)
+            ? product.faqs
+                .filter((f) => f && (f.question || f.answer))
+                .map((f) => `${f.question || ''} | ${f.answer || ''}`.trim())
+                .join('\n')
+            : '',
+          compatibility: Array.isArray(product.compatibility)
+            ? product.compatibility
+                .filter((c) => c && (c.make || c.model || c.years || c.engine))
+                .map((c) => `${c.make || ''} | ${c.model || ''} | ${c.years || ''} | ${c.engine || ''}`.trim())
+                .join('\n')
+            : '',
+          metaTitle: product.seo && product.seo.metaTitle ? product.seo.metaTitle : '',
+          metaDescription: product.seo && product.seo.metaDescription ? product.seo.metaDescription : '',
+        },
+        mode: 'edit',
+        productId: String(product._id),
+      }),
       categories,
       shippingClasses: shippingClasses.map((c) => ({
         id: String(c._id),
@@ -3266,6 +3543,7 @@ async function postAdminUpdateProduct(req, res, next) {
       reconditioningSteps: getTrimmedString(req.body.reconditioningSteps),
       compatibility: getTrimmedString(req.body.compatibility),
       faqs: getTrimmedString(req.body.faqs),
+      relatedBlogPostIds: getTrimmedString(req.body.relatedBlogPostIds),
       videoUrl: getTrimmedString(req.body.videoUrl),
       metaTitle: getTrimmedString(req.body.metaTitle),
       metaDescription: getTrimmedString(req.body.metaDescription),
@@ -3303,6 +3581,7 @@ async function postAdminUpdateProduct(req, res, next) {
         mode: 'edit',
         errorMessage: "La base de données n'est pas disponible.",
         form,
+        seoAssistant: buildProductSeoAssistant({ form, mode: 'edit', productId }),
         shippingClasses: [],
         compatIndex,
         productId: null,
@@ -3343,6 +3622,11 @@ async function postAdminUpdateProduct(req, res, next) {
           ...form,
           imageUrl: existing.imageUrl || form.imageUrl,
         },
+        seoAssistant: buildProductSeoAssistant({
+          form: { ...form, imageUrl: existing.imageUrl || form.imageUrl },
+          mode: 'edit',
+          productId,
+        }),
         categories: dbConnected
           ? await Category.find({ isActive: true })
               .sort({ sortOrder: 1, name: 1 })
@@ -3455,6 +3739,7 @@ async function postAdminUpdateProduct(req, res, next) {
     const reconditioningSteps = parseStepsFromLines(form.reconditioningSteps);
     const compatibility = parseCompatibilityFromLines(form.compatibility);
     const faqs = parseFaqsFromLines(form.faqs);
+    const relatedBlogPostIds = parseObjectIdListFromLines(form.relatedBlogPostIds);
 
     const stableSlug = (existing && typeof existing.slug === 'string' && existing.slug.trim())
       ? existing.slug.trim()
@@ -3495,6 +3780,7 @@ async function postAdminUpdateProduct(req, res, next) {
           reconditioningSteps,
           compatibility,
           faqs,
+          relatedBlogPostIds,
           media: {
             videoUrl: form.videoUrl,
           },

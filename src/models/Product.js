@@ -74,6 +74,16 @@ const productSchema = new mongoose.Schema(
       default: [],
     },
 
+    relatedBlogPostIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'BlogPost',
+        },
+      ],
+      default: [],
+    },
+
     media: {
       videoUrl: { type: String, default: '', trim: true },
     },

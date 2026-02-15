@@ -31,6 +31,7 @@ const blogPostSchema = new mongoose.Schema(
     },
 
     isFeatured: { type: Boolean, default: false },
+    isHomeFeatured: { type: Boolean, default: false },
     isPublished: { type: Boolean, default: false },
     publishedAt: { type: Date, default: null },
 

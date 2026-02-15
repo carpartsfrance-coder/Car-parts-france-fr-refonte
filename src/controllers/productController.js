@@ -2,7 +2,10 @@ const mongoose = require('mongoose');
 
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const BlogPost = require('../models/BlogPost');
 const demoProducts = require('../demoProducts');
+const sanitizeHtml = require('sanitize-html');
+const { markdownToHtml } = require('../services/blogContent');
 const {
   buildProductPublicPath,
   buildProductPublicUrl,
@@ -222,6 +225,9 @@ function normalizeProduct(product) {
     reconditioningSteps,
     compatibility,
     faqs,
+    relatedBlogPostIds: Array.isArray(product.relatedBlogPostIds)
+      ? product.relatedBlogPostIds.map((id) => String(id))
+      : [],
     media,
     sections,
   };
@@ -238,6 +244,100 @@ function truncateText(value, max) {
 function normalizeMetaText(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+function stripHtml(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+function stripMarkdown(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/^\s*\d+[).]\s+/gm, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function normalizeImportedText(value) {
+  if (typeof value !== 'string') return '';
+  let out = value;
+  if (out.includes('\\n')) {
+    out = out.replace(/\\n/g, '\n');
+  }
+  out = out.replace(/\r\n?/g, '\n');
+  out = out.replace(/^\s*•\s+/gm, '- ');
+  return out;
+}
+
+function looksLikeHtml(value) {
+  const input = typeof value === 'string' ? value : '';
+  return /<\/?[a-z][\s\S]*>/i.test(input);
+}
+
+function toPlainText(value) {
+  const normalized = normalizeImportedText(typeof value === 'string' ? value : '');
+  const noHtml = stripHtml(normalized);
+  return stripMarkdown(noHtml);
+}
+
+function estimateReadingTimeMinutes(text) {
+  const plain = stripMarkdown(stripHtml(text));
+  if (!plain) return 0;
+  const words = plain.split(/\s+/).filter(Boolean).length;
+  const minutes = words / 190;
+  const rounded = Math.max(1, Math.round(minutes));
+  return Math.min(120, rounded);
+}
+
+function formatDateFRShort(value) {
+  try {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('fr-FR', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    }).format(d);
+  } catch (e) {
+    return '';
+  }
+}
+
+function sanitizeProductHtml(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return '';
+
+  return sanitizeHtml(raw, {
+    allowedTags: [
+      'p', 'br', 'hr',
+      'strong', 'b', 'em', 'i', 'u',
+      'ul', 'ol', 'li',
+      'h2', 'h3', 'h4',
+      'blockquote',
+      'a',
+      'img',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'span',
+    ],
+    allowedAttributes: {
+      a: ['href', 'name', 'target', 'rel'],
+      img: ['src', 'alt', 'title', 'loading'],
+      span: ['class'],
+      th: ['colspan', 'rowspan'],
+      td: ['colspan', 'rowspan'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'nofollow noopener', target: '_blank' }),
+    },
+    disallowedTagsMode: 'discard',
+    allowVulnerableTags: false,
+  });
 }
 
 function resolveAbsoluteUrl(req, rawUrl) {
@@ -765,8 +865,9 @@ async function getProduct(req, res, next) {
       ? product.seo.metaDescription.trim()
       : '';
     const baseDesc = product.shortDescription || product.description || '';
+    const baseDescPlain = toPlainText(baseDesc);
     const autoDesc = `Pièce auto ${product.name}${skuText ? ` (réf ${skuText})` : ''}${compatText ? ` compatible ${compatText}` : ''}. Livraison rapide. Paiement sécurisé.`;
-    const metaDescription = truncateText(normalizeMetaText(descriptionOverride || baseDesc || autoDesc), 160);
+    const metaDescription = truncateText(normalizeMetaText(toPlainText(descriptionOverride) || baseDescPlain || autoDesc), 160);
 
     const images = [];
     if (product.imageUrl) images.push(product.imageUrl);
@@ -779,7 +880,7 @@ async function getProduct(req, res, next) {
     const ogImage = resolveAbsoluteUrl(req, mainImage);
 
     const price = Number.isFinite(product.priceCents) ? (product.priceCents / 100).toFixed(2) : undefined;
-    const descriptionForSchema = normalizeMetaText(product.description || product.shortDescription || autoDesc);
+    const descriptionForSchema = normalizeMetaText(toPlainText(product.description || product.shortDescription || autoDesc));
 
     const schemaProduct = {
       '@context': 'https://schema.org',
@@ -804,6 +905,7 @@ async function getProduct(req, res, next) {
       .replace(/&/g, '\\u0026');
 
     let relatedProducts = [];
+    let relatedBlogPosts = [];
 
     if (dbConnected) {
       const relatedFilter = { _id: { $ne: id } };
@@ -829,6 +931,76 @@ async function getProduct(req, res, next) {
 
         relatedProducts = relatedProducts.concat(fallback.map(normalizeProduct));
       }
+
+      const mappedBlogCard = (b) => {
+          const publishedAt = b.publishedAt || b.createdAt || null;
+          const minutes = Number.isFinite(b.readingTimeMinutes) && b.readingTimeMinutes > 0
+            ? b.readingTimeMinutes
+            : estimateReadingTimeMinutes(b.contentHtml || '');
+          const excerpt = (b.excerpt || '').trim() || truncateText(stripHtml(b.contentHtml || ''), 140);
+          const categoryLabel = b.category && b.category.label
+            ? String(b.category.label).trim()
+            : (b.category && b.category.slug ? String(b.category.slug).trim() : 'Blog');
+
+          return {
+            id: String(b._id),
+            slug: String(b.slug),
+            title: b.title || '',
+            excerpt,
+            imageUrl: b.coverImageUrl || '',
+            categoryLabel,
+            dateLabel: formatDateFRShort(publishedAt),
+            readTimeLabel: `${minutes} min`,
+            url: `/blog/${encodeURIComponent(String(b.slug))}`,
+          };
+      };
+
+      const blogProjection = 'slug title excerpt coverImageUrl category publishedAt createdAt readingTimeMinutes contentHtml';
+
+      const chosenIds = Array.isArray(product.relatedBlogPostIds) ? product.relatedBlogPostIds : [];
+      const chosenObjectIds = chosenIds
+        .filter((v) => mongoose.Types.ObjectId.isValid(v))
+        .map((v) => new mongoose.Types.ObjectId(v));
+
+      const chosenDocs = chosenObjectIds.length
+        ? await BlogPost.find({ _id: { $in: chosenObjectIds }, isPublished: true })
+            .select(`_id ${blogProjection}`)
+            .lean()
+        : [];
+
+      const chosenById = new Map((chosenDocs || []).map((d) => [String(d._id), d]));
+      const chosenOrdered = chosenObjectIds
+        .map((oid) => chosenById.get(String(oid)))
+        .filter(Boolean);
+
+      const fromArticlesDocs = await BlogPost.find({
+        isPublished: true,
+        relatedProductIds: new mongoose.Types.ObjectId(id),
+      })
+        .sort({ publishedAt: -1, createdAt: -1 })
+        .limit(6)
+        .select(`_id ${blogProjection}`)
+        .lean();
+
+      const merged = [];
+      const seen = new Set();
+      for (const d of chosenOrdered) {
+        const key = d && d._id ? String(d._id) : '';
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push(d);
+      }
+      for (const d of (fromArticlesDocs || [])) {
+        const key = d && d._id ? String(d._id) : '';
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push(d);
+      }
+
+      relatedBlogPosts = merged
+        .filter((b) => b && b.slug)
+        .slice(0, 3)
+        .map(mappedBlogCard);
     } else {
       relatedProducts = demoProducts
         .filter((p) => String(p._id) !== String(id))
@@ -841,9 +1013,18 @@ async function getProduct(req, res, next) {
       publicPath: buildProductPublicPath(p),
     }));
 
+    const descriptionRaw = product.description || product.shortDescription || '';
+    const descriptionNormalized = normalizeImportedText(descriptionRaw);
+    const htmlCandidate = looksLikeHtml(descriptionNormalized)
+      ? descriptionNormalized
+      : markdownToHtml(descriptionNormalized);
+    const safeDescriptionHtml = sanitizeProductHtml(htmlCandidate);
+
     product = {
       ...product,
       publicPath: canonicalPath,
+      descriptionHtmlSafe: safeDescriptionHtml,
+      descriptionText: toPlainText(descriptionRaw),
     };
 
     return res.render('products/show', {
@@ -860,6 +1041,7 @@ async function getProduct(req, res, next) {
       returnTo: req.originalUrl,
       product,
       relatedProducts,
+      relatedBlogPosts,
     });
   } catch (err) {
     return next(err);
