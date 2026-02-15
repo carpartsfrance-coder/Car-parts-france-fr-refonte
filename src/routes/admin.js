@@ -26,6 +26,9 @@ router.get('/connexion', adminController.getAdminLogin);
 router.post('/connexion', adminController.postAdminLogin);
 router.post('/deconnexion', adminController.postAdminLogout);
 
+router.get('/reinitialiser', adminController.getAdminResetPassword);
+router.post('/reinitialiser', adminController.postAdminResetPassword);
+
 router.get('/', requireAdminAuth, adminController.getAdminDashboard);
 
 router.get('/commandes', requireAdminAuth, adminController.getAdminOrdersPage);

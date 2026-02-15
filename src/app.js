@@ -7,6 +7,10 @@ const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 const oneDayMs = 24 * 60 * 60 * 1000;
 
+if (isProd) {
+  app.set('trust proxy', 1);
+}
+
 const secureCookieFromEnv =
   process.env.SESSION_COOKIE_SECURE === 'true'
     ? true
@@ -52,6 +56,7 @@ app.use(
   session({
     name: 'carpartsfrance.sid',
     secret: process.env.SESSION_SECRET || 'dev_secret_change_me',
+    proxy: isProd,
     resave: false,
     saveUninitialized: false,
     rolling: true,

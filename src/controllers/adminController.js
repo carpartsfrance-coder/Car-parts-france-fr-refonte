@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -15,6 +16,8 @@ const ShippingClass = require('../models/ShippingClass');
 const parcelapp = require('../services/parcelapp');
 const emailService = require('../services/emailService');
 
+const ADMIN_CREDENTIALS_FILE = path.join(__dirname, '..', '..', '.admin-credentials.json');
+
 function slugify(value) {
   if (typeof value !== 'string') return '';
   return value
@@ -25,6 +28,73 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+/, '')
     .replace(/-+$/, '');
+}
+
+function normalizeEnvString(value) {
+  if (typeof value !== 'string') return '';
+  let v = value.trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1);
+  }
+  return v;
+}
+
+function readAdminCredentialsFile() {
+  try {
+    if (!fs.existsSync(ADMIN_CREDENTIALS_FILE)) return null;
+    const raw = fs.readFileSync(ADMIN_CREDENTIALS_FILE, 'utf8');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const salt = parsed && parsed.password && typeof parsed.password.salt === 'string'
+      ? parsed.password.salt
+      : '';
+    const hash = parsed && parsed.password && typeof parsed.password.hash === 'string'
+      ? parsed.password.hash
+      : '';
+
+    if (!salt || !hash) return null;
+    return { salt, hash };
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeAdminCredentialsFile({ salt, hash } = {}) {
+  if (!salt || !hash) return false;
+  try {
+    fs.writeFileSync(
+      ADMIN_CREDENTIALS_FILE,
+      JSON.stringify({ password: { salt, hash }, updatedAt: new Date().toISOString() }, null, 2),
+      'utf8'
+    );
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function hashPassword(password, salt) {
+  const inputPassword = typeof password === 'string' ? password : '';
+  const inputSalt = typeof salt === 'string' ? salt : '';
+  if (!inputPassword || !inputSalt) return '';
+
+  try {
+    return crypto.scryptSync(inputPassword, inputSalt, 64).toString('hex');
+  } catch (err) {
+    return '';
+  }
+}
+
+function verifyPassword({ password, salt, hash } = {}) {
+  const computed = hashPassword(password, salt);
+  if (!computed || !hash) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(hash, 'hex'));
+  } catch (err) {
+    return false;
+  }
 }
 
 async function postAdminMarkOrderConsigneReceived(req, res, next) {
@@ -158,11 +228,12 @@ function cleanupUploadedFiles(req) {
 }
 
 function getAdminCredentials() {
-  const email = normalizeEmail(process.env.ADMIN_EMAIL);
-  const password = typeof process.env.ADMIN_PASSWORD === 'string' ? process.env.ADMIN_PASSWORD : '';
+  const email = normalizeEmail(normalizeEnvString(process.env.ADMIN_EMAIL));
+  const password = normalizeEnvString(process.env.ADMIN_PASSWORD);
+  const override = readAdminCredentialsFile();
 
   const isProd = process.env.NODE_ENV === 'production';
-  const shouldFallback = !email || !password;
+  const shouldFallback = !email || (!password && !override);
   const isDevFallback = shouldFallback && !isProd;
 
   if (isDevFallback) {
@@ -176,6 +247,9 @@ function getAdminCredentials() {
   return {
     email,
     password,
+    passwordHash: override ? override.hash : '',
+    passwordSalt: override ? override.salt : '',
+    usesOverride: Boolean(override),
     isDevFallback: false,
   };
 }
@@ -875,15 +949,18 @@ function getAdminLogin(req, res) {
   const creds = getAdminCredentials();
   const returnTo = getSafeReturnTo(req.query.returnTo) || '/admin';
   const errorMessage = req.session.adminAuthError || null;
+  const successMessage = req.session.adminAuthSuccess || null;
   const email = req.session.adminAuthEmail || '';
 
   delete req.session.adminAuthError;
+  delete req.session.adminAuthSuccess;
   delete req.session.adminAuthEmail;
 
   return res.render('admin/login', {
     title: 'Admin - Connexion',
     dbConnected,
     errorMessage,
+    successMessage,
     email,
     returnTo,
     isDevFallback: creds.isDevFallback,
@@ -895,7 +972,7 @@ function getAdminLogin(req, res) {
 function postAdminLogin(req, res) {
   const creds = getAdminCredentials();
   const email = normalizeEmail(req.body.email);
-  const password = typeof req.body.password === 'string' ? req.body.password : '';
+  const password = normalizeEnvString(req.body.password);
   const returnTo = getSafeReturnTo(req.body.returnTo) || '/admin';
 
   if (!email || !password) {
@@ -911,11 +988,16 @@ function postAdminLogin(req, res) {
     });
   }
 
-  if (email !== creds.email || password !== creds.password) {
+  const passwordOk = creds.usesOverride
+    ? verifyPassword({ password, salt: creds.passwordSalt, hash: creds.passwordHash })
+    : password === normalizeEnvString(creds.password);
+
+  if (email !== creds.email || !passwordOk) {
     return res.status(401).render('admin/login', {
       title: 'Admin - Connexion',
       dbConnected: mongoose.connection.readyState === 1,
       errorMessage: 'Identifiants incorrects.',
+      successMessage: null,
       email,
       returnTo,
       isDevFallback: creds.isDevFallback,
@@ -933,6 +1015,70 @@ function postAdminLogin(req, res) {
   }
 
   return req.session.save(() => res.redirect(returnTo));
+}
+
+function getAdminResetTokenFromEnv() {
+  return normalizeEnvString(process.env.ADMIN_RESET_TOKEN);
+}
+
+function getAdminResetPassword(req, res) {
+  const token = getAdminResetTokenFromEnv();
+  const enabled = Boolean(token);
+  const errorMessage = req.session.adminResetError || null;
+  const successMessage = req.session.adminResetSuccess || null;
+
+  delete req.session.adminResetError;
+  delete req.session.adminResetSuccess;
+
+  return res.render('admin/reset-password', {
+    title: 'Admin - Réinitialisation',
+    enabled,
+    errorMessage,
+    successMessage,
+  });
+}
+
+function postAdminResetPassword(req, res) {
+  const expected = getAdminResetTokenFromEnv();
+  if (!expected) {
+    req.session.adminResetError = 'Réinitialisation désactivée (ADMIN_RESET_TOKEN manquant).';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  const providedToken = normalizeEnvString(req.body && req.body.token);
+  const password = normalizeEnvString(req.body && req.body.password);
+  const passwordConfirm = normalizeEnvString(req.body && req.body.passwordConfirm);
+
+  if (!providedToken || providedToken !== expected) {
+    req.session.adminResetError = 'Code secret invalide.';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  if (!password || password.length < 8) {
+    req.session.adminResetError = 'Le nouveau mot de passe doit faire au moins 8 caractères.';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  if (password !== passwordConfirm) {
+    req.session.adminResetError = 'Les deux mots de passe ne correspondent pas.';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = hashPassword(password, salt);
+  if (!hash) {
+    req.session.adminResetError = 'Impossible de sécuriser le mot de passe (erreur interne).';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  const ok = writeAdminCredentialsFile({ salt, hash });
+  if (!ok) {
+    req.session.adminResetError = 'Impossible d’enregistrer le mot de passe (droits serveur).';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  req.session.adminAuthSuccess = 'Mot de passe admin mis à jour. Tu peux te connecter.';
+  return res.redirect('/admin/connexion');
 }
 
 function postAdminLogout(req, res) {
@@ -4309,6 +4455,8 @@ module.exports = {
   getAdminLogin,
   postAdminLogin,
   postAdminLogout,
+  getAdminResetPassword,
+  postAdminResetPassword,
   getAdminDashboard,
   getAdminOrdersPage,
   getAdminOrderDetailPage,

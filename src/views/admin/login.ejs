@@ -10,6 +10,13 @@
       <div class="mt-1 text-sm text-slate-600">Accès réservé à l’équipe CarParts France.</div>
     </div>
 
+    <% if (typeof successMessage !== 'undefined' && successMessage) { %>
+      <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+        <div class="font-bold">OK</div>
+        <div class="mt-1 text-sm"><%= successMessage %></div>
+      </div>
+    <% } %>
+
     <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
       <div class="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
         <div class="font-bold">Erreur</div>
@@ -46,6 +53,10 @@
       <button class="mt-6 w-full rounded-xl bg-primary text-white px-5 py-3 font-black hover:bg-red-700 transition" type="submit">
         Se connecter
       </button>
+
+      <div class="mt-4 text-center text-sm">
+        <a class="font-bold text-primary hover:underline" href="/admin/reinitialiser">Mot de passe oublié ?</a>
+      </div>
 
       <div class="mt-4 text-xs text-slate-500">
         Astuce : tu peux définir <span class="font-bold">ADMIN_EMAIL</span> et <span class="font-bold">ADMIN_PASSWORD</span> dans un fichier <span class="font-bold">.env</span>.
