@@ -119,6 +119,13 @@ const orderSchema = new mongoose.Schema(
     items: { type: [orderItemSchema], required: true },
     shippingAddress: { type: addressSnapshotSchema, required: true },
     billingAddress: { type: addressSnapshotSchema, required: true },
+    vehicle: {
+      identifierType: { type: String, enum: ['', 'plate', 'vin'], default: '', trim: true },
+      plate: { type: String, default: '', trim: true },
+      vin: { type: String, default: '', trim: true },
+      consentAt: { type: Date, default: null },
+      providedAt: { type: Date, default: null },
+    },
     legal: {
       cgvAcceptedAt: { type: Date, default: null },
       cgvSlug: { type: String, default: 'cgv', trim: true },

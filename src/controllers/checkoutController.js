@@ -266,6 +266,15 @@ function isTruthyFormValue(value) {
   return value === 'on' || value === 'true' || value === true;
 }
 
+function normalizeVehicleIdentifier(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '');
+}
+
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -1074,6 +1083,7 @@ async function getPayment(req, res, next) {
       address: selectedAddress,
       billingSameAsShipping,
       billingAddress: selectedBillingAddress,
+      vehicle: checkout && typeof checkout.vehicle === 'object' && checkout.vehicle ? checkout.vehicle : null,
       items: viewItems,
       itemsTotalCents,
       itemsSubtotalCents: computed.itemsSubtotalCents,
@@ -1121,6 +1131,39 @@ async function postPayment(req, res, next) {
 
     const selectedPaymentMethod = getTrimmedString(req.body && req.body.paymentMethod);
     const acceptCgv = isTruthyFormValue(req.body && req.body.acceptCgv);
+
+    const vehicleIdentifierTypeRaw = getTrimmedString(req.body && req.body.vehicleIdentifierType);
+    const vehicleIdentifierType = vehicleIdentifierTypeRaw === 'vin' ? 'vin' : 'plate';
+    const rawPlate = getTrimmedString(req.body && req.body.vehiclePlate);
+    const rawVin = getTrimmedString(req.body && req.body.vehicleVin);
+    const vehiclePlate = vehicleIdentifierType === 'plate' ? normalizeVehicleIdentifier(rawPlate) : '';
+    const vehicleVin = vehicleIdentifierType === 'vin' ? normalizeVehicleIdentifier(rawVin) : '';
+    const vehicleProvided = Boolean(vehiclePlate || vehicleVin);
+    const vehicleConsent = isTruthyFormValue(req.body && req.body.vehicleConsent);
+
+    checkout.vehicle = {
+      identifierType: vehicleIdentifierType,
+      plate: vehiclePlate,
+      vin: vehicleVin,
+      consentAt: vehicleProvided && vehicleConsent ? new Date() : null,
+      providedAt: vehicleProvided ? new Date() : null,
+    };
+
+    if (vehicleProvided && !vehicleConsent) {
+      req.session.checkoutError =
+        "Merci de cocher l'accord pour utiliser la plaque/VIN afin de vérifier la compatibilité et/ou programmer la pièce.";
+      return res.redirect('/commande/paiement');
+    }
+
+    if (vehiclePlate && vehiclePlate.length < 5) {
+      req.session.checkoutError = 'La plaque semble trop courte. Merci de vérifier.';
+      return res.redirect('/commande/paiement');
+    }
+
+    if (vehicleVin && vehicleVin.length < 11) {
+      req.session.checkoutError = 'Le VIN semble trop court. Merci de vérifier.';
+      return res.redirect('/commande/paiement');
+    }
 
     if (!acceptCgv) {
       req.session.checkoutError = 'Merci d’accepter les CGV pour continuer.';
@@ -1392,6 +1435,15 @@ async function postPayment(req, res, next) {
           promoCode: appliedPromoCode,
           promoDiscountCents: computed.promoDiscountCents,
           itemsTotalAfterDiscountCents: computed.itemsTotalAfterDiscountCents,
+          vehicle: vehicleProvided
+            ? {
+                identifierType: vehicleIdentifierType,
+                plate: vehiclePlate,
+                vin: vehicleVin,
+                consentAt: vehicleConsent ? new Date() : null,
+                providedAt: new Date(),
+              }
+            : undefined,
           legal: {
             cgvAcceptedAt: new Date(),
             cgvSlug: 'cgv',

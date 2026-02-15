@@ -1492,6 +1492,15 @@ async function getAdminOrderDetailPage(req, res, next) {
         customer,
         customerEmail: user && user.email ? user.email : '',
         accountType: orderDoc.accountType,
+        vehicle: orderDoc.vehicle
+          ? {
+              identifierType: orderDoc.vehicle.identifierType || '',
+              plate: orderDoc.vehicle.plate || '',
+              vin: orderDoc.vehicle.vin || '',
+              consentAt: orderDoc.vehicle.consentAt ? formatDateTimeFR(orderDoc.vehicle.consentAt) : '',
+              providedAt: orderDoc.vehicle.providedAt ? formatDateTimeFR(orderDoc.vehicle.providedAt) : '',
+            }
+          : null,
         legal: orderDoc.legal
           ? {
               cgvAcceptedAt: orderDoc.legal.cgvAcceptedAt ? formatDateTimeFR(orderDoc.legal.cgvAcceptedAt) : '',

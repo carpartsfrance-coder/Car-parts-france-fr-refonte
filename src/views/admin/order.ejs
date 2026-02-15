@@ -78,6 +78,21 @@
                   </span>
                 </div>
 
+                <% if (order.vehicle && (order.vehicle.plate || order.vehicle.vin)) { %>
+                  <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Véhicule</div>
+                    <% if (order.vehicle.plate) { %>
+                      <div class="mt-2 text-sm text-slate-700">Plaque : <span class="font-black text-slate-900"><%= order.vehicle.plate %></span></div>
+                    <% } %>
+                    <% if (order.vehicle.vin) { %>
+                      <div class="mt-1 text-sm text-slate-700">VIN : <span class="font-black text-slate-900"><%= order.vehicle.vin %></span></div>
+                    <% } %>
+                    <% if (order.vehicle.consentAt) { %>
+                      <div class="mt-2 text-xs text-slate-500">Accord donné le : <span class="font-black text-slate-700"><%= order.vehicle.consentAt %></span></div>
+                    <% } %>
+                  </div>
+                <% } %>
+
                 <% if (order.legal && (order.legal.cgvAcceptedAt || order.legal.cgvUpdatedAt)) { %>
                   <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">CGV</div>
