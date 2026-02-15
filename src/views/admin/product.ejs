@@ -1,0 +1,1146 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'catalog' }) %>
+
+<main class="flex-1">
+  <% const pageTitle = mode === 'new' ? 'New Product' : 'Edit Product'; %>
+  <% const productName = form && form.name ? form.name : (mode === 'new' ? 'New product' : 'Product'); %>
+  <% const liveUrl = mode === 'edit' && productId ? ('/produits/' + productId) : null; %>
+  <% const galleryPreview = (form && form.galleryUrls ? String(form.galleryUrls).split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : []).slice(0, 5); %>
+  <% const specsText = form && typeof form.specs !== 'undefined' ? String(form.specs || '') : ''; %>
+  <% const findSpecValue = (label) => {
+    const target = String(label || '').trim().toLowerCase();
+    if (!target) return '';
+    const lines = String(specsText || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    for (const line of lines) {
+      const sepIndex = line.indexOf(':') >= 0 ? line.indexOf(':') : (line.indexOf('=') >= 0 ? line.indexOf('=') : line.indexOf('|'));
+      if (sepIndex <= 0) continue;
+      const rawLabel = line.slice(0, sepIndex).trim().toLowerCase();
+      if (rawLabel !== target) continue;
+      return line.slice(sepIndex + 1).trim();
+    }
+    return '';
+  }; %>
+  <% const specTypeValue = findSpecValue('type'); %>
+  <% const specProgrammationValue = findSpecValue('programmation'); %>
+
+  <header class="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-50">
+    <div class="px-8 py-4 flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2 text-xs text-gray-400 uppercase tracking-widest mb-1">
+          <a class="hover:text-primary" href="/admin/catalogue">Products</a>
+          <span class="material-symbols-outlined text-[10px]">chevron_right</span>
+          <span><%= pageTitle %></span>
+        </div>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-white"><%= productName %></h1>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button class="px-4 py-2 text-sm font-semibold border border-border-light dark:border-border-dark rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center gap-2" type="button" <%= liveUrl ? '' : 'disabled' %> onclick="if (this.disabled) return; window.open('<%= liveUrl || '' %>', '_blank', 'noopener');">
+          <span class="material-symbols-outlined text-lg">visibility</span>
+          View Live
+        </button>
+
+        <button class="px-6 py-2 text-sm font-semibold bg-primary hover:bg-primary-hover text-white rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50" form="productForm" type="submit" <%= dbConnected ? '' : 'disabled' %>>
+          <span class="material-symbols-outlined text-lg">save</span>
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="p-8 max-w-6xl mx-auto space-y-8">
+    <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+      <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
+        <div class="font-bold">Erreur</div>
+        <div class="mt-1 text-sm"><%= errorMessage %></div>
+      </div>
+    <% } %>
+
+    <% if (!dbConnected) { %>
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <div class="font-bold">Mode démo</div>
+        <div class="mt-1 text-sm">La base de données est indisponible : tu ne peux pas enregistrer de produit.</div>
+      </div>
+    <% } %>
+
+    <form id="productForm" action="<%= mode === 'new' ? '/admin/catalogue/nouveau' : ('/admin/catalogue/' + productId) %>" enctype="multipart/form-data" method="POST" class="space-y-8">
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">info</span>
+            General Information
+          </h2>
+        </div>
+
+        <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="name">Product Title</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="name" name="name" required type="text" value="<%= form && form.name ? form.name : '' %>" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="sku">SKU</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="sku" name="sku" type="text" value="<%= form && form.sku ? form.sku : '' %>" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="price">Price (€)</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="price" name="price" placeholder="Ex: 199,90" required type="text" value="<%= form && form.price ? form.price : '' %>" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="brand">Marque</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="brand" name="brand" type="text" value="<%= form && form.brand ? form.brand : '' %>" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="category">Catégorie</label>
+            <% if (typeof categories !== 'undefined' && categories && categories.length) { %>
+              <select class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="category" name="category">
+                <option value="">Autre</option>
+                <% categories.forEach((c) => { %>
+                  <option value="<%= c.name %>" <%= form && form.category === c.name ? 'selected' : '' %>><%= c.name %></option>
+                <% }) %>
+              </select>
+            <% } else { %>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="category" name="category" placeholder="Ex: Freinage" type="text" value="<%= form && form.category ? form.category : '' %>" />
+            <% } %>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shippingClassId">Classe d’expédition</label>
+            <% if (typeof shippingClasses !== 'undefined' && shippingClasses && shippingClasses.length) { %>
+              <select class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingClassId" name="shippingClassId">
+                <option value="">Par défaut</option>
+                <% shippingClasses.forEach((c) => { %>
+                  <% const optLabel = `${c.name || ''}${c.isDefault ? ' (défaut)' : ''}${c.isActive === false ? ' (inactive)' : ''}`; %>
+                  <option value="<%= c.id %>" <%= form && form.shippingClassId === c.id ? 'selected' : '' %>><%= optLabel %></option>
+                <% }) %>
+              </select>
+            <% } else { %>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm opacity-70" disabled id="shippingClassId" name="shippingClassId" placeholder="Par défaut" type="text" value="Par défaut" />
+            <% } %>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="compareAtPrice">Prix barré</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="compareAtPrice" name="compareAtPrice" placeholder="Ex: 249,90" type="text" value="<%= form && form.compareAtPrice ? form.compareAtPrice : '' %>" />
+          </div>
+
+          <div class="md:col-span-4">
+            <div class="flex items-center gap-3">
+              <input class="rounded border-gray-300 text-primary focus:ring-primary" id="consigneEnabled" name="consigneEnabled" type="checkbox" <%= form && form.consigneEnabled ? 'checked' : '' %> />
+              <label class="text-sm font-semibold text-gray-700 dark:text-gray-300" for="consigneEnabled">Activer la consigne (ancienne pièce à retourner)</label>
+            </div>
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="consigneAmount">Montant consigne (€)</label>
+                <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="consigneAmount" name="consigneAmount" placeholder="Ex: 150,00" type="text" value="<%= form && typeof form.consigneAmount !== 'undefined' ? form.consigneAmount : '' %>" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="consigneDelayDays">Délai retour (jours)</label>
+                <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="consigneDelayDays" name="consigneDelayDays" type="number" min="0" max="3650" value="<%= form && typeof form.consigneDelayDays !== 'undefined' ? form.consigneDelayDays : '30' %>" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="stockQty">Stock</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="stockQty" name="stockQty" placeholder="Laisse vide si non géré" type="number" min="0" value="<%= form && typeof form.stockQty !== 'undefined' ? form.stockQty : '' %>" />
+          </div>
+
+          <div class="flex items-center gap-3 md:col-span-4">
+            <input class="rounded border-gray-300 text-primary focus:ring-primary" id="inStock" name="inStock" type="checkbox" <%= form && form.inStock ? 'checked' : '' %> />
+            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300" for="inStock">Produit en stock</label>
+          </div>
+        </div>
+      </section>
+
+      <input id="videoUrl" name="videoUrl" type="hidden" value="<%= form && form.videoUrl ? form.videoUrl : '' %>" />
+      <textarea id="specs" name="specs" class="hidden"><%= form && form.specs ? form.specs : '' %></textarea>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">imagesmode</span>
+            Media Management
+          </h2>
+          <button class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" id="mediaAddNew" type="button">
+            <span class="material-symbols-outlined text-lg">add_a_photo</span>
+            Add New
+          </button>
+        </div>
+
+        <div class="p-6">
+          <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4" id="mediaGrid">
+            <% if (form && form.imageUrl) { %>
+              <div class="relative group aspect-square rounded-lg border border-primary overflow-hidden bg-white" data-kind="main" data-url="<%= form.imageUrl %>">
+                <img alt="Product" class="w-full h-full object-cover" src="<%= form.imageUrl %>" />
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-primary" type="button"><span class="material-symbols-outlined text-sm">open_with</span></button>
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-red-600" type="button" data-action="remove"><span class="material-symbols-outlined text-sm">delete</span></button>
+                </div>
+                <span class="absolute top-1 left-1 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 rounded">MAIN</span>
+              </div>
+            <% } %>
+
+            <% (form && form.galleryUrls ? String(form.galleryUrls).split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : []).forEach((u) => { %>
+              <div class="relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white" data-kind="gallery" data-url="<%= u %>">
+                <img alt="Product" class="w-full h-full object-cover" src="<%= u %>" />
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full" type="button"><span class="material-symbols-outlined text-sm">open_with</span></button>
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full" type="button" data-action="remove"><span class="material-symbols-outlined text-sm">delete</span></button>
+                </div>
+              </div>
+            <% }) %>
+
+            <button class="aspect-square rounded-lg border-2 border-dashed border-border-light dark:border-border-dark flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all" id="mediaUploadBtn" type="button">
+              <span class="material-symbols-outlined text-3xl mb-1">add</span>
+              <span class="text-[10px] font-bold">UPLOAD</span>
+            </button>
+          </div>
+
+          <input id="image" name="image" accept="image/*" type="file" multiple class="hidden" />
+          <input id="imageUrl" name="imageUrl" type="hidden" value="<%= form && form.imageUrl ? form.imageUrl : '' %>" />
+          <input id="removeMainImage" name="removeMainImage" type="hidden" value="false" />
+          <textarea id="galleryUrls" name="galleryUrls" class="hidden"><%= form && form.galleryUrls ? form.galleryUrls : '' %></textarea>
+        </div>
+      </section>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">description</span>
+            Description
+          </h2>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-border-light dark:border-border-dark flex flex-col items-center text-center">
+              <div class="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center mb-2">
+                <span class="material-symbols-outlined">settings_input_component</span>
+              </div>
+              <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-1">Badge haut</span>
+              <span class="text-sm font-semibold"><%= form && form.badgeTopLeft ? form.badgeTopLeft : '—' %></span>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-border-light dark:border-border-dark flex flex-col items-center text-center">
+              <div class="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center mb-2">
+                <span class="material-symbols-outlined">history</span>
+              </div>
+              <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-1">État</span>
+              <span class="text-sm font-semibold"><%= form && form.badgeCondition ? form.badgeCondition : '—' %></span>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-border-light dark:border-border-dark flex flex-col items-center text-center">
+              <div class="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center mb-2">
+                <span class="material-symbols-outlined">cable</span>
+              </div>
+              <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-1">SKU</span>
+              <span class="text-sm font-semibold"><%= form && form.sku ? form.sku : '—' %></span>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-border-light dark:border-border-dark flex flex-col items-center text-center">
+              <div class="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow-sm flex items-center justify-center mb-2">
+                <span class="material-symbols-outlined">verified</span>
+              </div>
+              <span class="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-1">Catégorie</span>
+              <span class="text-sm font-semibold"><%= form && form.category ? form.category : '—' %></span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="specType">Type (Caractéristiques principales)</label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="specType" name="specType" type="text" placeholder="Ex: Boîte de vitesses" value="<%= specTypeValue %>" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="specProgrammation">Programmation (Caractéristiques principales)</label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="specProgrammation" name="specProgrammation" type="text" placeholder="Ex: Oui / Non / À coder" value="<%= specProgrammationValue %>" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="badgeTopLeft">Garantie (affiché sur la fiche produit)</label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="badgeTopLeft" name="badgeTopLeft" placeholder="Ex: Garantie 24 mois" type="text" value="<%= form && form.badgeTopLeft ? form.badgeTopLeft : '' %>" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="badgeCondition">État (affiché sur la fiche produit)</label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="badgeCondition" name="badgeCondition" placeholder="Ex: Reconditionné" type="text" value="<%= form && form.badgeCondition ? form.badgeCondition : '' %>" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shortDescription">Résumé</label>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="shortDescription" name="shortDescription" rows="2"><%= form && form.shortDescription ? form.shortDescription : '' %></textarea>
+          </div>
+
+          <div class="border border-border-light dark:border-border-dark rounded-lg overflow-hidden">
+            <div class="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 border-b border-border-light dark:border-border-dark flex gap-2">
+              <button class="p-1 hover:bg-white dark:hover:bg-gray-700 rounded" type="button"><span class="material-symbols-outlined text-lg">format_bold</span></button>
+              <button class="p-1 hover:bg-white dark:hover:bg-gray-700 rounded" type="button"><span class="material-symbols-outlined text-lg">format_italic</span></button>
+              <button class="p-1 hover:bg-white dark:hover:bg-gray-700 rounded" type="button"><span class="material-symbols-outlined text-lg">format_list_bulleted</span></button>
+              <div class="w-px h-6 bg-border-light dark:bg-border-dark mx-1"></div>
+              <button class="p-1 hover:bg-white dark:hover:bg-gray-700 rounded" type="button"><span class="material-symbols-outlined text-lg">link</span></button>
+            </div>
+            <textarea class="w-full bg-transparent border-none focus:ring-0 p-4 text-sm resize-none" id="description" name="description" placeholder="Description du produit..." rows="8"><%= form && form.description ? form.description : '' %></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">autorenew</span>
+            Reconditioning Process Steps
+          </h2>
+
+          <button class="px-4 py-2 text-xs font-bold bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-lg flex items-center gap-1 hover:bg-black transition-colors" id="stepsPrefillBtn" type="button">
+            <span class="material-symbols-outlined text-sm">auto_fix</span>
+            Pré-remplir (4 étapes)
+          </button>
+        </div>
+
+        <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-6" id="stepsGrid">
+          <% for (let i = 1; i <= 4; i += 1) { %>
+            <div class="space-y-3" data-step>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-bold text-gray-400 uppercase">Step <%= i %></span>
+                <button class="text-gray-400 hover:text-primary" type="button"><span class="material-symbols-outlined text-sm">settings</span></button>
+              </div>
+              <select class="w-full text-xs font-bold bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded p-2" data-step-title-select>
+                <option value="">Choisir...</option>
+                <option value="Diagnostic">Diagnostic</option>
+                <option value="Nettoyage">Nettoyage</option>
+                <option value="Remplacement">Remplacement</option>
+                <option value="Test Banc">Test Banc</option>
+                <option value="Programmation">Programmation</option>
+                <option value="Contrôle Qualité">Contrôle Qualité</option>
+                <option value="Garantie">Garantie</option>
+                <option value="Expédition">Expédition</option>
+                <option value="__custom__">Autre (personnalisé)</option>
+              </select>
+              <input class="w-full text-xs font-bold bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded p-2 hidden" type="text" data-step-title-custom placeholder="Titre personnalisé" />
+              <textarea class="w-full text-xs bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded p-2 h-20" data-step-description></textarea>
+            </div>
+          <% } %>
+        </div>
+
+        <textarea id="reconditioningSteps" name="reconditioningSteps" class="hidden"><%= form && form.reconditioningSteps ? form.reconditioningSteps : '' %></textarea>
+      </section>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">directions_car</span>
+            Compatibilité Véhicules
+          </h2>
+          <button class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" id="compatAddBtn" type="button">
+            <span class="material-symbols-outlined text-lg">add</span>
+            Link New Model
+          </button>
+        </div>
+        <div class="p-6 space-y-8">
+          <div class="p-5 bg-primary/5 border border-primary/10 rounded-xl">
+            <div class="flex flex-col md:flex-row items-center gap-4">
+              <div class="flex-1">
+                <h4 class="text-sm font-bold flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary text-lg">verified</span>
+                  Verify VIN Compatibility
+                </h4>
+                <p class="text-[11px] text-gray-500 mt-0.5">Test real-time matching with chassis numbers</p>
+              </div>
+              <div class="relative flex-1 w-full">
+                <input class="w-full bg-white dark:bg-gray-900 border-primary rounded-lg py-2 pl-4 pr-10 text-sm focus:ring-0 uppercase font-mono tracking-widest" placeholder="WVWZZZ1KXXXXXXXXX" type="text" />
+                <span class="material-symbols-outlined absolute right-3 top-2 text-green-600 hidden" id="vinCheckIcon">check_circle</span>
+              </div>
+              <div class="text-xs font-bold text-green-600 px-3 py-2 bg-green-50 rounded-lg border border-green-100 hidden md:block" id="vinMatchBox">
+                MATCH FOUND
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="space-y-3">
+              <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest">Select Brand to Manage</label>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2" for="compatMakeInput">Marque</label>
+                  <input class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm" id="compatMakeInput" type="text" list="compatMakeOptions" placeholder="Commence à taper (ex: Audi)" autocomplete="off" />
+                  <datalist id="compatMakeOptions"></datalist>
+                </div>
+
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2" for="compatModelSelect">Modèle</label>
+                  <select class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm" id="compatModelSelect"></select>
+                  <input class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm hidden mt-2" id="compatModelCustom" type="text" placeholder="Nouveau modèle (ex: A3 (8V))" autocomplete="off" />
+                </div>
+
+                <div>
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2" for="compatYears">Années</label>
+                  <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm" id="compatYears" type="text" placeholder="Ex: 2012-2019" />
+                </div>
+
+                <div class="md:col-span-2">
+                  <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2" for="compatEngine">Moteur</label>
+                  <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-3 text-sm" id="compatEngine" type="text" placeholder="Ex: 1.0 / 1.4 / 1.5" />
+                </div>
+
+                <div class="md:col-span-2 flex items-end justify-end">
+                  <button class="px-4 py-2 text-xs font-bold bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-lg flex items-center gap-1 hover:bg-black transition-colors" id="compatAddItemBtn" type="button">
+                    <span class="material-symbols-outlined text-sm">add</span>
+                    Ajouter la compatibilité
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest" id="compatModelsLabel">Compatible Models</label>
+              <div class="flex flex-wrap gap-3" id="compatModels"></div>
+            </div>
+          </div>
+        </div>
+
+        <textarea id="compatibility" name="compatibility" class="hidden"><%= form && form.compatibility ? form.compatibility : '' %></textarea>
+      </section>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between flex-wrap gap-4">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">quiz</span>
+            Questions Fréquentes
+          </h2>
+          <div class="flex items-center gap-3">
+            <div class="relative w-64">
+              <input class="w-full text-xs py-2 pl-9 pr-4 bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg focus:ring-primary focus:border-primary" placeholder="Search questions..." type="text" id="faqSearch" />
+              <span class="material-symbols-outlined absolute left-2.5 top-1.5 text-gray-400 text-lg">search</span>
+            </div>
+            <button class="px-4 py-2 text-xs font-bold bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-lg flex items-center gap-1 hover:bg-black transition-colors" id="faqAddBtn" type="button">
+              <span class="material-symbols-outlined text-sm">add</span> Add New
+            </button>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-1" id="faqList"></div>
+
+        <textarea id="faqs" name="faqs" class="hidden"><%= form && form.faqs ? form.faqs : '' %></textarea>
+      </section>
+
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+        <div class="p-6 border-b border-border-light dark:border-border-dark">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">language</span>
+            SEO &amp; Meta Tags
+          </h2>
+        </div>
+        <div class="p-6 space-y-6">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaTitle">Meta Title</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="metaTitle" name="metaTitle" type="text" value="<%= form && form.metaTitle ? form.metaTitle : '' %>" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaDescription">Meta Description</label>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="metaDescription" name="metaDescription" rows="3"><%= form && form.metaDescription ? form.metaDescription : '' %></textarea>
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <script id="compatIndexJson" type="application/json"><%- JSON.stringify((typeof compatIndex !== 'undefined' && compatIndex) ? compatIndex : { makes: [], modelsByMake: {} }) %></script>
+
+    <script>
+      (function () {
+        const fileInput = document.getElementById('image');
+        const addNewBtn = document.getElementById('mediaAddNew');
+        const uploadBtn = document.getElementById('mediaUploadBtn');
+        const grid = document.getElementById('mediaGrid');
+        const galleryField = document.getElementById('galleryUrls');
+        const canUseMedia = !!(fileInput && addNewBtn && uploadBtn && grid && galleryField);
+
+        const selected = [];
+
+        const sameFile = (a, b) => a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+        const syncInputFiles = () => {
+          const dt = new DataTransfer();
+          selected.forEach((f) => dt.items.add(f));
+          fileInput.files = dt.files;
+        };
+
+        const openPicker = () => fileInput.click();
+        if (canUseMedia) {
+          addNewBtn.addEventListener('click', openPicker);
+          uploadBtn.addEventListener('click', openPicker);
+        }
+
+        const removeGalleryUrl = (url) => {
+          const lines = String(galleryField.value || '')
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const next = lines.filter((l) => l !== url);
+          galleryField.value = next.join('\n');
+        };
+
+        if (canUseMedia) {
+          grid.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('button[data-action="remove"]') : null;
+            if (!btn) return;
+            const tile = btn.closest('[data-kind]');
+            if (!tile) return;
+            const kind = tile.getAttribute('data-kind');
+            const url = tile.getAttribute('data-url') || '';
+            const previewIdx = tile.getAttribute('data-preview-idx');
+            if (previewIdx !== null && previewIdx !== '') {
+              const idx = Number(previewIdx);
+              if (Number.isFinite(idx) && idx >= 0 && idx < selected.length) {
+                selected.splice(idx, 1);
+                syncInputFiles();
+              }
+            } else if (kind === 'gallery' && url) {
+              removeGalleryUrl(url);
+            } else if (kind === 'main') {
+              const imageUrlField = document.getElementById('imageUrl');
+              if (imageUrlField && imageUrlField.value === url) imageUrlField.value = '';
+              const removeMainImageField = document.getElementById('removeMainImage');
+              if (removeMainImageField) removeMainImageField.value = 'true';
+            }
+            tile.remove();
+
+            const previewTiles = Array.from(grid.querySelectorAll('[data-preview="true"]'));
+            previewTiles.forEach((el, i) => el.setAttribute('data-preview-idx', String(i)));
+          });
+        }
+
+        if (canUseMedia) fileInput.addEventListener('change', () => {
+          const removeMainImageField = document.getElementById('removeMainImage');
+          if (removeMainImageField) removeMainImageField.value = 'false';
+
+          const files = Array.from(fileInput.files || []);
+          files.forEach((f) => {
+            if (selected.some((x) => sameFile(x, f))) return;
+            selected.push(f);
+          });
+          syncInputFiles();
+
+          Array.from(grid.querySelectorAll('[data-preview="true"]')).forEach((el) => el.remove());
+
+          const beforeNode = uploadBtn;
+          selected.forEach((f, idx) => {
+            const url = URL.createObjectURL(f);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white';
+            wrapper.setAttribute('data-kind', 'preview');
+            wrapper.setAttribute('data-preview', 'true');
+            wrapper.setAttribute('data-preview-idx', String(idx));
+            wrapper.setAttribute('data-url', url);
+
+            const img = document.createElement('img');
+            img.alt = 'Product';
+            img.className = 'w-full h-full object-cover';
+            img.src = url;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2';
+
+            const moveBtn = document.createElement('button');
+            moveBtn.type = 'button';
+            moveBtn.className = 'p-1.5 bg-white text-gray-900 rounded-full';
+            moveBtn.innerHTML = '<span class="material-symbols-outlined text-sm">open_with</span>';
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'p-1.5 bg-white text-gray-900 rounded-full';
+            delBtn.setAttribute('data-action', 'remove');
+            delBtn.innerHTML = '<span class="material-symbols-outlined text-sm">delete</span>';
+
+            overlay.appendChild(moveBtn);
+            overlay.appendChild(delBtn);
+            wrapper.appendChild(img);
+            wrapper.appendChild(overlay);
+            grid.insertBefore(wrapper, beforeNode);
+          });
+        });
+
+        const stepsGrid = document.getElementById('stepsGrid');
+        const stepsField = document.getElementById('reconditioningSteps');
+        const compatField = document.getElementById('compatibility');
+        const compatMakeInput = document.getElementById('compatMakeInput');
+        const compatMakeOptions = document.getElementById('compatMakeOptions');
+        const compatModelSelect = document.getElementById('compatModelSelect');
+        const compatModelCustom = document.getElementById('compatModelCustom');
+        const compatYears = document.getElementById('compatYears');
+        const compatEngine = document.getElementById('compatEngine');
+        const compatAddItemBtn = document.getElementById('compatAddItemBtn');
+        const compatModels = document.getElementById('compatModels');
+        const compatModelsLabel = document.getElementById('compatModelsLabel');
+        const compatAddBtn = document.getElementById('compatAddBtn');
+        const faqField = document.getElementById('faqs');
+        const faqList = document.getElementById('faqList');
+        const faqAddBtn = document.getElementById('faqAddBtn');
+        const faqSearch = document.getElementById('faqSearch');
+
+        const compatIndexEl = document.getElementById('compatIndexJson');
+        let SERVER_COMPAT_INDEX = { makes: [], modelsByMake: {} };
+        try {
+          SERVER_COMPAT_INDEX = compatIndexEl && compatIndexEl.textContent
+            ? JSON.parse(compatIndexEl.textContent)
+            : { makes: [], modelsByMake: {} };
+        } catch (e) {
+          SERVER_COMPAT_INDEX = { makes: [], modelsByMake: {} };
+        }
+
+        const DEFAULT_MAKES = [
+          'Audi',
+          'BMW',
+          'Citroën',
+          'Dacia',
+          'Fiat',
+          'Ford',
+          'Hyundai',
+          'Kia',
+          'Mercedes',
+          'Nissan',
+          'Opel',
+          'Peugeot',
+          'Renault',
+          'Seat',
+          'Skoda',
+          'Toyota',
+          'Volkswagen',
+          'Volvo',
+        ];
+
+        const parseLines = (value) => String(value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+
+        const specsField = document.getElementById('specs');
+        const specTypeInput = document.getElementById('specType');
+        const specProgrammationInput = document.getElementById('specProgrammation');
+
+        const parseSpecPairs = (value) => {
+          const lines = parseLines(value);
+          const pairs = [];
+
+          lines.forEach((line) => {
+            const sepIndex = line.indexOf(':') >= 0
+              ? line.indexOf(':')
+              : (line.indexOf('=') >= 0 ? line.indexOf('=') : line.indexOf('|'));
+            if (sepIndex <= 0) return;
+
+            const label = line.slice(0, sepIndex).trim();
+            const val = line.slice(sepIndex + 1).trim();
+            if (!label || !val) return;
+
+            pairs.push({ label, value: val });
+          });
+
+          return pairs;
+        };
+
+        const upsertSpec = (pairs, key, displayLabel, value) => {
+          const k = String(key || '').toLowerCase();
+          const v = String(value || '').trim();
+          const idx = pairs.findIndex((p) => p && p.label && String(p.label).trim().toLowerCase() === k);
+
+          if (!v) {
+            if (idx >= 0) pairs.splice(idx, 1);
+            return;
+          }
+
+          if (idx >= 0) pairs[idx].value = v;
+          else pairs.push({ label: displayLabel, value: v });
+        };
+
+        const syncSpecsFromKeyFields = () => {
+          if (!specsField) return;
+          const pairs = parseSpecPairs(specsField.value);
+          if (specTypeInput) upsertSpec(pairs, 'type', 'Type', specTypeInput.value);
+          if (specProgrammationInput) upsertSpec(pairs, 'programmation', 'Programmation', specProgrammationInput.value);
+          specsField.value = pairs.map((p) => `${p.label}: ${p.value}`.trim()).filter(Boolean).join('\n');
+        };
+
+        if (specsField && (specTypeInput || specProgrammationInput)) {
+          if (specTypeInput) specTypeInput.addEventListener('input', syncSpecsFromKeyFields);
+          if (specProgrammationInput) specProgrammationInput.addEventListener('input', syncSpecsFromKeyFields);
+          syncSpecsFromKeyFields();
+        }
+
+        const parseSteps = () => {
+          const lines = parseLines(stepsField ? stepsField.value : '');
+          const out = [];
+          lines.forEach((line) => {
+            const idx = line.indexOf(':');
+            if (idx === -1) return;
+            const title = line.slice(0, idx).trim();
+            const description = line.slice(idx + 1).trim();
+            if (!title && !description) return;
+            out.push({ title, description });
+          });
+          while (out.length < 4) out.push({ title: '', description: '' });
+          return out.slice(0, 4);
+        };
+
+        const syncStepsField = () => {
+          if (!stepsField || !stepsGrid) return;
+          const blocks = Array.from(stepsGrid.querySelectorAll('[data-step]'));
+          const lines = blocks
+            .map((b) => {
+              const sel = b.querySelector('[data-step-title-select]');
+              const custom = b.querySelector('[data-step-title-custom]');
+              const selValue = sel && sel.value ? String(sel.value) : '';
+              const t = selValue === '__custom__'
+                ? ((custom || {}).value || '')
+                : selValue;
+              const d = (b.querySelector('[data-step-description]') || {}).value || '';
+              const title = String(t).trim();
+              const desc = String(d).trim();
+              if (!title && !desc) return '';
+              return `${title}: ${desc}`.trim();
+            })
+            .filter(Boolean);
+          stepsField.value = lines.join('\n');
+        };
+
+        if (stepsGrid && stepsField) {
+          const STEP_PRESETS = {
+            Diagnostic: 'Contrôle visuel et lecture des défauts initiaux.',
+            Nettoyage: 'Démontage complet et nettoyage ultrason.',
+            Remplacement: 'Électrovannes, joints et capteurs critiques changés.',
+            'Test Banc': 'Simulation conditions réelles et programmation.',
+          };
+
+          const applyStepTitle = (block, title) => {
+            const sel = block ? block.querySelector('[data-step-title-select]') : null;
+            const custom = block ? block.querySelector('[data-step-title-custom]') : null;
+            const exists = sel ? Array.from(sel.options || []).some((o) => o && o.value === title) : false;
+
+            if (!sel) return;
+
+            if (exists || title === '') {
+              sel.value = title;
+              if (custom) {
+                custom.classList.add('hidden');
+                custom.value = '';
+              }
+              return;
+            }
+
+            sel.value = '__custom__';
+            if (custom) {
+              custom.classList.remove('hidden');
+              custom.value = title;
+            }
+          };
+
+          const applyPresetSteps = () => {
+            const blocks = Array.from(stepsGrid.querySelectorAll('[data-step]'));
+            const titles = ['Diagnostic', 'Nettoyage', 'Remplacement', 'Test Banc'];
+
+            blocks.slice(0, 4).forEach((b, i) => {
+              const title = titles[i] || '';
+              applyStepTitle(b, title);
+              const d = b.querySelector('[data-step-description]');
+              if (d) d.value = STEP_PRESETS[title] || '';
+            });
+
+            syncStepsField();
+          };
+
+          const stepsPrefillBtn = document.getElementById('stepsPrefillBtn');
+          if (stepsPrefillBtn) {
+            stepsPrefillBtn.addEventListener('click', () => {
+              const current = String(stepsField.value || '').trim();
+              if (current) {
+                const ok = window.confirm('Remplacer les étapes déjà remplies par le modèle (4 étapes) ?');
+                if (!ok) return;
+              }
+              applyPresetSteps();
+            });
+          }
+
+          const initial = parseSteps();
+          const blocks = Array.from(stepsGrid.querySelectorAll('[data-step]'));
+          blocks.forEach((b, i) => {
+            const sel = b.querySelector('[data-step-title-select]');
+            const custom = b.querySelector('[data-step-title-custom]');
+            const d = b.querySelector('[data-step-description]');
+            const initialTitle = initial[i] ? String(initial[i].title || '').trim() : '';
+
+            if (sel) {
+              const exists = Array.from(sel.options || []).some((o) => o && o.value === initialTitle);
+              if (exists || initialTitle === '') {
+                sel.value = initialTitle;
+                if (custom) custom.classList.add('hidden');
+              } else {
+                sel.value = '__custom__';
+                if (custom) {
+                  custom.classList.remove('hidden');
+                  custom.value = initialTitle;
+                }
+              }
+            }
+            if (d) d.value = initial[i] ? initial[i].description : '';
+          });
+          stepsGrid.addEventListener('input', syncStepsField);
+          stepsGrid.addEventListener('change', (e) => {
+            const target = e && e.target ? e.target : null;
+            if (!target) return;
+            if (target.matches && target.matches('[data-step-title-select]')) {
+              const block = target.closest('[data-step]');
+              if (!block) return;
+              const custom = block.querySelector('[data-step-title-custom]');
+              if (!custom) return;
+              if (String(target.value) === '__custom__') custom.classList.remove('hidden');
+              else custom.classList.add('hidden');
+
+              const selectedTitle = String(target.value || '').trim();
+              const descField = block.querySelector('[data-step-description]');
+              const currentDesc = descField ? String(descField.value || '').trim() : '';
+              if (descField && !currentDesc && STEP_PRESETS[selectedTitle]) {
+                descField.value = STEP_PRESETS[selectedTitle];
+              }
+
+              syncStepsField();
+            }
+          });
+        }
+
+        const parseCompatibility = () => {
+          const lines = parseLines(compatField ? compatField.value : '');
+          return lines
+            .map((line) => {
+              const parts = line.split('|').map((p) => String(p || '').trim());
+              return {
+                make: parts[0] || '',
+                model: parts[1] || '',
+                years: parts[2] || '',
+                engine: parts[3] || '',
+              };
+            })
+            .filter((x) => x.make || x.model || x.years || x.engine);
+        };
+
+        const syncCompatibilityField = (items) => {
+          if (!compatField) return;
+          compatField.value = items
+            .map((x) => `${x.make} | ${x.model} | ${x.years} | ${x.engine}`.trim())
+            .join('\n');
+        };
+
+        let compatItems = parseCompatibility();
+        let selectedMake = compatItems.length ? (compatItems[0].make || '') : '';
+
+        const makeList = () => {
+          const fromData = compatItems.map((x) => x.make).filter(Boolean);
+          const fromServer = SERVER_COMPAT_INDEX && Array.isArray(SERVER_COMPAT_INDEX.makes) ? SERVER_COMPAT_INDEX.makes : [];
+          const all = Array.from(new Set([...DEFAULT_MAKES, ...fromServer, ...fromData])).sort((a, b) => String(a).localeCompare(String(b), 'fr'));
+          return all;
+        };
+
+        const resolveMakeKey = (value) => {
+          const raw = String(value || '').trim();
+          if (!raw) return '';
+          const low = raw.toLowerCase();
+          const all = makeList();
+          const exact = all.find((m) => String(m).toLowerCase() === low);
+          return exact || raw;
+        };
+
+        const setSelectModelOptions = (select, values) => {
+          if (!select) return;
+          const current = select.value;
+          select.innerHTML = '';
+
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Choisir un modèle...';
+          select.appendChild(placeholder);
+
+          values.forEach((v) => {
+            const o = document.createElement('option');
+            o.value = v;
+            o.textContent = v;
+            select.appendChild(o);
+          });
+
+          const custom = document.createElement('option');
+          custom.value = '__custom__';
+          custom.textContent = 'Autre (nouveau modèle)';
+          select.appendChild(custom);
+
+          if (current) select.value = current;
+        };
+
+        const modelsForMake = (mk) => {
+          const fromData = compatItems
+            .filter((x) => x.make && mk && x.make === mk && x.model)
+            .map((x) => x.model);
+          const fromServer = SERVER_COMPAT_INDEX && SERVER_COMPAT_INDEX.modelsByMake && SERVER_COMPAT_INDEX.modelsByMake[mk]
+            ? SERVER_COMPAT_INDEX.modelsByMake[mk]
+            : [];
+          const all = Array.from(new Set([...(Array.isArray(fromServer) ? fromServer : []), ...fromData]))
+            .sort((a, b) => String(a).localeCompare(String(b), 'fr'));
+          return all;
+        };
+
+        const setDatalistOptions = (datalist, values) => {
+          if (!datalist) return;
+          datalist.innerHTML = '';
+          values.forEach((v) => {
+            const o = document.createElement('option');
+            o.value = v;
+            datalist.appendChild(o);
+          });
+        };
+
+        const renderModelsList = () => {
+          if (!compatModels || !compatModelsLabel) return;
+          compatModelsLabel.textContent = selectedMake ? `Compatible Models (${selectedMake})` : 'Compatible Models';
+          compatModels.innerHTML = '';
+          const models = compatItems.filter((x) => (selectedMake ? x.make === selectedMake : true));
+          models.forEach((x, idx) => {
+            const card = document.createElement('div');
+            card.className = 'group px-4 py-3 bg-white dark:bg-gray-900 border border-border-light dark:border-border-dark rounded-xl hover:shadow-md transition-all relative' + (idx === 0 ? ' border-l-4 border-l-primary' : '');
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between gap-4';
+            const left = document.createElement('div');
+            const title = document.createElement('p');
+            title.className = 'font-bold text-sm';
+            title.textContent = x.model || '(Sans modèle)';
+            const sub = document.createElement('p');
+            sub.className = 'text-[10px] text-gray-500';
+            sub.textContent = x.engine || x.years || '';
+            left.appendChild(title);
+            left.appendChild(sub);
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary transition-opacity';
+            del.innerHTML = '<span class="material-symbols-outlined text-lg">delete</span>';
+            del.addEventListener('click', () => {
+              const realIdx = compatItems.findIndex((it) => it === x);
+              if (realIdx === -1) return;
+              compatItems.splice(realIdx, 1);
+              syncCompatibilityField(compatItems);
+              renderCompatibilityUI();
+            });
+            row.appendChild(left);
+            row.appendChild(del);
+            card.appendChild(row);
+            compatModels.appendChild(card);
+          });
+        };
+
+        const renderCompatibilityUI = () => {
+          if (!compatMakeInput || !compatModelSelect) return;
+          const makes = makeList();
+          setDatalistOptions(compatMakeOptions, makes);
+
+          const activeMake = String(compatMakeInput.value || '').trim();
+          const canonicalMake = resolveMakeKey(activeMake);
+          if (canonicalMake) selectedMake = canonicalMake;
+
+          const models = canonicalMake ? modelsForMake(canonicalMake) : [];
+          setSelectModelOptions(compatModelSelect, models);
+
+          if (compatModelSelect.value !== '__custom__') {
+            if (compatModelCustom) compatModelCustom.classList.add('hidden');
+          } else {
+            if (compatModelCustom) compatModelCustom.classList.remove('hidden');
+          }
+
+          renderModelsList();
+        };
+
+        const readMakeFromUI = () => resolveMakeKey(compatMakeInput ? String(compatMakeInput.value || '').trim() : '');
+        const readModelFromUI = () => {
+          if (!compatModelSelect) return '';
+          if (compatModelSelect.value === '__custom__') return String((compatModelCustom || {}).value || '').trim();
+          return String(compatModelSelect.value || '').trim();
+        };
+
+        if (compatMakeInput) {
+          compatMakeInput.addEventListener('input', () => {
+            selectedMake = resolveMakeKey(String(compatMakeInput.value || '').trim());
+            if (compatModelSelect) compatModelSelect.value = '';
+            if (compatModelCustom) {
+              compatModelCustom.value = '';
+              compatModelCustom.classList.add('hidden');
+            }
+            renderCompatibilityUI();
+          });
+        }
+        if (compatModelSelect) {
+          compatModelSelect.addEventListener('change', () => {
+            if (compatModelSelect.value !== '__custom__') {
+              if (compatModelCustom) {
+                compatModelCustom.value = '';
+                compatModelCustom.classList.add('hidden');
+              }
+            } else {
+              if (compatModelCustom) compatModelCustom.classList.remove('hidden');
+              if (compatModelCustom) compatModelCustom.focus();
+            }
+            renderCompatibilityUI();
+          });
+        }
+        if (compatModelCustom) {
+          compatModelCustom.addEventListener('input', renderCompatibilityUI);
+        }
+
+        if (compatAddItemBtn) {
+          compatAddItemBtn.addEventListener('click', () => {
+            const make = readMakeFromUI();
+            const model = readModelFromUI();
+            const years = String((compatYears || {}).value || '').trim();
+            const engine = String((compatEngine || {}).value || '').trim();
+
+            if (!make) {
+              window.alert('Choisis une marque (ou ajoute une nouvelle marque).');
+              if (compatMakeInput) compatMakeInput.focus();
+              return;
+            }
+
+            if (!model) {
+              window.alert('Choisis un modèle (ou ajoute un nouveau modèle).');
+              if (compatModelSelect && compatModelSelect.value !== '__custom__') compatModelSelect.focus();
+              else if (compatModelCustom) compatModelCustom.focus();
+              return;
+            }
+
+            compatItems.push({ make, model, years, engine });
+            syncCompatibilityField(compatItems);
+            selectedMake = make;
+
+            if (compatYears) compatYears.value = '';
+            if (compatEngine) compatEngine.value = '';
+            if (compatMakeInput) compatMakeInput.value = make;
+            if (compatModelSelect) compatModelSelect.value = '';
+            if (compatModelCustom) {
+              compatModelCustom.value = '';
+              compatModelCustom.classList.add('hidden');
+            }
+
+            renderCompatibilityUI();
+          });
+        }
+
+        if (compatAddBtn) {
+          compatAddBtn.addEventListener('click', () => {
+            if (compatMakeInput) compatMakeInput.focus();
+          });
+        }
+
+        if (compatField && compatMakeInput && compatModelSelect && compatModels) {
+          if (selectedMake && !compatMakeInput.value) compatMakeInput.value = selectedMake;
+          renderCompatibilityUI();
+        }
+
+        const parseFaqs = () => {
+          const lines = parseLines(faqField ? faqField.value : '');
+          return lines
+            .map((line) => {
+              const parts = line.split('|').map((p) => String(p || '').trim());
+              return { tag: 'FAQ', question: parts[0] || '', answer: parts[1] || '' };
+            })
+            .filter((x) => x.question || x.answer);
+        };
+
+        const syncFaqField = (items) => {
+          if (!faqField) return;
+          faqField.value = items.map((x) => `${x.question} | ${x.answer}`.trim()).join('\n');
+        };
+
+        let faqItems = parseFaqs();
+
+        const renderFaqs = () => {
+          if (!faqList) return;
+          const q = faqSearch ? String(faqSearch.value || '').trim().toLowerCase() : '';
+          const filtered = q
+            ? faqItems.filter((x) => (`${x.question} ${x.answer}`).toLowerCase().includes(q))
+            : faqItems;
+
+          faqList.innerHTML = '';
+          filtered.forEach((item) => {
+            const row = document.createElement('div');
+            row.className = 'group py-4 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors px-4 -mx-4 rounded-lg';
+
+            const top = document.createElement('div');
+            top.className = 'flex items-start justify-between';
+
+            const left = document.createElement('div');
+            left.className = 'space-y-2 flex-1';
+            const hrow = document.createElement('div');
+            hrow.className = 'flex items-center gap-2';
+            const tag = document.createElement('span');
+            tag.className = 'text-[10px] font-bold text-primary uppercase';
+            tag.textContent = item.tag;
+            const title = document.createElement('h4');
+            title.className = 'font-semibold text-sm';
+            title.textContent = item.question;
+            hrow.appendChild(tag);
+            hrow.appendChild(title);
+            const desc = document.createElement('p');
+            desc.className = 'text-xs text-gray-500 dark:text-gray-400 line-clamp-1';
+            desc.textContent = item.answer;
+            left.appendChild(hrow);
+            left.appendChild(desc);
+
+            const actions = document.createElement('div');
+            actions.className = 'flex items-center gap-2 ml-4';
+
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'p-2 text-gray-400 hover:text-primary hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all';
+            editBtn.innerHTML = '<span class="material-symbols-outlined text-lg">edit</span>';
+            editBtn.addEventListener('click', () => {
+              const qv = window.prompt('Question', item.question);
+              if (qv === null) return;
+              const av = window.prompt('Réponse', item.answer);
+              if (av === null) return;
+              item.question = String(qv).trim();
+              item.answer = String(av).trim();
+              syncFaqField(faqItems);
+              renderFaqs();
+            });
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'p-2 text-gray-400 hover:text-red-600 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all';
+            delBtn.innerHTML = '<span class="material-symbols-outlined text-lg">delete</span>';
+            delBtn.addEventListener('click', () => {
+              const idx = faqItems.findIndex((x) => x === item);
+              if (idx === -1) return;
+              faqItems.splice(idx, 1);
+              syncFaqField(faqItems);
+              renderFaqs();
+            });
+
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+
+            top.appendChild(left);
+            top.appendChild(actions);
+            row.appendChild(top);
+            faqList.appendChild(row);
+          });
+        };
+
+        if (faqAddBtn) {
+          faqAddBtn.addEventListener('click', () => {
+            const qv = window.prompt('Question');
+            if (!qv) return;
+            const av = window.prompt('Réponse') || '';
+            faqItems.push({ tag: 'FAQ', question: String(qv).trim(), answer: String(av).trim() });
+            syncFaqField(faqItems);
+            renderFaqs();
+          });
+        }
+        if (faqSearch) {
+          faqSearch.addEventListener('input', renderFaqs);
+        }
+        if (faqField && faqList) {
+          renderFaqs();
+        }
+      })();
+    </script>
+  </div>
+</main>
+
+<%- include('./partials/footer') %>

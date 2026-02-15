@@ -1,0 +1,44 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'settings' }) %>
+
+<main class="flex-1">
+  <div class="px-6 lg:px-10 py-8">
+    <div>
+      <div class="text-2xl md:text-3xl font-black text-slate-900">Paramètres</div>
+      <div class="mt-1 text-sm text-slate-600">Configuration du back office.</div>
+    </div>
+
+    <% if (typeof isDevFallback !== 'undefined' && isDevFallback) { %>
+      <div class="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <div class="font-bold">Attention</div>
+        <div class="mt-1 text-sm">Le back office utilise des identifiants de test (mode développement).</div>
+        <div class="mt-2 text-sm">Avant la mise en ligne, ajoute <span class="font-black">ADMIN_EMAIL</span> et <span class="font-black">ADMIN_PASSWORD</span> dans ton fichier <span class="font-black">.env</span>.</div>
+      </div>
+    <% } %>
+
+    <div class="mt-8 bg-white rounded-2xl border border-slate-200 p-6">
+      <div class="text-sm font-black uppercase tracking-widest text-slate-400">Variables d’environnement</div>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">ADMIN_EMAIL</div>
+          <div class="mt-2 text-sm font-bold text-slate-900">Email de connexion admin</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">ADMIN_PASSWORD</div>
+          <div class="mt-2 text-sm font-bold text-slate-900">Mot de passe admin</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">SESSION_SECRET</div>
+          <div class="mt-2 text-sm font-bold text-slate-900">Clé session (à changer)</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">MONGODB_URI</div>
+          <div class="mt-2 text-sm font-bold text-slate-900">Connexion MongoDB</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('./partials/footer') %>

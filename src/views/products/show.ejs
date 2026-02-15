@@ -1,0 +1,442 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+
+<style type="text/tailwindcss">
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .compatibility-table tr:nth-child(even) {
+    @apply bg-slate-50/30 dark:bg-slate-800/20;
+  }
+  #tab-description:checked ~ .tabs-nav label[for="tab-description"],
+  #tab-process:checked ~ .tabs-nav label[for="tab-process"],
+  #tab-compatibility:checked ~ .tabs-nav label[for="tab-compatibility"],
+  #tab-faq:checked ~ .tabs-nav label[for="tab-faq"] {
+    @apply text-primary border-primary border-b-2;
+  }
+  .tab-content { display: none; }
+  #tab-description:checked ~ .tab-content-container #content-description,
+  #tab-process:checked ~ .tab-content-container #content-process,
+  #tab-compatibility:checked ~ .tab-content-container #content-compatibility,
+  #tab-faq:checked ~ .tab-content-container #content-faq {
+    display: block;
+  }
+  .refined-shadow {
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  }
+</style>
+
+<main class="flex-1 bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200 transition-colors duration-200">
+  <div class="max-w-7xl mx-auto px-6 py-12">
+    <% if (!dbConnected) { %>
+      <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 mb-10">
+        <div class="font-bold">Mode démo activé</div>
+        <div class="mt-1 text-sm">Le site fonctionne sans base de données, avec des produits d'exemple.</div>
+      </div>
+    <% } %>
+
+    <% if (!product) { %>
+      <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 refined-shadow">
+        <div class="font-bold text-slate-900 dark:text-white">Produit indisponible</div>
+        <div class="mt-1 text-sm text-slate-500">Ce produit ne peut pas être affiché pour le moment.</div>
+      </div>
+    <% } else { %>
+      <% const ref = product.sku || String(product._id).slice(-10).toUpperCase(); %>
+      <% const rawImages = []; %>
+      <% if (product.imageUrl) rawImages.push(product.imageUrl); %>
+      <% (product.galleryUrls || []).forEach((u) => { if (u) rawImages.push(u); }); %>
+      <% const images = Array.from(new Set(rawImages.filter(Boolean))); %>
+      <% const mainImage = images[0] || ''; %>
+      <% const thumbImages = images.slice(0, 4); %>
+      <% const topLeftBadge = product.badges && product.badges.topLeft ? product.badges.topLeft : ''; %>
+      <% const conditionBadge = product.badges && product.badges.condition ? product.badges.condition : ''; %>
+      <% const compareAt = product.compareAtPriceCents; %>
+      <% const makes = Array.isArray(product.compatibility)
+        ? Array.from(new Set(product.compatibility.map((c) => (c && c.make ? String(c.make).trim() : '')).filter(Boolean)))
+        : []; %>
+      <% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((Number(cents) || 0) / 100); %>
+      <% const findSpec = (label) => {
+        const target = String(label || '').toLowerCase();
+        const list = Array.isArray(product.specs) ? product.specs : [];
+        for (const s of list) {
+          if (!s || !s.label) continue;
+          if (String(s.label).toLowerCase() === target) return s.value || '';
+        }
+        return '';
+      }; %>
+      <% const keyType = findSpec('type') || product.category || ''; %>
+      <% const keyEtat = findSpec('état') || findSpec('etat') || conditionBadge || ''; %>
+      <% const keyProgrammation = findSpec('programmation') || ''; %>
+      <% const keyGarantie = findSpec('garantie') || topLeftBadge || ''; %>
+      <% const compGrouped = {}; %>
+      <% (Array.isArray(product.compatibility) ? product.compatibility : []).forEach((c) => {
+        const make = c && c.make ? String(c.make).trim() : '';
+        if (!make) return;
+        if (!compGrouped[make]) compGrouped[make] = { models: new Set(), engines: new Set() };
+        const model = c && c.model ? String(c.model).trim() : '';
+        const years = c && c.years ? String(c.years).trim() : '';
+        const engine = c && c.engine ? String(c.engine).trim() : '';
+        const modelText = [model, years].filter(Boolean).join(' ');
+        if (modelText) compGrouped[make].models.add(modelText);
+        if (engine) compGrouped[make].engines.add(engine);
+      }); %>
+      <% const compMakes = Object.keys(compGrouped); %>
+
+      <nav class="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-400 mb-12 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <a class="hover:text-primary" href="/">Accueil</a>
+        <span class="material-symbols-outlined text-[10px]">chevron_right</span>
+        <a class="hover:text-primary" href="/produits"><%= product.category || 'Catalogue' %></a>
+        <span class="material-symbols-outlined text-[10px]">chevron_right</span>
+        <span class="font-semibold text-slate-900 dark:text-slate-100"><%= product.name %></span>
+      </nav>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-16 mb-24">
+        <div class="lg:col-span-7 space-y-6">
+          <div class="relative bg-slate-50 dark:bg-slate-800 rounded-3xl overflow-hidden aspect-[16/11] refined-shadow">
+            <% if (mainImage) { %>
+              <img alt="<%= product.name %>" class="w-full h-full object-cover" data-main-image decoding="async" loading="eager" src="<%= mainImage %>" />
+            <% } else { %>
+              <div class="w-full h-full flex items-center justify-center text-slate-400">
+                <span class="material-symbols-outlined text-6xl">inventory_2</span>
+              </div>
+            <% } %>
+            <% if (keyGarantie) { %>
+              <div class="absolute top-6 left-6 bg-primary text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest"><%= keyGarantie %></div>
+            <% } %>
+          </div>
+
+          <div class="grid grid-cols-5 gap-4">
+            <% thumbImages.forEach((img, idx) => { %>
+              <button class="aspect-square rounded-2xl overflow-hidden refined-shadow <%= idx === 0 ? 'border border-primary/20 ring-2 ring-primary' : 'bg-slate-50 hover:opacity-80 transition-opacity' %>" data-thumb data-src="<%= img %>" type="button">
+                <img alt="Thumbnail" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= img %>" />
+              </button>
+            <% }) %>
+            <% for (let i = thumbImages.length; i < 4; i += 1) { %>
+              <div class="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow"></div>
+            <% } %>
+
+            <% if (product.sections && product.sections.showVideo && product.media && product.media.videoUrl) { %>
+              <a class="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center gap-1 refined-shadow hover:bg-slate-100 transition-colors" href="<%= product.media.videoUrl %>" rel="noreferrer" target="_blank">
+                <span class="material-symbols-outlined text-slate-400">play_circle</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 tracking-tighter">Vidéo</span>
+              </a>
+            <% } else { %>
+              <div class="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center gap-1 refined-shadow opacity-60">
+                <span class="material-symbols-outlined text-slate-400">play_circle</span>
+                <span class="text-[9px] font-bold uppercase text-slate-500 tracking-tighter">Vidéo</span>
+              </div>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 flex flex-col justify-center space-y-10">
+          <div class="space-y-4">
+            <h1 class="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight"><%= product.name %></h1>
+            <div class="flex items-center gap-4">
+              <p class="text-slate-500 text-sm"><%= makes.length ? makes.join(', ') : (product.brand ? product.brand : ref) %></p>
+              <div class="w-1 h-1 bg-slate-300 rounded-full"></div>
+              <div class="flex items-center gap-1">
+                <div class="flex text-amber-400">
+                  <span class="material-symbols-outlined text-base">star</span>
+                  <span class="material-symbols-outlined text-base">star</span>
+                  <span class="material-symbols-outlined text-base">star</span>
+                  <span class="material-symbols-outlined text-base">star</span>
+                  <span class="material-symbols-outlined text-base">star_half</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-medium">(42 avis)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-8">
+            <div class="flex items-baseline gap-2">
+              <span class="text-5xl font-black text-slate-900 dark:text-white tracking-tighter"><%= formatMoney(product.priceCents) %> €</span>
+              <span class="text-slate-400 text-sm font-medium">TTC</span>
+              <% if (compareAt && compareAt > product.priceCents) { %>
+                <span class="ml-2 text-slate-400 text-sm line-through"><%= formatMoney(compareAt) %> €</span>
+              <% } %>
+            </div>
+
+            <div class="grid grid-cols-2 gap-x-8 gap-y-6 py-8 border-y border-slate-100 dark:border-slate-800">
+              <div class="flex gap-3">
+                <span class="material-symbols-outlined text-emerald-500">local_shipping</span>
+                <div>
+                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Livraison</p>
+                  <p class="text-xs font-semibold"><%= product.inStock ? 'Standard Rapide' : 'Sur commande' %></p>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <span class="material-symbols-outlined text-emerald-500">verified_user</span>
+                <div>
+                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Garantie</p>
+                  <p class="text-xs font-semibold"><%= keyGarantie || '2 Ans incluse' %></p>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <span class="material-symbols-outlined text-primary">published_with_changes</span>
+                <div>
+                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Type</p>
+                  <p class="text-xs font-semibold"><%= keyType || 'Échange Standard' %></p>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <span class="material-symbols-outlined text-amber-500">price_check</span>
+                <div>
+                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Consigne</p>
+                  <% const hasConsigne = product && product.consigne && product.consigne.enabled && product.consigne.amountCents > 0; %>
+                  <% if (hasConsigne) { %>
+                    <p class="text-xs font-semibold"><%= formatMoney(product.consigne.amountCents) %> € (non encaissée)</p>
+                    <p class="mt-0.5 text-[11px] text-slate-400">Retour sous <%= product.consigne.delayDays %> jours après livraison</p>
+                  <% } else { %>
+                    <p class="text-xs font-semibold">Reprise incluse</p>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+
+            <form action="/panier/ajouter/<%= product._id %>" class="flex gap-4" method="POST">
+              <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/panier' %>" />
+              <input data-qty-input name="qty" type="hidden" value="1" />
+
+              <div class="flex items-center bg-slate-50 dark:bg-slate-800 rounded-2xl px-2">
+                <button class="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors" data-qty-minus type="button">—</button>
+                <span class="w-8 text-center font-bold text-sm" data-qty-display>1</span>
+                <button class="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors" data-qty-plus type="button">+</button>
+              </div>
+
+              <button class="flex-1 bg-primary text-white font-bold rounded-2xl py-4 flex items-center justify-center gap-3 hover:shadow-xl hover:shadow-primary/20 transition-all disabled:opacity-60" <%= product.inStock ? '' : 'disabled' %> type="submit">
+                <span class="material-symbols-outlined">add_shopping_cart</span>
+                <span>Ajouter au panier</span>
+              </button>
+            </form>
+
+            <p class="text-center text-[11px] text-slate-400">Expédition sous 24h • Paiement sécurisé • Support expert</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-12">
+        <input checked class="hidden" id="tab-description" name="product-tabs" type="radio" />
+        <input class="hidden" id="tab-process" name="product-tabs" type="radio" />
+        <input class="hidden" id="tab-compatibility" name="product-tabs" type="radio" />
+        <input class="hidden" id="tab-faq" name="product-tabs" type="radio" />
+
+        <div class="tabs-nav flex items-center justify-center gap-12 border-b border-slate-100 dark:border-slate-800 mb-16 overflow-x-auto no-scrollbar">
+          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-description">Description</label>
+          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-process">Reconditionnement</label>
+          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-compatibility">Compatibilité</label>
+          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-faq">FAQ</label>
+        </div>
+
+        <div class="tab-content-container max-w-5xl mx-auto">
+          <div class="tab-content" id="content-description">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
+              <div class="space-y-6">
+                <h3 class="text-2xl font-bold">Aperçu technique</h3>
+                <p class="text-slate-500 leading-relaxed text-sm whitespace-pre-line"><%= product.description || product.shortDescription || '' %></p>
+
+                <% if (product.sections && product.sections.showKeyPoints && (keyType || keyEtat || keyProgrammation || keyGarantie)) { %>
+                  <div class="grid grid-cols-2 gap-4 pt-4">
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
+                      <span class="material-symbols-outlined text-primary">published_with_changes</span>
+                      <span class="text-xs font-semibold"><%= keyType || '—' %></span>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
+                      <span class="material-symbols-outlined text-primary">terminal</span>
+                      <span class="text-xs font-semibold"><%= keyProgrammation || 'Programmation selon version' %></span>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
+                      <span class="material-symbols-outlined text-primary">precision_manufacturing</span>
+                      <span class="text-xs font-semibold"><%= keyEtat || '—' %></span>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
+                      <span class="material-symbols-outlined text-primary">verified_user</span>
+                      <span class="text-xs font-semibold"><%= keyGarantie || '—' %></span>
+                    </div>
+                  </div>
+                <% } %>
+              </div>
+
+              <% if (product.sections && product.sections.showSupportBox) { %>
+                <div class="bg-slate-50 dark:bg-slate-800 p-10 rounded-3xl refined-shadow border border-slate-100 dark:border-slate-700">
+                  <div class="flex items-center gap-4 mb-6">
+                    <div class="w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center refined-shadow">
+                      <span class="material-symbols-outlined text-primary text-2xl">verified</span>
+                    </div>
+                    <h3 class="font-bold text-lg">Expertise VIN incluse</h3>
+                  </div>
+                  <p class="text-sm text-slate-500 mb-8 leading-relaxed">Nos techniciens valident manuellement la compatibilité avant l'envoi pour garantir une installation parfaite.</p>
+                  <a class="block w-full text-center bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 py-3 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors" href="/compte">Demander une vérification</a>
+                </div>
+              <% } else { %>
+                <div class="hidden md:block"></div>
+              <% } %>
+            </div>
+          </div>
+
+          <div class="tab-content" id="content-process">
+            <% if (product.sections && product.sections.showReconditioning && Array.isArray(product.reconditioningSteps) && product.reconditioningSteps.length) { %>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <% product.reconditioningSteps.slice(0, 4).forEach((st, idx) => { %>
+                  <div class="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800 refined-shadow space-y-4">
+                    <div class="text-3xl font-black text-slate-200 dark:text-slate-700"><%= String(idx + 1).padStart(2, '0') %></div>
+                    <h4 class="font-bold text-sm uppercase tracking-wider"><%= st.title %></h4>
+                    <p class="text-xs text-slate-500 leading-relaxed"><%= st.description %></p>
+                  </div>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <div class="text-center text-slate-500 text-sm">Aucune information de reconditionnement pour ce produit.</div>
+            <% } %>
+          </div>
+
+          <div class="tab-content" id="content-compatibility">
+            <% if (product.sections && product.sections.showCompatibility && compMakes.length) { %>
+              <div class="overflow-hidden rounded-3xl bg-slate-50 dark:bg-slate-800 refined-shadow">
+                <table class="w-full text-left border-collapse compatibility-table">
+                  <thead class="bg-white dark:bg-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <tr>
+                      <th class="px-8 py-6">Marque</th>
+                      <th class="px-8 py-6">Modèles</th>
+                      <th class="px-8 py-6">Motorisations</th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-xs">
+                    <% compMakes.forEach((mk) => { %>
+                      <% const row = compGrouped[mk]; %>
+                      <% const models = row ? Array.from(row.models) : []; %>
+                      <% const engines = row ? Array.from(row.engines) : []; %>
+                      <tr class="border-t border-slate-100 dark:border-slate-700/50">
+                        <td class="px-8 py-6 font-bold"><%= mk %></td>
+                        <td class="px-8 py-6 text-slate-500"><%= models.join(', ') %></td>
+                        <td class="px-8 py-6 text-slate-400 italic"><%= engines.join(' / ') %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            <% } else { %>
+              <div class="text-center text-slate-500 text-sm">Aucune compatibilité renseignée pour ce produit.</div>
+            <% } %>
+          </div>
+
+          <div class="tab-content" id="content-faq">
+            <% if (product.sections && product.sections.showFaq && Array.isArray(product.faqs) && product.faqs.length) { %>
+              <div class="space-y-4 max-w-3xl mx-auto">
+                <% product.faqs.forEach((f) => { %>
+                  <details class="bg-slate-50 dark:bg-slate-800 rounded-2xl refined-shadow group">
+                    <summary class="p-6 flex justify-between items-center cursor-pointer">
+                      <span class="font-bold text-sm"><%= f.question %></span>
+                      <span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">add</span>
+                    </summary>
+                    <div class="px-6 pb-6">
+                      <p class="text-xs text-slate-500 leading-relaxed whitespace-pre-line"><%= f.answer %></p>
+                    </div>
+                  </details>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <div class="text-center text-slate-500 text-sm">Aucune FAQ pour ce produit.</div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <% if (product.sections && product.sections.showRelatedProducts && Array.isArray(relatedProducts) && relatedProducts.length) { %>
+        <section class="mt-32 pt-16 border-t border-slate-100 dark:border-slate-800">
+          <h2 class="text-3xl font-bold mb-10 text-center">Pièces fréquemment achetées ensemble</h2>
+          <div class="flex overflow-x-auto gap-8 pb-8 no-scrollbar snap-x px-4 lg:px-0 lg:justify-center">
+            <% relatedProducts.forEach((p) => { %>
+              <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
+              <div class="min-w-[240px] snap-center group">
+                <a href="<%= productUrl %>">
+                  <div class="aspect-square rounded-3xl bg-slate-50 dark:bg-slate-800 mb-6 overflow-hidden refined-shadow transition-transform group-hover:-translate-y-1">
+                    <% if (p.imageUrl) { %>
+                      <img alt="<%= p.name %>" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= p.imageUrl %>" />
+                    <% } else { %>
+                      <div class="w-full h-full flex items-center justify-center text-slate-400">
+                        <span class="material-symbols-outlined text-6xl">inventory_2</span>
+                      </div>
+                    <% } %>
+                  </div>
+                </a>
+                <h3 class="text-sm font-bold mb-2 text-slate-800 dark:text-slate-200 line-clamp-2"><%= p.name %></h3>
+                <div class="flex items-center justify-between">
+                  <p class="text-primary font-bold text-sm"><%= formatMoney(p.priceCents) %> €</p>
+                  <form action="/panier/ajouter/<%= p._id %>" method="POST">
+                    <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/produits' %>" />
+                    <input name="qty" type="hidden" value="1" />
+                    <button class="h-10 px-4 rounded-full bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">Ajouter</button>
+                  </form>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+
+      <script>
+        (function () {
+          var mainImg = document.querySelector('[data-main-image]');
+          var thumbs = document.querySelectorAll('[data-thumb]');
+
+          var qtyInput = document.querySelector('[data-qty-input]');
+          var qtyDisplay = document.querySelector('[data-qty-display]');
+          var minus = document.querySelector('[data-qty-minus]');
+          var plus = document.querySelector('[data-qty-plus]');
+
+          function clamp(v) {
+            if (!Number.isFinite(v)) return 1;
+            if (v < 1) return 1;
+            if (v > 99) return 99;
+            return v;
+          }
+
+          function getQty() {
+            if (!qtyInput) return 1;
+            var n = parseInt(qtyInput.value, 10);
+            if (!Number.isFinite(n)) return 1;
+            return clamp(n);
+          }
+
+          function setQty(nextQty) {
+            var v = clamp(nextQty);
+            if (qtyInput) qtyInput.value = String(v);
+            if (qtyDisplay) qtyDisplay.textContent = String(v);
+          }
+
+          if (minus) {
+            minus.addEventListener('click', function () {
+              setQty(getQty() - 1);
+            });
+          }
+          if (plus) {
+            plus.addEventListener('click', function () {
+              setQty(getQty() + 1);
+            });
+          }
+
+          if (thumbs && thumbs.length && mainImg) {
+            thumbs.forEach(function (btn) {
+              btn.addEventListener('click', function () {
+                var src = btn.getAttribute('data-src');
+                if (src) mainImg.setAttribute('src', src);
+
+                thumbs.forEach(function (b) {
+                  b.classList.remove('ring-2', 'ring-primary', 'border', 'border-primary/20');
+                  b.classList.add('bg-slate-50');
+                });
+
+                btn.classList.add('border', 'border-primary/20', 'ring-2', 'ring-primary');
+                btn.classList.remove('bg-slate-50');
+              });
+            });
+          }
+
+          setQty(getQty());
+        })();
+      </script>
+    <% } %>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>

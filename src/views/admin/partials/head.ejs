@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html class="light" lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title><%= typeof title !== 'undefined' ? title : 'CarParts Admin' %></title>
+    <script>
+      (function () {
+        document.documentElement.classList.add('js');
+      })();
+    </script>
+    <style>
+      html.js:not(.icons-ready) .material-symbols-outlined {
+        visibility: hidden;
+      }
+    </style>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries,line-clamp"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        var el = document.documentElement;
+        if (!el.classList.contains('js')) el.classList.add('js');
+        if (!document.fonts || typeof document.fonts.load !== 'function') {
+          el.classList.add('icons-ready');
+          return;
+        }
+
+        var done = false;
+        function markReady() {
+          if (done) return;
+          done = true;
+          el.classList.add('icons-ready');
+        }
+
+        Promise.all([
+          document.fonts.load('1em "Material Symbols Outlined"'),
+        ])
+          .then(markReady)
+          .catch(markReady);
+
+        setTimeout(markReady, 2000);
+      })();
+    </script>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#D32F2F",
+              "primary-hover": "#B71C1C",
+              "background-light": "#F3F4F6",
+              "background-dark": "#111827",
+              "surface-light": "#FFFFFF",
+              "surface-dark": "#1F2937",
+              "border-light": "#E5E7EB",
+              "border-dark": "#374151",
+            },
+            fontFamily: {
+              display: ["Inter", "sans-serif"],
+              body: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "0.5rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              "2xl": "1rem",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <style type="text/tailwindcss">
+      html.js:not(.icons-ready) .material-symbols-outlined {
+        visibility: hidden;
+      }
+      .material-symbols-outlined {
+        font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+      }
+      .chip-active {
+        @apply bg-primary text-white border-primary;
+      }
+      html {
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+    </style>
+  </head>
+  <body class="bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200 transition-colors duration-300 font-display antialiased">
+    <div class="relative flex min-h-screen w-full overflow-x-hidden">

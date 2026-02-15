@@ -1,0 +1,111 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'catalog' }) %>
+
+<main class="flex-1">
+  <div class="px-6 lg:px-10 py-8">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+      <div>
+        <div class="text-2xl md:text-3xl font-black text-slate-900">Catalogue</div>
+        <div class="mt-1 text-sm text-slate-600">Produits, prix et stock.</div>
+      </div>
+
+      <a class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" href="/admin/catalogue/nouveau">
+        <span class="material-symbols-outlined mr-2 text-base">add</span>
+        Nouveau produit
+      </a>
+    </div>
+
+    <form action="/admin/catalogue" class="mt-6 bg-white rounded-2xl border border-slate-200 p-4" method="GET">
+      <div class="flex flex-col xl:flex-row xl:items-center gap-4">
+        <div class="flex-1">
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+            <input class="w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400" name="q" placeholder="Rechercher: nom, SKU, marque, catégorie..." type="text" value="<%= filters && filters.q ? filters.q : '' %>" />
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="stock">
+            <option value="">Tous les stocks</option>
+            <option value="in" <%= filters && filters.stock === 'in' ? 'selected' : '' %>>En stock</option>
+            <option value="out" <%= filters && filters.stock === 'out' ? 'selected' : '' %>>Stock limité</option>
+          </select>
+
+          <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">
+            Filtrer
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
+        <div class="font-black text-slate-900">Produits</div>
+      </div>
+
+      <% if (products && products.length) { %>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="text-xs font-black text-slate-400 uppercase tracking-widest bg-white">
+                <th class="px-6 py-4">Nom</th>
+                <th class="px-6 py-4">SKU</th>
+                <th class="px-6 py-4">Marque</th>
+                <th class="px-6 py-4">Catégorie</th>
+                <th class="px-6 py-4">Prix</th>
+                <th class="px-6 py-4">Qté</th>
+                <th class="px-6 py-4">Stock</th>
+                <th class="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% products.forEach((p) => { %>
+                <tr>
+                  <td class="px-6 py-4 font-black text-slate-900"><%= p.name %></td>
+                  <td class="px-6 py-4 text-sm text-slate-600"><%= p.sku || '—' %></td>
+                  <td class="px-6 py-4 text-sm text-slate-600"><%= p.brand || '—' %></td>
+                  <td class="px-6 py-4 text-sm text-slate-600"><%= p.category || '—' %></td>
+                  <td class="px-6 py-4 font-black text-slate-900"><%= p.price %></td>
+                  <td class="px-6 py-4 text-sm font-black text-slate-900"><%= p.stockQty !== null && typeof p.stockQty !== 'undefined' ? p.stockQty : '—' %></td>
+                  <td class="px-6 py-4">
+                    <% if (p.inStock === true) { %>
+                      <span class="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">En stock</span>
+                    <% } else { %>
+                      <span class="inline-flex items-center rounded-full bg-amber-50 text-amber-800 px-3 py-1 text-[10px] font-black uppercase tracking-widest">Stock limité</span>
+                    <% } %>
+                  </td>
+                  <td class="px-6 py-4 text-right">
+                    <div class="inline-flex items-center gap-2">
+                      <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition" href="/admin/catalogue/<%= p.id %>">
+                        <span class="material-symbols-outlined mr-2 text-base">edit</span>
+                        Modifier
+                      </a>
+                      <form action="/admin/catalogue/<%= p.id %>/supprimer" method="POST" onsubmit="return confirm('Supprimer ce produit ?');">
+                        <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" type="submit">
+                          <span class="material-symbols-outlined mr-2 text-base">delete</span>
+                          Supprimer
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="p-6 text-slate-600">Aucun produit.</div>
+      <% } %>
+    </div>
+
+    <% if (!dbConnected) { %>
+      <div class="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <div class="font-bold">Mode démo</div>
+        <div class="mt-1 text-sm">La base de données est indisponible : la liste du catalogue n’est pas disponible.</div>
+      </div>
+    <% } %>
+  </div>
+</main>
+
+<%- include('./partials/footer') %>

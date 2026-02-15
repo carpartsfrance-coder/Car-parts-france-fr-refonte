@@ -1,0 +1,140 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'clients' }) %>
+
+<main class="flex-1">
+  <div class="px-6 lg:px-10 py-8">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+      <div>
+        <div class="text-2xl md:text-3xl font-black text-slate-900">Clients</div>
+        <div class="mt-1 text-sm text-slate-600">Liste des clients (particuliers et professionnels).</div>
+      </div>
+    </div>
+
+    <form action="/admin/clients" class="mt-6 bg-white rounded-2xl border border-slate-200 p-4" method="GET">
+      <div class="flex flex-col xl:flex-row xl:items-center gap-4">
+        <div class="flex-1">
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+            <input class="w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400" name="q" placeholder="Rechercher: email, prénom, nom, société..." type="text" value="<%= filters && filters.q ? filters.q : '' %>" />
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="type">
+            <option value="">Tous les clients</option>
+            <option value="particulier" <%= filters && filters.type === 'particulier' ? 'selected' : '' %>>Particulier</option>
+            <option value="pro" <%= filters && filters.type === 'pro' ? 'selected' : '' %>>Professionnel</option>
+          </select>
+
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="period">
+            <option value="">Toutes périodes</option>
+            <option value="7d" <%= filters && filters.period === '7d' ? 'selected' : '' %>>7 jours</option>
+            <option value="30d" <%= filters && filters.period === '30d' ? 'selected' : '' %>>30 jours</option>
+            <option value="90d" <%= filters && filters.period === '90d' ? 'selected' : '' %>>90 jours</option>
+            <option value="365d" <%= filters && filters.period === '365d' ? 'selected' : '' %>>12 mois</option>
+          </select>
+
+          <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">
+            Filtrer
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
+        <div class="font-black text-slate-900">Derniers clients</div>
+      </div>
+
+      <% if (clients && clients.length) { %>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="text-xs font-black text-slate-400 uppercase tracking-widest bg-white">
+                <th class="px-6 py-4">Client</th>
+                <th class="px-6 py-4">Email</th>
+                <th class="px-6 py-4">Type</th>
+                <th class="px-6 py-4">Créé</th>
+                <th class="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% clients.forEach((c) => { %>
+                <tr>
+                  <td class="px-6 py-4 font-black text-slate-900"><%= c.name %></td>
+                  <td class="px-6 py-4 text-sm text-slate-600"><%= c.email %></td>
+                  <td class="px-6 py-4">
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= c.accountType === 'pro' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700' %>">
+                      <%= c.accountType === 'pro' ? 'PRO' : 'PARTICULIER' %>
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 text-sm text-slate-600"><%= c.createdAt %></td>
+                  <td class="px-6 py-4 text-right">
+                    <% if (c.id) { %>
+                      <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition" href="/admin/clients/<%= c.id %>">
+                        <span class="material-symbols-outlined mr-2 text-base">visibility</span>
+                        Détails
+                      </a>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">
+            <% if (typeof pagination !== 'undefined' && pagination) { %>
+              Affichage <%= pagination.from %>-<%= pagination.to %> sur <%= pagination.totalItems %>
+            <% } else { %>
+              Affichage 1-<%= clients.length %> sur <%= clients.length %>
+            <% } %>
+          </div>
+
+          <% 
+            const qVal = filters && filters.q ? String(filters.q) : '';
+            const typeVal = filters && filters.type ? String(filters.type) : '';
+            const periodVal = filters && filters.period ? String(filters.period) : '';
+            const extraQuery = [
+              qVal ? `q=${encodeURIComponent(qVal)}` : '',
+              typeVal ? `type=${encodeURIComponent(typeVal)}` : '',
+              periodVal ? `period=${encodeURIComponent(periodVal)}` : '',
+            ].filter(Boolean).join('&');
+            const withExtra = extraQuery ? `&${extraQuery}` : '';
+          %>
+
+          <% if (typeof pagination !== 'undefined' && pagination && pagination.totalPages > 1) { %>
+            <div class="flex items-center justify-end gap-2">
+              <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition <%= pagination.hasPrev ? '' : 'opacity-40 pointer-events-none' %>" href="?page=<%= pagination.prevPage %><%= withExtra %>" aria-label="Page précédente">
+                <span class="material-symbols-outlined text-slate-500">chevron_left</span>
+              </a>
+
+              <% const startPage = Math.max(1, pagination.page - 2); %>
+              <% const endPage = Math.min(pagination.totalPages, pagination.page + 2); %>
+              <% for (let p = startPage; p <= endPage; p += 1) { %>
+                <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border text-xs font-black <%= p === pagination.page ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50' %>" href="?page=<%= p %><%= withExtra %>"><%= p %></a>
+              <% } %>
+
+              <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition <%= pagination.hasNext ? '' : 'opacity-40 pointer-events-none' %>" href="?page=<%= pagination.nextPage %><%= withExtra %>" aria-label="Page suivante">
+                <span class="material-symbols-outlined text-slate-500">chevron_right</span>
+              </a>
+            </div>
+          <% } %>
+        </div>
+      <% } else { %>
+        <div class="p-6 text-slate-600">Aucun client.</div>
+      <% } %>
+    </div>
+
+    <% if (!dbConnected) { %>
+      <div class="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <div class="font-bold">Mode démo</div>
+        <div class="mt-1 text-sm">La base de données est indisponible : la liste des clients n’est pas disponible.</div>
+      </div>
+    <% } %>
+  </div>
+</main>
+
+<%- include('./partials/footer') %>

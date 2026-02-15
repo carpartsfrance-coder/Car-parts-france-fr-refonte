@@ -1,0 +1,158 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'dashboard' }) %>
+
+<main class="flex-1">
+  <div class="px-6 lg:px-10 py-8">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+      <div>
+        <div class="text-2xl md:text-3xl font-black text-slate-900">Tableau de Bord Global</div>
+        <div class="mt-1 text-sm text-slate-600">Aperçu des performances de CarParts France • Aujourd’hui</div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition" type="button">
+          <span class="material-symbols-outlined mr-2 text-base">event</span>
+          7 derniers jours
+        </button>
+        <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-white hover:bg-red-700 transition" type="button">
+          <span class="material-symbols-outlined mr-2 text-base">download</span>
+          Exporter Rapport
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between">
+          <div class="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
+            <span class="material-symbols-outlined">payments</span>
+          </div>
+          <span class="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">+12%</span>
+        </div>
+        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Chiffre d’affaires (jour)</div>
+        <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && kpis.revenueToday ? kpis.revenueToday : '—' %></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <span class="material-symbols-outlined">monitoring</span>
+          </div>
+          <span class="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">+5.2%</span>
+        </div>
+        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">C.A. (mois en cours)</div>
+        <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && kpis.revenueMonth ? kpis.revenueMonth : '—' %></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between">
+          <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+            <span class="material-symbols-outlined">inventory</span>
+          </div>
+          <div class="w-2 h-2 rounded-full bg-orange-500"></div>
+        </div>
+        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Commandes en attente</div>
+        <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && typeof kpis.pendingOrdersCount !== 'undefined' ? kpis.pendingOrdersCount : 0 %></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between">
+          <div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+            <span class="material-symbols-outlined">warning</span>
+          </div>
+          <div class="w-2 h-2 rounded-full bg-red-500"></div>
+        </div>
+        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Alertes stock</div>
+        <div class="mt-2 text-2xl font-black text-primary"><%= kpis && typeof kpis.stockAlertsCount !== 'undefined' ? kpis.stockAlertsCount : 0 %> articles</div>
+      </div>
+    </div>
+
+    <div class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+          <div class="font-black text-slate-900">Évolution des ventes</div>
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">Ce mois</div>
+        </div>
+
+        <div class="mt-6">
+          <div class="grid grid-cols-7 gap-3 items-end h-44">
+            <% (sales && Array.isArray(sales.values) ? sales.values : [35,48,42,55,70,82,65]).forEach((v, idx) => { %>
+              <div class="flex flex-col items-center gap-2">
+                <div class="w-full h-32 rounded-xl bg-slate-100 overflow-hidden flex items-end">
+                  <div class="w-full rounded-xl <%= idx >= 4 ? 'bg-primary' : 'bg-slate-300' %>" data-bar-height="<%= Math.max(10, Math.min(100, v)) %>"></div>
+                </div>
+                <div class="text-[10px] font-black uppercase tracking-widest text-slate-400"><%= sales && sales.labels ? sales.labels[idx] : ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'][idx] %></div>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+          <div class="font-black text-slate-900">Activités Récentes</div>
+        </div>
+
+        <div class="mt-6 space-y-4">
+          <% (activities || []).forEach((a) => { %>
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                <span class="material-symbols-outlined text-slate-500">shopping_bag</span>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="font-black text-slate-900"><%= a.number %></div>
+                  <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= a.accountType === 'pro' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700' %>">
+                    <%= a.accountType === 'pro' ? 'PRO' : 'PARTICULIER' %>
+                  </span>
+                </div>
+                <div class="mt-1 text-sm text-slate-600"><%= a.customer %> - <%= a.total %></div>
+                <div class="mt-1 text-xs text-slate-400"><%= a.when %></div>
+              </div>
+            </div>
+          <% }) %>
+
+          <% if (!activities || activities.length === 0) { %>
+            <div class="text-sm text-slate-600">Aucune activité.</div>
+          <% } %>
+
+          <a class="inline-flex items-center justify-center w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-primary hover:bg-slate-50 transition" href="/admin/commandes">
+            Voir toutes les activités
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8 rounded-2xl border border-slate-200 bg-rose-50 p-6 flex items-start justify-between gap-6">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center">
+          <span class="material-symbols-outlined">campaign</span>
+        </div>
+        <div>
+          <div class="font-black text-slate-900">Maintenance Serveur</div>
+          <div class="mt-1 text-sm text-slate-600">Une maintenance est prévue ce dimanche entre 02:00 et 04:00 du matin.</div>
+        </div>
+      </div>
+      <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="button">
+        En savoir plus
+      </button>
+    </div>
+  </div>
+</main>
+
+<script>
+  (function () {
+    var bars = document.querySelectorAll('[data-bar-height]');
+    for (var i = 0; i < bars.length; i += 1) {
+      var el = bars[i];
+      var value = Number(el.getAttribute('data-bar-height') || '0');
+      if (!Number.isFinite(value)) value = 0;
+      if (value < 0) value = 0;
+      if (value > 100) value = 100;
+      el.style.height = value + '%';
+    }
+  })();
+</script>
+
+<%- include('./partials/footer') %>

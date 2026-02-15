@@ -1,0 +1,383 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+
+<main class="flex-1">
+  <div class="mx-auto max-w-[1440px] px-4 md:px-10 py-8">
+    <div class="flex items-center justify-center gap-4 text-xs font-black uppercase tracking-widest text-slate-400">
+      <div class="flex items-center gap-3">
+        <div class="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center">1</div>
+        <div class="text-slate-500">Panier</div>
+      </div>
+      <div class="h-px w-10 bg-slate-200"></div>
+      <div class="flex items-center gap-3">
+        <div class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center">2</div>
+        <div class="text-primary">Livraison</div>
+      </div>
+      <div class="h-px w-10 bg-slate-200"></div>
+      <div class="flex items-center gap-3">
+        <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center">3</div>
+        <div>Paiement</div>
+      </div>
+    </div>
+
+    <% if (errorMessage) { %>
+      <div class="mt-8 rounded-xl border border-red-200 bg-red-50 p-5 text-red-900">
+        <div class="font-bold">Erreur</div>
+        <div class="mt-1 text-sm"><%= errorMessage %></div>
+      </div>
+    <% } %>
+
+    <div class="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <section class="lg:col-span-8 space-y-8">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-lg font-black text-slate-900">Choisir le mode de livraison</div>
+              <div class="mt-1 text-sm text-slate-600">Sélectionne une option pour continuer.</div>
+            </div>
+          </div>
+
+          <form action="/commande/livraison" class="mt-6 space-y-4" method="POST">
+            <% shippingMethods.forEach((m) => { %>
+              <% const icon = m.id === 'domicile' ? 'local_shipping' : 'store'; %>
+              <label class="block rounded-2xl border p-5 cursor-pointer transition <%= selectedShippingMethod === m.id ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/50' %>">
+                <div class="flex items-start gap-4">
+                  <input class="mt-1" name="shippingMethod" type="radio" value="<%= m.id %>" <%= selectedShippingMethod === m.id ? 'checked' : '' %> />
+                  <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-slate-400"><%= icon %></span>
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex items-center justify-between gap-4">
+                      <div class="font-black text-slate-900"><%= m.title %></div>
+                      <div class="font-black <%= m.priceCents === 0 ? 'text-green-600' : 'text-primary' %>">
+                        <%= m.priceCents === 0 ? 'GRATUIT' : (m.priceCents / 100).toFixed(2).replace('.', ',') + ' €' %>
+                      </div>
+                    </div>
+                    <div class="mt-1 text-sm text-slate-600"><%= m.description %></div>
+                  </div>
+                </div>
+              </label>
+            <% }) %>
+
+            <div class="mt-8">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div class="text-lg font-black text-slate-900">Adresse de livraison</div>
+                  <div class="mt-1 text-sm text-slate-600">Choisis une adresse ou ajoute-en une nouvelle.</div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 text-slate-700 px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-slate-200 transition" href="/compte/adresses?returnTo=%2Fcommande%2Flivraison">
+                    Gérer mes adresses
+                  </a>
+                  <button class="inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-slate-800 transition" id="open-add-address" type="button">
+                    Ajouter
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <% if (!addresses || addresses.length === 0) { %>
+              <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div class="font-black text-slate-900">Aucune adresse enregistrée</div>
+                <div class="mt-1 text-sm text-slate-600">Ajoute une adresse juste en dessous.</div>
+              </div>
+            <% } else { %>
+              <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <% addresses.forEach((a) => { %>
+                  <label class="rounded-2xl border p-5 cursor-pointer transition <%= selectedAddressId === String(a._id) ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/50' %>">
+                    <div class="flex items-start gap-4">
+                      <input class="mt-1 peer" name="addressId" type="radio" value="<%= a._id %>" <%= selectedAddressId === String(a._id) ? 'checked' : '' %> />
+                      <div class="flex-1">
+                        <div class="flex items-center justify-between gap-3">
+                          <div class="font-black text-slate-900"><%= a.label || 'Adresse' %></div>
+                          <% if (a.isDefault) { %>
+                            <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] font-black uppercase tracking-widest">Par défaut</span>
+                          <% } %>
+                        </div>
+                        <% if (a.fullName) { %><div class="mt-2 text-sm font-semibold text-slate-700"><%= a.fullName %></div><% } %>
+                        <div class="text-sm text-slate-600"><%= a.line1 %></div>
+                        <% if (a.line2) { %><div class="text-sm text-slate-600"><%= a.line2 %></div><% } %>
+                        <div class="text-sm text-slate-600"><%= a.postalCode %> <%= a.city %> • <%= a.country || 'France' %></div>
+                        <% if (a.phone) { %><div class="mt-1 text-xs text-slate-500">Téléphone : <%= a.phone %></div><% } %>
+                      </div>
+                      <div class="ml-2 w-6 h-6 rounded-full bg-primary text-white items-center justify-center flex-shrink-0 hidden peer-checked:flex">
+                        <span class="material-symbols-outlined text-[16px]">check</span>
+                      </div>
+                    </div>
+                  </label>
+                <% }) %>
+              </div>
+            <% } %>
+
+            <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <div class="font-black text-slate-900">Adresse de facturation</div>
+                  <div class="mt-1 text-sm text-slate-600">Choisis l’adresse pour la facture.</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input class="rounded border-slate-300 text-primary focus:ring-primary" id="billingSameAsShipping" name="billingSameAsShipping" type="checkbox" <%= billingSameAsShipping ? 'checked' : '' %> />
+                  <label class="text-sm font-black text-slate-700" for="billingSameAsShipping">Même que la livraison</label>
+                </div>
+              </div>
+
+              <div class="mt-4 text-sm text-slate-600" id="billing-same-hint" <%= billingSameAsShipping ? '' : 'style="display:none"' %>>
+                La facture utilisera la même adresse que la livraison.
+              </div>
+
+              <% if (addresses && addresses.length) { %>
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4" id="billing-address-grid" <%= billingSameAsShipping ? 'style="display:none"' : '' %>>
+                  <% addresses.forEach((a) => { %>
+                    <label class="rounded-2xl border bg-white p-5 cursor-pointer transition <%= selectedBillingAddressId === String(a._id) ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/50' %>">
+                      <div class="flex items-start gap-4">
+                        <input class="mt-1 peer" name="billingAddressId" type="radio" value="<%= a._id %>" <%= selectedBillingAddressId === String(a._id) ? 'checked' : '' %> <%= billingSameAsShipping ? 'disabled' : '' %> />
+                        <div class="flex-1">
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="font-black text-slate-900"><%= a.label || 'Adresse' %></div>
+                            <% if (a.isDefault) { %>
+                              <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] font-black uppercase tracking-widest">Par défaut</span>
+                            <% } %>
+                          </div>
+                          <% if (a.fullName) { %><div class="mt-2 text-sm font-semibold text-slate-700"><%= a.fullName %></div><% } %>
+                          <div class="text-sm text-slate-600"><%= a.line1 %></div>
+                          <% if (a.line2) { %><div class="text-sm text-slate-600"><%= a.line2 %></div><% } %>
+                          <div class="text-sm text-slate-600"><%= a.postalCode %> <%= a.city %> • <%= a.country || 'France' %></div>
+                        </div>
+
+                        <div class="ml-2 w-6 h-6 rounded-full bg-primary text-white items-center justify-center flex-shrink-0 hidden peer-checked:flex">
+                          <span class="material-symbols-outlined text-[16px]">check</span>
+                        </div>
+                      </div>
+                    </label>
+                  <% }) %>
+                </div>
+              <% } else { %>
+                <div class="mt-4 text-sm text-slate-600">Aucune adresse disponible pour la facturation.</div>
+              <% } %>
+            </div>
+
+            <div class="mt-8 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+              <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 text-slate-700 px-5 py-3 font-black hover:bg-slate-200 transition" href="/panier">Retour au panier</a>
+              <button class="inline-flex items-center justify-center rounded-xl bg-primary text-white px-6 py-3 font-black hover:bg-red-700 transition" type="submit">
+                Continuer vers paiement
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <details class="bg-white rounded-2xl border border-slate-200 p-6" id="add-address-details">
+          <summary class="cursor-pointer list-none">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-lg font-black text-slate-900">Ajouter une nouvelle adresse</div>
+                <div class="mt-1 text-sm text-slate-600">Tu peux l’ajouter ici sans quitter le checkout.</div>
+              </div>
+              <span class="material-symbols-outlined text-slate-400">add</span>
+            </div>
+          </summary>
+
+          <form action="/commande/livraison/adresse" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5" method="POST">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="md:col-span-2">
+                <label class="block text-sm font-bold text-slate-700" for="label">Nom de l’adresse (ex: Maison, Atelier)</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="label" name="label" type="text" value="<%= form ? form.label : '' %>" />
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="block text-sm font-bold text-slate-700" for="fullName">Nom complet</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="fullName" name="fullName" type="text" value="<%= form ? form.fullName : '' %>" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700" for="phone">Téléphone</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="phone" name="phone" type="text" value="<%= form ? form.phone : '' %>" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700" for="country">Pays</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="country" name="country" type="text" value="<%= form ? form.country : 'France' %>" />
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="block text-sm font-bold text-slate-700" for="line1">Adresse</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="line1" name="line1" required type="text" value="<%= form ? form.line1 : '' %>" />
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="block text-sm font-bold text-slate-700" for="line2">Complément d’adresse</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="line2" name="line2" type="text" value="<%= form ? form.line2 : '' %>" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700" for="postalCode">Code postal</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="postalCode" name="postalCode" required type="text" value="<%= form ? form.postalCode : '' %>" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700" for="city">Ville</label>
+                <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="city" name="city" required type="text" value="<%= form ? form.city : '' %>" />
+              </div>
+            </div>
+
+            <div class="mt-4 flex items-center gap-2">
+              <input class="rounded border-slate-300 text-primary focus:ring-primary" id="isDefault" name="isDefault" type="checkbox" <%= form && form.isDefault ? 'checked' : '' %> />
+              <label class="text-sm font-bold text-slate-700" for="isDefault">Définir comme adresse par défaut</label>
+            </div>
+
+            <button class="mt-5 w-full rounded-xl bg-slate-900 text-white px-5 py-3 font-black hover:bg-slate-800 transition" type="submit">Ajouter l’adresse</button>
+
+            <% if (!dbConnected) { %>
+              <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                <div class="font-bold">Mode démo</div>
+                <div class="mt-1 text-sm">La base de données est indisponible : tu ne peux pas enregistrer d'adresse.</div>
+              </div>
+            <% } %>
+          </form>
+        </details>
+      </section>
+
+      <aside class="lg:col-span-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 sticky top-6">
+          <div class="font-black text-slate-900">Résumé de la commande</div>
+
+          <div class="mt-5 space-y-4">
+            <% items.forEach((it) => { %>
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center flex-shrink-0">
+                  <% if (it.product.imageUrl) { %>
+                    <img alt="<%= it.product.name %>" class="w-full h-full object-cover" src="<%= it.product.imageUrl %>" />
+                  <% } else { %>
+                    <span class="material-symbols-outlined text-slate-400">inventory_2</span>
+                  <% } %>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-black text-slate-900"><%= it.product.name %></div>
+                  <div class="text-xs text-slate-500">Qté : <%= it.quantity %></div>
+                </div>
+                <div class="text-sm font-black text-slate-900"><%= (it.lineTotalCents / 100).toFixed(2).replace('.', ',') %> €</div>
+              </div>
+            <% }) %>
+          </div>
+
+          <div class="mt-6 pt-6 border-t border-slate-200 space-y-2 text-sm">
+            <div class="flex items-center justify-between">
+              <div class="text-slate-600">Sous-total</div>
+              <div class="font-black text-slate-900"><%= ((typeof itemsSubtotalCents !== 'undefined' ? itemsSubtotalCents : itemsTotalCents) / 100).toFixed(2).replace('.', ',') %> €</div>
+            </div>
+
+            <% if (typeof clientDiscountCents !== 'undefined' && clientDiscountCents > 0) { %>
+              <div class="flex items-center justify-between">
+                <div class="text-slate-600">Remise compte (<%= typeof clientDiscountPercent !== 'undefined' ? String(clientDiscountPercent).replace('.', ',') : '' %>%)</div>
+                <div class="font-black text-slate-900">- <%= (clientDiscountCents / 100).toFixed(2).replace('.', ',') %> €</div>
+              </div>
+            <% } %>
+
+            <% if (typeof promoDiscountCents !== 'undefined' && promoDiscountCents > 0) { %>
+              <div class="flex items-center justify-between">
+                <div class="text-slate-600">Code promo <%= typeof promoCode !== 'undefined' && promoCode ? '(' + promoCode + ')' : '' %></div>
+                <div class="font-black text-slate-900">- <%= (promoDiscountCents / 100).toFixed(2).replace('.', ',') %> €</div>
+              </div>
+            <% } %>
+
+            <% if ((typeof clientDiscountCents !== 'undefined' && clientDiscountCents > 0) || (typeof promoDiscountCents !== 'undefined' && promoDiscountCents > 0)) { %>
+              <div class="flex items-center justify-between">
+                <div class="text-slate-600">Sous-total après remise</div>
+                <div class="font-black text-slate-900"><%= ((typeof itemsTotalAfterDiscountCents !== 'undefined' ? itemsTotalAfterDiscountCents : itemsTotalCents) / 100).toFixed(2).replace('.', ',') %> €</div>
+              </div>
+            <% } %>
+
+            <div class="flex items-center justify-between">
+              <div class="text-slate-600">Livraison</div>
+              <div class="font-black text-slate-900"><%= shippingCostCents === 0 ? 'GRATUIT' : (shippingCostCents / 100).toFixed(2).replace('.', ',') + ' €' %></div>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
+            <div class="text-slate-600 font-black">Total</div>
+            <div class="text-primary font-black text-2xl"><%= (totalCents / 100).toFixed(2).replace('.', ',') %> €</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>
+
+<script>
+  (function () {
+    var btn = document.getElementById('open-add-address');
+    var details = document.getElementById('add-address-details');
+    if (!btn || !details) return;
+
+    btn.addEventListener('click', function () {
+      details.open = true;
+      details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    var checkbox = document.getElementById('billingSameAsShipping');
+    var grid = document.getElementById('billing-address-grid');
+    var hint = document.getElementById('billing-same-hint');
+    var shippingRadios = document.querySelectorAll('input[type="radio"][name="addressId"]');
+
+    if (!checkbox) return;
+
+    function getSelectedShippingId() {
+      var selected = document.querySelector('input[type="radio"][name="addressId"]:checked');
+      return selected ? selected.value : null;
+    }
+
+    function syncBillingToShipping() {
+      if (!grid) return;
+      var shippingId = getSelectedShippingId();
+      if (!shippingId) return;
+
+      var match = grid.querySelector('input[type="radio"][name="billingAddressId"][value="' + shippingId + '"]');
+      if (match) {
+        match.checked = true;
+      }
+    }
+
+    function update() {
+      var same = checkbox.checked;
+
+      if (hint) {
+        hint.style.display = same ? '' : 'none';
+      }
+
+      if (grid) {
+        grid.style.display = same ? 'none' : '';
+
+        var radios = grid.querySelectorAll('input[type="radio"][name="billingAddressId"]');
+        radios.forEach(function (r) {
+          r.disabled = same;
+        });
+
+        if (!same) {
+          var checked = grid.querySelector('input[type="radio"][name="billingAddressId"]:checked');
+          if (!checked) {
+            var first = grid.querySelector('input[type="radio"][name="billingAddressId"]');
+            if (first) first.checked = true;
+          }
+        } else {
+          syncBillingToShipping();
+        }
+      }
+    }
+
+    checkbox.addEventListener('change', update);
+    shippingRadios.forEach(function (r) {
+      r.addEventListener('change', function () {
+        if (checkbox.checked) {
+          syncBillingToShipping();
+        }
+      });
+    });
+    update();
+  })();
+</script>

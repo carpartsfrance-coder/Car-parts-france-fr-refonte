@@ -1,0 +1,317 @@
+<%- include('partials/head') %>
+<div class="bg-primary text-white text-center py-2 text-sm font-medium">
+  Offre Spéciale : -5% sur toute commande cette semaine avec le code : <span class="font-bold underline">PROMO5</span>
+</div>
+
+<%- include('partials/header') %>
+
+<style type="text/tailwindcss">
+  .material-symbols-rounded {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+  }
+  .hero-gradient {
+    background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 100%);
+  }
+  .home-display { font-family: 'Outfit', sans-serif; }
+  .product-card {
+    @apply bg-white dark:bg-surface-dark rounded-2xl overflow-hidden border border-slate-100/50 dark:border-slate-800 transition-all duration-500 shadow-premium hover:shadow-premium-hover;
+  }
+</style>
+
+<div class="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-3 shadow-sm">
+  <div class="container mx-auto px-4 lg:px-8 flex flex-wrap items-center gap-4">
+    <span class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+      <span class="material-symbols-rounded text-primary text-lg">tune</span>
+      Trouvez vos pièces :
+    </span>
+    <div class="flex-grow grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
+        <option>Marque</option>
+        <option>BMW</option>
+        <option>Audi</option>
+        <option>Mercedes</option>
+      </select>
+      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
+        <option>Modèle</option>
+      </select>
+      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
+        <option>Année</option>
+      </select>
+      <a class="bg-primary hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-all shadow-md shadow-red-500/20 text-center" href="/produits">Rechercher</a>
+    </div>
+  </div>
+</div>
+
+<main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
+  <% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((Number(cents) || 0) / 100); %>
+  <% const productsForGrid = Array.isArray(featuredProducts) ? featuredProducts.slice(0, 4) : []; %>
+
+  <div class="container mx-auto px-4 lg:px-8 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
+      <div class="lg:col-span-3 hidden lg:block">
+        <div class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+          <div class="bg-primary text-white px-6 py-4 flex items-center justify-between font-bold">
+            <span>Catégories</span>
+            <span class="material-symbols-rounded">menu</span>
+          </div>
+          <nav class="p-2">
+            <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="/produits">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-rounded text-slate-400 group-hover:text-primary">settings</span>
+                <span class="text-sm font-medium">Moteur et Pièces</span>
+              </div>
+              <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
+            </a>
+            <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="/produits">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-rounded text-slate-400 group-hover:text-primary">history</span>
+                <span class="text-sm font-medium">Transmission</span>
+              </div>
+              <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
+            </a>
+            <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="/produits">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-rounded text-slate-400 group-hover:text-primary">lightbulb</span>
+                <span class="text-sm font-medium">Éclairage</span>
+              </div>
+              <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
+            </a>
+            <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="/produits">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-rounded text-slate-400 group-hover:text-primary">chair</span>
+                <span class="text-sm font-medium">Intérieur et Accessoires</span>
+              </div>
+              <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
+            </a>
+            <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="/produits">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-rounded text-slate-400 group-hover:text-primary">directions_car</span>
+                <span class="text-sm font-medium">Carrosserie</span>
+              </div>
+              <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
+            </a>
+            <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="/produits">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-rounded text-slate-400 group-hover:text-primary">build</span>
+                <span class="text-sm font-medium">Suspension &amp; Freinage</span>
+              </div>
+              <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
+            </a>
+            <div class="border-t border-slate-100 dark:border-slate-800 my-2"></div>
+            <a class="flex items-center gap-3 p-3 text-primary font-bold text-sm" href="/produits">
+              <span class="material-symbols-rounded">grid_view</span>
+              Toutes les pièces
+            </a>
+          </nav>
+        </div>
+      </div>
+
+      <div class="lg:col-span-9 relative rounded-2xl overflow-hidden shadow-2xl min-h-[450px] group">
+        <img alt="Moteur de voiture haut de gamme" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZoPBsEGAnTz-drxu9fs5b_r7EqJ5nCi2UuoO9HzVjM1ldiAUkrZW9s4QBdNnEN4gUjOi6i8cp9aFD8xE_HcXP8q0z0JjzN16UCmtKJVxaYmsF0UCSXXE-qjD8mAtYVx6OWN6RHnwJIlJvam8-p8ZE6wPuCbYjety3qjOvnt4qBTAa9sdmky3ZNl6DrO8CH7FJk7dbwvFuzL06ePUlG1gozMsuDhK75mb_KxgiHb9kd1ash56AaEjy6JXqnk-bpU0M6SjFOp3-swf4"/>
+        <div class="absolute inset-0 hero-gradient"></div>
+        <div class="absolute inset-0 flex flex-col justify-center px-12 text-white">
+          <span class="bg-primary/20 backdrop-blur-md border border-primary/30 text-primary uppercase text-[10px] font-bold px-3 py-1 rounded-full w-fit mb-6 tracking-widest">Service Premium</span>
+          <h2 class="text-5xl home-display font-bold leading-tight max-w-xl mb-6">Livraison Rapide sur Toutes Vos Commandes</h2>
+          <p class="text-slate-300 max-w-md mb-8 text-lg">Commandez aujourd'hui et recevez vos pièces d'origine ou d'occasion certifiées directement chez vous en 48/72h.</p>
+          <div class="flex flex-wrap gap-4">
+            <a class="bg-primary hover:bg-red-700 text-white font-bold py-4 px-8 rounded-full transition-all flex items-center gap-2 group/btn shadow-xl shadow-red-600/20" href="/produits">
+              Demander un Devis Gratuit
+              <span class="material-symbols-rounded group-hover/btn:translate-x-1 transition-transform">arrow_forward</span>
+            </a>
+            <a class="bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white font-bold py-4 px-8 rounded-full transition-all" href="/produits">Parcourir le catalogue</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+      <div class="bg-white dark:bg-surface-dark p-6 rounded-2xl flex items-center gap-5 shadow-sm border border-slate-100 dark:border-slate-800">
+        <div class="w-16 h-16 bg-red-50 dark:bg-red-950/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-rounded text-primary text-3xl">verified</span>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg home-display">Garantie Qualité</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Toutes nos pièces sont rigoureusement testées et garanties jusqu'à 24 mois.</p>
+        </div>
+      </div>
+      <div class="bg-white dark:bg-surface-dark p-6 rounded-2xl flex items-center gap-5 shadow-sm border border-slate-100 dark:border-slate-800">
+        <div class="w-16 h-16 bg-red-50 dark:bg-red-950/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-rounded text-primary text-3xl">payments</span>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg home-display">Paiement Flexible</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Payez sereinement en 3 ou 4 fois. Solution de financement immédiate et 100% sécurisée.</p>
+        </div>
+      </div>
+      <div class="bg-white dark:bg-surface-dark p-6 rounded-2xl flex items-center gap-5 shadow-sm border border-slate-100 dark:border-slate-800">
+        <div class="w-16 h-16 bg-red-50 dark:bg-red-950/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-rounded text-primary text-3xl">local_shipping</span>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg home-display">Expédition Express</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Logistique optimisée : expédition le jour même et suivi précis de votre colis en temps réel.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-16">
+      <h2 class="text-2xl home-display font-bold mb-8">Acheter par Marque</h2>
+      <div class="flex flex-wrap justify-between gap-6">
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="BMW" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBub-kdUFOuApLm2p5A_9Wdld0pHF9QryWmO1Qdpbc-FpQa8ghssZYdd1tQowPmXnxyNeSJH1B6HV9ln2fp257SHroLvMVHoUy8jO4gPBtJkQqVYCzG9enfN_tYt1vDf3fx2a-c-3kg_RrQdr7fnqV94eXSGagE-C55lmWFcLTUvvqN265rJjpLdL_Ak7Mua16zSLZ_gDFpA5sk_5DXmQ2JN89Z8iv88WxRxXq_XltFJpjiuZdIs4fWW-pI_WMF-Ly9_uJAEcahfU1J"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="Mercedes" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQE1Cb_hCHLX2b3lLoSpwhosfJmcF6ggiDrPMoCs1TFfkNtaHYBBvaps-PgzQpLH9thEVL1HYVVlk7blRZylzkKauueTM-ohttqRE6ksWhBdB7YruJZMdn_cV9Oh66widq26KXxXbIMKz0cgpB4JYRHqUAQyQmEsifqpkGUK6xNT1LQSX8-zyYswqEi4WOeYW07ccYcUco8Z9hGmHHrioSqw2Mtf0K8tgZy3EEJent5cUu2WUHMvIRgRbJrDGu-cRfFxyWOrRE-oi1"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="Audi" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCI796Sx7aU_n5VKPquV01DRDRXah_q-HhBMgoPj31duVBFoM9Xnv_H2FgtPVQZGFCn8O_xMnkGT5kKOQhRnhtfCUCt5C5Fc4lNmDsbEguqs0awjwAgBpnlJdciddxjt0DW4g6pq5WTv87jxYSGkad2QQF9TaWKTLfQScNwhKcMqvAQPttkecbaSX81t2y8SwrgrCeYchGbI41XWZZ-lmu5fB4a8-PaXsv7tpO-oND7cpC_sm49J11yCp7Hjw1qn-GyrB-U2mJVo22d"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="Porsche" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcRD7ZDzo-hSEBwOfUCef-A-iDCUbmbsNQQrLoKvM7pQJnpsdAxftWo1EpohFXVtmMqmNRg5czorjOeWBpNsoHHFyGqkjqUdsVBrR0S6UZwJ793W8T9mWPB34NXtPNBdidGcHMjg3EahSzEXvILIwtNtAzJX6wTmsdFkFrD8eeX3YY0UPVRK3dOqOv25L09sJ2MPsqCCArxmo1FWp-09VojRfwUmpnhJBVm7J9JLik3TFLtlz-2kRLuvk89VhFUYcMSBLq_bBjKtZT"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="VW" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGEj1BbAWaYcbI-qzLqsEhJZIGEK2crQWzmJo6Gpe-Q_X2A094fEBVod0rwBYTYMrurGqXTDG-4qQ1RjC21lGJ6OEkHYWexoOMSUspesiBlmx4wyShQLZ1wP5aa7z_QepywEk4joAE4KFfmZvtF-ksm2NVZlTKzWupxvYf2DvTmEO2fI4ZowUlk-_gec9h37jRILm1hSO1wzidyawWqx5P9yn4JOsIZOKEwFxQlZD35i5ZPgIEugiSTF5X-wcyTu9dTDuVcsmyLToE"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="Peugeot" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCiiRCV2adlCUsN--SPUhhLKn0G7gUO5pQqZcZQiFRionAS8_iEy-itCqBRNNF0A0rV8nqx7sr33vZbfwl-nSRPtaWmqNACAf77eZ_PzdrY87PZj3SSvBaDe5BfTJmH2Iifi1URQaGVlt-8xTQu-gn-CsziLgsX-dqsYmyHHwN1WVldG5VaFK3uOVp6d77rN2d7ViLYbNJ7-yqwFF_2V9WnDlfZNINjFTXtDSgyEstQ49gGMrk33C67LH0gn_njwowKRFJm_ys47YjD"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="Renault" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvq9AuMWkuCinIBxjJ3Hs73QfKZMZiKTbKUEIz4B3NqRVA-k9vY_Jl5HnSw2_vSTJL84oG7PLDjCyiAne8hWkE8CpaVmeIKOy7KBq5PjOv5tah-hbzwcfXEaj4FrYjNVS2oLKq6ez77pMsLk_YyiDFuab5a2dmjFaUUXqjRm4oqnxEuzqiarLXhl6_3NK01bUBmC6uMZTJVCniRdnT8pRtYQc3-E0ELOXkR3I57zCDCamNSDzzRMczFD03sWddXuzd5ls9cIpwkeKd"/>
+        </div>
+        <div class="w-24 h-24 bg-white dark:bg-surface-dark rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-center hover:shadow-md transition-shadow grayscale hover:grayscale-0 cursor-pointer">
+          <img alt="Ford" class="w-12 h-12 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9WE0Hva-EITXFR6IJTZ-3M782B9xxyXNTArtPyVLS3oRZCigD0HhtKQ0fK4nuz-SGy5-HtgwxAaaIIwN12V4gVlx11Ob0vu4KNFo2s0-svgATFH-ltej1TDQxp80c8dqoaZqDccVSm21y-bGXa-VT2MU6a8t53AYOae12i8nyW2bdMVshPw_1m5MH-OjX7u_ph8LUaHDBKX36lQus0gaGnDQQO37rLM4_qYYhxzd9cl8KnPl6G4LF2sH48DNKn4Lp1gupGLDusaRH"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-16">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h2 class="text-3xl home-display font-bold">Découvrez Nos Pièces</h2>
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Sélection de pièces d'exception prêtes à être expédiées.</p>
+        </div>
+        <a class="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all" href="/produits">
+          Voir tout <span class="material-symbols-rounded text-lg">arrow_forward</span>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <% productsForGrid.forEach((p) => { %>
+          <% const imgUrl = (p && typeof p.imageUrl === 'string' && p.imageUrl.trim()) ? p.imageUrl.trim() : (Array.isArray(p.galleryUrls) && p.galleryUrls[0] ? p.galleryUrls[0] : ''); %>
+          <% const badge = (p && p.badges && p.badges.topLeft) ? p.badges.topLeft : 'GARANTIE'; %>
+          <div class="product-card group">
+            <div class="relative aspect-video overflow-hidden">
+              <% if (imgUrl) { %>
+                <img alt="<%= p.name %>" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" src="<%= imgUrl %>"/>
+              <% } else { %>
+                <div class="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                  <span class="material-symbols-rounded text-5xl">inventory_2</span>
+                </div>
+              <% } %>
+              <span class="absolute top-3 left-3 bg-primary text-[10px] text-white font-bold px-2 py-1 rounded shadow-sm"><%= badge %></span>
+            </div>
+            <div class="p-6">
+              <div class="flex text-amber-400 mb-2">
+                <span class="material-symbols-rounded text-sm">star</span>
+                <span class="material-symbols-rounded text-sm">star</span>
+                <span class="material-symbols-rounded text-sm">star</span>
+                <span class="material-symbols-rounded text-sm">star</span>
+                <span class="material-symbols-rounded text-sm">star</span>
+                <span class="text-slate-400 text-[10px] ml-1 mt-0.5">(0 avis)</span>
+              </div>
+              <h3 class="font-bold text-slate-800 dark:text-slate-100 leading-tight mb-5 group-hover:text-primary transition-colors h-10 overflow-hidden">
+                <%= p.name %>
+              </h3>
+              <div class="flex items-end justify-between">
+                <div>
+                  <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prix TTC</p>
+                  <p class="text-2xl home-display font-bold text-slate-900 dark:text-white"><%= formatMoney(p.priceCents) %> €</p>
+                </div>
+                <form action="/panier/ajouter/<%= p._id %>" method="POST">
+                  <input name="returnTo" type="hidden" value="/" />
+                  <input name="qty" type="hidden" value="1" />
+                  <button class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200/50 dark:border-slate-700 hover:bg-primary hover:border-primary hover:text-white hover:shadow-lg hover:shadow-red-500/20 transition-all duration-300 disabled:opacity-60" <%= p.inStock === false ? 'disabled' : '' %> type="submit">
+                    <span class="material-symbols-rounded">shopping_cart</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="mb-16">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h2 class="text-3xl home-display font-bold">Blog &amp; Conseils Experts</h2>
+          <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">L'actualité automobile et nos guides d'entretien.</p>
+        </div>
+        <button class="flex items-center gap-2 border border-slate-200 dark:border-slate-800 px-6 py-2 rounded-full font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+          Explorer le blog <span class="material-symbols-rounded text-lg">trending_up</span>
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <article class="group">
+          <div class="rounded-2xl overflow-hidden mb-4 relative aspect-[16/10]">
+            <img alt="Blog post 1" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4nSCsQqs5DtZ29AgC82MiHfSgfrLb2dY8Xh53HnbNC4L0ZcHPXSdrm-Erl0VfW0UloTS0hGcRUItROOnNyA4Y1tLMrfnRodpkz-LJEQrwgJ-7JvLiaDp19TIXGQzP0u5vK1uXVeNjips_2nJ9GJQrqG74LvnMGum2QM2VnuPEd6a6oerg4NUwpY6VLCdq8Vn77ZwV5lKlGvEvb8N-6lfvpJgfx9OGzGC6vD4klRgVUIT6PgBAv_vjPKBLxOMdJgWNKkz9RlB8iWIG"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <div class="absolute bottom-4 left-4 flex gap-2">
+              <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded">ENTRETIEN</span>
+              <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded">5 MIN DE LECTURE</span>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold group-hover:text-primary transition-colors leading-snug">Quand changer son pont arrière ? Les signes qui ne trompent pas</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">Le pont arrière est une pièce maîtresse de la transmission. Découvrez comment détecter les bruits anormaux...</p>
+        </article>
+        <article class="group">
+          <div class="rounded-2xl overflow-hidden mb-4 relative aspect-[16/10]">
+            <img alt="Blog post 2" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQlglm4nssnn0G9hz3Bi7sV49BgeHH7y2Xpd6pnsk5qSMzsXCp25112FadG2aNXfUQimv2_l7whjygNqsjqiF-R4hGrFeRMd_hJsPk-fmZWWnEqxTZHiWzfyf89Jrpv9Nuj5dLSPZoSoWUaOkH-orTKoxzbHkaqkCG00jjVfxrpd6_-x0ac5_1nfHOs0cIkN8G7WTnFhn0HScgs7UaJ-h8t_w1JiDif6modbEeb845NAmmn02KpATUh4ZY3TuQEyQqPMwonDVsu0bj"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <div class="absolute bottom-4 left-4 flex gap-2">
+              <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded">GUIDE ACHAT</span>
+              <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded">8 MIN DE LECTURE</span>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold group-hover:text-primary transition-colors leading-snug">Pièces d'occasion vs Reconditionnées : Le guide complet</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">Quels sont les avantages réels du reconditionnement pour votre moteur ? On vous explique tout sur la certification...</p>
+        </article>
+        <article class="group">
+          <div class="rounded-2xl overflow-hidden mb-4 relative aspect-[16/10]">
+            <img alt="Blog post 3" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCM0au6ZUFRWQ82aH_icWN2q0vVlFZeJiAehlSP7VoaT96N7gegRyFf-EYFFPryJUZMWcjmld14A0Y_2dGgwEhGpLJwKk2PFSUIDbpM9g9XSn3eadIqASJJidiSiTEzASzUhncq01gf7NYGHIGzrEw1814l5598pIhfEWYUqfo0OAYCM-eqToYjCaHKrLEOWGFYXGp4lrhdwpqMnnECT5FKBvwd2AzHs9umTA3cfQxBOw0xAo2tXyU7swJqGzdUIPcAMo9Bbd9uUDl6"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <div class="absolute bottom-4 left-4 flex gap-2">
+              <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded">TECHNIQUE</span>
+              <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded">4 MIN DE LECTURE</span>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold group-hover:text-primary transition-colors leading-snug">Boîte de transfert ATC700 : Fiabiliser votre transmission</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">Spécificité technique des modèles BMW X5 et X6. Pourquoi la lubrification est cruciale pour la durée de vie...</p>
+        </article>
+      </div>
+    </div>
+
+    <div class="bg-accent-dark text-white rounded-3xl p-12 relative overflow-hidden">
+      <div class="absolute top-1/2 right-12 -translate-y-1/2 opacity-10 pointer-events-none">
+        <span class="material-symbols-rounded text-[240px]">help_outline</span>
+      </div>
+      <div class="relative z-10 max-w-2xl">
+        <h2 class="text-4xl home-display font-bold mb-4">Besoin d'aide pour choisir votre pièce ?</h2>
+        <p class="text-slate-400 text-lg mb-8">Nos experts sont disponibles par téléphone ou email pour vous conseiller la référence exacte compatible avec votre véhicule.</p>
+        <div class="flex flex-wrap gap-6">
+          <a class="bg-white text-slate-900 px-8 py-4 rounded-2xl font-bold flex items-center gap-3 hover:scale-105 transition-all" href="tel:0465845488">
+            <span class="material-symbols-rounded text-primary">call</span>
+            04 65 84 54 88
+          </a>
+          <a class="bg-white/10 backdrop-blur-md border border-white/20 px-8 py-4 rounded-2xl font-bold flex items-center gap-3 hover:bg-white/20 transition-all" href="mailto:contact@carpartsfrance.fr">
+            <span class="material-symbols-rounded">alternate_email</span>
+            contact@carpartsfrance.fr
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

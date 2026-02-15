@@ -1,0 +1,57 @@
+<%- include('./partials/head') %>
+
+<div class="flex-1 flex items-center justify-center px-4 py-10">
+  <div class="w-full max-w-md">
+    <div class="text-center">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-white">
+        <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+      </div>
+      <div class="mt-4 text-2xl font-black text-slate-900">Connexion Admin</div>
+      <div class="mt-1 text-sm text-slate-600">Accès réservé à l’équipe CarParts France.</div>
+    </div>
+
+    <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+      <div class="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
+        <div class="font-bold">Erreur</div>
+        <div class="mt-1 text-sm"><%= errorMessage %></div>
+      </div>
+    <% } %>
+
+    <% if (typeof isDevFallback !== 'undefined' && isDevFallback) { %>
+      <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <div class="font-bold">Mode développement</div>
+        <div class="mt-1 text-sm">Identifiants de test disponibles (à changer avant la mise en ligne).</div>
+        <div class="mt-3 text-xs font-black uppercase tracking-widest text-amber-800/80">Email</div>
+        <div class="mt-1 text-sm font-semibold"><%= devFallbackEmail %></div>
+        <div class="mt-3 text-xs font-black uppercase tracking-widest text-amber-800/80">Mot de passe</div>
+        <div class="mt-1 text-sm font-semibold"><%= devFallbackPassword %></div>
+      </div>
+    <% } %>
+
+    <form action="/admin/connexion" class="mt-6 rounded-2xl border border-slate-200 bg-white p-6" method="POST">
+      <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/admin' %>" />
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-bold text-slate-700" for="email">Email</label>
+          <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="email" name="email" placeholder="admin@carpartsfrance.fr" type="email" value="<%= typeof email !== 'undefined' ? email : '' %>" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-700" for="password">Mot de passe</label>
+          <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="password" name="password" placeholder="••••••••" type="password" />
+        </div>
+      </div>
+
+      <button class="mt-6 w-full rounded-xl bg-primary text-white px-5 py-3 font-black hover:bg-red-700 transition" type="submit">
+        Se connecter
+      </button>
+
+      <div class="mt-4 text-xs text-slate-500">
+        Astuce : tu peux définir <span class="font-bold">ADMIN_EMAIL</span> et <span class="font-bold">ADMIN_PASSWORD</span> dans un fichier <span class="font-bold">.env</span>.
+      </div>
+    </form>
+  </div>
+</div>
+
+<%- include('./partials/footer') %>

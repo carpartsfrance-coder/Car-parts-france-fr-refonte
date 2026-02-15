@@ -1,0 +1,339 @@
+<%- include('../partials/head') %>
+<div class="bg-primary text-white text-center py-2 text-sm font-medium">
+  Offre Spéciale : -5% sur toute commande cette semaine avec le code : <span class="font-bold underline">PROMO5</span>
+</div>
+
+<%- include('../partials/header') %>
+
+<style type="text/tailwindcss">
+  .product-card {
+    @apply bg-white/70 dark:bg-surface-dark/60 backdrop-blur-xl rounded-3xl overflow-hidden border border-white/40 dark:border-slate-700/70 transition-all duration-500 shadow-premium hover:shadow-premium-hover flex flex-col;
+  }
+  .filter-section {
+    @apply border-b border-slate-100 dark:border-slate-800 pb-6 mb-6 last:border-0;
+  }
+  .cart-btn-premium {
+    @apply bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:bg-primary hover:border-primary hover:text-white hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300;
+  }
+  .product-card:hover {
+    background-color: rgba(255, 255, 255, 0.82);
+  }
+  .dark .product-card:hover {
+    background-color: rgba(30, 41, 59, 0.72);
+  }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+</style>
+
+<div class="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-3 shadow-sm">
+  <div class="container mx-auto px-4 lg:px-8 flex flex-wrap items-center gap-4">
+    <span class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary text-lg">tune</span>
+      Votre Véhicule :
+    </span>
+    <div class="flex-grow grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
+        <option>Marque</option>
+        <option>BMW</option>
+        <option>Audi</option>
+        <option>Mercedes</option>
+      </select>
+      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
+        <option>Modèle</option>
+      </select>
+      <select class="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary">
+        <option>Année</option>
+      </select>
+      <a class="bg-primary hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-all shadow-md shadow-red-500/20 text-center" href="/produits">Mettre à jour</a>
+    </div>
+  </div>
+</div>
+
+<main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
+  <% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round((Number(cents) || 0) / 100)); %>
+  <% const buildUrl = (overrides = {}) => {
+    const params = new URLSearchParams();
+    const qVal = overrides.q !== undefined ? overrides.q : (typeof searchQuery !== 'undefined' ? searchQuery : '');
+    const mainCatVal = overrides.mainCategory !== undefined ? overrides.mainCategory : (typeof selectedMainCategory !== 'undefined' ? selectedMainCategory : '');
+    const subCatVal = overrides.subCategory !== undefined ? overrides.subCategory : (typeof selectedSubCategory !== 'undefined' ? selectedSubCategory : '');
+    const stockVal = overrides.stock !== undefined ? overrides.stock : (typeof selectedStock !== 'undefined' ? selectedStock : '');
+    const minVal = overrides.minPrice !== undefined ? overrides.minPrice : (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' ? String(minPriceEuros) : '');
+    const maxVal = overrides.maxPrice !== undefined ? overrides.maxPrice : (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' ? String(maxPriceEuros) : '');
+    const sortVal = overrides.sort !== undefined ? overrides.sort : (typeof sort !== 'undefined' ? sort : '');
+    const pageVal = overrides.page !== undefined ? overrides.page : (typeof page !== 'undefined' ? page : 1);
+
+    if (qVal) params.set('q', qVal);
+    if (mainCatVal) params.set('mainCategory', mainCatVal);
+    if (mainCatVal && subCatVal) params.set('subCategory', subCatVal);
+    if (stockVal) params.set('stock', stockVal);
+    if (minVal) params.set('minPrice', minVal);
+    if (maxVal) params.set('maxPrice', maxVal);
+    if (sortVal) params.set('sort', sortVal);
+    if (pageVal && Number(pageVal) > 1) params.set('page', String(pageVal));
+
+    const qs = params.toString();
+    return qs ? `/produits?${qs}` : '/produits';
+  }; %>
+
+  <div class="container mx-auto px-4 lg:px-8 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <aside class="lg:col-span-3">
+        <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 sticky top-28">
+          <div class="flex items-center justify-between mb-8">
+            <h2 class="font-bold text-lg">Filtres</h2>
+            <a class="text-primary text-xs font-bold uppercase tracking-widest hover:underline" href="/produits">Effacer tout</a>
+          </div>
+
+          <form action="/produits" method="GET">
+            <input name="q" type="hidden" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" />
+            <input name="sort" type="hidden" value="<%= typeof sort !== 'undefined' ? sort : '' %>" />
+            <input name="page" type="hidden" value="1" />
+
+            <div class="filter-section">
+              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
+                Prix
+                <span class="material-symbols-outlined text-slate-400">expand_less</span>
+              </button>
+              <div class="grid grid-cols-2 gap-3">
+                <input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="minPrice" placeholder="Min" type="number" value="<%= (minPriceEuros !== null && typeof minPriceEuros !== 'undefined') ? minPriceEuros : '' %>" />
+                <input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="maxPrice" placeholder="Max" type="number" value="<%= (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined') ? maxPriceEuros : '' %>" />
+              </div>
+            </div>
+
+            <div class="filter-section">
+              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
+                Catégorie
+                <span class="material-symbols-outlined text-slate-400">expand_less</span>
+              </button>
+              <% const subOptions = (selectedMainCategory && subCategoriesByMain && subCategoriesByMain[selectedMainCategory]) ? subCategoriesByMain[selectedMainCategory] : []; %>
+              <div class="space-y-3">
+                <div>
+                  <div class="text-xs font-semibold text-slate-500 mb-2">Catégorie principale</div>
+                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="mainCategory" onchange="this.form.subCategory.value=''; this.form.submit();">
+                    <option value="" <%= !selectedMainCategory ? 'selected' : '' %>>Toutes</option>
+                    <% (mainCategories || []).forEach((c) => { %>
+                      <option value="<%= c %>" <%= selectedMainCategory === c ? 'selected' : '' %>><%= c %></option>
+                    <% }) %>
+                  </select>
+                </div>
+
+                <div>
+                  <div class="text-xs font-semibold text-slate-500 mb-2">Sous-catégorie</div>
+                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="subCategory" <%= selectedMainCategory ? '' : 'disabled' %>>
+                    <option value="" <%= selectedMainCategory && !selectedSubCategory ? 'selected' : '' %>><%= selectedMainCategory ? 'Toutes' : 'Choisis une catégorie' %></option>
+                    <% (subOptions || []).forEach((s) => { %>
+                      <option value="<%= s %>" <%= selectedSubCategory === s ? 'selected' : '' %>><%= s %></option>
+                    <% }) %>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="filter-section">
+              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
+                Disponibilité
+                <span class="material-symbols-outlined text-slate-400">expand_less</span>
+              </button>
+              <div class="space-y-3">
+                <label class="flex items-center gap-3 text-sm cursor-pointer group">
+                  <input <%= selectedStock === 'in' ? 'checked' : '' %> class="rounded text-primary focus:ring-primary border-slate-300" name="stock" type="checkbox" value="in" />
+                  <span class="group-hover:text-primary transition-colors">En stock (Expédition 24h)</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="filter-section !border-b-0 !mb-0 !pb-0">
+              <details class="group">
+                <summary class="flex items-center justify-between w-full font-semibold text-sm cursor-pointer hover:text-primary transition-colors">
+                  Plus de filtres
+                  <span class="material-symbols-outlined text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
+                </summary>
+                <div class="pt-6 space-y-8">
+                  <div>
+                    <p class="font-semibold text-xs text-slate-500 uppercase tracking-wider mb-4">Marque de la pièce</p>
+                    <input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs mb-3" placeholder="Rechercher une marque..." type="text" />
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div class="mt-8 grid grid-cols-1 gap-3">
+              <button class="bg-primary hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md shadow-red-500/20" type="submit">Appliquer</button>
+              <a class="text-center bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 px-6 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" href="/produits">Réinitialiser</a>
+            </div>
+          </form>
+        </div>
+      </aside>
+
+      <div class="lg:col-span-9">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <nav class="flex items-center gap-2 text-xs text-slate-400 mb-2">
+              <a class="hover:text-primary" href="/">Accueil</a>
+              <span class="material-symbols-outlined text-[10px]">chevron_right</span>
+              <span class="text-slate-600 dark:text-slate-300 font-medium"><%= selectedCategoryLabel ? selectedCategoryLabel : 'Catalogue' %></span>
+            </nav>
+            <h1 class="text-2xl font-display font-bold"><%= typeof totalCount !== 'undefined' ? totalCount.toLocaleString('fr-FR') : products.length %> pièces trouvées</h1>
+            <% if (!dbConnected) { %>
+              <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
+                <span class="font-bold">Mode démo activé</span> — le catalogue fonctionne avec des produits d'exemple.
+              </div>
+            <% } %>
+          </div>
+
+          <form action="/produits" method="GET">
+            <input name="q" type="hidden" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" />
+            <input name="mainCategory" type="hidden" value="<%= typeof selectedMainCategory !== 'undefined' ? selectedMainCategory : '' %>" />
+            <input name="subCategory" type="hidden" value="<%= typeof selectedSubCategory !== 'undefined' ? selectedSubCategory : '' %>" />
+            <input name="stock" type="hidden" value="<%= typeof selectedStock !== 'undefined' ? selectedStock : '' %>" />
+            <input name="minPrice" type="hidden" value="<%= (minPriceEuros !== null && typeof minPriceEuros !== 'undefined') ? minPriceEuros : '' %>" />
+            <input name="maxPrice" type="hidden" value="<%= (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined') ? maxPriceEuros : '' %>" />
+            <input name="page" type="hidden" value="1" />
+            <div class="flex items-center gap-4">
+              <span class="text-sm text-slate-500 whitespace-nowrap">Trier par :</span>
+              <select class="bg-white dark:bg-surface-dark border-slate-200 dark:border-slate-700 rounded-xl text-sm py-2 pl-4 pr-10 focus:ring-primary focus:border-primary min-w-[180px]" name="sort" onchange="this.form.submit()">
+                <option <%= !sort || sort === 'newest' ? 'selected' : '' %> value="newest">Nouveautés</option>
+                <option <%= sort === 'price_asc' ? 'selected' : '' %> value="price_asc">Prix croissant</option>
+                <option <%= sort === 'price_desc' ? 'selected' : '' %> value="price_desc">Prix décroissant</option>
+              </select>
+            </div>
+          </form>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mb-8">
+          <% if (selectedStock === 'in') { %>
+            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ stock: '', page: 1 }) %>">
+              En stock
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
+          <% if (selectedMainCategory) { %>
+            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ mainCategory: '', subCategory: '', page: 1 }) %>">
+              <%= selectedCategoryLabel || selectedMainCategory %>
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
+          <% if (typeof searchQuery !== 'undefined' && searchQuery) { %>
+            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ q: '', page: 1 }) %>">
+              <%= searchQuery %>
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
+          <% if (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' && String(minPriceEuros)) { %>
+            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ minPrice: '', page: 1 }) %>">
+              Min <%= minPriceEuros %> €
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
+          <% if (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' && String(maxPriceEuros)) { %>
+            <a class="bg-primary/5 text-primary border border-primary/20 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2" href="<%= buildUrl({ maxPrice: '', page: 1 }) %>">
+              Max <%= maxPriceEuros %> €
+              <span class="material-symbols-outlined text-sm">close</span>
+            </a>
+          <% } %>
+        </div>
+
+        <% if (!products || products.length === 0) { %>
+          <div class="rounded-3xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 p-10 shadow-sm">
+            <div class="font-bold text-lg">Aucune pièce trouvée</div>
+            <div class="mt-2 text-sm text-slate-500">Essaie d’enlever un filtre ou de modifier ta recherche.</div>
+          </div>
+        <% } else { %>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+            <% products.forEach((p) => { %>
+              <% const imgUrl = (p && typeof p.imageUrl === 'string' && p.imageUrl.trim()) ? p.imageUrl.trim() : (Array.isArray(p.galleryUrls) && p.galleryUrls[0] ? p.galleryUrls[0] : ''); %>
+              <% const badge = (p && p.badges && p.badges.topLeft) ? p.badges.topLeft : 'GARANTIE'; %>
+              <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
+              <div class="product-card group">
+                <div class="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-800">
+                  <a href="<%= productUrl %>">
+                    <% if (imgUrl) { %>
+                      <img alt="<%= p.name %>" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" decoding="async" loading="lazy" src="<%= imgUrl %>"/>
+                    <% } else { %>
+                      <div class="w-full h-full flex items-center justify-center text-slate-400">
+                        <span class="material-symbols-outlined text-5xl">inventory_2</span>
+                      </div>
+                    <% } %>
+                  </a>
+                  <span class="absolute top-3 left-3 bg-primary text-[9px] text-white font-bold px-2.5 py-1 rounded-full shadow-lg"><%= badge %></span>
+                  <button class="absolute top-3 right-3 w-8 h-8 bg-white/90 dark:bg-slate-900/70 backdrop-blur-md rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors" type="button">
+                    <span class="material-symbols-outlined text-lg">favorite</span>
+                  </button>
+                </div>
+                <div class="p-4 flex flex-col flex-grow">
+                  <div class="flex text-amber-400 mb-2">
+                    <span class="material-symbols-outlined text-xs">star</span>
+                    <span class="material-symbols-outlined text-xs">star</span>
+                    <span class="material-symbols-outlined text-xs">star</span>
+                    <span class="material-symbols-outlined text-xs">star</span>
+                    <span class="material-symbols-outlined text-xs">star</span>
+                    <span class="text-slate-400 text-[9px] ml-1 mt-0.5">(0)</span>
+                  </div>
+                  <a class="font-bold text-slate-800 dark:text-slate-100 leading-snug mb-4 group-hover:text-primary transition-colors h-12 overflow-hidden text-sm" href="<%= productUrl %>">
+                    <%= p.name %>
+                  </a>
+                  <div class="mt-auto pt-4 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Prix TTC</p>
+                      <p class="text-lg font-display font-bold text-slate-900 dark:text-white"><%= formatMoney(p.priceCents) %> €</p>
+                    </div>
+                    <form action="/panier/ajouter/<%= p._id %>" method="POST">
+                      <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/produits' %>" />
+                      <input name="qty" type="hidden" value="1" />
+                      <button class="cart-btn-premium disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">
+                        <span class="material-symbols-outlined text-xl">shopping_cart</span>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-6 py-12 border-t border-slate-100 dark:border-slate-800">
+            <a class="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors <%= page <= 1 ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.max(1, (page || 1) - 1) }) %>">
+              <span class="material-symbols-outlined">chevron_left</span>
+              Précédent
+            </a>
+
+            <div class="flex items-center gap-2">
+              <% const current = Number(page) || 1;
+                 const last = Number(totalPages) || 1;
+                 const pagesToShow = [];
+                 for (let i = 1; i <= Math.min(3, last); i++) pagesToShow.push(i);
+                 if (last > 1) {
+                   if (!pagesToShow.includes(current) && current > 1 && current < last) pagesToShow.push(current);
+                   if (!pagesToShow.includes(last) && last <= current + 2) {
+                     for (let i = Math.max(1, last - 2); i <= last; i++) pagesToShow.push(i);
+                   }
+                 }
+                 const uniq = Array.from(new Set(pagesToShow)).sort((a,b) => a-b);
+              %>
+
+              <% uniq.forEach((pNum, idx) => { %>
+                <% const prev = idx > 0 ? uniq[idx - 1] : null; %>
+                <% if (prev !== null && pNum - prev > 1) { %>
+                  <span class="px-2 text-slate-400">...</span>
+                <% } %>
+                <a class="w-10 h-10 rounded-full font-bold text-sm transition-colors flex items-center justify-center <%= pNum === current ? 'bg-primary text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800' %>" href="<%= buildUrl({ page: pNum }) %>"><%= pNum %></a>
+              <% }) %>
+            </div>
+
+            <a class="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors <%= (page || 1) >= (totalPages || 1) ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.min((totalPages || 1), (page || 1) + 1) }) %>">
+              Suivant
+              <span class="material-symbols-outlined">chevron_right</span>
+            </a>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>
+
+<div class="fixed bottom-8 right-8 z-50">
+  <button class="bg-primary text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all" type="button">
+    <span class="material-symbols-outlined text-3xl">chat</span>
+  </button>
+</div>
