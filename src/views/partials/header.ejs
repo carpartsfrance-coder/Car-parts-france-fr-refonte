@@ -1,20 +1,8 @@
 <header class="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/90 backdrop-blur px-4 md:px-10 py-3">
 <div class="mx-auto flex max-w-[1440px] items-center gap-6">
 <a class="flex items-center gap-2 text-primary shrink-0" href="/">
-<span class="material-symbols-outlined text-3xl">precision_manufacturing</span>
-<div class="leading-tight">
-<div class="text-slate-900 text-xl md:text-2xl font-bold tracking-tight">CarParts<span class="text-primary">France</span></div>
-<div class="hidden md:block text-[11px] font-semibold text-slate-500">Pièces auto • Catalogue • Devis</div>
-</div>
+<img src="/images/logo-v2.png" alt="Car Parts France" class="h-10 md:h-11 w-auto" loading="eager" />
 </a>
-
-<nav class="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
-<a class="hover:text-primary transition-colors" href="/">Accueil</a>
-<a class="hover:text-primary transition-colors" href="/categorie">Catégories</a>
-<a class="hover:text-primary transition-colors" href="/produits">Catalogue</a>
-<a class="hover:text-primary transition-colors" href="/blog">Blog</a>
-<a class="hover:text-primary transition-colors" href="/panier">Panier</a>
-</nav>
 
 <% const _hp = typeof currentPath === 'string' ? currentPath : ''; %>
 <% const _hpPathOnly = _hp.split('?')[0].split('#')[0]; %>
@@ -23,6 +11,14 @@
   if (href === '/') return _hpPathOnly === '/';
   return _hpPathOnly === href || _hpPathOnly.startsWith(href + '/');
 }; %>
+
+<nav class="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/" <%= _navActive('/') ? 'aria-current=\"page\"' : '' %>>Accueil</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/categorie') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/categorie" <%= _navActive('/categorie') ? 'aria-current=\"page\"' : '' %>>Catégories</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/produits') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/produits" <%= _navActive('/produits') ? 'aria-current=\"page\"' : '' %>>Catalogue</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/blog" <%= _navActive('/blog') ? 'aria-current=\"page\"' : '' %>>Blog</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/panier') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/panier" <%= _navActive('/panier') ? 'aria-current=\"page\"' : '' %>>Panier</a>
+</nav>
 
 <div class="hidden md:flex flex-1 max-w-2xl">
 <form action="/produits" class="relative w-full" method="GET" data-header-search>
