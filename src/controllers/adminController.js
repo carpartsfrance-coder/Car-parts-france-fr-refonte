@@ -1806,7 +1806,11 @@ async function postAdminAddOrderShipment(req, res, next) {
 
     if (parcelEnabled && parcelApiKey) {
       try {
-        const courierCode = await parcelwill.guessCourierCode(parcelApiKey, carrier);
+        let courierCode = await parcelwill.guessCourierCode(parcelApiKey, carrier);
+        if (!courierCode && typeof trackingNumber === 'string' && trackingNumber.trim().toUpperCase().startsWith('1Z')) {
+          courierCode = 'ups';
+        }
+
         if (courierCode) {
           await parcelwill.createTrackings(parcelApiKey, [
             {

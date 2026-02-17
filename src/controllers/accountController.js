@@ -876,11 +876,56 @@ async function getOrderTrackingPage(req, res, next) {
         : "Le suivi transporteur avancé n'est pas disponible en local.";
     } else if (parcelEnabled && parcelApiKey && lastShipment && lastShipment.trackingNumber) {
       try {
-        const orderKey = order && order.number ? String(order.number) : '';
-        const trackingDoc = orderKey ? await parcelwill.getTrackingDetails(parcelApiKey, orderKey) : null;
-        parcelDelivery = parcelwill.normalizeParcelwillToParcelDelivery(trackingDoc, lastShipment.trackingNumber);
+        const orderNumberKey = order && order.number ? String(order.number) : '';
+        const orderMongoKey = order && order._id ? String(order._id) : '';
 
-        if (!parcelDelivery) {
+        const preferredOrderKey = orderNumberKey || orderMongoKey;
+        const orderKeys = [orderNumberKey, orderMongoKey].filter(Boolean);
+
+        const trackingNumber = lastShipment.trackingNumber;
+
+        let trackingDoc = null;
+        for (const key of orderKeys) {
+          trackingDoc = await parcelwill.getTrackingDetails(parcelApiKey, key);
+          parcelDelivery = parcelwill.normalizeParcelwillToParcelDelivery(trackingDoc, trackingNumber);
+          if (parcelDelivery) break;
+        }
+
+        if (!parcelDelivery && preferredOrderKey) {
+          let courierCode = '';
+
+          if (lastShipment && lastShipment.carrier) {
+            courierCode = await parcelwill.guessCourierCode(parcelApiKey, lastShipment.carrier);
+          }
+
+          if (!courierCode && typeof trackingNumber === 'string' && trackingNumber.trim().toUpperCase().startsWith('1Z')) {
+            courierCode = 'ups';
+          }
+
+          if (courierCode) {
+            try {
+              await parcelwill.createTrackings(parcelApiKey, [
+                {
+                  order_id: preferredOrderKey,
+                  tracking_number: trackingNumber,
+                  courier_code: courierCode,
+                  date_shipped: parcelwill.formatParcelwillDateTime(lastShipment && lastShipment.createdAt ? lastShipment.createdAt : new Date()),
+                  status_shipped: 1,
+                },
+              ]);
+            } catch (err) {
+              // ignore
+            }
+
+            trackingDoc = await parcelwill.getTrackingDetails(parcelApiKey, preferredOrderKey);
+            parcelDelivery = parcelwill.normalizeParcelwillToParcelDelivery(trackingDoc, trackingNumber);
+          } else {
+            parcelErrorMessage =
+              'Transporteur non reconnu. Merci de renseigner un transporteur (ex: UPS, Colissimo, Chronopost) dans la commande.';
+          }
+        }
+
+        if (!parcelDelivery && !parcelErrorMessage) {
           parcelErrorMessage =
             'Le suivi est en cours d’activation chez le transporteur. Réessayez dans quelques minutes.';
         }
