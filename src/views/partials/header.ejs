@@ -14,10 +14,8 @@
 
 <nav class="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
 <a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/" <%= _navActive('/') ? 'aria-current=\"page\"' : '' %>>Accueil</a>
-<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/categorie') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/categorie" <%= _navActive('/categorie') ? 'aria-current=\"page\"' : '' %>>Catégories</a>
 <a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/produits') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/produits" <%= _navActive('/produits') ? 'aria-current=\"page\"' : '' %>>Catalogue</a>
 <a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/blog" <%= _navActive('/blog') ? 'aria-current=\"page\"' : '' %>>Blog</a>
-<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/panier') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/panier" <%= _navActive('/panier') ? 'aria-current=\"page\"' : '' %>>Panier</a>
 </nav>
 
 <div class="hidden md:flex flex-1 max-w-2xl">
@@ -92,20 +90,12 @@
           <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">home</span>Accueil</span>
           <span class="material-symbols-outlined text-slate-300">chevron_right</span>
         </a>
-        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/categorie') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/categorie">
-          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">category</span>Catégories</span>
-          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
-        </a>
         <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/produits') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/produits">
           <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">storefront</span>Catalogue</span>
           <span class="material-symbols-outlined text-slate-300">chevron_right</span>
         </a>
         <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/blog">
           <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">article</span>Blog</span>
-          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
-        </a>
-        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/panier') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/panier">
-          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">shopping_cart</span>Panier</span>
           <span class="material-symbols-outlined text-slate-300">chevron_right</span>
         </a>
         <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/compte') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/compte">

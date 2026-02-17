@@ -3012,6 +3012,8 @@ async function getAdminNewProductPage(req, res) {
       brand: '',
       category: '',
       shippingClassId: '',
+      shippingDelayText: '',
+      compatibleReferences: '',
       price: '',
       compareAtPrice: '',
       inStock: true,
@@ -3087,6 +3089,8 @@ async function postAdminCreateProduct(req, res, next) {
       brand: getTrimmedString(req.body.brand),
       category: getTrimmedString(req.body.category),
       shippingClassId: getTrimmedString(req.body.shippingClassId),
+      shippingDelayText: getTrimmedString(req.body.shippingDelayText),
+      compatibleReferences: getTrimmedString(req.body.compatibleReferences),
       price: getTrimmedString(req.body.price),
       compareAtPrice: getTrimmedString(req.body.compareAtPrice),
       inStock: req.body.inStock === 'on' || req.body.inStock === 'true',
@@ -3275,6 +3279,7 @@ async function postAdminCreateProduct(req, res, next) {
     const compatibility = parseCompatibilityFromLines(form.compatibility);
     const faqs = parseFaqsFromLines(form.faqs);
     const relatedBlogPostIds = parseObjectIdListFromLines(form.relatedBlogPostIds);
+    const compatibleReferences = parseLinesToArray(form.compatibleReferences);
 
     const baseSlug = slugify(form.name) || 'produit';
     const createData = {
@@ -3284,6 +3289,8 @@ async function postAdminCreateProduct(req, res, next) {
       slug: baseSlug,
       category: form.category || 'Autre',
       shippingClassId,
+      shippingDelayText: form.shippingDelayText,
+      compatibleReferences,
       priceCents,
       compareAtPriceCents,
       consigne: {
@@ -3413,6 +3420,8 @@ async function getAdminEditProductPage(req, res, next) {
         brand: product.brand || '',
         category: product.category || '',
         shippingClassId,
+        shippingDelayText: product.shippingDelayText || '',
+        compatibleReferences: Array.isArray(product.compatibleReferences) ? product.compatibleReferences.filter(Boolean).join('\n') : '',
         price: formatPriceForInput(product.priceCents),
         compareAtPrice: formatPriceForInput(product.compareAtPriceCents),
         inStock: product.inStock !== false,
@@ -3526,6 +3535,8 @@ async function postAdminUpdateProduct(req, res, next) {
       brand: getTrimmedString(req.body.brand),
       category: getTrimmedString(req.body.category),
       shippingClassId: getTrimmedString(req.body.shippingClassId),
+      shippingDelayText: getTrimmedString(req.body.shippingDelayText),
+      compatibleReferences: getTrimmedString(req.body.compatibleReferences),
       price: getTrimmedString(req.body.price),
       compareAtPrice: getTrimmedString(req.body.compareAtPrice),
       inStock: req.body.inStock === 'on' || req.body.inStock === 'true',
@@ -3740,6 +3751,7 @@ async function postAdminUpdateProduct(req, res, next) {
     const compatibility = parseCompatibilityFromLines(form.compatibility);
     const faqs = parseFaqsFromLines(form.faqs);
     const relatedBlogPostIds = parseObjectIdListFromLines(form.relatedBlogPostIds);
+    const compatibleReferences = parseLinesToArray(form.compatibleReferences);
 
     const stableSlug = (existing && typeof existing.slug === 'string' && existing.slug.trim())
       ? existing.slug.trim()
@@ -3760,6 +3772,8 @@ async function postAdminUpdateProduct(req, res, next) {
           slug: stableSlug,
           category: form.category || 'Autre',
           shippingClassId,
+          shippingDelayText: form.shippingDelayText,
+          compatibleReferences,
           priceCents,
           compareAtPriceCents,
           consigne: {

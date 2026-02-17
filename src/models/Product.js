@@ -20,6 +20,10 @@ const productSchema = new mongoose.Schema(
 
     shippingClassId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShippingClass', default: null },
 
+    shippingDelayText: { type: String, default: '', trim: true },
+
+    compatibleReferences: { type: [String], default: [] },
+
     badges: {
       topLeft: { type: String, default: '', trim: true },
       condition: { type: String, default: '', trim: true },

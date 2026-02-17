@@ -193,6 +193,17 @@ function normalizeProduct(product) {
         }
       : { videoUrl: '' };
 
+  const shippingDelayText = typeof product.shippingDelayText === 'string'
+    ? product.shippingDelayText.trim()
+    : '';
+
+  const compatibleReferences = Array.isArray(product.compatibleReferences)
+    ? product.compatibleReferences
+        .filter((v) => typeof v === 'string')
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : [];
+
   const rawSections = product.sections && typeof product.sections === 'object' ? product.sections : {};
   const sections = {
     showKeyPoints: rawSections.showKeyPoints !== false,
@@ -209,6 +220,8 @@ function normalizeProduct(product) {
     ...product,
     inStock,
     stockQty,
+    shippingDelayText,
+    compatibleReferences,
     priceCents: parseLegacyPriceCents(product),
     consigne: {
       enabled: consigneEnabled,
@@ -845,6 +858,11 @@ async function getProduct(req, res, next) {
     const canonicalUrl = buildProductPublicUrl(product, { req });
     const brandText = typeof product.brand === 'string' ? product.brand.trim() : '';
     const skuText = typeof product.sku === 'string' ? product.sku.trim() : '';
+    const compatibleReferences = Array.isArray(product.compatibleReferences)
+      ? product.compatibleReferences
+          .filter((v) => typeof v === 'string' && v.trim())
+          .map((v) => v.trim())
+      : [];
 
     const firstCompat = Array.isArray(product.compatibility)
       ? product.compatibility.find((c) => c && (c.make || c.model || c.engine))
@@ -866,7 +884,8 @@ async function getProduct(req, res, next) {
       : '';
     const baseDesc = product.shortDescription || product.description || '';
     const baseDescPlain = toPlainText(baseDesc);
-    const autoDesc = `Pièce auto ${product.name}${skuText ? ` (réf ${skuText})` : ''}${compatText ? ` compatible ${compatText}` : ''}. Livraison rapide. Paiement sécurisé.`;
+    const refsText = compatibleReferences.length ? compatibleReferences.slice(0, 6).join(', ') : '';
+    const autoDesc = `Pièce auto ${product.name}${skuText ? ` (réf ${skuText})` : ''}${refsText ? ` (références compatibles ${refsText})` : ''}${compatText ? ` compatible ${compatText}` : ''}. Livraison rapide. Paiement sécurisé.`;
     const metaDescription = truncateText(normalizeMetaText(toPlainText(descriptionOverride) || baseDescPlain || autoDesc), 160);
 
     const images = [];
@@ -888,8 +907,12 @@ async function getProduct(req, res, next) {
       name: product.name,
       description: truncateText(descriptionForSchema, 5000),
       sku: skuText || undefined,
+      mpn: compatibleReferences.length ? compatibleReferences[0] : undefined,
       brand: brandText ? { '@type': 'Brand', name: brandText } : undefined,
       image: images.filter(Boolean).slice(0, 8).map((u) => resolveAbsoluteUrl(req, u)),
+      additionalProperty: compatibleReferences.length
+        ? compatibleReferences.map((r) => ({ '@type': 'PropertyValue', name: 'Référence compatible', value: r }))
+        : undefined,
       offers: {
         '@type': 'Offer',
         url: canonicalUrl,

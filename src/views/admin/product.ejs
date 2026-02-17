@@ -124,6 +124,16 @@
           </div>
 
           <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shippingDelayText">Délai d’expédition (affiché sur la fiche produit)</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingDelayText" name="shippingDelayText" placeholder="Ex: Expédition sous 24/48h • Expédition sous 3 jours • Sur commande" type="text" value="<%= form && typeof form.shippingDelayText !== 'undefined' ? form.shippingDelayText : '' %>" />
+          </div>
+
+          <div class="md:col-span-4">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="compatibleReferences">Références compatibles (1 par ligne)</label>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary min-h-[90px]" id="compatibleReferences" name="compatibleReferences" placeholder="Ex: 0281011234 (une par ligne)"><%= form && typeof form.compatibleReferences !== 'undefined' ? form.compatibleReferences : '' %></textarea>
+          </div>
+
+          <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="compareAtPrice">Prix barré</label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="compareAtPrice" name="compareAtPrice" placeholder="Ex: 249,90" type="text" value="<%= form && form.compareAtPrice ? form.compareAtPrice : '' %>" />
           </div>
