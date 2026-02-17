@@ -13,7 +13,7 @@ const PromoRedemption = require('../models/PromoRedemption');
 const VehicleMake = require('../models/VehicleMake');
 const ShippingClass = require('../models/ShippingClass');
 
-const parcelapp = require('../services/parcelapp');
+const parcelwill = require('../services/parcelwill');
 const emailService = require('../services/emailService');
 
 const ADMIN_CREDENTIALS_FILE = path.join(__dirname, '..', '..', '.admin-credentials.json');
@@ -1790,13 +1790,13 @@ async function postAdminAddOrderShipment(req, res, next) {
       console.error('Erreur email expédition (admin) :', err && err.message ? err.message : err);
     }
 
-    const parcelApiKey = typeof process.env.PARCELAPP_API_KEY === 'string'
-      ? process.env.PARCELAPP_API_KEY.trim()
+    const parcelApiKey = typeof process.env.PARCELWILL_API_KEY === 'string'
+      ? process.env.PARCELWILL_API_KEY.trim()
       : '';
 
     const isProd = process.env.NODE_ENV === 'production';
-    const parcelEnabledRaw = typeof process.env.PARCELAPP_ENABLED === 'string'
-      ? process.env.PARCELAPP_ENABLED.trim().toLowerCase()
+    const parcelEnabledRaw = typeof process.env.PARCELWILL_ENABLED === 'string'
+      ? process.env.PARCELWILL_ENABLED.trim().toLowerCase()
       : '';
 
     let parcelEnabled = isProd;
@@ -1806,17 +1806,20 @@ async function postAdminAddOrderShipment(req, res, next) {
 
     if (parcelEnabled && parcelApiKey) {
       try {
-        const carrierCode = parcelapp.guessCarrierCode(carrier);
-        if (carrierCode) {
-          await parcelapp.addDelivery(parcelApiKey, {
-            trackingNumber,
-            carrierCode,
-            description: existing && existing.number ? `Commande ${existing.number}` : 'Commande CarParts France',
-            language: 'fr',
-          });
+        const courierCode = await parcelwill.guessCourierCode(parcelApiKey, carrier);
+        if (courierCode) {
+          await parcelwill.createTrackings(parcelApiKey, [
+            {
+              order_id: existing && existing.number ? String(existing.number) : String(existing && existing._id ? existing._id : ''),
+              tracking_number: trackingNumber,
+              courier_code: courierCode,
+              date_shipped: parcelwill.formatParcelwillDateTime(new Date()),
+              status_shipped: 1,
+            },
+          ]);
         }
       } catch (err) {
-        console.warn('ParcelApp: sync shipment failed:', err && err.message ? err.message : err);
+        console.warn('ParcelWILL: sync shipment failed:', err && err.message ? err.message : err);
       }
     }
 

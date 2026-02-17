@@ -7,7 +7,7 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const demoProducts = require('../demoProducts');
 
-const parcelapp = require('../services/parcelapp');
+const parcelwill = require('../services/parcelwill');
 const emailService = require('../services/emailService');
 
 function getCart(req) {
@@ -853,16 +853,16 @@ async function getOrderTrackingPage(req, res, next) {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const lastShipment = shipmentsSorted[0] || null;
 
-    const parcelApiKey = typeof process.env.PARCELAPP_API_KEY === 'string'
-      ? process.env.PARCELAPP_API_KEY.trim()
+    const parcelApiKey = typeof process.env.PARCELWILL_API_KEY === 'string'
+      ? process.env.PARCELWILL_API_KEY.trim()
       : '';
 
     let parcelDelivery = null;
     let parcelErrorMessage = '';
     const isProd = process.env.NODE_ENV === 'production';
 
-    const parcelEnabledRaw = typeof process.env.PARCELAPP_ENABLED === 'string'
-      ? process.env.PARCELAPP_ENABLED.trim().toLowerCase()
+    const parcelEnabledRaw = typeof process.env.PARCELWILL_ENABLED === 'string'
+      ? process.env.PARCELWILL_ENABLED.trim().toLowerCase()
       : '';
 
     let parcelEnabled = isProd;
@@ -873,37 +873,23 @@ async function getOrderTrackingPage(req, res, next) {
     if (!parcelEnabled && lastShipment && lastShipment.trackingNumber) {
       parcelErrorMessage = isProd
         ? 'Le suivi transporteur est temporairement indisponible.'
-        : "Le suivi transporteur avancé n'est pas disponible en local (ParcelApp demande un domaine public).";
+        : "Le suivi transporteur avancé n'est pas disponible en local.";
     } else if (parcelEnabled && parcelApiKey && lastShipment && lastShipment.trackingNumber) {
       try {
-        parcelDelivery = await parcelapp.findDeliveryByTrackingNumber(parcelApiKey, lastShipment.trackingNumber);
+        const orderKey = order && order.number ? String(order.number) : '';
+        const trackingDoc = orderKey ? await parcelwill.getTrackingDetails(parcelApiKey, orderKey) : null;
+        parcelDelivery = parcelwill.normalizeParcelwillToParcelDelivery(trackingDoc, lastShipment.trackingNumber);
 
         if (!parcelDelivery) {
-          const carrierCode = parcelapp.guessCarrierCode(lastShipment.carrier);
-          if (carrierCode) {
-            await parcelapp.addDelivery(parcelApiKey, {
-              trackingNumber: lastShipment.trackingNumber,
-              carrierCode,
-              description: order && order.number ? `Commande ${order.number}` : 'Commande CarParts France',
-              language: 'fr',
-            });
-
-            parcelDelivery = await parcelapp.findDeliveryByTrackingNumber(parcelApiKey, lastShipment.trackingNumber);
-            if (!parcelDelivery) {
-              parcelErrorMessage =
-                'Le suivi est en cours d’activation chez le transporteur. Réessayez dans quelques minutes.';
-            }
-          } else {
-            parcelErrorMessage =
-              'Transporteur non reconnu. Merci de renseigner un transporteur (ex: Colissimo, Chronopost, DHL) dans la commande.';
-          }
+          parcelErrorMessage =
+            'Le suivi est en cours d’activation chez le transporteur. Réessayez dans quelques minutes.';
         }
       } catch (err) {
         const rawMessage = err && err.message ? String(err.message) : '';
         if (rawMessage.toLowerCase().includes('account not found')) {
           parcelErrorMessage =
-            "Le suivi transporteur est indisponible : la clé Parcel n'est pas reconnue (ou l'accès API n'est pas activé sur ce compte). " +
-            'Générez une clé depuis web.parcelapp.net (compte Parcel) puis mettez-la dans PARCELAPP_API_KEY.';
+            "Le suivi transporteur est indisponible : la clé ParcelWILL n'est pas reconnue (ou l'accès API n'est pas activé sur ce compte). " +
+            'Récupérez une clé API ParcelWILL puis mettez-la dans PARCELWILL_API_KEY.';
         } else {
           parcelErrorMessage = rawMessage || 'Impossible de récupérer le suivi transporteur.';
         }
@@ -913,7 +899,7 @@ async function getOrderTrackingPage(req, res, next) {
     } else if (parcelEnabled && !parcelApiKey && lastShipment && lastShipment.trackingNumber) {
       parcelErrorMessage = isProd
         ? 'Le suivi transporteur est temporairement indisponible.'
-        : 'Clé ParcelApp manquante : configurez PARCELAPP_API_KEY dans le fichier .env.';
+        : 'Clé ParcelWILL manquante : configurez PARCELWILL_API_KEY dans le fichier .env.';
     }
 
     const ui = parcelDelivery
