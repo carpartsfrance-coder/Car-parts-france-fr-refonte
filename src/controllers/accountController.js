@@ -7,7 +7,8 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const demoProducts = require('../demoProducts');
 
-const parcelwill = require('../services/parcelwill');
+const track17 = require('../services/track17');
+const trackingLinks = require('../services/trackingLinks');
 const emailService = require('../services/emailService');
 
 function getCart(req) {
@@ -692,9 +693,9 @@ function getTimelineTitleForStatus(status) {
     case 'livree':
       return 'Commande livrée';
     case 'expediee':
-      return 'Colis pris en charge par le transporteur';
+      return 'Commande expédiée';
     case 'validee':
-      return 'Commande préparée';
+      return 'Commande en préparation';
     case 'annulee':
       return 'Commande annulée';
     case 'en_attente':
@@ -770,6 +771,13 @@ function parseParcelEventDate(value) {
   if (!value) return null;
   const d = new Date(value);
   if (!Number.isNaN(d.getTime())) return d;
+
+  if (typeof value === 'string') {
+    const isoLike = value.trim().replace(' ', 'T');
+    const d2 = new Date(isoLike);
+    if (!Number.isNaN(d2.getTime())) return d2;
+  }
+
   return null;
 }
 
@@ -853,102 +861,55 @@ async function getOrderTrackingPage(req, res, next) {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const lastShipment = shipmentsSorted[0] || null;
 
-    const parcelApiKey = typeof process.env.PARCELWILL_API_KEY === 'string'
-      ? process.env.PARCELWILL_API_KEY.trim()
+    const track17ApiKey = typeof process.env.TRACK17_API_KEY === 'string'
+      ? process.env.TRACK17_API_KEY.trim()
       : '';
 
-    let parcelDelivery = null;
-    let parcelErrorMessage = '';
+    let trackingDelivery = null;
+    let trackingErrorMessage = '';
     const isProd = process.env.NODE_ENV === 'production';
 
-    const parcelEnabledRaw = typeof process.env.PARCELWILL_ENABLED === 'string'
-      ? process.env.PARCELWILL_ENABLED.trim().toLowerCase()
+    const track17EnabledRaw = typeof process.env.TRACK17_ENABLED === 'string'
+      ? process.env.TRACK17_ENABLED.trim().toLowerCase()
       : '';
 
-    let parcelEnabled = isProd;
-    if (parcelEnabledRaw) {
-      parcelEnabled = ['1', 'true', 'yes', 'on'].includes(parcelEnabledRaw);
+    let track17Enabled = isProd;
+    if (track17EnabledRaw) {
+      track17Enabled = ['1', 'true', 'yes', 'on'].includes(track17EnabledRaw);
     }
 
-    if (!parcelEnabled && lastShipment && lastShipment.trackingNumber) {
-      parcelErrorMessage = isProd
+    if (!track17Enabled && lastShipment && lastShipment.trackingNumber) {
+      trackingErrorMessage = isProd
         ? 'Le suivi transporteur est temporairement indisponible.'
         : "Le suivi transporteur avancé n'est pas disponible en local.";
-    } else if (parcelEnabled && parcelApiKey && lastShipment && lastShipment.trackingNumber) {
+    } else if (track17Enabled && track17ApiKey && lastShipment && lastShipment.trackingNumber) {
       try {
-        const orderNumberKey = order && order.number ? String(order.number) : '';
-        const orderMongoKey = order && order._id ? String(order._id) : '';
-
-        const preferredOrderKey = orderNumberKey || orderMongoKey;
-        const orderKeys = [orderNumberKey, orderMongoKey].filter(Boolean);
-
         const trackingNumber = lastShipment.trackingNumber;
+        trackingDelivery = await track17.getTrackingByNumber(track17ApiKey, trackingNumber);
 
-        let trackingDoc = null;
-        for (const key of orderKeys) {
-          trackingDoc = await parcelwill.getTrackingDetails(parcelApiKey, key);
-          parcelDelivery = parcelwill.normalizeParcelwillToParcelDelivery(trackingDoc, trackingNumber);
-          if (parcelDelivery) break;
-        }
-
-        if (!parcelDelivery && preferredOrderKey) {
-          let courierCode = '';
-
-          if (lastShipment && lastShipment.carrier) {
-            courierCode = await parcelwill.guessCourierCode(parcelApiKey, lastShipment.carrier);
-          }
-
-          if (!courierCode && typeof trackingNumber === 'string' && trackingNumber.trim().toUpperCase().startsWith('1Z')) {
-            courierCode = 'ups';
-          }
-
-          if (courierCode) {
-            try {
-              await parcelwill.createTrackings(parcelApiKey, [
-                {
-                  order_id: preferredOrderKey,
-                  tracking_number: trackingNumber,
-                  courier_code: courierCode,
-                  date_shipped: parcelwill.formatParcelwillDateTime(lastShipment && lastShipment.createdAt ? lastShipment.createdAt : new Date()),
-                  status_shipped: 1,
-                },
-              ]);
-            } catch (err) {
-              // ignore
-            }
-
-            trackingDoc = await parcelwill.getTrackingDetails(parcelApiKey, preferredOrderKey);
-            parcelDelivery = parcelwill.normalizeParcelwillToParcelDelivery(trackingDoc, trackingNumber);
-          } else {
-            parcelErrorMessage =
-              'Transporteur non reconnu. Merci de renseigner un transporteur (ex: UPS, Colissimo, Chronopost) dans la commande.';
-          }
-        }
-
-        if (!parcelDelivery && !parcelErrorMessage) {
-          parcelErrorMessage =
-            'Le suivi est en cours d’activation chez le transporteur. Réessayez dans quelques minutes.';
+        if (!trackingDelivery) {
+          trackingErrorMessage =
+            "Le transporteur n'a pas encore fourni d'informations de suivi. Réessayez un peu plus tard.";
         }
       } catch (err) {
         const rawMessage = err && err.message ? String(err.message) : '';
-        if (rawMessage.toLowerCase().includes('account not found')) {
-          parcelErrorMessage =
-            "Le suivi transporteur est indisponible : la clé ParcelWILL n'est pas reconnue (ou l'accès API n'est pas activé sur ce compte). " +
-            'Récupérez une clé API ParcelWILL puis mettez-la dans PARCELWILL_API_KEY.';
-        } else {
-          parcelErrorMessage = rawMessage || 'Impossible de récupérer le suivi transporteur.';
-        }
+        trackingErrorMessage = rawMessage || 'Impossible de récupérer le suivi transporteur.';
       }
-    } else if (parcelEnabled && parcelApiKey && (!lastShipment || !lastShipment.trackingNumber)) {
-      parcelErrorMessage = 'Aucun numéro de suivi n’est renseigné pour cette commande.';
-    } else if (parcelEnabled && !parcelApiKey && lastShipment && lastShipment.trackingNumber) {
-      parcelErrorMessage = isProd
+    } else if (track17Enabled && track17ApiKey && (!lastShipment || !lastShipment.trackingNumber)) {
+      trackingErrorMessage = 'Aucun numéro de suivi n’est renseigné pour cette commande.';
+    } else if (track17Enabled && !track17ApiKey && lastShipment && lastShipment.trackingNumber) {
+      trackingErrorMessage = isProd
         ? 'Le suivi transporteur est temporairement indisponible.'
-        : 'Clé ParcelWILL manquante : configurez PARCELWILL_API_KEY dans le fichier .env.';
+        : 'Clé 17Track manquante : configurez TRACK17_API_KEY dans le fichier .env.';
     }
 
-    const ui = parcelDelivery
-      ? getTrackingUiForParcelStatusCode(parcelDelivery.status_code, order.status)
+    let carrierTrackingUrl = '';
+    if (lastShipment && lastShipment.trackingNumber) {
+      carrierTrackingUrl = trackingLinks.buildCarrierTrackingUrl(lastShipment.carrier, lastShipment.trackingNumber);
+    }
+
+    const ui = trackingDelivery
+      ? getTrackingUiForParcelStatusCode(trackingDelivery.status_code, order.status)
       : getTrackingUiForStatus(order.status);
 
     const baseSteps = [
@@ -961,7 +922,7 @@ async function getOrderTrackingPage(req, res, next) {
     const isDeliveredUi =
       ui.statusLabel === 'Livrée' ||
       ui.progressWidthClass === 'w-[100%]' ||
-      (parcelDelivery && parcelDelivery.status_code === 0);
+      (trackingDelivery && trackingDelivery.status_code === 0);
 
     const steps = baseSteps.map((s, idx) => {
       if (isDeliveredUi) {
@@ -973,34 +934,83 @@ async function getOrderTrackingPage(req, res, next) {
       return { ...s, state: '' };
     });
 
-    const timeline = [];
+    const carrierTimeline = [];
+    const orderTimeline = [];
 
-    const parcelEvents = parcelDelivery && Array.isArray(parcelDelivery.events) ? parcelDelivery.events : [];
-    if (parcelDelivery && parcelEvents.length === 0 && !parcelErrorMessage) {
-      parcelErrorMessage =
+    const parcelEvents = trackingDelivery && Array.isArray(trackingDelivery.events) ? trackingDelivery.events : [];
+    if (trackingDelivery && parcelEvents.length === 0 && !trackingErrorMessage) {
+      trackingErrorMessage =
         "Le transporteur n'a pas encore fourni d'informations de suivi. Réessayez un peu plus tard.";
     }
+    const carrierMilestones = new Map();
+    const upsertCarrierMilestone = (key, item) => {
+      if (!key || !item) return;
+      const existing = carrierMilestones.get(key);
+      if (!existing || (item.sortTime || 0) > (existing.sortTime || 0)) {
+        carrierMilestones.set(key, item);
+      }
+    };
+
+    const carrierTitleByKey = {
+      delivered: 'Livré',
+      out_for_delivery: 'En cours de livraison',
+      delivery_attempt: 'Tentative de livraison',
+      delivery_issue: 'Incident de livraison',
+      picked_up: 'Pris en charge par le transporteur',
+      in_transit: 'En transit',
+      info_received: 'Informations d’expédition reçues',
+    };
+
     for (const ev of parcelEvents) {
       if (!ev || !ev.event) continue;
       const dateObj = parseParcelEventDate(ev.date);
       const sortTime = dateObj ? dateObj.getTime() : 0;
+
       const descParts = [];
       if (ev.location) descParts.push(String(ev.location));
       if (ev.additional) descParts.push(String(ev.additional));
 
-      timeline.push({
+      const title = String(ev.event);
+      const normalized = title.toLowerCase();
+
+      let key = '';
+      if (normalized.includes('livr')) key = 'delivered';
+      else if (normalized.includes('en cours de livraison')) key = 'out_for_delivery';
+      else if (normalized.includes('tentative')) key = 'delivery_attempt';
+      else if (normalized.includes('incident')) key = 'delivery_issue';
+      else if (normalized.includes('pris en charge')) key = 'picked_up';
+      else if (normalized.includes('en transit') || normalized.includes('centre de tri') || normalized.includes('traitement')) {
+        key = 'in_transit';
+      } else if (normalized.includes('étiquette') || normalized.includes("informations d’expédition")) {
+        key = 'info_received';
+      }
+
+      if (!key) continue;
+
+      const milestoneTitle = carrierTitleByKey[key] || title;
+      const descriptionParts = [];
+      if (milestoneTitle !== title && title) descriptionParts.push(title);
+      if (descParts.length) descriptionParts.push(descParts.join(' • '));
+
+      upsertCarrierMilestone(key, {
         sortTime,
-        title: String(ev.event),
-        description: descParts.length ? descParts.join(' • ') : '',
+        title: milestoneTitle,
+        description: descriptionParts.length ? descriptionParts.join(' • ') : '',
         timeLabel: dateObj ? formatTimelineTimeLabel(dateObj) : (ev.date ? String(ev.date) : '—'),
       });
     }
+
+    for (const item of carrierMilestones.values()) {
+      carrierTimeline.push(item);
+    }
+
+    carrierTimeline.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
 
     if (Array.isArray(order.statusHistory)) {
       for (const h of order.statusHistory) {
         if (!h || !h.changedAt) continue;
         const d = new Date(h.changedAt);
-        timeline.push({
+        orderTimeline.push({
           sortTime: Number.isNaN(d.getTime()) ? 0 : d.getTime(),
           title: getTimelineTitleForStatus(h.status),
           description: '',
@@ -1009,29 +1019,20 @@ async function getOrderTrackingPage(req, res, next) {
       }
     }
 
-    for (const s of shipmentsSorted) {
-      if (!s || !s.createdAt) continue;
-      const d = new Date(s.createdAt);
-      timeline.push({
-        sortTime: Number.isNaN(d.getTime()) ? 0 : d.getTime(),
-        title: 'Suivi transporteur disponible',
-        description: s.carrier ? `${s.carrier} • ${s.trackingNumber}` : s.trackingNumber,
-        timeLabel: formatTimelineTimeLabel(s.createdAt),
-      });
-    }
+    orderTimeline.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
 
-    timeline.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
-
-    const lastUpdateLabel = timeline.length ? timeline[0].title : '—';
+    const lastUpdateLabel = carrierTimeline.length
+      ? carrierTimeline[0].title
+      : (orderTimeline.length ? orderTimeline[0].title : '—');
 
     let estimatedDateLabel = '—';
     let estimatedTimeLabel = '';
 
-    const parcelExpectedMs = parcelDelivery && parcelDelivery.timestamp_expected
-      ? getEpochMs(parcelDelivery.timestamp_expected)
+    const parcelExpectedMs = trackingDelivery && trackingDelivery.timestamp_expected
+      ? getEpochMs(trackingDelivery.timestamp_expected)
       : null;
-    const parcelExpectedEndMs = parcelDelivery && parcelDelivery.timestamp_expected_end
-      ? getEpochMs(parcelDelivery.timestamp_expected_end)
+    const parcelExpectedEndMs = trackingDelivery && trackingDelivery.timestamp_expected_end
+      ? getEpochMs(trackingDelivery.timestamp_expected_end)
       : null;
 
     if (parcelExpectedMs) {
@@ -1083,13 +1084,24 @@ async function getOrderTrackingPage(req, res, next) {
         statusBadgeClass: ui.statusBadgeClass,
         statusDotClass: ui.statusDotClass,
         statusDotPulse: ui.statusDotPulse,
-        parcelErrorMessage,
+        parcelErrorMessage: trackingErrorMessage,
+        carrierTrackingUrl,
         estimatedDateLabel,
         estimatedTimeLabel,
         progressWidthClass: ui.progressWidthClass,
         steps,
         lastUpdateLabel,
-        timeline: timeline.map((t) => ({
+        carrierTimeline: carrierTimeline.map((t) => ({
+          title: t.title,
+          description: t.description,
+          timeLabel: t.timeLabel,
+        })),
+        orderTimeline: orderTimeline.map((t) => ({
+          title: t.title,
+          description: t.description,
+          timeLabel: t.timeLabel,
+        })),
+        timeline: carrierTimeline.map((t) => ({
           title: t.title,
           description: t.description,
           timeLabel: t.timeLabel,

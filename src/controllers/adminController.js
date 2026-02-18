@@ -13,7 +13,7 @@ const PromoRedemption = require('../models/PromoRedemption');
 const VehicleMake = require('../models/VehicleMake');
 const ShippingClass = require('../models/ShippingClass');
 
-const parcelwill = require('../services/parcelwill');
+const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
 
 const ADMIN_CREDENTIALS_FILE = path.join(__dirname, '..', '..', '.admin-credentials.json');
@@ -1790,40 +1790,25 @@ async function postAdminAddOrderShipment(req, res, next) {
       console.error('Erreur email expédition (admin) :', err && err.message ? err.message : err);
     }
 
-    const parcelApiKey = typeof process.env.PARCELWILL_API_KEY === 'string'
-      ? process.env.PARCELWILL_API_KEY.trim()
+    const track17ApiKey = typeof process.env.TRACK17_API_KEY === 'string'
+      ? process.env.TRACK17_API_KEY.trim()
       : '';
 
     const isProd = process.env.NODE_ENV === 'production';
-    const parcelEnabledRaw = typeof process.env.PARCELWILL_ENABLED === 'string'
-      ? process.env.PARCELWILL_ENABLED.trim().toLowerCase()
+    const track17EnabledRaw = typeof process.env.TRACK17_ENABLED === 'string'
+      ? process.env.TRACK17_ENABLED.trim().toLowerCase()
       : '';
 
-    let parcelEnabled = isProd;
-    if (parcelEnabledRaw) {
-      parcelEnabled = ['1', 'true', 'yes', 'on'].includes(parcelEnabledRaw);
+    let track17Enabled = isProd;
+    if (track17EnabledRaw) {
+      track17Enabled = ['1', 'true', 'yes', 'on'].includes(track17EnabledRaw);
     }
 
-    if (parcelEnabled && parcelApiKey) {
+    if (track17Enabled && track17ApiKey) {
       try {
-        let courierCode = await parcelwill.guessCourierCode(parcelApiKey, carrier);
-        if (!courierCode && typeof trackingNumber === 'string' && trackingNumber.trim().toUpperCase().startsWith('1Z')) {
-          courierCode = 'ups';
-        }
-
-        if (courierCode) {
-          await parcelwill.createTrackings(parcelApiKey, [
-            {
-              order_id: existing && existing.number ? String(existing.number) : String(existing && existing._id ? existing._id : ''),
-              tracking_number: trackingNumber,
-              courier_code: courierCode,
-              date_shipped: parcelwill.formatParcelwillDateTime(new Date()),
-              status_shipped: 1,
-            },
-          ]);
-        }
+        await track17.registerTracking(track17ApiKey, trackingNumber);
       } catch (err) {
-        console.warn('ParcelWILL: sync shipment failed:', err && err.message ? err.message : err);
+        console.warn('17Track: init tracking failed:', err && err.message ? err.message : err);
       }
     }
 

@@ -7,17 +7,17 @@
 
   .tracker-line {
     height: 4px;
-    @apply bg-slate-200 dark:bg-slate-700 absolute top-5 left-0 w-full -z-10;
+    @apply bg-slate-200 dark:bg-slate-700 absolute top-4 md:top-5 left-0 w-full -z-10;
   }
   .tracker-progress {
     height: 4px;
-    @apply bg-primary absolute top-5 left-0 -z-10 transition-all duration-500;
+    @apply bg-primary absolute top-4 md:top-5 left-0 -z-10 transition-all duration-500;
   }
   .step-node {
     @apply flex flex-col items-center relative z-10 w-1/4;
   }
   .step-circle {
-    @apply w-10 h-10 rounded-full bg-white dark:bg-surface-dark border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center transition-colors duration-300;
+    @apply w-9 h-9 md:w-10 md:h-10 rounded-full bg-white dark:bg-surface-dark border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center transition-colors duration-300;
   }
   .step-node.active .step-circle {
     @apply border-primary text-primary;
@@ -26,10 +26,10 @@
     @apply bg-primary border-primary text-white;
   }
   .timeline-item {
-    @apply relative pl-8 pb-8 border-l-2 border-slate-100 dark:border-slate-800 last:border-0 last:pb-0;
+    @apply relative pl-6 md:pl-8 pb-6 md:pb-8 border-l-2 border-slate-100 dark:border-slate-800 last:border-0 last:pb-0;
   }
   .timeline-dot {
-    @apply absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 border-4 border-white dark:border-surface-dark;
+    @apply absolute -left-[8px] md:-left-[9px] top-0 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 border-4 border-white dark:border-surface-dark;
   }
   .timeline-item.active .timeline-dot {
     @apply bg-primary;
@@ -37,7 +37,7 @@
 </style>
 
 <main class="flex-1">
-  <div class="mx-auto max-w-[1440px] px-4 md:px-10 py-8">
+  <div class="mx-auto max-w-[1440px] px-4 md:px-10 py-6 md:py-8">
     <% if (!order) { %>
       <div class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
         <div class="text-2xl font-black text-slate-900">Suivi de commande</div>
@@ -58,9 +58,9 @@
         <span class="text-slate-900">Suivi <%= order.number %></span>
       </nav>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         <div class="lg:col-span-8 space-y-8">
-          <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+          <div class="bg-white rounded-3xl p-5 md:p-8 border border-slate-100 shadow-sm">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
               <div>
                 <h1 class="text-3xl md:text-4xl font-display font-bold mb-2">Commande <%= order.number %></h1>
@@ -72,9 +72,9 @@
                 </div>
               </div>
 
-              <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col md:text-right">
+              <div class="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-100 flex flex-col md:text-right">
                 <span class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Livraison estimée</span>
-                <span class="text-2xl font-display font-bold text-primary"><%= tracking.estimatedDateLabel || '—' %></span>
+                <span class="text-xl md:text-2xl font-display font-bold text-primary"><%= tracking.estimatedDateLabel || '—' %></span>
                 <span class="text-xs text-slate-400 font-medium"><%= tracking.estimatedTimeLabel || '' %></span>
               </div>
             </div>
@@ -93,21 +93,21 @@
                 <% tracking.steps.forEach((s) => { %>
                   <div class="step-node <%= s.state %>">
                     <div class="step-circle">
-                      <span class="material-symbols-outlined text-xl"><%= s.icon %></span>
+                      <span class="material-symbols-outlined text-lg md:text-xl"><%= s.icon %></span>
                     </div>
-                    <span class="mt-3 text-xs font-bold uppercase tracking-wider text-center <%= s.state === 'active' ? 'text-primary' : (s.state === 'completed' ? 'text-slate-900' : 'text-slate-400') %>"><%= s.label %></span>
+                    <span class="mt-2 md:mt-3 text-[10px] md:text-xs font-bold uppercase tracking-wider text-center <%= s.state === 'active' ? 'text-primary' : (s.state === 'completed' ? 'text-slate-900' : 'text-slate-400') %>"><%= s.label %></span>
                   </div>
                 <% }) %>
               </div>
             </div>
           </div>
 
-          <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden h-[400px] relative">
+          <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden h-[260px] md:h-[400px] relative">
             <img alt="Location Map" class="w-full h-full object-cover opacity-60 grayscale" src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=1920&auto=format&fit=crop"/>
             <div class="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent pointer-events-none"></div>
 
-            <div class="absolute bottom-6 left-6 right-6 flex justify-between items-end">
-              <div class="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-white shadow-xl max-w-xs">
+            <div class="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6 flex flex-col sm:flex-row sm:justify-between items-stretch sm:items-end gap-3">
+              <div class="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-white shadow-xl max-w-none sm:max-w-xs">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
                     <span class="material-symbols-outlined text-primary">near_me</span>
@@ -119,21 +119,24 @@
                 </div>
               </div>
 
-              <a class="bg-slate-900 text-white p-3 rounded-xl shadow-xl hover:bg-black transition-all" href="/compte/commandes/<%= order.id %>">
+              <a class="bg-slate-900 text-white p-3 rounded-xl shadow-xl hover:bg-black transition-all self-end" href="/compte/commandes/<%= order.id %>">
                 <span class="material-symbols-outlined">visibility</span>
               </a>
             </div>
           </div>
 
-          <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+          <div class="bg-white rounded-3xl p-5 md:p-8 border border-slate-100 shadow-sm">
             <h3 class="text-xl font-display font-bold mb-8 flex items-center gap-2">
               <span class="material-symbols-outlined text-primary">history</span>
               Historique du colis
             </h3>
 
-            <div class="ml-4">
-              <% if (tracking.timeline && tracking.timeline.length) { %>
-                <% tracking.timeline.forEach((t, idx) => { %>
+            <div class="ml-0 sm:ml-4">
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Suivi transporteur</div>
+
+              <% const carrierTimeline = (tracking && tracking.carrierTimeline && tracking.carrierTimeline.length) ? tracking.carrierTimeline : (tracking && tracking.timeline ? tracking.timeline : []); %>
+              <% if (carrierTimeline && carrierTimeline.length) { %>
+                <% carrierTimeline.forEach((t, idx) => { %>
                   <div class="timeline-item <%= idx === 0 ? 'active' : '' %>">
                     <div class="timeline-dot"></div>
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -148,14 +151,35 @@
                   </div>
                 <% }) %>
               <% } else { %>
-                <div class="text-slate-600">Aucun évènement de suivi pour le moment.</div>
+                <div class="text-slate-600">Aucun évènement de suivi transporteur pour le moment.</div>
+              <% } %>
+
+              <div class="mt-10 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Historique de la commande</div>
+
+              <% if (tracking.orderTimeline && tracking.orderTimeline.length) { %>
+                <% tracking.orderTimeline.forEach((t, idx) => { %>
+                  <div class="timeline-item <%= idx === 0 ? 'active' : '' %>">
+                    <div class="timeline-dot"></div>
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                      <div>
+                        <h4 class="font-bold text-slate-900"><%= t.title %></h4>
+                        <% if (t.description) { %>
+                          <p class="text-sm text-slate-500"><%= t.description %></p>
+                        <% } %>
+                      </div>
+                      <span class="text-xs font-bold text-slate-400 whitespace-nowrap <%= idx === 0 ? 'bg-slate-50 px-3 py-1 rounded-full border border-slate-100' : '' %>"><%= t.timeLabel %></span>
+                    </div>
+                  </div>
+                <% }) %>
+              <% } else { %>
+                <div class="text-slate-600">Aucun évènement de commande pour le moment.</div>
               <% } %>
             </div>
           </div>
         </div>
 
         <div class="lg:col-span-4 space-y-8">
-          <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm sticky top-24">
+          <div class="bg-white rounded-3xl p-5 md:p-8 border border-slate-100 shadow-sm lg:sticky lg:top-24">
             <h3 class="text-xl font-display font-bold mb-6">Résumé de commande</h3>
 
             <div class="space-y-6 mb-8">
@@ -191,9 +215,6 @@
                   <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Numéro de suivi</p>
                   <div class="rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm font-bold text-slate-900">
                     <%= tracking.trackingNumber %>
-                    <% if (tracking.trackingCarrier) { %>
-                      <span class="text-xs text-slate-500 font-semibold">• <%= tracking.trackingCarrier %></span>
-                    <% } %>
                   </div>
                 </div>
               <% } %>

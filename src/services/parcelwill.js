@@ -17,6 +17,66 @@ function normalizeTrackingNumber(value) {
   return getTrimmedString(value).replace(/\s+/g, '');
 }
 
+function buildCarrierTrackingUrlFallback(carrierLabel, trackingNumber) {
+  const tracking = normalizeTrackingNumber(trackingNumber);
+  if (!tracking) return '';
+
+  const rawCarrier = getTrimmedString(carrierLabel).toLowerCase();
+
+  if (tracking.toUpperCase().startsWith('1Z') || rawCarrier.includes('ups')) {
+    return `https://www.ups.com/track?loc=fr_FR&tracknum=${encodeURIComponent(tracking)}`;
+  }
+
+  if (rawCarrier.includes('colissimo') || rawCarrier.includes('la poste') || rawCarrier.includes('laposte')) {
+    return `https://www.laposte.fr/outils/suivre-vos-envois?code=${encodeURIComponent(tracking)}`;
+  }
+
+  if (rawCarrier.includes('chronopost')) {
+    return `https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=${encodeURIComponent(tracking)}`;
+  }
+
+  if (rawCarrier.includes('mondial') || rawCarrier.includes('relay')) {
+    return `https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition=${encodeURIComponent(tracking)}`;
+  }
+
+  if (rawCarrier.includes('dpd')) {
+    return `https://tracking.dpd.fr/${encodeURIComponent(tracking)}`;
+  }
+
+  if (rawCarrier.includes('gls')) {
+    return `https://gls-group.com/FR/fr/suivi-colis/?match=${encodeURIComponent(tracking)}`;
+  }
+
+  if (rawCarrier.includes('dhl')) {
+    return `https://www.dhl.com/fr-fr/home/tracking.html?tracking-id=${encodeURIComponent(tracking)}`;
+  }
+
+  return '';
+}
+
+function normalizeOrderIdToInteger(value) {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return null;
+
+  const digits = raw.replace(/\D+/g, '');
+  if (!digits) return null;
+
+  const max = 2147483647;
+
+  try {
+    const big = BigInt(digits);
+    const mod = big % BigInt(max);
+    const asNumber = Number(mod);
+    if (!Number.isSafeInteger(asNumber)) return null;
+    return asNumber > 0 ? asNumber : 1;
+  } catch (err) {
+    const asNumber = Number.parseInt(digits.slice(0, 18), 10);
+    if (!Number.isSafeInteger(asNumber)) return null;
+    const reduced = asNumber % max;
+    return reduced > 0 ? reduced : 1;
+  }
+}
+
 function buildHeaders(apiKey) {
   return {
     'content-type': 'application/json',
@@ -111,6 +171,31 @@ async function listCouriers(apiKey) {
   return list;
 }
 
+async function getCarrierTrackingUrl(apiKey, carrierLabel, trackingNumber) {
+  const tracking = normalizeTrackingNumber(trackingNumber);
+  if (!tracking) return '';
+
+  if (apiKey) {
+    try {
+      const courierCode = await guessCourierCode(apiKey, carrierLabel);
+      if (courierCode) {
+        const list = await listCouriers(apiKey);
+        const courier = list.find((c) => String(c && c.courier_code).toLowerCase() === String(courierCode).toLowerCase());
+        const template = courier && courier.courier_url ? String(courier.courier_url) : '';
+        if (template) {
+          return template.includes('******')
+            ? template.split('******').join(encodeURIComponent(tracking))
+            : template;
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  return buildCarrierTrackingUrlFallback(carrierLabel, tracking);
+}
+
 function guessCourierCodeFallback(carrierLabel) {
   const raw = getTrimmedString(carrierLabel).toLowerCase();
   if (!raw) return '';
@@ -155,10 +240,21 @@ async function createTrackings(apiKey, shipments) {
   const list = Array.isArray(shipments) ? shipments.filter(Boolean) : [];
   if (!list.length) return { ok: false, error: 'Aucun tracking' };
 
+  const normalizedShipments = list.map((s) => {
+    const orderId = normalizeOrderIdToInteger(s && s.order_id);
+    if (!orderId) {
+      throw new Error('ParcelWILL: order_id invalide (doit être un nombre)');
+    }
+    return {
+      ...s,
+      order_id: orderId,
+    };
+  });
+
   const json = await fetchJson('/api/v1/tracking/create', {
     method: 'POST',
     apiKey,
-    body: { shipments: list },
+    body: { shipments: normalizedShipments },
   });
 
   const ok = json && Number(json.code) === 200;
@@ -167,11 +263,20 @@ async function createTrackings(apiKey, shipments) {
     throw new Error(msg);
   }
 
-  return { ok: true, data: json.data || null };
+  const data = json && json.data ? json.data : null;
+  const successCount = data && Number.isFinite(data.success_count) ? data.success_count : null;
+  const failCount = data && Number.isFinite(data.fail_count) ? data.fail_count : null;
+  if ((successCount === 0 || successCount == null) && failCount && failCount > 0) {
+    const firstError = data && Array.isArray(data.error) ? data.error[0] : null;
+    const msg = firstError && firstError.message ? String(firstError.message) : 'Erreur ParcelWILL';
+    throw new Error(msg);
+  }
+
+  return { ok: true, data };
 }
 
 async function getTrackingDetails(apiKey, orderId) {
-  const id = orderId == null ? '' : String(orderId).trim();
+  const id = normalizeOrderIdToInteger(orderId);
   if (!id) return null;
 
   const json = await fetchJson('/api/v1/tracking/list', {
@@ -251,6 +356,9 @@ function normalizeParcelwillToParcelDelivery(trackingDoc, preferredTrackingNumbe
 module.exports = {
   PARCELWILL_BASE_URL,
   normalizeTrackingNumber,
+  normalizeOrderIdToInteger,
+  buildCarrierTrackingUrlFallback,
+  getCarrierTrackingUrl,
   formatParcelwillDateTime,
   listCouriers,
   guessCourierCode,
