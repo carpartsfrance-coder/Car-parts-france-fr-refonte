@@ -339,13 +339,6 @@ function getDefaultAddress(user) {
   return user.addresses.find((a) => a && a.isDefault) || user.addresses[0] || null;
 }
 
-function generateOrderNumber() {
-  const rand = Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, '0');
-  return `CP-${Date.now()}-${rand}`;
-}
-
 async function placeOrder(req, res, next) {
   try {
     return res.redirect('/commande/livraison');

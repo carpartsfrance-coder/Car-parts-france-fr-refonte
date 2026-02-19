@@ -31,6 +31,16 @@
               </div>
 
               <div>
+                <label class="block text-sm font-bold text-slate-700" for="mainShippingClass">Classe de livraison</label>
+                <select class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="mainShippingClass" name="shippingClassId">
+                  <option value="">Défaut / aucune</option>
+                  <% (shippingClassOptions || []).forEach((opt) => { %>
+                    <option value="<%= opt.id %>"><%= opt.name %> — <%= opt.domicilePrice %></option>
+                  <% }) %>
+                </select>
+              </div>
+
+              <div>
                 <label class="block text-sm font-bold text-slate-700" for="mainSortOrder">Ordre (optionnel)</label>
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="mainSortOrder" name="sortOrder" placeholder="0" type="number" />
                 <div class="mt-1 text-xs text-slate-500">Plus le nombre est petit, plus la catégorie remonte dans la liste.</div>
@@ -60,6 +70,16 @@
               <div>
                 <label class="block text-sm font-bold text-slate-700" for="subNameNew">Sous-catégorie</label>
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="subNameNew" name="subName" placeholder="Ex: Boîte de vitesses" required type="text" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-bold text-slate-700" for="subShippingClass">Classe de livraison</label>
+                <select class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="subShippingClass" name="shippingClassId">
+                  <option value="">Défaut / aucune</option>
+                  <% (shippingClassOptions || []).forEach((opt) => { %>
+                    <option value="<%= opt.id %>"><%= opt.name %> — <%= opt.domicilePrice %></option>
+                  <% }) %>
+                </select>
               </div>
 
               <div>
@@ -170,6 +190,15 @@
                                 <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Nom</label>
                                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="name" required type="text" value="<%= g.mainDoc.name %>" />
                               </div>
+                              <div>
+                                <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Classe de livraison</label>
+                                <select class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="shippingClassId">
+                                  <option value="">Défaut / aucune</option>
+                                  <% (shippingClassOptions || []).forEach((opt) => { %>
+                                    <option value="<%= opt.id %>" <%= (g.mainDoc.shippingClassId && String(g.mainDoc.shippingClassId) === String(opt.id)) ? 'selected' : '' %>><%= opt.name %> — <%= opt.domicilePrice %></option>
+                                  <% }) %>
+                                </select>
+                              </div>
                               <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
                                   <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Ordre</label>
@@ -242,6 +271,15 @@
                                       <div>
                                         <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Sous-catégorie</label>
                                         <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="subName" required type="text" value="<%= s.subName %>" />
+                                      </div>
+                                      <div>
+                                        <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Classe de livraison</label>
+                                        <select class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="shippingClassId">
+                                          <option value="">Défaut / aucune</option>
+                                          <% (shippingClassOptions || []).forEach((opt) => { %>
+                                            <option value="<%= opt.id %>" <%= (s.shippingClassId && String(s.shippingClassId) === String(opt.id)) ? 'selected' : '' %>><%= opt.name %> — <%= opt.domicilePrice %></option>
+                                          <% }) %>
+                                        </select>
                                       </div>
                                       <div>
                                         <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Ordre</label>

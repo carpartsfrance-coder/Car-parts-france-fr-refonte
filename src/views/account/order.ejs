@@ -22,9 +22,11 @@
             </div>
 
             <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-end">
-              <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" type="button">
-                Facture PDF
-              </button>
+              <% if (order.hasInvoice && order.invoiceUrl) { %>
+                <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= order.invoiceUrl %>" target="_blank" rel="noopener">
+                  Facture PDF
+                </a>
+              <% } %>
 
               <form action="/compte/commandes/<%= order.id %>/racheter" method="POST">
                 <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">

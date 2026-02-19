@@ -1,0 +1,103 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'settings' }) %>
+
+<main class="flex-1">
+  <div class="px-6 lg:px-10 py-8">
+    <div>
+      <div class="text-2xl md:text-3xl font-black text-slate-900">Facturation</div>
+      <div class="mt-1 text-sm text-slate-600">Informations affichées sur les factures PDF.</div>
+    </div>
+
+    <% if (typeof successMessage !== 'undefined' && successMessage) { %>
+      <div class="mt-8 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+        <div class="font-bold">OK</div>
+        <div class="mt-1 text-sm"><%= successMessage %></div>
+      </div>
+    <% } %>
+
+    <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+      <div class="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
+        <div class="font-bold">Erreur</div>
+        <div class="mt-1 text-sm"><%= errorMessage %></div>
+      </div>
+    <% } %>
+
+    <form action="/admin/parametres/facturation" class="mt-8 bg-white rounded-2xl border border-slate-200 p-6 space-y-6" method="POST">
+      <div>
+        <div class="text-sm font-black uppercase tracking-widest text-slate-400">Société</div>
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="legalName">Raison sociale</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="legalName" name="legalName" type="text" value="<%= form && form.legalName ? form.legalName : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="legalForm">Forme juridique</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="legalForm" name="legalForm" type="text" value="<%= form && form.legalForm ? form.legalForm : '' %>" />
+          </div>
+          <div class="lg:col-span-2">
+            <label class="block text-sm font-bold text-slate-700" for="address">Adresse</label>
+            <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="address" name="address" rows="2"><%= form && form.address ? form.address : '' %></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="siret">SIRET</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="siret" name="siret" type="text" value="<%= form && form.siret ? form.siret : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="vat">TVA</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="vat" name="vat" type="text" value="<%= form && form.vat ? form.vat : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="ape">APE / NAF</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="ape" name="ape" type="text" value="<%= form && form.ape ? form.ape : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="capital">Capital social</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="capital" name="capital" type="text" value="<%= form && form.capital ? form.capital : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="rcs">RCS</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="rcs" name="rcs" type="text" value="<%= form && form.rcs ? form.rcs : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="website">Site web</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="website" name="website" type="text" value="<%= form && form.website ? form.website : '' %>" />
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="logoUrl">Logo (URL ou chemin public)</label>
+            <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="logoUrl" name="logoUrl" type="text" value="<%= form && form.logoUrl ? form.logoUrl : '' %>" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-sm font-black uppercase tracking-widest text-slate-400">Textes facture</div>
+        <div class="mt-4 grid grid-cols-1 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="paymentTermsText">Conditions de paiement</label>
+            <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="paymentTermsText" name="paymentTermsText" rows="2"><%= form && form.paymentTermsText ? form.paymentTermsText : '' %></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="latePenaltyText">Pénalités de retard</label>
+            <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="latePenaltyText" name="latePenaltyText" rows="2"><%= form && form.latePenaltyText ? form.latePenaltyText : '' %></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700" for="proRecoveryFeeText">Indemnité 40€ (clients pro)</label>
+            <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="proRecoveryFeeText" name="proRecoveryFeeText" rows="2"><%= form && form.proRecoveryFeeText ? form.proRecoveryFeeText : '' %></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-end">
+        <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/parametres">
+          Retour
+        </a>
+        <button class="inline-flex items-center justify-center rounded-xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit" <%= dbConnected ? '' : 'disabled' %>>
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<%- include('./partials/footer') %>

@@ -10,6 +10,12 @@ const demoProducts = require('../demoProducts');
 const track17 = require('../services/track17');
 const trackingLinks = require('../services/trackingLinks');
 const emailService = require('../services/emailService');
+const { buildOrderInvoicePdfBuffer } = require('../services/invoicePdf');
+const { ensureInvoiceIssuedForPaidOrder } = require('../services/orderInvoices');
+
+function getTrimmedString(value) {
+  return typeof value === 'string' ? value.trim() : value ? String(value).trim() : '';
+}
 
 function getCart(req) {
   if (!req.session.cart) {
@@ -373,15 +379,29 @@ async function getInvoicesPage(req, res, next) {
       });
     }
 
-    const orders = await Order.find({ userId: sessionUser._id })
+    const orders = await Order.find({ userId: sessionUser._id, paymentStatus: 'paid' })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
 
+    for (let i = 0; i < orders.length; i += 1) {
+      const o = orders[i];
+      const hasNumber = o && o.invoice && typeof o.invoice.number === 'string' && o.invoice.number.trim();
+      if (hasNumber) continue;
+      try {
+        const refreshed = await ensureInvoiceIssuedForPaidOrder(o._id);
+        if (refreshed && refreshed.invoice) {
+          orders[i] = { ...o, invoice: refreshed.invoice };
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+
     const invoices = orders.map((o) => ({
       id: String(o._id),
-      number: o.number,
-      date: formatDateFR(o.createdAt),
+      number: o && o.invoice && o.invoice.number ? String(o.invoice.number) : o.number,
+      date: o && o.invoice && o.invoice.issuedAt ? formatDateFR(o.invoice.issuedAt) : formatDateFR(o.createdAt),
       total: formatEuro(o.totalCents),
     }));
 
@@ -479,6 +499,10 @@ async function getOrderDetailPage(req, res, next) {
 
     const statusBanner = getOrderStatusBanner(order.status);
 
+    const invoiceNumber = order && order.invoice && typeof order.invoice.number === 'string' ? order.invoice.number.trim() : '';
+    const hasInvoice = getTrimmedString(order.paymentStatus).toLowerCase() === 'paid';
+    const invoiceUrl = hasInvoice ? `/compte/commandes/${encodeURIComponent(String(order._id))}/facture.pdf` : '';
+
     const consigneLines = order && order.consigne && Array.isArray(order.consigne.lines)
       ? order.consigne.lines
       : [];
@@ -542,6 +566,9 @@ async function getOrderDetailPage(req, res, next) {
       order: {
         id: String(order._id),
         number: order.number,
+        invoiceNumber,
+        invoiceUrl,
+        hasInvoice,
         date: formatDateFR(order.createdAt),
         dateTime: formatDateTimeFR(order.createdAt),
         status: formatOrderStatus(order.status),
@@ -590,6 +617,55 @@ async function getOrderDetailPage(req, res, next) {
           : [],
       },
     });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getOrderInvoicePdf(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const sessionUser = req.session.user;
+    const { orderId } = req.params;
+
+    if (!sessionUser || !sessionUser._id) {
+      return res.redirect('/compte');
+    }
+
+    if (!dbConnected) {
+      return res.status(503).send('Facture indisponible');
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(404).render('errors/404', { title: 'Page introuvable - CarParts France' });
+    }
+
+    let order = await Order.findOne({ _id: orderId, userId: sessionUser._id }).lean();
+    if (!order) {
+      return res.status(404).render('errors/404', { title: 'Page introuvable - CarParts France' });
+    }
+
+    const isPaid = getTrimmedString(order.paymentStatus).toLowerCase() === 'paid';
+    if (!isPaid) {
+      return res.status(403).send('Facture non disponible');
+    }
+
+    await ensureInvoiceIssuedForPaidOrder(order._id);
+    order = await Order.findById(order._id).lean();
+
+    const user = await User.findById(order.userId).select('_id email firstName lastName companyName siret accountType').lean();
+
+    const buffer = await buildOrderInvoicePdfBuffer({ order, user });
+    if (!buffer || !Buffer.isBuffer(buffer) || !buffer.length) {
+      return res.status(500).send('Facture indisponible');
+    }
+
+    const invoiceNumber = order && order.invoice && typeof order.invoice.number === 'string' ? order.invoice.number.trim() : '';
+    const filename = invoiceNumber ? `Facture-${invoiceNumber}.pdf` : `Facture-${order.number}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=\"${filename}\"`);
+    return res.send(buffer);
   } catch (err) {
     return next(err);
   }
@@ -1409,8 +1485,10 @@ async function getOrdersPage(req, res, next) {
             return sum + it.quantity;
           }, 0)
         : 0;
-
       const consigne = computeConsigneSummaryForOrder(o);
+
+      const isPaid = getTrimmedString(o && o.paymentStatus).toLowerCase() === 'paid';
+      const invoiceUrl = isPaid ? `/compte/commandes/${encodeURIComponent(String(o._id))}/facture.pdf` : '';
 
       return {
         id: String(o._id),
@@ -1424,6 +1502,7 @@ async function getOrdersPage(req, res, next) {
         statusBadge,
         total: formatEuro(o.totalCents),
         consigne,
+        invoiceUrl,
       };
     });
 
@@ -2210,6 +2289,7 @@ module.exports = {
   postDeleteAddress,
   getOrdersPage,
   getOrderDetailPage,
+  getOrderInvoicePdf,
   getOrderTrackingPage,
   postRepurchaseOrder,
   getInvoicesPage,

@@ -126,6 +126,43 @@ async function getHome(req, res, next) {
   }
 }
 
+async function redirectLegacyBlogSlug(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) return next();
+
+    const slug = typeof req.params.slug === 'string' ? req.params.slug.trim() : '';
+    if (!slug) return next();
+
+    const reserved = new Set([
+      'produits',
+      'categorie',
+      'blog',
+      'rechercher',
+      'panier',
+      'commande',
+      'compte',
+      'admin',
+      'legal',
+      'sitemap.xml',
+      'robots.txt',
+      'favicon.ico',
+    ]);
+    if (reserved.has(slug)) return next();
+
+    const exists = await BlogPost.findOne({ slug, isPublished: true })
+      .select('_id slug')
+      .lean();
+
+    if (!exists) return next();
+
+    return res.redirect(301, `/blog/${encodeURIComponent(slug)}`);
+  } catch (err) {
+    return next();
+  }
+}
+
 module.exports = {
   getHome,
+  redirectLegacyBlogSlug,
 };

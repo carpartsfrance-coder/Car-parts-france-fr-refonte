@@ -70,6 +70,10 @@ const orderSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     number: { type: String, required: true, unique: true, trim: true },
+    invoice: {
+      number: { type: String, default: '', trim: true, index: true },
+      issuedAt: { type: Date, default: null },
+    },
     status: {
       type: String,
       enum: ['en_attente', 'validee', 'expediee', 'livree', 'annulee'],

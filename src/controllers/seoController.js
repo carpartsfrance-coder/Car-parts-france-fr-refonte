@@ -144,6 +144,18 @@ async function getSitemapXml(req, res, next) {
 }
 
 function getRobotsTxt(req, res) {
+  if (process.env.FORCE_NOINDEX === 'true') {
+    const body = [
+      'User-agent: *',
+      'Disallow: /',
+      '',
+    ].join('\n');
+
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=600');
+    return res.status(200).send(body);
+  }
+
   const baseUrl = getPublicBaseUrlFromReq(req);
   const sitemapUrl = baseUrl ? `${baseUrl}/sitemap.xml` : '/sitemap.xml';
 

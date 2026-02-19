@@ -15,6 +15,8 @@ const ShippingClass = require('../models/ShippingClass');
 
 const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
+const invoiceSettings = require('../services/invoiceSettings');
+const siteSettings = require('../services/siteSettings');
 
 const ADMIN_CREDENTIALS_FILE = path.join(__dirname, '..', '..', '.admin-credentials.json');
 
@@ -196,6 +198,52 @@ async function postAdminMarkOrderConsigneReceived(req, res, next) {
   }
 }
 
+async function getAdminSiteSettingsPage(req, res) {
+  const dbConnected = mongoose.connection.readyState === 1;
+  const fallback = siteSettings.buildEnvFallback();
+
+  if (!dbConnected) {
+    return res.status(503).render('admin/site-settings', {
+      title: 'Admin - Site',
+      dbConnected,
+      form: fallback,
+      successMessage: null,
+      errorMessage: "La base de données n'est pas disponible.",
+    });
+  }
+
+  const successMessage = req.session.adminSiteSettingsSuccess || null;
+  const errorMessage = req.session.adminSiteSettingsError || null;
+  delete req.session.adminSiteSettingsSuccess;
+  delete req.session.adminSiteSettingsError;
+
+  const merged = await siteSettings.getSiteSettingsMergedWithFallback({ bypassCache: true });
+
+  return res.render('admin/site-settings', {
+    title: 'Admin - Site',
+    dbConnected,
+    form: merged,
+    successMessage,
+    errorMessage,
+  });
+}
+
+async function postAdminSiteSettings(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminSiteSettingsError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/parametres/site');
+    }
+
+    await siteSettings.updateSiteSettingsFromForm(req.body);
+    req.session.adminSiteSettingsSuccess = 'Paramètres du site enregistrés.';
+    return res.redirect('/admin/parametres/site');
+  } catch (err) {
+    return next(err);
+  }
+}
+
 function tryDeleteFile(filePath) {
   if (!filePath) return;
   try {
@@ -298,6 +346,7 @@ async function getAdminCategoriesPage(req, res, next) {
         categories: [],
         categoryGroups: [],
         mainCategoryOptions: [],
+        shippingClassOptions: [],
         filters: { q },
         pagination: {
           page: 1,
@@ -316,6 +365,17 @@ async function getAdminCategoriesPage(req, res, next) {
     const categoryDocs = await Category.find({})
       .sort({ sortOrder: 1, name: 1 })
       .lean();
+
+    const shippingClassDocs = await ShippingClass.find({})
+      .sort({ sortOrder: 1, name: 1 })
+      .select('_id name domicilePriceCents')
+      .lean();
+
+    const shippingClassOptions = shippingClassDocs.map((c) => ({
+      id: String(c._id),
+      name: typeof c.name === 'string' ? c.name.trim() : '',
+      domicilePrice: formatEuro(Number.isFinite(c.domicilePriceCents) ? c.domicilePriceCents : 0),
+    }));
 
     const productCategoryCounts = await Product.aggregate([
       { $group: { _id: '$category', count: { $sum: 1 } } },
@@ -343,6 +403,7 @@ async function getAdminCategoriesPage(req, res, next) {
         slug: c.slug,
         isActive: c.isActive !== false,
         sortOrder: Number.isFinite(c.sortOrder) ? c.sortOrder : 0,
+        shippingClassId: c.shippingClassId ? String(c.shippingClassId) : '',
         createdAt: formatDateTimeFR(c.createdAt),
         usedCountExact,
       };
@@ -392,6 +453,7 @@ async function getAdminCategoriesPage(req, res, next) {
               slug: '',
               isActive: true,
               sortOrder: 0,
+              shippingClassId: '',
               createdAt: '—',
               usedCountExact: 0,
               usedCountTotal,
@@ -444,6 +506,7 @@ async function getAdminCategoriesPage(req, res, next) {
       categories,
       categoryGroups: paginatedGroups,
       mainCategoryOptions,
+      shippingClassOptions,
       filters: { q },
       pagination: {
         page: currentPage,
@@ -475,6 +538,11 @@ async function postAdminCreateCategory(req, res, next) {
     const sortOrderNum = sortOrderRaw ? Number(sortOrderRaw) : 0;
     const sortOrder = Number.isFinite(sortOrderNum) ? Math.floor(sortOrderNum) : 0;
 
+    const shippingClassIdRaw = getTrimmedString(req.body.shippingClassId);
+    const shippingClassId = shippingClassIdRaw && mongoose.Types.ObjectId.isValid(shippingClassIdRaw)
+      ? new mongoose.Types.ObjectId(shippingClassIdRaw)
+      : null;
+
     if (!name) {
       req.session.adminCategoryError = 'Merci de renseigner un nom de catégorie.';
       return res.redirect('/admin/categories');
@@ -491,6 +559,7 @@ async function postAdminCreateCategory(req, res, next) {
       slug,
       isActive: true,
       sortOrder,
+      shippingClassId,
     });
 
     return res.redirect('/admin/categories');
@@ -518,7 +587,7 @@ async function postAdminUpdateCategory(req, res, next) {
       return res.redirect('/admin/categories');
     }
 
-    const existing = await Category.findById(categoryId).select('_id name sortOrder').lean();
+    const existing = await Category.findById(categoryId).select('_id name sortOrder shippingClassId').lean();
     if (!existing || typeof existing.name !== 'string' || !existing.name.trim()) {
       return res.redirect('/admin/categories');
     }
@@ -534,6 +603,11 @@ async function postAdminUpdateCategory(req, res, next) {
     const sortOrderRaw = typeof req.body.sortOrder === 'string' ? req.body.sortOrder.trim() : '';
     const sortOrderNum = sortOrderRaw ? Number(sortOrderRaw) : (Number.isFinite(existing.sortOrder) ? existing.sortOrder : 0);
     const sortOrder = Number.isFinite(sortOrderNum) ? Math.floor(sortOrderNum) : 0;
+
+    const shippingClassIdRaw = getTrimmedString(req.body.shippingClassId);
+    const shippingClassId = shippingClassIdRaw && mongoose.Types.ObjectId.isValid(shippingClassIdRaw)
+      ? new mongoose.Types.ObjectId(shippingClassIdRaw)
+      : null;
 
     if (!nextName) {
       req.session.adminCategoryError = 'Merci de renseigner un nom de catégorie.';
@@ -587,7 +661,12 @@ async function postAdminUpdateCategory(req, res, next) {
           : (Number.isFinite(cat.sortOrder) ? cat.sortOrder : 0);
 
         await Category.findByIdAndUpdate(cat._id, {
-          $set: { name: updatedName, slug: updatedSlug, sortOrder: updatedSortOrder },
+          $set: {
+            name: updatedName,
+            slug: updatedSlug,
+            sortOrder: updatedSortOrder,
+            ...(String(cat._id) === String(existing._id) ? { shippingClassId } : {}),
+          },
         });
       }
 
@@ -609,9 +688,13 @@ async function postAdminUpdateCategory(req, res, next) {
         }
       }
     } else {
-      if (nextName !== oldName || sortOrder !== (Number.isFinite(existing.sortOrder) ? existing.sortOrder : 0)) {
+      if (
+        nextName !== oldName ||
+        sortOrder !== (Number.isFinite(existing.sortOrder) ? existing.sortOrder : 0) ||
+        String(existing.shippingClassId || '') !== String(shippingClassId || '')
+      ) {
         await Category.findByIdAndUpdate(categoryId, {
-          $set: { name: nextName, slug: nextSlug, sortOrder },
+          $set: { name: nextName, slug: nextSlug, sortOrder, shippingClassId },
         });
       }
 
@@ -2094,7 +2177,8 @@ function buildProductSeoAssistant({ form, mode, productId } = {}) {
     .filter((l) => l.includes('|'))
     .length;
 
-  const urlStubSlug = slugify(name) || 'produit';
+  const slugInput = getTrimmedString(form && form.slug);
+  const urlStubSlug = slugify(slugInput || name) || 'produit';
   const urlStubId = productId ? String(productId) : 'ID';
   const urlPath = `/produits/${encodeURIComponent(urlStubSlug)}-${encodeURIComponent(urlStubId)}`;
   const url = baseUrl ? `${baseUrl}${urlPath}` : urlPath;
@@ -3000,6 +3084,7 @@ async function getAdminNewProductPage(req, res) {
     errorMessage,
     form: {
       name: '',
+      slug: '',
       sku: '',
       brand: '',
       category: '',
@@ -3077,6 +3162,7 @@ async function postAdminCreateProduct(req, res, next) {
 
     const form = {
       name: getTrimmedString(req.body.name),
+      slug: getTrimmedString(req.body.slug),
       sku: getTrimmedString(req.body.sku),
       brand: getTrimmedString(req.body.brand),
       category: getTrimmedString(req.body.category),
@@ -3273,7 +3359,40 @@ async function postAdminCreateProduct(req, res, next) {
     const relatedBlogPostIds = parseObjectIdListFromLines(form.relatedBlogPostIds);
     const compatibleReferences = parseLinesToArray(form.compatibleReferences);
 
-    const baseSlug = slugify(form.name) || 'produit';
+    const baseSlug = slugify(form.slug || form.name) || 'produit';
+
+    const slugCollision = await Product.findOne({ slug: baseSlug }).select('_id').lean();
+    if (slugCollision) {
+      cleanupUploadedFiles(req);
+
+      const shippingClasses = await ShippingClass.find({})
+        .sort({ sortOrder: 1, name: 1 })
+        .select('_id name isActive isDefault')
+        .lean();
+
+      return res.status(400).render('admin/product', {
+        title: 'Admin - Nouveau produit',
+        dbConnected,
+        mode: 'new',
+        errorMessage: 'Ce slug est déjà utilisé par un autre produit. Merci de choisir un slug unique.',
+        form,
+        seoAssistant: buildProductSeoAssistant({ form, mode: 'new', productId: null }),
+        categories: dbConnected
+          ? await Category.find({ isActive: true })
+              .sort({ sortOrder: 1, name: 1 })
+              .select('_id name')
+              .lean()
+          : [],
+        shippingClasses: shippingClasses.map((c) => ({
+          id: String(c._id),
+          name: c.name || '',
+          isActive: c.isActive !== false,
+          isDefault: c.isDefault === true,
+        })),
+        compatIndex,
+        productId: null,
+      });
+    }
     const createData = {
       name: form.name,
       sku: form.sku,
@@ -3408,6 +3527,7 @@ async function getAdminEditProductPage(req, res, next) {
       errorMessage,
       form: {
         name: product.name || '',
+        slug: product.slug || '',
         sku: product.sku || '',
         brand: product.brand || '',
         category: product.category || '',
@@ -3745,9 +3865,50 @@ async function postAdminUpdateProduct(req, res, next) {
     const relatedBlogPostIds = parseObjectIdListFromLines(form.relatedBlogPostIds);
     const compatibleReferences = parseLinesToArray(form.compatibleReferences);
 
-    const stableSlug = (existing && typeof existing.slug === 'string' && existing.slug.trim())
-      ? existing.slug.trim()
-      : (slugify(form.name) || 'produit');
+    const desiredSlug = slugify(form.slug);
+    const stableSlug = desiredSlug
+      || ((existing && typeof existing.slug === 'string' && existing.slug.trim()) ? existing.slug.trim() : '')
+      || (slugify(form.name) || 'produit');
+
+    if (desiredSlug && desiredSlug !== (existing && typeof existing.slug === 'string' ? existing.slug.trim() : '')) {
+      const collision = await Product.findOne({ slug: desiredSlug, _id: { $ne: new mongoose.Types.ObjectId(productId) } })
+        .select('_id')
+        .lean();
+
+      if (collision) {
+        cleanupUploadedFiles(req);
+
+        const shippingClasses = await ShippingClass.find({ isActive: true })
+          .sort({ sortOrder: 1, name: 1 })
+          .select('_id name isActive isDefault')
+          .lean();
+
+        return res.status(400).render('admin/product', {
+          title: 'Admin - Produit',
+          dbConnected,
+          mode: 'edit',
+          errorMessage: 'Ce slug est déjà utilisé par un autre produit. Merci de choisir un slug unique.',
+          form: {
+            ...form,
+            imageUrl: existing.imageUrl || form.imageUrl,
+          },
+          categories: dbConnected
+            ? await Category.find({ isActive: true })
+                .sort({ sortOrder: 1, name: 1 })
+                .select('_id name')
+                .lean()
+            : [],
+          shippingClasses: shippingClasses.map((c) => ({
+            id: String(c._id),
+            name: c.name || '',
+            isActive: c.isActive !== false,
+            isDefault: c.isDefault === true,
+          })),
+          compatIndex,
+          productId,
+        });
+      }
+    }
 
     if (uploadedImageUrl || shouldRemoveMain) {
       const oldPath = getLocalProductImagePath(existing.imageUrl);
@@ -4752,6 +4913,52 @@ async function getAdminSettingsPage(req, res) {
   });
 }
 
+async function getAdminInvoiceSettingsPage(req, res) {
+  const dbConnected = mongoose.connection.readyState === 1;
+  const fallback = invoiceSettings.buildEnvFallback();
+
+  if (!dbConnected) {
+    return res.status(503).render('admin/invoice-settings', {
+      title: 'Admin - Facturation',
+      dbConnected,
+      form: fallback,
+      successMessage: null,
+      errorMessage: "La base de données n'est pas disponible.",
+    });
+  }
+
+  const successMessage = req.session.adminInvoiceSettingsSuccess || null;
+  const errorMessage = req.session.adminInvoiceSettingsError || null;
+  delete req.session.adminInvoiceSettingsSuccess;
+  delete req.session.adminInvoiceSettingsError;
+
+  const merged = await invoiceSettings.getInvoiceSettingsMergedWithFallback();
+
+  return res.render('admin/invoice-settings', {
+    title: 'Admin - Facturation',
+    dbConnected,
+    form: merged,
+    successMessage,
+    errorMessage,
+  });
+}
+
+async function postAdminInvoiceSettings(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminInvoiceSettingsError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/parametres/facturation');
+    }
+
+    await invoiceSettings.updateInvoiceSettingsFromForm(req.body);
+    req.session.adminInvoiceSettingsSuccess = 'Paramètres de facturation enregistrés.';
+    return res.redirect('/admin/parametres/facturation');
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
@@ -4801,4 +5008,8 @@ module.exports = {
   postAdminUpdateVehicleModel,
   postAdminDeleteVehicleModel,
   getAdminSettingsPage,
+  getAdminInvoiceSettingsPage,
+  postAdminInvoiceSettings,
+  getAdminSiteSettingsPage,
+  postAdminSiteSettings,
 };

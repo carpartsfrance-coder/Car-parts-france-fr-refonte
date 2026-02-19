@@ -52,7 +52,8 @@
       <% (product.galleryUrls || []).forEach((u) => { if (u) rawImages.push(u); }); %>
       <% const images = Array.from(new Set(rawImages.filter(Boolean))); %>
       <% const mainImage = images[0] || ''; %>
-      <% const thumbImages = images.slice(0, 4); %>
+      <% const thumbImages = images; %>
+      <% const hasVideo = !!(product.sections && product.sections.showVideo && product.media && product.media.videoUrl); %>
       <% const topLeftBadge = product.badges && product.badges.topLeft ? product.badges.topLeft : ''; %>
       <% const conditionBadge = product.badges && product.badges.condition ? product.badges.condition : ''; %>
       <% const compareAt = product.compareAtPriceCents; %>
@@ -111,28 +112,29 @@
             <% if (keyGarantie) { %>
               <div class="absolute top-6 left-6 bg-primary text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest"><%= keyGarantie %></div>
             <% } %>
+
+            <% if (images.length > 1) { %>
+              <button aria-label="Image précédente" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center refined-shadow transition-colors" data-gallery-prev type="button">
+                <span class="material-symbols-outlined">chevron_left</span>
+              </button>
+              <button aria-label="Image suivante" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center refined-shadow transition-colors" data-gallery-next type="button">
+                <span class="material-symbols-outlined">chevron_right</span>
+              </button>
+            <% } %>
           </div>
 
-          <div class="grid grid-cols-5 gap-4">
+          <div class="flex gap-4 overflow-x-auto no-scrollbar pb-1">
             <% thumbImages.forEach((img, idx) => { %>
-              <button class="aspect-square rounded-2xl overflow-hidden refined-shadow <%= idx === 0 ? 'border border-primary/20 ring-2 ring-primary' : 'bg-slate-50 hover:opacity-80 transition-opacity' %>" data-thumb data-src="<%= img %>" type="button">
+              <button aria-label="Voir l'image <%= idx + 1 %>" class="shrink-0 w-20 sm:w-24 aspect-square rounded-2xl overflow-hidden refined-shadow <%= idx === 0 ? 'border border-primary/20 ring-2 ring-primary' : 'bg-slate-50 hover:opacity-80 transition-opacity' %>" data-thumb data-index="<%= idx %>" data-src="<%= img %>" type="button">
                 <img alt="Thumbnail" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= img %>" />
               </button>
             <% }) %>
-            <% for (let i = thumbImages.length; i < 4; i += 1) { %>
-              <div class="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow"></div>
-            <% } %>
 
-            <% if (product.sections && product.sections.showVideo && product.media && product.media.videoUrl) { %>
-              <a class="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center gap-1 refined-shadow hover:bg-slate-100 transition-colors" href="<%= product.media.videoUrl %>" rel="noreferrer" target="_blank">
+            <% if (hasVideo) { %>
+              <a class="shrink-0 w-20 sm:w-24 aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center gap-1 refined-shadow hover:bg-slate-100 transition-colors" href="<%= product.media.videoUrl %>" rel="noreferrer" target="_blank">
                 <span class="material-symbols-outlined text-slate-400">play_circle</span>
                 <span class="text-[9px] font-bold uppercase text-slate-500 tracking-tighter">Vidéo</span>
               </a>
-            <% } else { %>
-              <div class="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center gap-1 refined-shadow opacity-60">
-                <span class="material-symbols-outlined text-slate-400">play_circle</span>
-                <span class="text-[9px] font-bold uppercase text-slate-500 tracking-tighter">Vidéo</span>
-              </div>
             <% } %>
           </div>
         </div>
@@ -436,7 +438,10 @@
       <script>
         (function () {
           var mainImg = document.querySelector('[data-main-image]');
-          var thumbs = document.querySelectorAll('[data-thumb]');
+          var thumbs = Array.prototype.slice.call(document.querySelectorAll('[data-thumb]') || []);
+          var prevBtn = document.querySelector('[data-gallery-prev]');
+          var nextBtn = document.querySelector('[data-gallery-next]');
+          var currentIndex = 0;
 
           var qtyInput = document.querySelector('[data-qty-input]');
           var qtyDisplay = document.querySelector('[data-qty-display]');
@@ -463,6 +468,37 @@
             if (qtyDisplay) qtyDisplay.textContent = String(v);
           }
 
+          function setActiveThumb(index) {
+            if (!thumbs || !thumbs.length) return;
+
+            thumbs.forEach(function (b) {
+              b.classList.remove('ring-2', 'ring-primary', 'border', 'border-primary/20');
+            });
+
+            var btn = thumbs[index];
+            if (!btn) return;
+            btn.classList.add('border', 'border-primary/20', 'ring-2', 'ring-primary');
+            try {
+              btn.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+            } catch (e) {
+              btn.scrollIntoView(true);
+            }
+          }
+
+          function setIndex(nextIndex) {
+            if (!mainImg || !thumbs || !thumbs.length) return;
+            var max = thumbs.length;
+            var idx = nextIndex % max;
+            if (idx < 0) idx = max + idx;
+
+            var btn = thumbs[idx];
+            if (!btn) return;
+            var src = btn.getAttribute('data-src');
+            if (src) mainImg.setAttribute('src', src);
+            currentIndex = idx;
+            setActiveThumb(currentIndex);
+          }
+
           if (minus) {
             minus.addEventListener('click', function () {
               setQty(getQty() - 1);
@@ -475,20 +511,42 @@
           }
 
           if (thumbs && thumbs.length && mainImg) {
-            thumbs.forEach(function (btn) {
+            thumbs.forEach(function (btn, idx) {
               btn.addEventListener('click', function () {
-                var src = btn.getAttribute('data-src');
-                if (src) mainImg.setAttribute('src', src);
-
-                thumbs.forEach(function (b) {
-                  b.classList.remove('ring-2', 'ring-primary', 'border', 'border-primary/20');
-                  b.classList.add('bg-slate-50');
-                });
-
-                btn.classList.add('border', 'border-primary/20', 'ring-2', 'ring-primary');
-                btn.classList.remove('bg-slate-50');
+                setIndex(idx);
               });
             });
+
+            if (prevBtn) {
+              prevBtn.addEventListener('click', function () {
+                setIndex(currentIndex - 1);
+              });
+            }
+            if (nextBtn) {
+              nextBtn.addEventListener('click', function () {
+                setIndex(currentIndex + 1);
+              });
+            }
+
+            mainImg.addEventListener('click', function () {
+              setIndex(currentIndex + 1);
+            });
+
+            document.addEventListener('keydown', function (e) {
+              if (!e) return;
+              if (e.altKey || e.ctrlKey || e.metaKey) return;
+              var tag = (e.target && e.target.tagName) ? String(e.target.tagName).toLowerCase() : '';
+              if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+              if (e.key === 'ArrowLeft') {
+                setIndex(currentIndex - 1);
+              }
+              if (e.key === 'ArrowRight') {
+                setIndex(currentIndex + 1);
+              }
+            });
+
+            setIndex(0);
           }
 
           setQty(getQty());

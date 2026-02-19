@@ -102,5 +102,9 @@ router.get('/pages-legales', requireAdminAuth, legalAdminController.getAdminLega
 router.get('/pages-legales/:slug', requireAdminAuth, legalAdminController.getAdminEditLegalPage);
 router.post('/pages-legales/:slug', requireAdminAuth, legalAdminController.postAdminUpdateLegalPage);
 router.get('/parametres', requireAdminAuth, adminController.getAdminSettingsPage);
+router.get('/parametres/facturation', requireAdminAuth, adminController.getAdminInvoiceSettingsPage);
+router.post('/parametres/facturation', requireAdminAuth, adminController.postAdminInvoiceSettings);
+router.get('/parametres/site', requireAdminAuth, adminController.getAdminSiteSettingsPage);
+router.post('/parametres/site', requireAdminAuth, adminController.postAdminSiteSettings);
 
 module.exports = router;

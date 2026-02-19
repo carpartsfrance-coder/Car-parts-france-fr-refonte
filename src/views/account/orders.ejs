@@ -96,6 +96,11 @@
                         <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/compte/commandes/<%= o.id %>/suivi">
                           Suivi
                         </a>
+                        <% if (o.invoiceUrl) { %>
+                          <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= o.invoiceUrl %>" target="_blank" rel="noopener">
+                            Facture
+                          </a>
+                        <% } %>
                       </div>
                     <% } %>
                   </div>
@@ -165,10 +170,12 @@
                               <span class="material-symbols-outlined mr-2 text-base">local_shipping</span>
                               Suivi
                             </a>
-                            <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" type="button">
-                              <span class="material-symbols-outlined mr-2 text-base">receipt_long</span>
-                              Facture
-                            </button>
+                            <% if (o.invoiceUrl) { %>
+                              <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= o.invoiceUrl %>" target="_blank" rel="noopener">
+                                <span class="material-symbols-outlined mr-2 text-base">receipt_long</span>
+                                Facture PDF
+                              </a>
+                            <% } %>
                           </div>
                         <% } %>
                       </td>

@@ -4,6 +4,10 @@ function formatEuro(totalCents) {
   return `${(n / 100).toFixed(2).replace('.', ',')} €`;
 }
 
+const fs = require('fs');
+const path = require('path');
+const invoiceSettings = require('./invoiceSettings');
+
 function formatDateFR(value) {
   if (!value) return '—';
   const d = new Date(value);
@@ -13,6 +17,28 @@ function formatDateFR(value) {
 
 function safeText(value) {
   return typeof value === 'string' ? value.trim() : value ? String(value) : '';
+}
+
+function getTrimmedString(value) {
+  return typeof value === 'string' ? value.trim() : value ? String(value).trim() : '';
+}
+
+function resolvePublicFilePath(publicPath) {
+  const raw = getTrimmedString(publicPath);
+  if (!raw) return '';
+  if (!raw.startsWith('/')) return '';
+
+  const rel = raw.replace(/^\//, '');
+  const resolved = path.join(__dirname, '..', '..', 'public', rel);
+  return resolved;
+}
+
+function deriveSirenFromSiret(siret) {
+  const raw = getTrimmedString(siret);
+  if (!raw) return '';
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (digits.length < 9) return '';
+  return digits.slice(0, 9);
 }
 
 function computeTotals(order) {
@@ -59,10 +85,20 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
   if (!order) return null;
 
   const totals = computeTotals(order);
-  const number = safeText(order.number);
+  const settings = await invoiceSettings.getInvoiceSettingsMergedWithFallback();
+
+  const orderNumber = safeText(order.number);
+  const invoiceNumber = order && order.invoice && typeof order.invoice.number === 'string' ? order.invoice.number.trim() : '';
+
   const createdAt = order.createdAt ? new Date(order.createdAt) : null;
+  const issuedAt = order && order.invoice && order.invoice.issuedAt ? new Date(order.invoice.issuedAt) : null;
+  const invoiceDate = issuedAt && !Number.isNaN(issuedAt.getTime()) ? issuedAt : createdAt;
+
   const customerName = safeText(user && user.firstName ? `${user.firstName}` : '') + (user && user.lastName ? ` ${safeText(user.lastName)}` : '');
   const customerEmail = safeText(user && user.email);
+  const customerCompanyName = safeText(user && user.companyName);
+  const customerSiret = safeText(user && user.siret);
+  const isPro = getTrimmedString(user && user.accountType).toLowerCase() === 'pro';
 
   const shipping = order.shippingAddress || null;
   const billing = order.billingAddress || null;
@@ -75,17 +111,75 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(20).font('Helvetica-Bold').text('CarPartsFrance');
-      doc.moveDown(0.6);
+      const pageW = doc.page.width;
+      const left = doc.page.margins.left;
+      const right = pageW - doc.page.margins.right;
 
-      doc.fontSize(12).font('Helvetica');
-      doc.text(`Facture${number ? ` - ${number}` : ''}`);
-      doc.text(`Date : ${formatDateFR(createdAt)}`);
+      const logoPath = resolvePublicFilePath(settings && settings.logoUrl ? settings.logoUrl : '');
+      const hasLogo = (() => {
+        if (!logoPath) return false;
+        try {
+          return fs.existsSync(logoPath);
+        } catch (e) {
+          return false;
+        }
+      })();
+
+      const headerTopY = doc.y;
+      if (hasLogo) {
+        try {
+          doc.image(logoPath, left, headerTopY, { width: 140 });
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        doc.fontSize(18).font('Helvetica-Bold').text('CarPartsFrance', left, headerTopY);
+      }
+
+      const invoiceTitle = invoiceNumber ? `FACTURE ${invoiceNumber}` : (orderNumber ? `FACTURE ${orderNumber}` : 'FACTURE');
+      const headerRightX = left + 220;
+      doc.fontSize(16).font('Helvetica-Bold').fillColor('#111827').text(invoiceTitle, headerRightX, headerTopY, {
+        width: right - headerRightX,
+        align: 'right',
+      });
+
+      doc.fontSize(10).font('Helvetica').fillColor('#374151');
+      doc.text(`Date : ${formatDateFR(invoiceDate)}`, headerRightX, headerTopY + 22, {
+        width: right - headerRightX,
+        align: 'right',
+      });
+      if (orderNumber) {
+        doc.text(`Commande : ${orderNumber}`, headerRightX, headerTopY + 36, {
+          width: right - headerRightX,
+          align: 'right',
+        });
+      }
+
+      doc.moveDown(2.2);
+
+      const legalBlockX = left;
+      const legalBlockY = doc.y;
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#111827').text(settings.legalName, legalBlockX, legalBlockY);
+      doc.font('Helvetica').fillColor('#374151');
+      doc.text(settings.address, { width: (right - left) * 0.62 });
+      const siren = deriveSirenFromSiret(settings.siret);
+      doc.text(`${settings.legalForm} • SIREN : ${siren || '—'} • SIRET : ${settings.siret}`, { width: (right - left) * 0.62 });
+      doc.text(`TVA : ${settings.vat} • APE : ${settings.ape}`, { width: (right - left) * 0.62 });
+      if (settings.capital) doc.text(`Capital social : ${settings.capital}`, { width: (right - left) * 0.62 });
+      if (settings.rcs) doc.text(`RCS : ${settings.rcs}`, { width: (right - left) * 0.62 });
+      if (settings.website) doc.text(settings.website, { width: (right - left) * 0.62 });
+
+      doc.moveDown(1);
+
+      doc.moveTo(left, doc.y).lineTo(right, doc.y).lineWidth(1).strokeColor('#e5e7eb').stroke();
+      doc.moveDown(1);
 
       doc.moveDown(1);
 
       doc.fontSize(11).font('Helvetica-Bold').text('Client');
       doc.font('Helvetica').text(customerName || '—');
+      if (isPro && customerCompanyName) doc.text(customerCompanyName);
+      if (isPro && customerSiret) doc.text(`SIRET : ${customerSiret}`);
       if (customerEmail) doc.text(customerEmail);
 
       doc.moveDown(0.8);
@@ -149,6 +243,19 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
         doc.moveDown(0.3);
       }
 
+      {
+        const isFreeShipping = totals.shippingCostCents === 0;
+        const shippingLabel = isFreeShipping ? 'Frais de transport (offerts)' : 'Frais de transport';
+        const shippingText = formatEuro(totals.shippingCostCents);
+        const y = doc.y;
+        doc.fontSize(10).font('Helvetica-Bold').text(shippingLabel, leftX, y, { width: colName });
+        doc.font('Helvetica');
+        doc.text('1', leftX + colName, y, { width: colQty, align: 'right' });
+        doc.text(shippingText, leftX + colName + colQty, y, { width: colPU, align: 'right' });
+        doc.text(shippingText, leftX + colName + colQty + colPU, y, { width: colTotal, align: 'right' });
+        doc.moveDown(0.3);
+      }
+
       doc.moveDown(1);
 
       doc.fontSize(11).font('Helvetica-Bold').text('Récapitulatif');
@@ -159,8 +266,8 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
       summaryLines.push({ label: 'Sous-total articles', value: formatEuro(totals.itemsSubtotalCents) });
       if (totals.clientDiscountCents > 0) summaryLines.push({ label: 'Remise compte', value: `- ${formatEuro(totals.clientDiscountCents)}` });
       if (totals.promoDiscountCents > 0) summaryLines.push({ label: 'Code promo', value: `- ${formatEuro(totals.promoDiscountCents)}` });
-      if (totals.shippingCostCents > 0) summaryLines.push({ label: 'Livraison', value: formatEuro(totals.shippingCostCents) });
-      if (totals.shippingCostCents === 0) summaryLines.push({ label: 'Livraison', value: 'OFFERT' });
+      if (totals.shippingCostCents > 0) summaryLines.push({ label: 'Frais de transport', value: formatEuro(totals.shippingCostCents) });
+      if (totals.shippingCostCents === 0) summaryLines.push({ label: 'Frais de transport (offerts)', value: formatEuro(0) });
 
       summaryLines.push({ label: 'Total TTC', value: formatEuro(totals.totalCents) });
       summaryLines.push({ label: 'Total HT', value: formatEuro(totals.htCents) });
@@ -176,7 +283,14 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
       }
 
       doc.moveDown(1);
-      doc.fontSize(9).fillColor('#6b7280').text('Merci pour ta commande.');
+      doc.fontSize(9).fillColor('#6b7280');
+      doc.text(settings.paymentTermsText);
+      doc.text(settings.latePenaltyText);
+      if (isPro) {
+        doc.text(settings.proRecoveryFeeText);
+      }
+      doc.moveDown(0.4);
+      doc.text('Merci pour votre commande.');
 
       doc.end();
     } catch (err) {

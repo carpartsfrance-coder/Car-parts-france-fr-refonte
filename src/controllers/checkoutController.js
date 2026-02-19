@@ -5,6 +5,7 @@ const ShippingClass = require('../models/ShippingClass');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const demoProducts = require('../demoProducts');
+const Category = require('../models/Category');
 
 const mollie = require('../services/mollie');
 const scalapay = require('../services/scalapay');
@@ -12,6 +13,8 @@ const promoCodes = require('../services/promoCodes');
 const pricing = require('../services/pricing');
 const emailService = require('../services/emailService');
 const { getLegalPageBySlug } = require('../services/legalPages');
+const { ensureInvoiceIssuedForPaidOrder } = require('../services/orderInvoices');
+const { getNextOrderNumber } = require('../services/orderNumber');
 
 function getCart(req) {
   if (!req.session.cart) {
@@ -140,13 +143,6 @@ function formatEuro(totalCents) {
   return `${(totalCents / 100).toFixed(2).replace('.', ',')} €`;
 }
 
-function generateOrderNumber() {
-  const rand = Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, '0');
-  return `CP-${Date.now()}-${rand}`;
-}
-
 async function computeShippingPricesCents(dbConnected, products) {
   const fallback = { domicile: 1290 };
 
@@ -155,10 +151,118 @@ async function computeShippingPricesCents(dbConnected, products) {
   const list = Array.isArray(products) ? products : [];
   if (!list.length) return { domicile: 0 };
 
+  function normalizeCategoryKey(value) {
+    if (typeof value !== 'string') return '';
+    const parts = value
+      .split('>')
+      .map((p) => String(p || '').trim())
+      .filter(Boolean);
+    if (!parts.length) return '';
+
+    const canonical = parts.join(' > ');
+    return canonical
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  }
+
+  const categoryDocs = await Category.find({})
+    .select('_id name shippingClassId')
+    .lean();
+
+  const categoryInfoByKey = new Map();
+  const subKeyToFullKeys = new Map();
+
+  for (const c of categoryDocs) {
+    const rawName = c && typeof c.name === 'string' ? c.name.trim() : '';
+    if (!rawName) continue;
+    const classId = c && c.shippingClassId ? String(c.shippingClassId) : '';
+
+    const key = normalizeCategoryKey(rawName);
+    if (!key) continue;
+
+    const main = rawName.split('>')[0].trim();
+    const mainKey = normalizeCategoryKey(main);
+
+    categoryInfoByKey.set(key, {
+      classId,
+      mainKey,
+    });
+
+    const parts = rawName.split('>').map((p) => String(p || '').trim()).filter(Boolean);
+    const sub = parts.length ? parts[parts.length - 1] : '';
+    const subKey = normalizeCategoryKey(sub);
+    if (subKey) {
+      if (!subKeyToFullKeys.has(subKey)) subKeyToFullKeys.set(subKey, new Set());
+      subKeyToFullKeys.get(subKey).add(key);
+    }
+  }
+
+  function getClassFromKey(key) {
+    const info = key ? categoryInfoByKey.get(key) : null;
+    return info && info.classId ? info.classId : '';
+  }
+
+  function getClassFromMainKey(key) {
+    const info = key ? categoryInfoByKey.get(key) : null;
+    if (!info || !info.mainKey) return '';
+    return getClassFromKey(info.mainKey);
+  }
+
+  function getCategoryShippingClassId(product) {
+    const raw = product && typeof product.category === 'string' ? product.category.trim() : '';
+    if (!raw) return '';
+
+    const fullKey = normalizeCategoryKey(raw);
+    const exact = fullKey ? getClassFromKey(fullKey) : '';
+    if (exact) return exact;
+
+    const inheritedFromMain = fullKey ? getClassFromMainKey(fullKey) : '';
+    if (inheritedFromMain) return inheritedFromMain;
+
+    const parts = raw.split('>').map((p) => String(p || '').trim()).filter(Boolean);
+    const hasPath = parts.length >= 2;
+    if (hasPath) return '';
+
+    const subKey = fullKey;
+    const fullKeys = subKey ? subKeyToFullKeys.get(subKey) : null;
+    if (fullKeys && fullKeys.size === 1) {
+      const onlyKey = Array.from(fullKeys)[0];
+      const clsExact = getClassFromKey(onlyKey);
+      if (clsExact) return clsExact;
+      const clsInherited = getClassFromMainKey(onlyKey);
+      if (clsInherited) return clsInherited;
+    }
+
+    if (fullKeys && fullKeys.size > 1) {
+      const candidates = new Set();
+      for (const key of fullKeys) {
+        const clsExact = getClassFromKey(key);
+        if (clsExact) {
+          candidates.add(clsExact);
+          continue;
+        }
+        const clsInherited = getClassFromMainKey(key);
+        if (clsInherited) candidates.add(clsInherited);
+      }
+
+      if (candidates.size === 1) {
+        return Array.from(candidates)[0];
+      }
+    }
+
+    return '';
+  }
+
   const classIds = Array.from(
     new Set(
       list
-        .map((p) => (p && p.shippingClassId ? String(p.shippingClassId) : ''))
+        .map((p) => {
+          const productClassId = p && p.shippingClassId ? String(p.shippingClassId) : '';
+          const categoryClassId = getCategoryShippingClassId(p);
+          return [productClassId, categoryClassId].filter(Boolean);
+        })
+        .flat()
         .filter(Boolean)
         .filter((id) => mongoose.Types.ObjectId.isValid(id))
     )
@@ -181,11 +285,18 @@ async function computeShippingPricesCents(dbConnected, products) {
   let domicile = 0;
 
   for (const p of list) {
-    const id = p && p.shippingClassId ? String(p.shippingClassId) : '';
-    const cls = id ? classById.get(id) : defaultClass;
-    if (!cls) continue;
+    const productClassId = p && p.shippingClassId ? String(p.shippingClassId) : '';
+    const categoryClassId = getCategoryShippingClassId(p);
 
-    const d = Number.isFinite(cls.domicilePriceCents) ? cls.domicilePriceCents : 0;
+    const clsDefault = defaultClass || null;
+    const clsProduct = productClassId ? (classById.get(productClassId) || null) : null;
+    const clsCategory = categoryClassId ? (classById.get(categoryClassId) || null) : null;
+
+    const dDefault = clsDefault && Number.isFinite(clsDefault.domicilePriceCents) ? clsDefault.domicilePriceCents : 0;
+    const dProduct = clsProduct && Number.isFinite(clsProduct.domicilePriceCents) ? clsProduct.domicilePriceCents : 0;
+    const dCategory = clsCategory && Number.isFinite(clsCategory.domicilePriceCents) ? clsCategory.domicilePriceCents : 0;
+
+    const d = Math.max(dDefault, dProduct, dCategory);
     domicile = Math.max(domicile, d);
   }
 
@@ -548,7 +659,16 @@ async function applyMolliePaymentToOrder(order, payment) {
   }
 
   await Order.findByIdAndUpdate(order._id, update);
-  const refreshed = await Order.findById(order._id).lean();
+  let refreshed = await Order.findById(order._id).lean();
+
+  if (paymentStatus === 'paid' && !wasPaid) {
+    try {
+      await ensureInvoiceIssuedForPaidOrder(refreshed._id);
+      refreshed = await Order.findById(refreshed._id).lean();
+    } catch (err) {
+      console.error('Erreur attribution numéro facture (Mollie) :', err && err.message ? err.message : err);
+    }
+  }
 
   if (paymentStatus === 'failed') {
     await releaseOrderStockIfNeeded(refreshed);
@@ -635,7 +755,16 @@ async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatu
   }
 
   await Order.findByIdAndUpdate(order._id, update);
-  const refreshed = await Order.findById(order._id).lean();
+  let refreshed = await Order.findById(order._id).lean();
+
+  if (safePaymentStatus === 'paid' && !wasPaid) {
+    try {
+      await ensureInvoiceIssuedForPaidOrder(refreshed._id);
+      refreshed = await Order.findById(refreshed._id).lean();
+    } catch (err) {
+      console.error('Erreur attribution numéro facture (Scalapay) :', err && err.message ? err.message : err);
+    }
+  }
 
   if (safePaymentStatus === 'failed') {
     await releaseOrderStockIfNeeded(refreshed);
@@ -1407,9 +1536,10 @@ async function postPayment(req, res, next) {
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
+        const nextNumber = await getNextOrderNumber({ date: new Date() });
         created = await Order.create({
           userId: user._id,
-          number: generateOrderNumber(),
+          number: nextNumber.orderNumber,
           status: 'en_attente',
           statusHistory: [
             {

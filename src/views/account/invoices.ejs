@@ -36,6 +36,9 @@
                   <td class="px-6 py-4 font-black"><%= inv.total || '—' %></td>
                   <td class="px-6 py-4 text-right">
                     <% if (inv.id) { %>
+                      <a class="inline-flex p-2 hover:bg-slate-100 rounded-lg transition" target="_blank" rel="noopener" href="/compte/commandes/<%= inv.id %>/facture.pdf">
+                        <span class="material-symbols-outlined text-slate-400">download</span>
+                      </a>
                       <a class="inline-flex p-2 hover:bg-slate-100 rounded-lg transition" href="/compte/commandes/<%= inv.id %>">
                         <span class="material-symbols-outlined text-slate-400">visibility</span>
                       </a>

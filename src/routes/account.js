@@ -41,6 +41,7 @@ router.post('/adresses/:addressId/supprimer', requireAuth, accountController.pos
 router.get('/commandes', requireAuth, accountController.getOrdersPage);
 router.get('/commandes/:orderId', requireAuth, accountController.getOrderDetailPage);
 router.get('/commandes/:orderId/suivi', requireAuth, accountController.getOrderTrackingPage);
+router.get('/commandes/:orderId/facture.pdf', requireAuth, accountController.getOrderInvoicePdf);
 router.post('/commandes/:orderId/racheter', requireAuth, accountController.postRepurchaseOrder);
 router.get('/factures', requireAuth, accountController.getInvoicesPage);
 router.get('/garage', requireAuth, accountController.getGaragePage);

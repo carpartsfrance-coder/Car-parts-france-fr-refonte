@@ -1,6 +1,7 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -31,6 +32,7 @@ const legalRouter = require('./routes/legal');
 const blogRouter = require('./routes/blog');
 const adminRouter = require('./routes/admin');
 const seoController = require('./controllers/seoController');
+const siteSettings = require('./services/siteSettings');
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -152,8 +154,26 @@ app.use((req, res, next) => {
   const noIndex = /^\/(admin|panier|commande|compte)(\/|$)/.test(pathOnly);
   res.locals.metaRobots = noIndex ? 'noindex, nofollow' : '';
 
+  if (process.env.FORCE_NOINDEX === 'true') {
+    res.locals.metaRobots = 'noindex, nofollow';
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+
   if (Object.prototype.hasOwnProperty.call(res.locals, 'include')) {
     delete res.locals.include;
+  }
+
+  next();
+});
+
+app.use(async (req, res, next) => {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    res.locals.siteSettings = dbConnected
+      ? await siteSettings.getSiteSettingsMergedWithFallback()
+      : siteSettings.buildEnvFallback();
+  } catch (err) {
+    res.locals.siteSettings = siteSettings.buildEnvFallback();
   }
 
   next();
