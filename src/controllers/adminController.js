@@ -3643,6 +3643,7 @@ async function postAdminUpdateProduct(req, res, next) {
 
     const form = {
       name: getTrimmedString(req.body.name),
+      slug: getTrimmedString(req.body.slug),
       sku: getTrimmedString(req.body.sku),
       brand: getTrimmedString(req.body.brand),
       category: getTrimmedString(req.body.category),
