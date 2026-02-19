@@ -16,6 +16,8 @@
 <a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/" <%= _navActive('/') ? 'aria-current=\"page\"' : '' %>>Accueil</a>
 <a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/produits') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/produits" <%= _navActive('/produits') ? 'aria-current=\"page\"' : '' %>>Catalogue</a>
 <a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/blog" <%= _navActive('/blog') ? 'aria-current=\"page\"' : '' %>>Blog</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/contact') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/contact" <%= _navActive('/contact') ? 'aria-current=\"page\"' : '' %>>Contact</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/devis') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/devis" <%= _navActive('/devis') ? 'aria-current=\"page\"' : '' %>>Devis</a>
 </nav>
 
 <div class="hidden md:flex flex-1 max-w-2xl">
@@ -96,6 +98,14 @@
         </a>
         <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/blog">
           <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">article</span>Blog</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/contact') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/contact">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">mail</span>Contact</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/devis') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/devis">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">request_quote</span>Devis</span>
           <span class="material-symbols-outlined text-slate-300">chevron_right</span>
         </a>
         <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/compte') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/compte">

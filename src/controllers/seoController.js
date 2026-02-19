@@ -88,12 +88,16 @@ async function getSitemapXml(req, res, next) {
       urls.push({ loc: `${baseUrl}/produits`, lastmod: '' });
       urls.push({ loc: `${baseUrl}/categorie`, lastmod: '' });
       urls.push({ loc: `${baseUrl}/blog`, lastmod: '' });
+      urls.push({ loc: `${baseUrl}/contact`, lastmod: '' });
+      urls.push({ loc: `${baseUrl}/devis`, lastmod: '' });
       urls.push({ loc: `${baseUrl}/legal`, lastmod: '' });
     } else {
       urls.push({ loc: '/', lastmod: '' });
       urls.push({ loc: '/produits', lastmod: '' });
       urls.push({ loc: '/categorie', lastmod: '' });
       urls.push({ loc: '/blog', lastmod: '' });
+      urls.push({ loc: '/contact', lastmod: '' });
+      urls.push({ loc: '/devis', lastmod: '' });
       urls.push({ loc: '/legal', lastmod: '' });
     }
 
