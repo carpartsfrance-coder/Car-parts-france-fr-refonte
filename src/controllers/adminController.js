@@ -2179,8 +2179,7 @@ function buildProductSeoAssistant({ form, mode, productId } = {}) {
 
   const slugInput = getTrimmedString(form && form.slug);
   const urlStubSlug = slugify(slugInput || name) || 'produit';
-  const urlStubId = productId ? String(productId) : 'ID';
-  const urlPath = `/produits/${encodeURIComponent(urlStubSlug)}-${encodeURIComponent(urlStubId)}`;
+  const urlPath = `/product/${encodeURIComponent(urlStubSlug)}/`;
   const url = baseUrl ? `${baseUrl}${urlPath}` : urlPath;
 
   const autoTitle = `${name || siteName}${brand ? ` - ${brand}` : ''}${sku ? ` (Réf ${sku})` : ''} | ${siteName}`.trim();

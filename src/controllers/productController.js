@@ -85,6 +85,18 @@ function parseLegacyPriceCents(product) {
   return 0;
 }
 
+function slugifyLoose(value) {
+  if (typeof value !== 'string') return '';
+  const input = value.trim();
+  if (!input) return '';
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function normalizeProduct(product) {
   if (!product) return product;
 
@@ -318,6 +330,34 @@ function formatDateFRShort(value) {
     }).format(d);
   } catch (e) {
     return '';
+  }
+}
+
+async function getProductBySlug(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const raw = typeof req.params.slug === 'string' ? req.params.slug.trim() : '';
+    const slug = slugifyLoose(raw);
+
+    if (!slug) {
+      return res.redirect(301, '/produits');
+    }
+
+    if (!dbConnected) {
+      return res.status(404).render('errors/404', {
+        title: 'Page introuvable - CarParts France',
+      });
+    }
+
+    const hit = await Product.findOne({ slug }).select('_id').lean();
+    if (!hit || !hit._id) {
+      return res.redirect(302, `/produits?q=${encodeURIComponent(raw)}`);
+    }
+
+    req.params.id = String(hit._id);
+    return getProduct(req, res, next);
+  } catch (err) {
+    return next(err);
   }
 }
 
@@ -1074,4 +1114,5 @@ async function getProduct(req, res, next) {
 module.exports = {
   listProducts,
   getProduct,
+  getProductBySlug,
 };

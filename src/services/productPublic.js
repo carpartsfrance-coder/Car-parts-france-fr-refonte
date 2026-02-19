@@ -33,13 +33,12 @@ function getPublicBaseUrlFromReq(req) {
 }
 
 function buildProductPublicPath(product) {
-  const id = product && product._id ? String(product._id) : '';
   const preferredSlug = getTrimmedString(product && product.slug ? product.slug : '');
   const nameSlug = slugify(getTrimmedString(product && product.name ? product.name : ''));
   const finalSlug = preferredSlug || nameSlug || 'produit';
 
-  if (!id) return '/produits';
-  return `/produits/${finalSlug}-${encodeURIComponent(id)}`;
+  if (!finalSlug) return '/produits';
+  return `/product/${encodeURIComponent(finalSlug)}/`;
 }
 
 function buildProductPublicUrl(product, { req } = {}) {
