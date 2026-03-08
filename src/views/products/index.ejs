@@ -294,6 +294,8 @@
               <% const imgUrl = (p && typeof p.imageUrl === 'string' && p.imageUrl.trim()) ? p.imageUrl.trim() : (Array.isArray(p.galleryUrls) && p.galleryUrls[0] ? p.galleryUrls[0] : ''); %>
               <% const badge = (p && p.badges && p.badges.topLeft) ? p.badges.topLeft : 'GARANTIE'; %>
               <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
+              <% const quoteMessage = encodeURIComponent(`Bonjour, je souhaite un devis pour la pièce ${p.name || 'sélectionnée'}.`); %>
+              <% const quoteRef = encodeURIComponent(p && p.sku ? p.sku : ''); %>
               <div class="product-card group">
                 <div class="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-800">
                   <a href="<%= productUrl %>">
@@ -306,9 +308,9 @@
                     <% } %>
                   </a>
                   <span class="absolute top-2 left-2 sm:top-3 sm:left-3 bg-primary text-[8px] sm:text-[9px] text-white font-bold px-2 py-1 sm:px-2.5 sm:py-1 rounded-full shadow-lg"><%= badge %></span>
-                  <button class="absolute top-2 right-2 sm:top-3 sm:right-3 w-7 h-7 sm:w-8 sm:h-8 bg-white/90 dark:bg-slate-900/70 backdrop-blur-md rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors" type="button">
-                    <span class="material-symbols-outlined text-base sm:text-lg">favorite</span>
-                  </button>
+                  <a class="absolute top-2 right-2 sm:top-3 sm:right-3 w-7 h-7 sm:w-8 sm:h-8 bg-white/90 dark:bg-slate-900/70 backdrop-blur-md rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors" href="/devis?partRef=<%= quoteRef %>&message=<%= quoteMessage %>" aria-label="Demander un devis pour <%= p.name %>">
+                    <span class="material-symbols-outlined text-base sm:text-lg">request_quote</span>
+                  </a>
                 </div>
                 <div class="p-3 sm:p-4 flex flex-col flex-grow">
                   <a class="block font-bold text-slate-800 dark:text-slate-100 leading-snug mb-3 sm:mb-4 group-hover:text-primary transition-colors text-[12px] sm:text-sm line-clamp-2 min-h-[2.6rem] sm:min-h-[3.2rem]" href="<%= productUrl %>">
@@ -376,9 +378,9 @@
 <%- include('../partials/footer') %>
 
 <div class="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-50">
-  <button class="bg-primary text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all" type="button">
-    <span class="material-symbols-outlined text-3xl">chat</span>
-  </button>
+  <a class="bg-primary text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all" href="/contact?subject=question" aria-label="Contacter CarParts France">
+    <span class="material-symbols-outlined text-3xl">support_agent</span>
+  </a>
 </div>
 
 <script id="vehicleModelsByMakeJson" type="application/json"><%- JSON.stringify(vehicleModelsByMake || {}) %></script>

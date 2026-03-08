@@ -5,8 +5,71 @@ const mongoose = require('mongoose');
 
 const app = express();
 
+app.disable('x-powered-by');
+
 const isProd = process.env.NODE_ENV === 'production';
 const oneDayMs = 24 * 60 * 60 * 1000;
+
+const sessionSecret = typeof process.env.SESSION_SECRET === 'string' ? process.env.SESSION_SECRET.trim() : '';
+if (isProd && (!sessionSecret || sessionSecret === 'dev_secret_change_me')) {
+  throw new Error('SESSION_SECRET manquant en production');
+}
+
+app.use((req, res, next) => {
+  if (isProd) {
+    res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+
+  next();
+});
+
+function isSameOrigin(req) {
+  const host = typeof req.headers.host === 'string' ? req.headers.host : '';
+  if (!host) return true;
+
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  if (origin) {
+    try {
+      return new URL(origin).host === host;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  const referer = typeof req.headers.referer === 'string' ? req.headers.referer : '';
+  if (referer) {
+    try {
+      return new URL(referer).host === host;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+app.use((req, res, next) => {
+  const method = req.method;
+  const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+  if (!isWrite) return next();
+
+  const p = typeof req.path === 'string' ? req.path : '';
+  if (p === '/commande/paiement/webhook') return next();
+
+  const shouldProtect = /^(\/admin|\/compte|\/contact|\/devis|\/commande|\/newsletter)(\/|$)/.test(p);
+  if (!shouldProtect) return next();
+
+  if (!isSameOrigin(req)) {
+    return res.status(403).send('Requête refusée.');
+  }
+
+  return next();
+});
 
 if (isProd) {
   app.set('trust proxy', 1);
@@ -27,10 +90,12 @@ const categoriesRouter = require('./routes/categories');
 const searchRouter = require('./routes/search');
 const cartRouter = require('./routes/cart');
 const accountRouter = require('./routes/account');
+const newsletterRouter = require('./routes/newsletter');
 const checkoutRouter = require('./routes/checkout');
 const legalRouter = require('./routes/legal');
 const blogRouter = require('./routes/blog');
 const adminRouter = require('./routes/admin');
+const mediaRouter = require('./routes/media');
 const seoController = require('./controllers/seoController');
 const siteSettings = require('./services/siteSettings');
 
@@ -66,7 +131,7 @@ app.use(
   session((() => {
     const sessionOptions = {
       name: 'carpartsfrance.sid',
-      secret: process.env.SESSION_SECRET || 'dev_secret_change_me',
+      secret: sessionSecret || 'dev_secret_change_me',
       proxy: isProd,
       resave: false,
       saveUninitialized: false,
@@ -139,7 +204,7 @@ app.use((req, res, next) => {
   req.session.accountType = accountType;
 
   const cartItemCount = Object.values(cart.items).reduce(
-    (sum, item) => sum + item.quantity,
+    (sum, item) => sum + (Number(item && item.quantity) || 0),
     0
   );
 
@@ -149,6 +214,13 @@ app.use((req, res, next) => {
   res.locals.currentPath = req.originalUrl;
   res.locals.currentUser = currentUser;
   res.locals.currentAdmin = currentAdmin;
+  res.locals.newsletterSuccess = req.session && req.session.newsletterSuccess ? String(req.session.newsletterSuccess) : null;
+  res.locals.newsletterError = req.session && req.session.newsletterError ? String(req.session.newsletterError) : null;
+
+  if (req.session) {
+    delete req.session.newsletterSuccess;
+    delete req.session.newsletterError;
+  }
 
   const pathOnly = typeof req.path === 'string' ? req.path : '';
   const noIndex = /^\/(admin|panier|commande|compte)(\/|$)/.test(pathOnly);
@@ -182,6 +254,8 @@ app.use(async (req, res, next) => {
 app.get('/sitemap.xml', seoController.getSitemapXml);
 app.get('/robots.txt', seoController.getRobotsTxt);
 
+app.use('/media', mediaRouter);
+
 const staticOptions = isProd
   ? { maxAge: '7d', etag: true }
   : undefined;
@@ -194,6 +268,7 @@ app.use('/categorie', categoriesRouter);
 app.use('/rechercher', searchRouter);
 app.use('/produits', productsRouter);
 app.use('/panier', cartRouter);
+app.use('/newsletter', newsletterRouter);
 app.use('/commande', checkoutRouter);
 app.use('/legal', legalRouter);
 app.use('/compte', accountRouter);

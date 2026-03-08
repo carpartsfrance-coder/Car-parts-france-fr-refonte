@@ -7,19 +7,26 @@
 <h2 class="text-2xl font-black uppercase tracking-tight">CarParts<span class="text-white/80">France</span></h2>
 </div>
 <p class="text-white/70 text-sm leading-relaxed">Car Parts France – Spécialiste des pièces automobiles de qualité. Nous offrons une large gamme de pièces testées pour toutes les marques et modèles.</p>
+<% const _socialSettings = siteSettings && typeof siteSettings === 'object' ? siteSettings : {}; %>
 <div class="flex gap-4">
-<a class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" href="#"><span class="material-symbols-outlined">social_leaderboard</span></a>
-<a class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" href="#"><span class="material-symbols-outlined">camera</span></a>
-<a class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" href="#"><span class="material-symbols-outlined">movie</span></a>
+<% if (_socialSettings.facebookUrl) { %>
+<a class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" href="<%= _socialSettings.facebookUrl %>" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><span class="material-symbols-outlined">thumb_up</span></a>
+<% } %>
+<% if (_socialSettings.instagramUrl) { %>
+<a class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" href="<%= _socialSettings.instagramUrl %>" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><span class="material-symbols-outlined">photo_camera</span></a>
+<% } %>
+<% if (_socialSettings.youtubeUrl) { %>
+<a class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors" href="<%= _socialSettings.youtubeUrl %>" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><span class="material-symbols-outlined">smart_display</span></a>
+<% } %>
 </div>
 </div>
 <div>
 <h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white">Navigation</h4>
 <ul class="text-sm text-white/70 space-y-4">
-<li><a class="hover:text-white transition-colors" href="#">Notre Histoire</a></li>
+<li><a class="hover:text-white transition-colors" href="/#notre-histoire">Notre Histoire</a></li>
 <li><a class="hover:text-white transition-colors" href="/compte">Mon Compte</a></li>
-<li><a class="hover:text-white transition-colors" href="#">Mise en Favoris</a></li>
-<li><a class="hover:text-white transition-colors" href="#">Suivre Votre Commande</a></li>
+<li><a class="hover:text-white transition-colors" href="/compte/garage">Mon Garage</a></li>
+<li><a class="hover:text-white transition-colors" href="/compte/commandes">Suivre Votre Commande</a></li>
 <li><a class="hover:text-white transition-colors" href="/contact">Contact</a></li>
 <li><a class="hover:text-white transition-colors" href="/devis">Demande de devis</a></li>
 </ul>
@@ -27,7 +34,7 @@
 <div>
 <h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white">Informations</h4>
 <ul class="text-sm text-white/70 space-y-4">
-<li><a class="hover:text-white transition-colors" href="#">Lundi – Vendredi : 08:00 – 18:00</a></li>
+<li><span class="block">Lundi – Vendredi : 08:00 – 18:00</span></li>
 <li><span class="block">Siège social : 50 Boulevard Stalingrad, 06300 Nice</span></li>
 <li><a class="hover:text-white transition-colors flex items-center gap-2" href="mailto:contact@carpartsfrance.fr"><span class="material-symbols-outlined text-sm">mail</span> contact@carpartsfrance.fr</a></li>
 <li><a class="hover:text-white transition-colors flex items-center gap-2" href="tel:0465845488"><span class="material-symbols-outlined text-sm">call</span> 04 65 84 54 88</a></li>
@@ -36,12 +43,19 @@
 <div>
 <h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white">Newsletter</h4>
 <p class="text-xs text-white/70 mb-6">Recevez nos dernières offres techniques et promotions directement dans votre boîte mail.</p>
-<div class="flex gap-2">
-<input class="w-full bg-white/10 border-white/20 rounded-lg text-sm px-4 focus:ring-white placeholder:text-white/40" placeholder="votre@email.com" type="email"/>
-<button class="bg-white text-slate-900 px-4 py-2.5 rounded-lg font-bold hover:bg-white/90 transition-colors">
+<% if (newsletterError) { %>
+<div class="mb-4 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-xs text-red-100"><%= newsletterError %></div>
+<% } %>
+<% if (newsletterSuccess) { %>
+<div class="mb-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-100"><%= newsletterSuccess %></div>
+<% } %>
+<form action="/newsletter" class="flex gap-2" method="POST">
+<input name="returnTo" type="hidden" value="<%= typeof currentPath === 'string' && currentPath ? currentPath : '/' %>"/>
+<input class="w-full bg-white/10 border-white/20 rounded-lg text-sm px-4 focus:ring-white placeholder:text-white/40" name="email" placeholder="votre@email.com" required type="email"/>
+<button class="bg-white text-slate-900 px-4 py-2.5 rounded-lg font-bold hover:bg-white/90 transition-colors" type="submit" aria-label="S'inscrire à la newsletter">
 <span class="material-symbols-outlined">send</span>
 </button>
-</div>
+</form>
 </div>
 </div>
 <div class="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -67,6 +81,7 @@
 }; %>
 
 <% const _showMobileNav = !/^\/(admin|commande)(\/|$)/.test(_cp); %>
+<% const _showCookieBanner = !/^\/(admin)(\/|$)/.test(_cp); %>
 
 <% if (_showMobileNav) { %>
   <nav aria-label="Navigation rapide" class="fixed bottom-0 left-0 right-0 z-50 md:hidden">
@@ -103,6 +118,65 @@
       </div>
     </div>
   </nav>
+<% } %>
+
+<% if (_showCookieBanner) { %>
+  <div id="cookieBanner" class="fixed bottom-4 left-4 right-4 z-50 hidden">
+    <div class="mx-auto max-w-[1440px]">
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3">
+        <div class="text-xs md:text-sm text-slate-700 font-semibold">
+          Ce site utilise des cookies nécessaires au fonctionnement (ex: panier, connexion). Tu peux accepter ou refuser les cookies non essentiels.
+        </div>
+        <div class="flex gap-2 md:ml-auto">
+          <button id="cookieRefuse" type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition">Refuser</button>
+          <button id="cookieAccept" type="button" class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition">Accepter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      function getCookie(name) {
+        var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\\[\\]\\\\\/\\+^])/g, '\\$1') + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : '';
+      }
+
+      function setCookie(name, value, maxAgeSeconds) {
+        var parts = [name + '=' + encodeURIComponent(value), 'Path=/', 'SameSite=Lax'];
+        if (typeof maxAgeSeconds === 'number') parts.push('Max-Age=' + String(maxAgeSeconds));
+        document.cookie = parts.join('; ');
+      }
+
+      var existing = getCookie('cp_cookie_consent');
+      var banner = document.getElementById('cookieBanner');
+      if (!banner) return;
+      if (existing) return;
+
+      banner.classList.remove('hidden');
+
+      var acceptBtn = document.getElementById('cookieAccept');
+      var refuseBtn = document.getElementById('cookieRefuse');
+
+      function close() {
+        banner.classList.add('hidden');
+      }
+
+      if (acceptBtn) {
+        acceptBtn.addEventListener('click', function () {
+          setCookie('cp_cookie_consent', 'accepted', 15552000);
+          close();
+        });
+      }
+
+      if (refuseBtn) {
+        refuseBtn.addEventListener('click', function () {
+          setCookie('cp_cookie_consent', 'refused', 15552000);
+          close();
+        });
+      }
+    })();
+  </script>
 <% } %>
 </div>
 

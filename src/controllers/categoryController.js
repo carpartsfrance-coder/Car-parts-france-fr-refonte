@@ -27,6 +27,13 @@ function normalizeMetaText(value) {
   return value.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
+function toSafeJsonLd(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
 function parsePage(value) {
   if (typeof value !== 'string') return 1;
   const n = Number(value);
@@ -105,6 +112,34 @@ async function listCategories(req, res, next) {
     const metaDescription = 'Découvre toutes nos catégories de pièces auto : moteur, freinage, carrosserie, électricité, entretien et plus.';
     const baseUrl = getPublicBaseUrlFromReq(req);
     const canonicalUrl = baseUrl ? `${baseUrl}/categorie` : '/categorie';
+    const jsonLd = toSafeJsonLd({
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'CollectionPage',
+          name: 'Catégories',
+          url: canonicalUrl,
+          description: metaDescription,
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'Accueil',
+              item: baseUrl ? `${baseUrl}/` : '/',
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: 'Catégories',
+              item: canonicalUrl,
+            },
+          ],
+        },
+      ],
+    });
 
     return res.render('categories/index', {
       title,
@@ -113,7 +148,9 @@ async function listCategories(req, res, next) {
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,
+      ogSiteName: 'CarParts France',
       ogType: 'website',
+      jsonLd,
       dbConnected,
       categories,
     });
@@ -209,16 +246,43 @@ function renderCategoryPage({ req, res, category, products, totalCount, page, pe
 
   const canonicalBase = buildCategoryPublicUrl(category, { req });
   const canonicalUrl = page > 1 ? `${canonicalBase}?page=${encodeURIComponent(String(page))}` : canonicalBase;
+  const baseUrl = getPublicBaseUrlFromReq(req);
+  const metaRobots = page > 1 ? 'noindex, follow' : '';
 
-  const jsonLd = JSON.stringify({
+  const jsonLd = toSafeJsonLd({
     '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name,
-    url: canonicalUrl,
-  })
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026');
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name,
+        url: canonicalUrl,
+        description: metaDescription,
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Accueil',
+            item: baseUrl ? `${baseUrl}/` : '/',
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Catégories',
+            item: baseUrl ? `${baseUrl}/categorie` : '/categorie',
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name,
+            item: canonicalUrl,
+          },
+        ],
+      },
+    ],
+  });
 
   return res.render('categories/show', {
     title,
@@ -227,7 +291,9 @@ function renderCategoryPage({ req, res, category, products, totalCount, page, pe
     ogTitle: title,
     ogDescription: metaDescription,
     ogUrl: canonicalUrl,
+    ogSiteName: 'CarParts France',
     ogType: 'website',
+    metaRobots,
     jsonLd,
     dbConnected,
     category: {

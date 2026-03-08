@@ -51,7 +51,9 @@ async function getSearchPage(req, res, next) {
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,
+      ogSiteName: 'CarParts France',
       ogType: 'website',
+      metaRobots: 'noindex, follow',
     });
   } catch (err) {
     return next(err);

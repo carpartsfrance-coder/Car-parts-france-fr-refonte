@@ -7,6 +7,7 @@ function formatEuro(totalCents) {
 const fs = require('fs');
 const path = require('path');
 const invoiceSettings = require('./invoiceSettings');
+const mediaStorage = require('./mediaStorage');
 
 function formatDateFR(value) {
   if (!value) return '—';
@@ -31,6 +32,22 @@ function resolvePublicFilePath(publicPath) {
   const rel = raw.replace(/^\//, '');
   const resolved = path.join(__dirname, '..', '..', 'public', rel);
   return resolved;
+}
+
+async function loadLogoBufferFromUrl(logoUrl) {
+  const raw = getTrimmedString(logoUrl);
+  if (!raw) return null;
+
+  const mediaId = mediaStorage.extractMediaIdFromUrl(raw);
+  if (!mediaId) return null;
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const stream = mediaStorage.openDownloadStream(mediaId);
+    stream.on('data', (c) => chunks.push(c));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
 }
 
 function deriveSirenFromSiret(siret) {
@@ -103,6 +120,13 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
   const shipping = order.shippingAddress || null;
   const billing = order.billingAddress || null;
 
+  let logoBuffer = null;
+  try {
+    logoBuffer = await loadLogoBufferFromUrl(settings && settings.logoUrl ? settings.logoUrl : '');
+  } catch (err) {
+    logoBuffer = null;
+  }
+
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: 'A4', margin: 48 });
@@ -115,8 +139,12 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
       const left = doc.page.margins.left;
       const right = pageW - doc.page.margins.right;
 
-      const logoPath = resolvePublicFilePath(settings && settings.logoUrl ? settings.logoUrl : '');
+      const logoPath = !logoBuffer
+        ? resolvePublicFilePath(settings && settings.logoUrl ? settings.logoUrl : '')
+        : '';
+
       const hasLogo = (() => {
+        if (logoBuffer && Buffer.isBuffer(logoBuffer) && logoBuffer.length) return true;
         if (!logoPath) return false;
         try {
           return fs.existsSync(logoPath);
@@ -128,7 +156,7 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
       const headerTopY = doc.y;
       if (hasLogo) {
         try {
-          doc.image(logoPath, left, headerTopY, { width: 140 });
+          doc.image(logoBuffer || logoPath, left, headerTopY, { width: 140 });
         } catch (e) {
           // ignore
         }

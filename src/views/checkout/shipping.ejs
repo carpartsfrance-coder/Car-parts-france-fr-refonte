@@ -253,6 +253,9 @@
                 </div>
                 <div class="flex-1">
                   <div class="text-sm font-black text-slate-900"><%= it.product.name %></div>
+                  <% if (it.optionsSummary) { %>
+                    <div class="text-xs text-slate-500"><%= it.optionsSummary %></div>
+                  <% } %>
                   <div class="text-xs text-slate-500">Qté : <%= it.quantity %></div>
                 </div>
                 <div class="text-sm font-black text-slate-900"><%= (it.lineTotalCents / 100).toFixed(2).replace('.', ',') %> €</div>

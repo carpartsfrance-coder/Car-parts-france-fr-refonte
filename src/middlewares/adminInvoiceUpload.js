@@ -10,23 +10,19 @@ const upload = multer({
   fileFilter(req, file, cb) {
     if (!file || !file.mimetype) return cb(null, false);
     if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error("Fichier non supporté. Merci d'envoyer une image (PNG, JPG, WEBP)."));
+      return cb(new Error("Fichier non supporté. Merci d'envoyer une image."));
     }
     return cb(null, true);
   },
 });
 
-function handleProductImageUpload(req, res, next) {
-  const multi = upload.array('image', 10);
+function handleInvoiceLogoUpload(req, res, next) {
+  const single = upload.single('logoFile');
 
-  multi(req, res, (err) => {
+  single(req, res, (err) => {
     if (err) {
       req.uploadError = err.message || "Erreur lors de l'upload.";
       return next();
-    }
-
-    if (Array.isArray(req.files) && req.files.length > 0) {
-      req.file = req.files[0];
     }
 
     return next();
@@ -34,5 +30,5 @@ function handleProductImageUpload(req, res, next) {
 }
 
 module.exports = {
-  handleProductImageUpload,
+  handleInvoiceLogoUpload,
 };

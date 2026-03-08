@@ -12,6 +12,35 @@ const trackingLinks = require('../services/trackingLinks');
 const emailService = require('../services/emailService');
 const { buildOrderInvoicePdfBuffer } = require('../services/invoicePdf');
 const { ensureInvoiceIssuedForPaidOrder } = require('../services/orderInvoices');
+const productOptions = require('../services/productOptions');
+
+const LOGIN_BUCKETS = new Map();
+const REGISTER_BUCKETS = new Map();
+const FORGOT_BUCKETS = new Map();
+const RESET_BUCKETS = new Map();
+
+function getClientIp(req) {
+  const xfwd = req && req.headers ? req.headers['x-forwarded-for'] : null;
+  const fromHeader = Array.isArray(xfwd) ? xfwd[0] : typeof xfwd === 'string' ? xfwd.split(',')[0] : '';
+  const candidate = getTrimmedString(fromHeader) || (req && req.ip ? String(req.ip) : '');
+  return candidate || 'unknown';
+}
+
+function consumeRateLimit(buckets, key, { limit, windowMs } = {}) {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 20;
+  const safeWindowMs = Number.isFinite(windowMs) ? Math.max(1000, Math.floor(windowMs)) : 10 * 60 * 1000;
+  const now = Date.now();
+  const entry = buckets.get(key);
+
+  if (!entry || typeof entry.resetAt !== 'number' || now >= entry.resetAt) {
+    buckets.set(key, { count: 1, resetAt: now + safeWindowMs });
+    return { limited: false, remaining: safeLimit - 1 };
+  }
+
+  entry.count += 1;
+  const remaining = Math.max(0, safeLimit - entry.count);
+  return { limited: entry.count > safeLimit, remaining };
+}
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : value ? String(value).trim() : '';
@@ -41,6 +70,29 @@ async function postForgotPassword(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const email = normalizeEmail(req.body.email);
+
+    const ip = getClientIp(req);
+    const honeypot = getTrimmedString(req.body && req.body.website);
+    if (honeypot) {
+      return res.render('account/forgot-password', {
+        title: 'Mot de passe oublié - CarParts France',
+        dbConnected,
+        errorMessage: null,
+        successMessage: "Si un compte existe avec cet email, tu vas recevoir un lien de réinitialisation.",
+        email: '',
+      });
+    }
+
+    const limit = consumeRateLimit(FORGOT_BUCKETS, ip, { limit: 10, windowMs: 10 * 60 * 1000 });
+    if (limit.limited) {
+      return res.status(429).render('account/forgot-password', {
+        title: 'Mot de passe oublié - CarParts France',
+        dbConnected,
+        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        successMessage: null,
+        email,
+      });
+    }
 
     if (!email) {
       return res.status(400).render('account/forgot-password', {
@@ -160,6 +212,29 @@ async function postResetPassword(req, res, next) {
     const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
     const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
     const confirmPassword = typeof req.body.confirmPassword === 'string' ? req.body.confirmPassword : '';
+
+    const ip = getClientIp(req);
+    const honeypot = getTrimmedString(req.body && req.body.website);
+    if (honeypot) {
+      return res.status(400).render('account/reset-password', {
+        title: 'Réinitialiser le mot de passe - CarParts France',
+        dbConnected,
+        errorMessage: 'Lien expiré ou invalide. Merci de refaire une demande.',
+        successMessage: null,
+        token: '',
+      });
+    }
+
+    const limit = consumeRateLimit(RESET_BUCKETS, ip, { limit: 15, windowMs: 10 * 60 * 1000 });
+    if (limit.limited) {
+      return res.status(429).render('account/reset-password', {
+        title: 'Réinitialiser le mot de passe - CarParts France',
+        dbConnected,
+        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        successMessage: null,
+        token,
+      });
+    }
 
     if (!dbConnected) {
       return res.status(503).render('account/reset-password', {
@@ -607,6 +682,7 @@ async function getOrderDetailPage(req, res, next) {
                 inStock: p && typeof p.inStock === 'boolean' ? p.inStock : null,
                 name: it.name,
                 sku: it.sku,
+                optionsSummary: it && typeof it.optionsSummary === 'string' ? it.optionsSummary : '',
                 unitPrice: formatEuro(it.unitPriceCents),
                 unitPriceCents: it.unitPriceCents,
                 quantity: it.quantity,
@@ -1150,6 +1226,7 @@ async function getOrderTrackingPage(req, res, next) {
                 name: it.name,
                 quantity: it.quantity,
                 unitPrice: formatEuro(it.unitPriceCents),
+                optionsSummary: it && typeof it.optionsSummary === 'string' ? it.optionsSummary : '',
                 imageUrl: p && p.imageUrl ? p.imageUrl : '',
               };
             })
@@ -1225,15 +1302,24 @@ async function postRepurchaseOrder(req, res, next) {
     for (const it of order.items) {
       const pid = it && it.productId ? String(it.productId) : '';
       const qty = it && Number.isFinite(it.quantity) ? it.quantity : 1;
+      const selection = it && it.optionsSelection && typeof it.optionsSelection === 'object' ? it.optionsSelection : {};
 
       if (!pid) continue;
 
-      if (!cart.items[pid]) {
-        cart.items[pid] = { productId: pid, quantity: 0 };
+      const { lineId } = productOptions.buildCartLineId(pid, selection);
+
+      if (!cart.items[lineId]) {
+        cart.items[lineId] = {
+          lineId,
+          productId: pid,
+          quantity: 0,
+          optionsSelection: selection,
+          optionsSummary: it && typeof it.optionsSummary === 'string' ? it.optionsSummary : '',
+        };
       }
 
-      const currentQty = Number.isFinite(cart.items[pid].quantity) ? cart.items[pid].quantity : 0;
-      cart.items[pid].quantity = Math.min(currentQty + qty, 99);
+      const currentQty = Number.isFinite(cart.items[lineId].quantity) ? cart.items[lineId].quantity : 0;
+      cart.items[lineId].quantity = Math.min(currentQty + qty, 99);
     }
 
     return res.redirect('/panier');
@@ -1566,6 +1652,29 @@ async function postLogin(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
 
+    const ip = getClientIp(req);
+    const honeypot = getTrimmedString(req.body && req.body.website);
+    if (honeypot) {
+      return res.status(401).render('account/login', {
+        title: 'Connexion - CarParts France',
+        dbConnected,
+        errorMessage: 'Identifiants incorrects.',
+        email: normalizeEmail(req.body.email),
+        returnTo: getSafeReturnTo(req.body.returnTo) || '/compte',
+      });
+    }
+
+    const limit = consumeRateLimit(LOGIN_BUCKETS, ip, { limit: 25, windowMs: 10 * 60 * 1000 });
+    if (limit.limited) {
+      return res.status(429).render('account/login', {
+        title: 'Connexion - CarParts France',
+        dbConnected,
+        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        email: normalizeEmail(req.body.email),
+        returnTo: getSafeReturnTo(req.body.returnTo) || '/compte',
+      });
+    }
+
     if (!dbConnected) {
       return res.status(503).render('account/login', {
         title: 'Connexion - CarParts France',
@@ -1613,7 +1722,7 @@ async function postLogin(req, res, next) {
       });
     }
 
-    req.session.user = {
+    const nextSessionUser = {
       _id: String(user._id),
       accountType: user.accountType,
       firstName: user.firstName,
@@ -1623,10 +1732,27 @@ async function postLogin(req, res, next) {
       discountPercent: typeof user.discountPercent === 'number' ? user.discountPercent : 0,
     };
 
-    req.session.accountType = user.accountType;
-
     const returnTo = getSafeReturnTo(req.body.returnTo);
     const target = returnTo || '/compte';
+
+    const prevCart = req.session && req.session.cart ? req.session.cart : null;
+    const prevCheckout = req.session && req.session.checkout ? req.session.checkout : null;
+    const prevPromoCode = req.session && req.session.promoCode ? req.session.promoCode : null;
+
+    if (req.session && typeof req.session.regenerate === 'function') {
+      return req.session.regenerate((err) => {
+        if (err) return next(err);
+        if (prevCart) req.session.cart = prevCart;
+        if (prevCheckout) req.session.checkout = prevCheckout;
+        if (prevPromoCode) req.session.promoCode = prevPromoCode;
+        req.session.user = nextSessionUser;
+        req.session.accountType = user.accountType;
+        return req.session.save(() => res.redirect(target));
+      });
+    }
+
+    req.session.user = nextSessionUser;
+    req.session.accountType = user.accountType;
     return req.session.save(() => res.redirect(target));
   } catch (err) {
     return next(err);
@@ -1990,6 +2116,43 @@ function getRegister(req, res) {
 async function postRegister(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
+
+    const ip = getClientIp(req);
+    const honeypot = getTrimmedString(req.body && req.body.website);
+    if (honeypot) {
+      return res.status(400).render('account/register', {
+        title: 'Créer un compte - CarParts France',
+        dbConnected,
+        errorMessage: 'Merci de remplir tous les champs obligatoires.',
+        form: {
+          accountType: req.body.accountType === 'pro' ? 'pro' : 'particulier',
+          firstName: typeof req.body.firstName === 'string' ? req.body.firstName.trim() : '',
+          lastName: typeof req.body.lastName === 'string' ? req.body.lastName.trim() : '',
+          email: normalizeEmail(req.body.email),
+          companyName: typeof req.body.companyName === 'string' ? req.body.companyName.trim() : '',
+          siret: typeof req.body.siret === 'string' ? req.body.siret.trim() : '',
+        },
+        returnTo: getSafeReturnTo(req.body.returnTo) || '/compte',
+      });
+    }
+
+    const limit = consumeRateLimit(REGISTER_BUCKETS, ip, { limit: 12, windowMs: 10 * 60 * 1000 });
+    if (limit.limited) {
+      return res.status(429).render('account/register', {
+        title: 'Créer un compte - CarParts France',
+        dbConnected,
+        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        form: {
+          accountType: req.body.accountType === 'pro' ? 'pro' : 'particulier',
+          firstName: typeof req.body.firstName === 'string' ? req.body.firstName.trim() : '',
+          lastName: typeof req.body.lastName === 'string' ? req.body.lastName.trim() : '',
+          email: normalizeEmail(req.body.email),
+          companyName: typeof req.body.companyName === 'string' ? req.body.companyName.trim() : '',
+          siret: typeof req.body.siret === 'string' ? req.body.siret.trim() : '',
+        },
+        returnTo: getSafeReturnTo(req.body.returnTo) || '/compte',
+      });
+    }
     const accountType = req.body.accountType === 'pro' ? 'pro' : 'particulier';
     const firstName = typeof req.body.firstName === 'string' ? req.body.firstName.trim() : '';
     const lastName = typeof req.body.lastName === 'string' ? req.body.lastName.trim() : '';
@@ -2078,7 +2241,7 @@ async function postRegister(req, res, next) {
       console.error('Erreur email bienvenue :', err && err.message ? err.message : err);
     }
 
-    req.session.user = {
+    const nextSessionUser = {
       _id: String(created._id),
       accountType: created.accountType,
       firstName: created.firstName,
@@ -2088,10 +2251,27 @@ async function postRegister(req, res, next) {
       discountPercent: typeof created.discountPercent === 'number' ? created.discountPercent : 0,
     };
 
-    req.session.accountType = created.accountType;
-
     const returnTo = getSafeReturnTo(req.body.returnTo);
     const target = returnTo || '/compte';
+
+    const prevCart = req.session && req.session.cart ? req.session.cart : null;
+    const prevCheckout = req.session && req.session.checkout ? req.session.checkout : null;
+    const prevPromoCode = req.session && req.session.promoCode ? req.session.promoCode : null;
+
+    if (req.session && typeof req.session.regenerate === 'function') {
+      return req.session.regenerate((err) => {
+        if (err) return next(err);
+        if (prevCart) req.session.cart = prevCart;
+        if (prevCheckout) req.session.checkout = prevCheckout;
+        if (prevPromoCode) req.session.promoCode = prevPromoCode;
+        req.session.user = nextSessionUser;
+        req.session.accountType = created.accountType;
+        return req.session.save(() => res.redirect(target));
+      });
+    }
+
+    req.session.user = nextSessionUser;
+    req.session.accountType = created.accountType;
     return req.session.save(() => res.redirect(target));
   } catch (err) {
     if (err && err.code === 11000) {

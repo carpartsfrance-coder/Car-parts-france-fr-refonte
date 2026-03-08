@@ -1,39 +1,16 @@
 const mongoose = require('mongoose');
-const fs = require('fs');
-const path = require('path');
 
 const BlogPost = require('../models/BlogPost');
 const Product = require('../models/Product');
 const { slugify } = require('../services/productPublic');
 const { markdownToHtml, stripHtml: stripHtmlFromService } = require('../services/blogContent');
+const mediaStorage = require('../services/mediaStorage');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function tryDeleteFile(filePath) {
-  if (!filePath) return;
-  try {
-    fs.unlinkSync(filePath);
-  } catch (err) {
-    return;
-  }
-}
-
-function getLocalBlogUploadPath(imageUrl) {
-  if (typeof imageUrl !== 'string') return '';
-  const normalized = imageUrl.trim();
-  if (!normalized.startsWith('/uploads/blog/')) return '';
-  const rel = normalized.replace(/^\//, '');
-  return path.join(__dirname, '..', '..', 'public', rel);
-}
-
-function cleanupUploadedBlogFile(req) {
-  const filename = req && req.file && req.file.filename ? String(req.file.filename) : '';
-  if (!filename) return;
-  const filePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'blog', filename);
-  tryDeleteFile(filePath);
-}
+function cleanupUploadedBlogFile() {}
 
 function normalizeMetaText(value) {
   if (typeof value !== 'string') return '';
@@ -529,6 +506,8 @@ async function getAdminNewBlogPostPage(req, res) {
 }
 
 async function postAdminCreateBlogPost(req, res, next) {
+  let savedCover = null;
+
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     if (!dbConnected) {
@@ -587,10 +566,14 @@ async function postAdminCreateBlogPost(req, res, next) {
       });
     }
 
-    const uploadedCoverUrl = req.file && req.file.filename
-      ? `/uploads/blog/${req.file.filename}`
-      : '';
-    const coverImageUrl = uploadedCoverUrl || form.coverImageUrl;
+    if (req.file && req.file.buffer) {
+      savedCover = await mediaStorage.saveMulterFile(req.file, {
+        metadata: { scope: 'blog-cover' },
+        fallbackPrefix: 'blog',
+      });
+    }
+
+    const coverImageUrl = savedCover && savedCover.url ? savedCover.url : form.coverImageUrl;
 
     const baseSlug = form.slug || slugify(form.title) || 'article';
     const finalSlug = await ensureUniqueSlug(baseSlug);
@@ -646,11 +629,15 @@ async function postAdminCreateBlogPost(req, res, next) {
     return res.redirect(`/admin/blog/${encodeURIComponent(String(created._id))}`);
   } catch (err) {
     if (err && err.code === 11000) {
-      cleanupUploadedBlogFile(req);
+      if (savedCover && savedCover.url) {
+        await mediaStorage.deleteFromUrl(savedCover.url);
+      }
       req.session.adminBlogError = 'Un article existe déjà avec ce slug.';
       return res.redirect('/admin/blog/nouveau');
     }
-    cleanupUploadedBlogFile(req);
+    if (savedCover && savedCover.url) {
+      await mediaStorage.deleteFromUrl(savedCover.url);
+    }
     return next(err);
   }
 }
@@ -703,6 +690,8 @@ async function getAdminEditBlogPostPage(req, res, next) {
 }
 
 async function postAdminUpdateBlogPost(req, res, next) {
+  let savedCover = null;
+
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const { postId } = req.params;
@@ -781,14 +770,19 @@ async function postAdminUpdateBlogPost(req, res, next) {
       ? markdownToHtml(form.contentMarkdown)
       : (existing.contentHtml || '');
 
-    const uploadedCoverUrl = req.file && req.file.filename
-      ? `/uploads/blog/${req.file.filename}`
-      : '';
-    const nextCoverImageUrl = uploadedCoverUrl || form.coverImageUrl || (existing.coverImageUrl || '');
+    if (req.file && req.file.buffer) {
+      savedCover = await mediaStorage.saveMulterFile(req.file, {
+        metadata: { scope: 'blog-cover' },
+        fallbackPrefix: 'blog',
+      });
+    }
 
-    if (uploadedCoverUrl) {
-      const oldPath = getLocalBlogUploadPath(existing.coverImageUrl);
-      tryDeleteFile(oldPath);
+    const nextCoverImageUrl = (savedCover && savedCover.url)
+      ? savedCover.url
+      : (form.coverImageUrl || (existing.coverImageUrl || ''));
+
+    if (savedCover && savedCover.url) {
+      await mediaStorage.deleteFromUrl(existing.coverImageUrl);
     }
 
     const updated = await BlogPost.findByIdAndUpdate(
@@ -838,11 +832,15 @@ async function postAdminUpdateBlogPost(req, res, next) {
     return res.redirect(`/admin/blog/${encodeURIComponent(String(postId))}`);
   } catch (err) {
     if (err && err.code === 11000) {
-      cleanupUploadedBlogFile(req);
+      if (savedCover && savedCover.url) {
+        await mediaStorage.deleteFromUrl(savedCover.url);
+      }
       req.session.adminBlogError = 'Un article existe déjà avec ce slug.';
       return res.redirect(`/admin/blog/${encodeURIComponent(String(req.params.postId))}`);
     }
-    cleanupUploadedBlogFile(req);
+    if (savedCover && savedCover.url) {
+      await mediaStorage.deleteFromUrl(savedCover.url);
+    }
     return next(err);
   }
 }
@@ -862,8 +860,7 @@ async function postAdminDeleteBlogPost(req, res, next) {
 
     const existing = await BlogPost.findById(postId).select('_id coverImageUrl').lean();
     if (existing && existing.coverImageUrl) {
-      const oldPath = getLocalBlogUploadPath(existing.coverImageUrl);
-      tryDeleteFile(oldPath);
+      await mediaStorage.deleteFromUrl(existing.coverImageUrl);
     }
 
     await BlogPost.findByIdAndDelete(postId);
@@ -880,11 +877,16 @@ async function postAdminBlogMediaUploadApi(req, res, next) {
       return res.status(400).json({ ok: false, url: '', error: req.uploadError });
     }
 
-    if (!req.file || !req.file.filename) {
+    if (!req.file || !req.file.buffer) {
       return res.status(400).json({ ok: false, url: '', error: 'Aucun fichier reçu.' });
     }
 
-    return res.json({ ok: true, url: `/uploads/blog/${req.file.filename}` });
+    const saved = await mediaStorage.saveMulterFile(req.file, {
+      metadata: { scope: 'blog-inline' },
+      fallbackPrefix: 'blog',
+    });
+
+    return res.json({ ok: true, url: saved && saved.url ? saved.url : '' });
   } catch (err) {
     return next(err);
   }

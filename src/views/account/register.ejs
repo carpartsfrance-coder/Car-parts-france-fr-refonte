@@ -20,6 +20,7 @@
     <form action="/compte/inscription" method="POST">
       <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/compte' %>" />
       <input id="accountType" name="accountType" type="hidden" value="<%= form && form.accountType === 'pro' ? 'pro' : 'particulier' %>" />
+      <input name="website" type="text" value="" autocomplete="off" tabindex="-1" aria-hidden="true" class="hidden" />
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
         <div class="lg:col-span-7 space-y-8">

@@ -12,6 +12,7 @@ const scalapay = require('../services/scalapay');
 const promoCodes = require('../services/promoCodes');
 const pricing = require('../services/pricing');
 const emailService = require('../services/emailService');
+const productOptions = require('../services/productOptions');
 const { getLegalPageBySlug } = require('../services/legalPages');
 const { ensureInvoiceIssuedForPaidOrder } = require('../services/orderInvoices');
 const { getNextOrderNumber } = require('../services/orderNumber');
@@ -25,7 +26,7 @@ function getCart(req) {
 }
 
 function computeCartItemCount(cart) {
-  return Object.values(cart.items).reduce((sum, item) => sum + item.quantity, 0);
+  return Object.values(cart.items).reduce((sum, item) => sum + (Number(item && item.quantity) || 0), 0);
 }
 
 function parseNumberFromLooseString(value) {
@@ -323,7 +324,13 @@ async function getShippingMethods(dbConnected, products) {
 }
 
 async function buildCartView(dbConnected, cart) {
-  const items = Object.values(cart.items);
+  const items = Object.entries(cart.items).map(([key, it]) => {
+    const safe = it && typeof it === 'object' ? it : {};
+    return {
+      ...safe,
+      lineId: safe.lineId || key,
+    };
+  });
   const productById = new Map();
 
   if (dbConnected && items.length) {
@@ -347,13 +354,20 @@ async function buildCartView(dbConnected, cart) {
     const product = normalizeProduct(productById.get(String(item.productId)));
     if (!product) continue;
 
-    const lineTotalCents = product.priceCents * item.quantity;
+    const unitPriceCents = productOptions.computeUnitPriceCents(product, item.optionsSelection);
+    const lineTotalCents = unitPriceCents * item.quantity;
     itemsTotalCents += lineTotalCents;
 
+    const fallbackSummary = productOptions.buildOptionsDisplay(product.options, item.optionsSelection).optionsSummary;
+    const optionsSummary = typeof item.optionsSummary === 'string' && item.optionsSummary.trim() ? item.optionsSummary.trim() : fallbackSummary;
+
     viewItems.push({
+      lineId: item.lineId || '',
       product,
       quantity: item.quantity,
+      unitPriceCents,
       lineTotalCents,
+      optionsSummary,
     });
   }
 
@@ -492,6 +506,8 @@ function applyDiscountToOrderItems(orderItems, discountedItemsTotalCents) {
   for (const it of items) {
     const qty = Number(it.quantity) || 1;
     const unitPriceCents = Number(it.unitPriceCents) || 0;
+    const optionsSummary = typeof it.optionsSummary === 'string' ? it.optionsSummary : '';
+    const optionsSelection = it && it.optionsSelection && typeof it.optionsSelection === 'object' ? it.optionsSelection : {};
     for (let i = 0; i < qty; i += 1) {
       const raw = unitPriceCents * ratio;
       const floored = Math.floor(raw);
@@ -499,6 +515,8 @@ function applyDiscountToOrderItems(orderItems, discountedItemsTotalCents) {
         productId: it.productId,
         name: it.name,
         sku: it.sku || '',
+        optionsSummary,
+        optionsSelection,
         raw,
         unitPriceCents: floored,
         frac: raw - floored,
@@ -535,7 +553,8 @@ function applyDiscountToOrderItems(orderItems, discountedItemsTotalCents) {
     const sku = u.sku || '';
     const name = u.name || '';
     const price = Number(u.unitPriceCents) || 0;
-    const key = `${pid}__${sku}__${price}__${name}`;
+    const optionsSummary = u.optionsSummary || '';
+    const key = `${pid}__${sku}__${price}__${name}__${optionsSummary}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.quantity += 1;
@@ -545,6 +564,8 @@ function applyDiscountToOrderItems(orderItems, discountedItemsTotalCents) {
         productId: itOrNullObjectId(pid) || u.productId,
         name,
         sku,
+        optionsSummary,
+        optionsSelection: u.optionsSelection && typeof u.optionsSelection === 'object' ? u.optionsSelection : {},
         unitPriceCents: price,
         quantity: 1,
         lineTotalCents: price,
@@ -1252,7 +1273,13 @@ async function postPayment(req, res, next) {
     }
 
     const cart = getCart(req);
-    const rawItems = Object.values(cart.items);
+    const rawItems = Object.entries(cart.items).map(([key, it]) => {
+      const safe = it && typeof it === 'object' ? it : {};
+      return {
+        ...safe,
+        lineId: safe.lineId || key,
+      };
+    });
 
     if (rawItems.length === 0) {
       return res.redirect('/panier');
@@ -1434,7 +1461,11 @@ async function postPayment(req, res, next) {
       if (!product) continue;
       if (product.inStock === false) continue;
 
-      const lineTotalCents = product.priceCents * item.quantity;
+      const unitPriceCents = productOptions.computeUnitPriceCents(product, item.optionsSelection);
+      const display = productOptions.buildOptionsDisplay(product.options, item.optionsSelection);
+      const optionsSummary = typeof item.optionsSummary === 'string' && item.optionsSummary.trim() ? item.optionsSummary.trim() : display.optionsSummary;
+
+      const lineTotalCents = unitPriceCents * item.quantity;
       itemsTotalCents += lineTotalCents;
 
       if (!mongoose.Types.ObjectId.isValid(String(product._id))) continue;
@@ -1443,7 +1474,9 @@ async function postPayment(req, res, next) {
         productId: new mongoose.Types.ObjectId(String(product._id)),
         name: product.name,
         sku: product.sku || '',
-        unitPriceCents: product.priceCents,
+        optionsSelection: display && display.lines ? (item.optionsSelection || {}) : (item.optionsSelection || {}),
+        optionsSummary,
+        unitPriceCents,
         quantity: item.quantity,
         lineTotalCents,
       });

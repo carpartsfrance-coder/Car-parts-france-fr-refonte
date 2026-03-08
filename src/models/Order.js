@@ -5,6 +5,8 @@ const orderItemSchema = new mongoose.Schema(
     productId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     name: { type: String, required: true, trim: true },
     sku: { type: String, default: '', trim: true },
+    optionsSelection: { type: Object, default: {} },
+    optionsSummary: { type: String, default: '', trim: true },
     unitPriceCents: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1, max: 99 },
     lineTotalCents: { type: Number, required: true, min: 0 },

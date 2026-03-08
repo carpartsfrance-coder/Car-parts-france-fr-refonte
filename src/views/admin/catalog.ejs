@@ -16,7 +16,7 @@
       </a>
     </div>
 
-    <form action="/admin/catalogue" class="mt-6 bg-white rounded-2xl border border-slate-200 p-4" method="GET">
+    <form action="/admin/catalogue" class="sticky top-0 z-30 mt-6 bg-white/98 backdrop-blur rounded-2xl border border-slate-200 p-4 shadow-lg shadow-slate-200/70" method="GET">
       <div class="flex flex-col xl:flex-row xl:items-center gap-4">
         <div class="flex-1">
           <div class="relative">
@@ -32,6 +32,14 @@
             <option value="out" <%= filters && filters.stock === 'out' ? 'selected' : '' %>>Stock limité</option>
           </select>
 
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="limit">
+            <% const perPage = pagination && pagination.perPage ? pagination.perPage : 20; %>
+            <option value="20" <%= perPage === 20 ? 'selected' : '' %>>20 / page</option>
+            <option value="50" <%= perPage === 50 ? 'selected' : '' %>>50 / page</option>
+            <option value="100" <%= perPage === 100 ? 'selected' : '' %>>100 / page</option>
+            <option value="200" <%= perPage === 200 ? 'selected' : '' %>>200 / page</option>
+          </select>
+
           <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">
             Filtrer
           </button>
@@ -39,16 +47,70 @@
       </div>
     </form>
 
+    <% if (successMessage) { %>
+      <div class="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 text-green-900">
+        <div class="font-bold"><%= successMessage %></div>
+      </div>
+    <% } %>
+
+    <% if (errorMessage) { %>
+      <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <div class="font-bold"><%= errorMessage %></div>
+      </div>
+    <% } %>
+
     <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
         <div class="font-black text-slate-900">Produits</div>
+
+        <% if (pagination && typeof pagination.totalItems !== 'undefined') { %>
+          <div class="text-xs font-bold text-slate-500">
+            <%= pagination.from %>–<%= pagination.to %> sur <%= pagination.totalItems %>
+          </div>
+        <% } %>
       </div>
 
       <% if (products && products.length) { %>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left">
+        <% 
+          const currentPage = pagination && pagination.page ? pagination.page : 1;
+          const currentLimit = pagination && pagination.perPage ? pagination.perPage : 20;
+          const currentQ = filters && filters.q ? filters.q : '';
+          const currentStock = filters && filters.stock ? filters.stock : '';
+          const queryParts = [];
+          if (currentQ) queryParts.push('q=' + encodeURIComponent(currentQ));
+          if (currentStock) queryParts.push('stock=' + encodeURIComponent(currentStock));
+          if (currentLimit) queryParts.push('limit=' + encodeURIComponent(String(currentLimit)));
+          const baseQuery = queryParts.length ? ('?' + queryParts.join('&')) : '';
+          const urlForPage = (p) => {
+            const parts = queryParts.slice();
+            parts.push('page=' + encodeURIComponent(String(p)));
+            return '/admin/catalogue?' + parts.join('&');
+          };
+        %>
+
+        <form id="bulkForm" action="/admin/catalogue/supprimer-multi" method="POST">
+          <input type="hidden" name="returnTo" value="<%= urlForPage(currentPage) %>" />
+
+          <div class="px-6 py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <button id="bulkDeleteBtn" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" type="submit" disabled>
+                <span class="material-symbols-outlined mr-2 text-base">delete</span>
+                Supprimer la sélection
+              </button>
+              <div id="selectedCount" class="text-xs font-bold text-slate-500">0 sélectionné</div>
+            </div>
+            <div class="text-xs font-bold text-slate-500">
+              Page <%= currentPage %> / <%= pagination && pagination.totalPages ? pagination.totalPages : 1 %>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
             <thead>
               <tr class="text-xs font-black text-slate-400 uppercase tracking-widest bg-white">
+                <th class="px-6 py-4">
+                  <input id="selectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+                </th>
                 <th class="px-6 py-4">Nom</th>
                 <th class="px-6 py-4">SKU</th>
                 <th class="px-6 py-4">Marque</th>
@@ -63,6 +125,9 @@
             <tbody class="divide-y divide-slate-100">
               <% products.forEach((p) => { %>
                 <tr>
+                  <td class="px-6 py-4">
+                    <input class="rowSelect h-4 w-4 rounded border-slate-300" type="checkbox" name="productIds" value="<%= p.id %>" />
+                  </td>
                   <td class="px-6 py-4 font-black text-slate-900"><%= p.name %></td>
                   <td class="px-6 py-4 text-sm text-slate-600"><%= p.sku || '—' %></td>
                   <td class="px-6 py-4 text-sm text-slate-600"><%= p.brand || '—' %></td>
@@ -87,19 +152,95 @@
                         <span class="material-symbols-outlined mr-2 text-base">edit</span>
                         Modifier
                       </a>
-                      <form action="/admin/catalogue/<%= p.id %>/supprimer" method="POST" onsubmit="return confirm('Supprimer ce produit ?');">
-                        <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" type="submit">
-                          <span class="material-symbols-outlined mr-2 text-base">delete</span>
-                          Supprimer
-                        </button>
-                      </form>
+                      <button
+                        class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition"
+                        type="submit"
+                        formaction="/admin/catalogue/<%= p.id %>/supprimer"
+                        formmethod="POST"
+                        onclick="return confirm('Supprimer ce produit ?');"
+                      >
+                        <span class="material-symbols-outlined mr-2 text-base">delete</span>
+                        Supprimer
+                      </button>
                     </div>
                   </td>
                 </tr>
               <% }) %>
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+
+          <% if (pagination && pagination.totalPages && pagination.totalPages > 1) { %>
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <% if (pagination.hasPrev) { %>
+                  <a class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= urlForPage(pagination.prevPage) %>">
+                    Précédent
+                  </a>
+                <% } else { %>
+                  <span class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-300">Précédent</span>
+                <% } %>
+
+                <% if (pagination.hasNext) { %>
+                  <a class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= urlForPage(pagination.nextPage) %>">
+                    Suivant
+                  </a>
+                <% } else { %>
+                  <span class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-300">Suivant</span>
+                <% } %>
+              </div>
+              <div class="text-xs font-bold text-slate-500">
+                <%= pagination.page %> / <%= pagination.totalPages %>
+              </div>
+            </div>
+          <% } %>
+
+        </form>
+
+        <script>
+          (function () {
+            var form = document.getElementById('bulkForm');
+            var selectAll = document.getElementById('selectAll');
+            var bulkBtn = document.getElementById('bulkDeleteBtn');
+            var selectedCount = document.getElementById('selectedCount');
+            var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.rowSelect'));
+
+            if (form) {
+              form.addEventListener('submit', function (e) {
+                var submitter = e.submitter;
+                if (submitter && submitter.id === 'bulkDeleteBtn') {
+                  if (!window.confirm('Supprimer les produits sélectionnés ?')) {
+                    e.preventDefault();
+                  }
+                }
+              });
+            }
+
+            function updateState() {
+              var count = checkboxes.filter(function (c) { return c && c.checked; }).length;
+              if (selectedCount) selectedCount.textContent = count + ' sélectionné' + (count > 1 ? 's' : '');
+              if (bulkBtn) bulkBtn.disabled = count === 0;
+              if (selectAll) {
+                selectAll.checked = count > 0 && count === checkboxes.length;
+                selectAll.indeterminate = count > 0 && count < checkboxes.length;
+              }
+            }
+
+            if (selectAll) {
+              selectAll.addEventListener('change', function () {
+                var isChecked = !!selectAll.checked;
+                checkboxes.forEach(function (c) { c.checked = isChecked; });
+                updateState();
+              });
+            }
+
+            checkboxes.forEach(function (c) {
+              c.addEventListener('change', updateState);
+            });
+
+            updateState();
+          })();
+        </script>
       <% } else { %>
         <div class="p-6 text-slate-600">Aucun produit.</div>
       <% } %>

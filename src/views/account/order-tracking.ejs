@@ -239,6 +239,9 @@
                     </div>
                     <div class="flex-grow min-w-0">
                       <h4 class="text-sm font-bold text-slate-900 truncate"><%= it.name %></h4>
+                      <% if (it.optionsSummary) { %>
+                        <p class="text-xs text-slate-500"><%= it.optionsSummary %></p>
+                      <% } %>
                       <p class="text-xs text-slate-500">Qté: <%= it.quantity %> • <%= it.unitPrice %></p>
                     </div>
                   </div>

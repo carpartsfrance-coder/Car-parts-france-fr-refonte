@@ -1,10 +1,13 @@
 const express = require('express');
+const mongoose = require('mongoose');
 
 const adminController = require('../controllers/adminController');
 const blogAdminController = require('../controllers/blogAdminController');
 const legalAdminController = require('../controllers/legalAdminController');
+const AdminUser = require('../models/AdminUser');
 const { handleProductImageUpload } = require('../middlewares/adminProductUpload');
 const { handleBlogCoverUpload, handleBlogMediaUpload } = require('../middlewares/adminBlogUpload');
+const { handleInvoiceLogoUpload } = require('../middlewares/adminInvoiceUpload');
 
 const router = express.Router();
 
@@ -15,11 +18,40 @@ function getSafeReturnTo(value) {
   return value;
 }
 
-function requireAdminAuth(req, res, next) {
-  if (req.session && req.session.admin) return next();
+async function requireAdminAuth(req, res, next) {
+  try {
+    if (req.session && req.session.admin) {
+      const adminSession = req.session.admin;
+      const adminUserId = adminSession && typeof adminSession.adminUserId === 'string' ? adminSession.adminUserId.trim() : '';
+      const dbConnected = mongoose.connection.readyState === 1;
 
-  const returnTo = getSafeReturnTo(req.originalUrl) || '/admin';
-  return res.redirect(`/admin/connexion?returnTo=${encodeURIComponent(returnTo)}`);
+      if (dbConnected && adminUserId && mongoose.Types.ObjectId.isValid(adminUserId)) {
+        const adminUser = await AdminUser.findById(adminUserId)
+          .select('_id email firstName lastName role isActive')
+          .lean();
+
+        if (!adminUser || adminUser.isActive === false) {
+          delete req.session.admin;
+        } else {
+          req.session.admin = {
+            adminUserId: String(adminUser._id),
+            email: adminUser.email,
+            firstName: adminUser.firstName,
+            lastName: adminUser.lastName,
+            role: adminUser.role,
+          };
+          return next();
+        }
+      } else {
+        return next();
+      }
+    }
+
+    const returnTo = getSafeReturnTo(req.originalUrl) || '/admin';
+    return res.redirect(`/admin/connexion?returnTo=${encodeURIComponent(returnTo)}`);
+  } catch (err) {
+    return next(err);
+  }
 }
 
 router.get('/connexion', adminController.getAdminLogin);
@@ -62,6 +94,7 @@ router.post('/expedition/:classId/supprimer', requireAdminAuth, adminController.
 
 router.get('/catalogue/nouveau', requireAdminAuth, adminController.getAdminNewProductPage);
 router.post('/catalogue/nouveau', requireAdminAuth, handleProductImageUpload, adminController.postAdminCreateProduct);
+router.post('/catalogue/supprimer-multi', requireAdminAuth, adminController.postAdminBulkDeleteProducts);
 router.get('/catalogue/:productId', requireAdminAuth, adminController.getAdminEditProductPage);
 router.post('/catalogue/:productId', requireAdminAuth, handleProductImageUpload, adminController.postAdminUpdateProduct);
 router.post('/catalogue/:productId/supprimer', requireAdminAuth, adminController.postAdminDeleteProduct);
@@ -102,8 +135,12 @@ router.get('/pages-legales', requireAdminAuth, legalAdminController.getAdminLega
 router.get('/pages-legales/:slug', requireAdminAuth, legalAdminController.getAdminEditLegalPage);
 router.post('/pages-legales/:slug', requireAdminAuth, legalAdminController.postAdminUpdateLegalPage);
 router.get('/parametres', requireAdminAuth, adminController.getAdminSettingsPage);
+router.post('/parametres/equipe', requireAdminAuth, adminController.postAdminCreateBackofficeUser);
+router.post('/parametres/equipe/:adminUserId/toggle', requireAdminAuth, adminController.postAdminToggleBackofficeUser);
+router.post('/parametres/equipe/:adminUserId/mot-de-passe', requireAdminAuth, adminController.postAdminResetBackofficeUserPassword);
+router.post('/parametres/mot-de-passe', requireAdminAuth, adminController.postAdminChangeOwnPassword);
 router.get('/parametres/facturation', requireAdminAuth, adminController.getAdminInvoiceSettingsPage);
-router.post('/parametres/facturation', requireAdminAuth, adminController.postAdminInvoiceSettings);
+router.post('/parametres/facturation', requireAdminAuth, handleInvoiceLogoUpload, adminController.postAdminInvoiceSettings);
 router.get('/parametres/site', requireAdminAuth, adminController.getAdminSiteSettingsPage);
 router.post('/parametres/site', requireAdminAuth, adminController.postAdminSiteSettings);
 

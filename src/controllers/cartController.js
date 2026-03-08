@@ -7,6 +7,7 @@ const demoProducts = require('../demoProducts');
 
 const promoCodes = require('../services/promoCodes');
 const pricing = require('../services/pricing');
+const productOptions = require('../services/productOptions');
 
 function getCart(req) {
   if (!req.session.cart) {
@@ -24,7 +25,7 @@ function getSafeReturnTo(value) {
 }
 
 function computeCartItemCount(cart) {
-  return Object.values(cart.items).reduce((sum, item) => sum + item.quantity, 0);
+  return Object.values(cart.items).reduce((sum, item) => sum + (Number(item && item.quantity) || 0), 0);
 }
 
 function clampQty(value) {
@@ -140,7 +141,13 @@ async function showCart(req, res, next) {
     const errorMessage = req.session.cartError || null;
     delete req.session.cartError;
 
-    const items = Object.values(cart.items);
+    const items = Object.entries(cart.items).map(([key, it]) => {
+      const safe = it && typeof it === 'object' ? it : {};
+      return {
+        ...safe,
+        lineId: safe.lineId || key,
+      };
+    });
 
     if (items.length === 0) {
       const suggestedProducts = dbConnected
@@ -185,13 +192,20 @@ async function showCart(req, res, next) {
       const product = normalizeProduct(productById.get(String(item.productId)));
       if (!product) continue;
 
-      const lineTotalCents = product.priceCents * item.quantity;
+      const unitPriceCents = productOptions.computeUnitPriceCents(product, item.optionsSelection);
+      const lineTotalCents = unitPriceCents * item.quantity;
       itemsSubtotalCents += lineTotalCents;
 
+      const fallbackSummary = productOptions.buildOptionsDisplay(product.options, item.optionsSelection).optionsSummary;
+      const optionsSummary = typeof item.optionsSummary === 'string' && item.optionsSummary.trim() ? item.optionsSummary.trim() : fallbackSummary;
+
       viewItems.push({
+        lineId: item.lineId || '',
         product,
         quantity: item.quantity,
+        unitPriceCents,
         lineTotalCents,
+        optionsSummary,
       });
     }
 
@@ -306,7 +320,8 @@ async function postCartPromoCode(req, res, next) {
       for (const item of items) {
         const product = normalizeProduct(productById.get(String(item.productId)));
         if (!product) continue;
-        itemsSubtotalCents += product.priceCents * item.quantity;
+        const unitPriceCents = productOptions.computeUnitPriceCents(product, item.optionsSelection);
+        itemsSubtotalCents += unitPriceCents * item.quantity;
       }
 
       const sessionUser = req.session.user;
@@ -370,7 +385,7 @@ async function addToCart(req, res, next) {
 
     let product = null;
     if (dbConnected) {
-      product = await Product.findById(id).select('_id inStock stockQty').lean();
+      product = await Product.findById(id).select('_id inStock stockQty options').lean();
     }
 
     if (!product) {
@@ -389,13 +404,42 @@ async function addToCart(req, res, next) {
       return res.redirect(returnTo || `/produits/${id}`);
     }
 
-    const cart = getCart(req);
-
-    if (!cart.items[id]) {
-      cart.items[id] = { productId: id, quantity: 0 };
+    const selectionResult = productOptions.buildSelectionFromBody(req.body, product.options);
+    if (!selectionResult.ok) {
+      req.session.cartError = selectionResult.errors[0] || 'Merci de vérifier les options sélectionnées.';
+      return res.redirect(`/produits/${id}`);
     }
 
-    cart.items[id].quantity = Math.min(cart.items[id].quantity + qty, 99);
+    const selection = selectionResult.selection;
+    const display = productOptions.buildOptionsDisplay(product.options, selection);
+    const { lineId } = productOptions.buildCartLineId(id, selection);
+
+    const cart = getCart(req);
+
+    if (Number.isFinite(product.stockQty)) {
+      const existingQty = Object.values(cart.items).reduce((sum, it) => {
+        if (!it || typeof it !== 'object') return sum;
+        if (String(it.productId || '') !== String(id)) return sum;
+        return sum + (Number(it.quantity) || 0);
+      }, 0);
+
+      if (existingQty + qty > product.stockQty) {
+        req.session.cartError = 'Stock insuffisant pour la quantité demandée.';
+        return res.redirect(returnTo || `/produits/${id}`);
+      }
+    }
+
+    if (!cart.items[lineId]) {
+      cart.items[lineId] = {
+        lineId,
+        productId: id,
+        quantity: 0,
+        optionsSelection: selection,
+        optionsSummary: display.optionsSummary,
+      };
+    }
+
+    cart.items[lineId].quantity = Math.min(cart.items[lineId].quantity + qty, 99);
 
     return res.redirect(returnTo || '/panier');
   } catch (err) {
@@ -406,12 +450,6 @@ async function addToCart(req, res, next) {
 function updateCartItem(req, res) {
   const { id } = req.params;
   const returnTo = getSafeReturnTo(req.body.returnTo);
-
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(404).render('errors/404', {
-      title: 'Page introuvable - CarParts France',
-    });
-  }
 
   const qtyRaw = req.body.qty;
   let qty = 1;
@@ -428,7 +466,7 @@ function updateCartItem(req, res) {
     delete cart.items[id];
   } else {
     if (!cart.items[id]) {
-      cart.items[id] = { productId: id, quantity: 0 };
+      return res.redirect(returnTo || '/panier');
     }
     cart.items[id].quantity = qty;
   }
@@ -439,12 +477,6 @@ function updateCartItem(req, res) {
 function removeFromCart(req, res) {
   const { id } = req.params;
   const returnTo = getSafeReturnTo(req.body.returnTo);
-
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(404).render('errors/404', {
-      title: 'Page introuvable - CarParts France',
-    });
-  }
 
   const cart = getCart(req);
   delete cart.items[id];

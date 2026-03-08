@@ -46,6 +46,31 @@ const productSchema = new mongoose.Schema(
       default: [],
     },
 
+    options: {
+      type: [
+        {
+          key: { type: String, default: '', trim: true },
+          label: { type: String, default: '', trim: true },
+          type: { type: String, default: 'choice', trim: true },
+          required: { type: Boolean, default: false },
+          placeholder: { type: String, default: '', trim: true },
+          helpText: { type: String, default: '', trim: true },
+          priceDeltaCents: { type: Number, default: 0 },
+          choices: {
+            type: [
+              {
+                key: { type: String, default: '', trim: true },
+                label: { type: String, default: '', trim: true },
+                priceDeltaCents: { type: Number, default: 0 },
+              },
+            ],
+            default: [],
+          },
+        },
+      ],
+      default: [],
+    },
+
     reconditioningSteps: {
       type: [
         {

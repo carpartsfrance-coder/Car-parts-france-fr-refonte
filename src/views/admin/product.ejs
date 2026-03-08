@@ -300,6 +300,20 @@
         </div>
       </section>
 
+      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
+          <h2 class="font-bold flex items-center gap-2">
+            <span class="material-symbols-outlined text-gray-400">tune</span>
+            Options / Variantes
+          </h2>
+        </div>
+
+        <div class="p-6">
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="optionsJson">Options (JSON)</label>
+          <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary font-mono min-h-[220px]" id="optionsJson" name="optionsJson" placeholder='[{"key":"programmation","label":"Programmation","type":"choice","required":true,"choices":[{"key":"avec","label":"Avec programmation","priceDeltaCents":5000},{"key":"sans","label":"Sans programmation","priceDeltaCents":0}]}]'><%= form && typeof form.optionsJson !== 'undefined' ? form.optionsJson : '' %></textarea>
+        </div>
+      </section>
+
       <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
           <h2 class="font-bold flex items-center gap-2">

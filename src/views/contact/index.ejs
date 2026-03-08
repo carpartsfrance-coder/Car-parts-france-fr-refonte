@@ -125,7 +125,7 @@
             <% } else { %>
               <div>
                 <label class="block text-sm font-semibold text-slate-900 dark:text-slate-200 mb-2" for="subject">Sujet</label>
-                <select class="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium">
+                <select id="subject" name="subject" class="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium">
                   <option value="question" <%= (form && form.subject === 'question') ? 'selected' : '' %>>Question</option>
                   <option value="compatibilite" <%= (form && form.subject === 'compatibilite') ? 'selected' : '' %>>Compatibilité / Référence</option>
                   <option value="commande" <%= (form && form.subject === 'commande') ? 'selected' : '' %>>Commande / Livraison</option>

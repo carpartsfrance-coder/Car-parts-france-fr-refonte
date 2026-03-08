@@ -245,6 +245,13 @@ function stripHtml(value) {
   return value.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
+function toSafeJsonLd(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
 function formatDateFR(value) {
   try {
     if (!value) return '';
@@ -582,8 +589,28 @@ async function getBlogPost(req, res) {
       url: `/blog/${encodeURIComponent(s.slug)}`,
     }));
 
+    const breadcrumbItems = [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Accueil',
+        item: baseUrl ? `${baseUrl}/` : '/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Blog',
+        item: baseUrl ? `${baseUrl}/blog` : '/blog',
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: post.title,
+        item: canonicalUrl,
+      },
+    ];
+
     const jsonLdObj = {
-      '@context': 'https://schema.org',
       '@type': 'BlogPosting',
       headline: post.title,
       description: computedDesc || undefined,
@@ -605,7 +632,16 @@ async function getBlogPost(req, res) {
       },
     };
 
-    const jsonLd = JSON.stringify(jsonLdObj);
+    const jsonLd = toSafeJsonLd({
+      '@context': 'https://schema.org',
+      '@graph': [
+        jsonLdObj,
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbItems,
+        },
+      ],
+    });
 
     const ogArticlePublishedTime = publishedAt ? new Date(publishedAt).toISOString() : '';
     const ogArticleModifiedTime = updatedAt ? new Date(updatedAt).toISOString() : '';

@@ -40,6 +40,13 @@
       </div>
     <% } %>
 
+    <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+      <div class="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 mb-10">
+        <div class="font-bold">Erreur</div>
+        <div class="mt-1 text-sm"><%= errorMessage %></div>
+      </div>
+    <% } %>
+
     <% if (!product) { %>
       <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 refined-shadow">
         <div class="font-bold text-slate-900 dark:text-white">Produit indisponible</div>
@@ -74,6 +81,7 @@
       <% const keyEtat = findSpec('état') || findSpec('etat') || conditionBadge || ''; %>
       <% const keyProgrammation = findSpec('programmation') || ''; %>
       <% const keyGarantie = findSpec('garantie') || topLeftBadge || ''; %>
+      <% const optionGroups = Array.isArray(product.options) ? product.options : []; %>
       <% const compGrouped = {}; %>
       <% (Array.isArray(product.compatibility) ? product.compatibility : []).forEach((c) => {
         const make = c && c.make ? String(c.make).trim() : '';
@@ -149,7 +157,7 @@
 
           <div class="space-y-8">
             <div class="flex items-baseline gap-2">
-              <span class="text-5xl font-black text-slate-900 dark:text-white tracking-tighter"><%= formatMoney(product.priceCents) %> €</span>
+              <span class="text-5xl font-black text-slate-900 dark:text-white tracking-tighter" data-price-display data-base-price-cents="<%= Number(product.priceCents) || 0 %>"><%= formatMoney(product.priceCents) %> €</span>
               <span class="text-slate-400 text-sm font-medium">TTC</span>
               <% if (compareAt && compareAt > product.priceCents) { %>
                 <span class="ml-2 text-slate-400 text-sm line-through"><%= formatMoney(compareAt) %> €</span>
@@ -194,11 +202,74 @@
               </div>
             </div>
 
-            <form action="/panier/ajouter/<%= product._id %>" class="flex gap-4" method="POST">
+            <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4" method="POST">
               <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/panier' %>" />
               <input data-qty-input name="qty" type="hidden" value="1" />
 
-              <div class="flex items-center bg-slate-50 dark:bg-slate-800 rounded-2xl px-2">
+              <% if (optionGroups && optionGroups.length) { %>
+                <div class="space-y-4">
+                  <% optionGroups.forEach((g) => { %>
+                    <% const gKey = g && g.key ? String(g.key) : ''; %>
+                    <% if (!gKey) return; %>
+                    <% const fieldName = 'opt_' + gKey; %>
+
+                    <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 p-4">
+                      <div class="flex items-start justify-between gap-4">
+                        <div>
+                          <div class="text-sm font-bold text-slate-900 dark:text-white"><%= g && g.label ? g.label : gKey %></div>
+                          <% if (g && g.helpText) { %>
+                            <div class="mt-1 text-xs text-slate-500"><%= g.helpText %></div>
+                          <% } %>
+                        </div>
+                        <% if (g && g.required) { %>
+                          <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Obligatoire</div>
+                        <% } %>
+                      </div>
+
+                      <% if (g && String(g.type) === 'text') { %>
+                        <div class="mt-3">
+                          <input
+                            class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold focus:ring-primary"
+                            type="text"
+                            name="<%= fieldName %>"
+                            placeholder="<%= g && g.placeholder ? g.placeholder : '' %>"
+                            <%= g && g.required ? 'required' : '' %>
+                            data-option-input
+                            data-option-type="text"
+                            data-price-delta-cents="<%= Number(g.priceDeltaCents) || 0 %>"
+                          />
+                        </div>
+                      <% } else { %>
+                        <% const choices = Array.isArray(g && g.choices) ? g.choices : []; %>
+                        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <% choices.forEach((c) => { %>
+                            <% const cKey = c && c.key ? String(c.key) : ''; %>
+                            <% if (!cKey) return; %>
+                            <label class="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold cursor-pointer hover:border-primary transition-colors">
+                              <input
+                                type="radio"
+                                name="<%= fieldName %>"
+                                value="<%= cKey %>"
+                                class="text-primary focus:ring-primary"
+                                <%= g && g.required ? 'required' : '' %>
+                                data-option-input
+                                data-option-type="choice"
+                                data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
+                              />
+                              <span class="flex-1 min-w-0"><%= c && c.label ? c.label : cKey %></span>
+                              <% if (Number(c && c.priceDeltaCents) > 0) { %>
+                                <span class="text-xs font-black text-primary">+ <%= formatMoney(c.priceDeltaCents) %> €</span>
+                              <% } %>
+                            </label>
+                          <% }) %>
+                        </div>
+                      <% } %>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
+
+              <div class="flex items-center bg-slate-50 dark:bg-slate-800 rounded-2xl px-2 w-fit">
                 <button class="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors" data-qty-minus type="button">—</button>
                 <span class="w-8 text-center font-bold text-sm" data-qty-display>1</span>
                 <button class="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors" data-qty-plus type="button">+</button>
@@ -448,6 +519,44 @@
           var minus = document.querySelector('[data-qty-minus]');
           var plus = document.querySelector('[data-qty-plus]');
 
+          var priceEl = document.querySelector('[data-price-display]');
+          var optionInputs = Array.prototype.slice.call(document.querySelectorAll('[data-option-input]') || []);
+
+          function formatMoney(cents) {
+            try {
+              return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((Number(cents) || 0) / 100);
+            } catch (e) {
+              return ((Number(cents) || 0) / 100).toFixed(2).replace('.', ',');
+            }
+          }
+
+          function computeOptionsDeltaCents() {
+            var total = 0;
+            optionInputs.forEach(function (el) {
+              if (!el) return;
+              var type = el.getAttribute('data-option-type') || '';
+              var delta = Number(el.getAttribute('data-price-delta-cents') || '0');
+              if (!Number.isFinite(delta)) delta = 0;
+
+              if (type === 'choice') {
+                if (el.checked) total += delta;
+              } else if (type === 'text') {
+                var v = (el.value || '').trim();
+                if (v) total += delta;
+              }
+            });
+            return total;
+          }
+
+          function syncDisplayedPrice() {
+            if (!priceEl) return;
+            var base = Number(priceEl.getAttribute('data-base-price-cents') || '0');
+            if (!Number.isFinite(base)) base = 0;
+            var delta = computeOptionsDeltaCents();
+            var next = base + delta;
+            priceEl.textContent = formatMoney(next) + ' €';
+          }
+
           function clamp(v) {
             if (!Number.isFinite(v)) return 1;
             if (v < 1) return 1;
@@ -549,7 +658,15 @@
             setIndex(0);
           }
 
+          if (optionInputs && optionInputs.length) {
+            optionInputs.forEach(function (el) {
+              el.addEventListener('change', syncDisplayedPrice);
+              el.addEventListener('input', syncDisplayedPrice);
+            });
+          }
+
           setQty(getQty());
+          syncDisplayedPrice();
         })();
       </script>
     <% } %>

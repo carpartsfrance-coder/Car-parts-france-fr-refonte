@@ -17,6 +17,35 @@ const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
 const invoiceSettings = require('../services/invoiceSettings');
 const siteSettings = require('../services/siteSettings');
+const productOptions = require('../services/productOptions');
+const mediaStorage = require('../services/mediaStorage');
+const adminUsers = require('../services/adminUsers');
+
+const ADMIN_LOGIN_BUCKETS = new Map();
+const ADMIN_RESET_BUCKETS = new Map();
+
+function getClientIp(req) {
+  const xfwd = req && req.headers ? req.headers['x-forwarded-for'] : null;
+  const fromHeader = Array.isArray(xfwd) ? xfwd[0] : typeof xfwd === 'string' ? xfwd.split(',')[0] : '';
+  const candidate = getTrimmedString(fromHeader) || (req && req.ip ? String(req.ip) : '');
+  return candidate || 'unknown';
+}
+
+function consumeRateLimit(buckets, key, { limit, windowMs } = {}) {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 20;
+  const safeWindowMs = Number.isFinite(windowMs) ? Math.max(1000, Math.floor(windowMs)) : 10 * 60 * 1000;
+  const now = Date.now();
+  const entry = buckets.get(key);
+
+  if (!entry || typeof entry.resetAt !== 'number' || now >= entry.resetAt) {
+    buckets.set(key, { count: 1, resetAt: now + safeWindowMs });
+    return { limited: false, remaining: safeLimit - 1 };
+  }
+
+  entry.count += 1;
+  const remaining = Math.max(0, safeLimit - entry.count);
+  return { limited: entry.count > safeLimit, remaining };
+}
 
 const ADMIN_CREDENTIALS_FILE = path.join(__dirname, '..', '..', '.admin-credentials.json');
 
@@ -244,36 +273,7 @@ async function postAdminSiteSettings(req, res, next) {
   }
 }
 
-function tryDeleteFile(filePath) {
-  if (!filePath) return;
-  try {
-    fs.unlinkSync(filePath);
-  } catch (err) {
-    return;
-  }
-}
-
-function getLocalProductImagePath(imageUrl) {
-  if (typeof imageUrl !== 'string') return '';
-  const normalized = imageUrl.trim();
-  if (!normalized.startsWith('/uploads/products/')) return '';
-  const rel = normalized.replace(/^\//, '');
-  return path.join(__dirname, '..', '..', 'public', rel);
-}
-
-function cleanupUploadedFiles(req) {
-  const files = Array.isArray(req && req.files)
-    ? req.files
-    : req && req.file
-      ? [req.file]
-      : [];
-
-  for (const f of files) {
-    if (!f || !f.filename) continue;
-    const filePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'products', f.filename);
-    tryDeleteFile(filePath);
-  }
-}
+function cleanupUploadedFiles() {}
 
 function getAdminCredentials() {
   const email = normalizeEmail(normalizeEnvString(process.env.ADMIN_EMAIL));
@@ -287,7 +287,7 @@ function getAdminCredentials() {
   if (isDevFallback) {
     return {
       email: 'admin@carpartsfrance.fr',
-      password: 'admin',
+      password: 'admin12345',
       isDevFallback: true,
     };
   }
@@ -305,6 +305,50 @@ function getAdminCredentials() {
 function normalizeEmail(value) {
   if (typeof value !== 'string') return '';
   return value.trim().toLowerCase();
+}
+
+async function ensureAdminUserStoreReady() {
+  const dbConnected = mongoose.connection.readyState === 1;
+  if (!dbConnected) return null;
+
+  const legacyCreds = getAdminCredentials();
+  return adminUsers.ensurePrimaryAdminUser({
+    legacyEmail: legacyCreds.email,
+    legacyPassword: legacyCreds.usesOverride ? '' : legacyCreds.password,
+    legacyPasswordHash: legacyCreds.usesOverride ? legacyCreds.passwordHash : '',
+    legacyPasswordSalt: legacyCreds.usesOverride ? legacyCreds.passwordSalt : '',
+  });
+}
+
+function getCurrentAdminSession(req) {
+  return req && req.session && req.session.admin && typeof req.session.admin === 'object'
+    ? req.session.admin
+    : null;
+}
+
+function canManageAdminUsers(req) {
+  const currentAdmin = getCurrentAdminSession(req);
+  return Boolean(currentAdmin && currentAdmin.role === 'owner');
+}
+
+function getAdminRoleLabel(role) {
+  return role === 'owner' ? 'Administrateur principal' : 'Employé back-office';
+}
+
+function renderAdminLoginPage(res, { status = 200, dbConnected, errorMessage, successMessage, email, returnTo, legacyCreds } = {}) {
+  const safeCreds = legacyCreds || getAdminCredentials();
+  const showDevFallback = !dbConnected && safeCreds.isDevFallback;
+  return res.status(status).render('admin/login', {
+    title: 'Admin - Connexion',
+    dbConnected,
+    errorMessage: errorMessage || null,
+    successMessage: successMessage || null,
+    email: email || '',
+    returnTo: returnTo || '/admin',
+    isDevFallback: showDevFallback,
+    devFallbackEmail: showDevFallback ? safeCreds.email : '',
+    devFallbackPassword: showDevFallback ? safeCreds.password : '',
+  });
 }
 
 function splitCategoryName(value) {
@@ -1027,9 +1071,18 @@ function getReturnStatusOptions() {
   ];
 }
 
-function getAdminLogin(req, res) {
+async function getAdminLogin(req, res) {
   const dbConnected = mongoose.connection.readyState === 1;
   const creds = getAdminCredentials();
+
+  if (dbConnected) {
+    try {
+      await ensureAdminUserStoreReady();
+    } catch (err) {
+      console.error('Initialisation comptes back-office impossible :', err && err.message ? err.message : err);
+    }
+  }
+
   const returnTo = getSafeReturnTo(req.query.returnTo) || '/admin';
   const errorMessage = req.session.adminAuthError || null;
   const successMessage = req.session.adminAuthSuccess || null;
@@ -1039,35 +1092,101 @@ function getAdminLogin(req, res) {
   delete req.session.adminAuthSuccess;
   delete req.session.adminAuthEmail;
 
-  return res.render('admin/login', {
-    title: 'Admin - Connexion',
+  return renderAdminLoginPage(res, {
     dbConnected,
     errorMessage,
     successMessage,
     email,
     returnTo,
-    isDevFallback: creds.isDevFallback,
-    devFallbackEmail: creds.isDevFallback ? creds.email : '',
-    devFallbackPassword: creds.isDevFallback ? creds.password : '',
+    legacyCreds: creds,
   });
 }
 
-function postAdminLogin(req, res) {
+async function postAdminLogin(req, res) {
   const creds = getAdminCredentials();
+  const dbConnected = mongoose.connection.readyState === 1;
   const email = normalizeEmail(req.body.email);
   const password = normalizeEnvString(req.body.password);
   const returnTo = getSafeReturnTo(req.body.returnTo) || '/admin';
 
+  const ip = getClientIp(req);
+  const honeypot = getTrimmedString(req.body && req.body.website);
+  if (honeypot) {
+    return renderAdminLoginPage(res, {
+      status: 401,
+      dbConnected,
+      errorMessage: 'Identifiants incorrects.',
+      email,
+      returnTo,
+      legacyCreds: creds,
+    });
+  }
+
+  const limit = consumeRateLimit(ADMIN_LOGIN_BUCKETS, ip, { limit: 20, windowMs: 10 * 60 * 1000 });
+  if (limit.limited) {
+    return renderAdminLoginPage(res, {
+      status: 429,
+      dbConnected,
+      errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+      email,
+      returnTo,
+      legacyCreds: creds,
+    });
+  }
+
   if (!email || !password) {
-    return res.status(400).render('admin/login', {
-      title: 'Admin - Connexion',
-      dbConnected: mongoose.connection.readyState === 1,
+    return renderAdminLoginPage(res, {
+      status: 400,
+      dbConnected,
       errorMessage: 'Merci de renseigner ton email et ton mot de passe.',
       email,
       returnTo,
-      isDevFallback: creds.isDevFallback,
-      devFallbackEmail: creds.isDevFallback ? creds.email : '',
-      devFallbackPassword: creds.isDevFallback ? creds.password : '',
+      legacyCreds: creds,
+    });
+  }
+
+  if (dbConnected) {
+    let adminUser = null;
+    try {
+      await ensureAdminUserStoreReady();
+      adminUser = await adminUsers.authenticateAdminUser({ email, password });
+    } catch (err) {
+      console.error('Connexion back-office MongoDB impossible :', err && err.message ? err.message : err);
+      adminUser = null;
+    }
+
+    if (!adminUser) {
+      return renderAdminLoginPage(res, {
+        status: 401,
+        dbConnected,
+        errorMessage: 'Identifiants incorrects.',
+        email,
+        returnTo,
+        legacyCreds: creds,
+      });
+    }
+
+    const sessionAdmin = adminUsers.sanitizeAdminForSession(adminUser);
+
+    if (req.session && typeof req.session.regenerate === 'function') {
+      return req.session.regenerate((err) => {
+        if (err) return res.redirect('/admin/connexion');
+        req.session.admin = sessionAdmin;
+        return req.session.save(() => {
+          adminUsers.touchLastLogin(sessionAdmin.adminUserId).catch(() => {});
+          return res.redirect(returnTo);
+        });
+      });
+    }
+
+    if (!req.session || typeof req.session.save !== 'function') {
+      return res.redirect(returnTo);
+    }
+
+    req.session.admin = sessionAdmin;
+    return req.session.save(() => {
+      adminUsers.touchLastLogin(sessionAdmin.adminUserId).catch(() => {});
+      return res.redirect(returnTo);
     });
   }
 
@@ -1076,16 +1195,13 @@ function postAdminLogin(req, res) {
     : password === normalizeEnvString(creds.password);
 
   if (email !== creds.email || !passwordOk) {
-    return res.status(401).render('admin/login', {
-      title: 'Admin - Connexion',
-      dbConnected: mongoose.connection.readyState === 1,
+    return renderAdminLoginPage(res, {
+      status: 401,
+      dbConnected,
       errorMessage: 'Identifiants incorrects.',
-      successMessage: null,
       email,
       returnTo,
-      isDevFallback: creds.isDevFallback,
-      devFallbackEmail: creds.isDevFallback ? creds.email : '',
-      devFallbackPassword: creds.isDevFallback ? creds.password : '',
+      legacyCreds: creds,
     });
   }
 
@@ -1093,10 +1209,19 @@ function postAdminLogin(req, res) {
     email,
   };
 
+  if (req.session && typeof req.session.regenerate === 'function') {
+    return req.session.regenerate((err) => {
+      if (err) return res.redirect('/admin/connexion');
+      req.session.admin = { email };
+      return req.session.save(() => res.redirect(returnTo));
+    });
+  }
+
   if (!req.session || typeof req.session.save !== 'function') {
     return res.redirect(returnTo);
   }
 
+  req.session.admin = { email };
   return req.session.save(() => res.redirect(returnTo));
 }
 
@@ -1121,16 +1246,30 @@ function getAdminResetPassword(req, res) {
   });
 }
 
-function postAdminResetPassword(req, res) {
+async function postAdminResetPassword(req, res) {
   const expected = getAdminResetTokenFromEnv();
   if (!expected) {
     req.session.adminResetError = 'Réinitialisation désactivée (ADMIN_RESET_TOKEN manquant).';
     return res.redirect('/admin/reinitialiser');
   }
 
+  const ip = getClientIp(req);
+  const honeypot = getTrimmedString(req.body && req.body.website);
+  if (honeypot) {
+    req.session.adminResetSuccess = 'Mot de passe admin mis à jour. Tu peux te connecter.';
+    return res.redirect('/admin/reinitialiser');
+  }
+
+  const limit = consumeRateLimit(ADMIN_RESET_BUCKETS, ip, { limit: 12, windowMs: 10 * 60 * 1000 });
+  if (limit.limited) {
+    req.session.adminResetError = 'Trop de tentatives. Attends quelques minutes puis réessaie.';
+    return res.redirect('/admin/reinitialiser');
+  }
+
   const providedToken = normalizeEnvString(req.body && req.body.token);
   const password = normalizeEnvString(req.body && req.body.password);
   const passwordConfirm = normalizeEnvString(req.body && req.body.passwordConfirm);
+  const dbConnected = mongoose.connection.readyState === 1;
 
   if (!providedToken || providedToken !== expected) {
     req.session.adminResetError = 'Code secret invalide.';
@@ -1145,6 +1284,23 @@ function postAdminResetPassword(req, res) {
   if (password !== passwordConfirm) {
     req.session.adminResetError = 'Les deux mots de passe ne correspondent pas.';
     return res.redirect('/admin/reinitialiser');
+  }
+
+  if (dbConnected) {
+    try {
+      await ensureAdminUserStoreReady();
+      const updated = await adminUsers.updatePrimaryAdminPassword(password);
+      if (!updated || !updated.ok) {
+        req.session.adminResetError = 'Impossible de mettre à jour le compte principal pour le moment.';
+        return res.redirect('/admin/reinitialiser');
+      }
+
+      req.session.adminAuthSuccess = 'Mot de passe admin mis à jour. Tu peux te connecter.';
+      return res.redirect('/admin/connexion');
+    } catch (err) {
+      req.session.adminResetError = 'Impossible de mettre à jour le mot de passe (erreur interne).';
+      return res.redirect('/admin/reinitialiser');
+    }
   }
 
   const salt = crypto.randomBytes(16).toString('hex');
@@ -1486,6 +1642,7 @@ async function getAdminOrderDetailPage(req, res, next) {
       ? orderDoc.items.map((it) => ({
           name: it.name,
           sku: it.sku || '',
+          optionsSummary: it && typeof it.optionsSummary === 'string' ? it.optionsSummary : '',
           quantity: it.quantity,
           unitPrice: formatEuro(it.unitPriceCents),
           lineTotal: formatEuro(it.lineTotalCents),
@@ -2759,14 +2916,40 @@ async function getAdminCatalogPage(req, res, next) {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const stock = typeof req.query.stock === 'string' ? req.query.stock.trim() : '';
 
+    const pageRaw = typeof req.query.page === 'string' ? req.query.page.trim() : '';
+    const requestedPage = Math.max(1, Number.parseInt(pageRaw || '1', 10) || 1);
+    const limitRaw = typeof req.query.limit === 'string' ? req.query.limit.trim() : '';
+    const requestedLimit = Math.max(1, Number.parseInt(limitRaw || '20', 10) || 20);
+    const allowedLimits = new Set([20, 50, 100, 200]);
+    const perPage = allowedLimits.has(requestedLimit) ? requestedLimit : 20;
+
     if (!dbConnected) {
       return res.render('admin/catalog', {
         title: 'Admin - Catalogue',
         dbConnected,
         products: [],
         filters: { q, stock },
+        successMessage: null,
+        errorMessage: "La base de données n'est pas disponible.",
+        pagination: {
+          page: 1,
+          perPage,
+          totalItems: 0,
+          totalPages: 1,
+          from: 0,
+          to: 0,
+          hasPrev: false,
+          hasNext: false,
+          prevPage: 1,
+          nextPage: 1,
+        },
       });
     }
+
+    const successMessage = req.session.adminCatalogSuccess || null;
+    const errorMessage = req.session.adminCatalogError || null;
+    delete req.session.adminCatalogSuccess;
+    delete req.session.adminCatalogError;
 
     const productQuery = {};
 
@@ -2777,9 +2960,15 @@ async function getAdminCatalogPage(req, res, next) {
       productQuery.$or = [{ name: rx }, { sku: rx }, { brand: rx }, { category: rx }];
     }
 
+    const totalItems = await Product.countDocuments(productQuery);
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const page = Math.min(requestedPage, totalPages);
+    const skip = (page - 1) * perPage;
+
     const products = await Product.find(productQuery)
       .sort({ updatedAt: -1 })
-      .limit(200)
+      .skip(skip)
+      .limit(perPage)
       .lean();
 
     const viewProducts = products.map((p) => ({
@@ -2816,7 +3005,132 @@ async function getAdminCatalogPage(req, res, next) {
       dbConnected,
       products: viewProducts,
       filters: { q, stock },
+      successMessage,
+      errorMessage,
+      pagination: {
+        page,
+        perPage,
+        totalItems,
+        totalPages,
+        from: totalItems ? skip + 1 : 0,
+        to: totalItems ? Math.min(skip + perPage, totalItems) : 0,
+        hasPrev: page > 1,
+        hasNext: page < totalPages,
+        prevPage: Math.max(1, page - 1),
+        nextPage: Math.min(totalPages, page + 1),
+      },
     });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminBulkDeleteProducts(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+
+    if (!dbConnected) {
+      return res.status(503).render('errors/500', {
+        title: 'Erreur - CarParts France',
+      });
+    }
+
+    const rawIds = req.body && (req.body.productIds || req.body.productId || req.body.ids);
+    const ids = Array.isArray(rawIds)
+      ? rawIds
+      : typeof rawIds === 'string'
+        ? [rawIds]
+        : [];
+
+    const uniqueIds = Array.from(
+      new Set(
+        ids
+          .map((v) => (typeof v === 'string' ? v.trim() : ''))
+          .filter(Boolean)
+      )
+    );
+
+    const safeReturnTo = (() => {
+      const value = req.body && typeof req.body.returnTo === 'string' ? req.body.returnTo : '';
+      const trimmed = value.trim();
+      if (!trimmed) return '/admin/catalogue';
+      if (!trimmed.startsWith('/admin')) return '/admin/catalogue';
+      if (trimmed.startsWith('//')) return '/admin/catalogue';
+      return trimmed;
+    })();
+
+    if (!uniqueIds.length) {
+      req.session.adminCatalogError = 'Aucun produit sélectionné.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const validIds = uniqueIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (!validIds.length) {
+      req.session.adminCatalogError = 'Sélection invalide.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const selected = await Product.find({ _id: { $in: validIds } })
+      .select('_id imageUrl galleryUrls')
+      .lean();
+
+    if (!selected.length) {
+      req.session.adminCatalogError = 'Aucun produit trouvé.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const selectedObjectIds = selected
+      .map((p) => (p && p._id ? p._id : null))
+      .filter(Boolean);
+
+    const usedItemIds = await Order.distinct('items.productId', {
+      'items.productId': { $in: selectedObjectIds },
+    });
+    const usedConsigneIds = await Order.distinct('consigne.lines.productId', {
+      'consigne.lines.productId': { $in: selectedObjectIds },
+    });
+    const usedSet = new Set(
+      ([]
+        .concat(Array.isArray(usedItemIds) ? usedItemIds : [])
+        .concat(Array.isArray(usedConsigneIds) ? usedConsigneIds : []))
+        .map((id) => String(id))
+    );
+
+    const deletable = selected.filter((p) => p && p._id && !usedSet.has(String(p._id)));
+    const blockedCount = selected.length - deletable.length;
+
+    if (!deletable.length) {
+      req.session.adminCatalogError =
+        'Impossible de supprimer : les produits sélectionnés sont présents dans une ou plusieurs commandes.';
+      return res.redirect(safeReturnTo);
+    }
+
+    for (const p of deletable) {
+      if (!p) continue;
+      if (p.imageUrl) {
+        await mediaStorage.deleteFromUrl(p.imageUrl);
+      }
+      const galleries = Array.isArray(p.galleryUrls) ? p.galleryUrls : [];
+      for (const url of galleries) {
+        if (!url) continue;
+        await mediaStorage.deleteFromUrl(url);
+      }
+    }
+
+    const selectedIds = deletable.map((p) => p && p._id).filter(Boolean);
+    const result = await Product.deleteMany({ _id: { $in: selectedIds } });
+    const deletedCount = Number.isFinite(result && result.deletedCount) ? result.deletedCount : 0;
+
+    if (!deletedCount) {
+      req.session.adminCatalogError = 'Aucun produit supprimé.';
+      return res.redirect(safeReturnTo);
+    }
+
+    req.session.adminCatalogSuccess = blockedCount
+      ? `${deletedCount} produit(s) supprimé(s). ${blockedCount} ignoré(s) (présents dans des commandes).`
+      : `${deletedCount} produit(s) supprimé(s).`;
+
+    return res.redirect(safeReturnTo);
   } catch (err) {
     return next(err);
   }
@@ -3102,6 +3416,7 @@ async function getAdminNewProductPage(req, res) {
       description: '',
       keyPoints: '',
       specs: '',
+      optionsJson: '',
       reconditioningSteps: '',
       compatibility: '',
       faqs: '',
@@ -3152,6 +3467,8 @@ async function getAdminNewProductPage(req, res) {
 }
 
 async function postAdminCreateProduct(req, res, next) {
+  let savedUploads = [];
+
   try {
     const dbConnected = mongoose.connection.readyState === 1;
 
@@ -3182,6 +3499,7 @@ async function postAdminCreateProduct(req, res, next) {
       specs: getTrimmedString(req.body.specs),
       specType: getTrimmedString(req.body.specType),
       specProgrammation: getTrimmedString(req.body.specProgrammation),
+      optionsJson: getTrimmedString(req.body.optionsJson),
       reconditioningSteps: getTrimmedString(req.body.reconditioningSteps),
       compatibility: getTrimmedString(req.body.compatibility),
       faqs: getTrimmedString(req.body.faqs),
@@ -3285,8 +3603,9 @@ async function postAdminCreateProduct(req, res, next) {
     const consigneAmountCents = consigneAmountCentsRaw === null ? null : consigneAmountCentsRaw;
     const consigneDelayDays = clampInt(form.consigneDelayDays || '30', { min: 0, max: 3650, fallback: 30 });
     const parsedStock = parseStockQty(form.stockQty);
+    const parsedOptions = productOptions.parseProductOptionsJson(form.optionsJson);
 
-    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok) {
+    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok) {
       cleanupUploadedFiles(req);
 
       const shippingClasses = await ShippingClass.find({})
@@ -3300,11 +3619,13 @@ async function postAdminCreateProduct(req, res, next) {
         mode: 'new',
         errorMessage: !parsedStock.ok
           ? 'Merci de renseigner une quantité de stock valide (0 ou plus), ou laisse vide.'
+          : !parsedOptions.ok
+            ? (parsedOptions.error || 'Options invalides.')
           : form.compareAtPrice && compareAtPriceCents === null
             ? 'Le prix barré est invalide.'
             : consigneAmountCents === null
               ? 'Le montant de consigne est invalide.'
-            : 'Merci de renseigner au minimum un nom et un prix valide.',
+              : 'Merci de renseigner au minimum un nom et un prix valide.',
         form,
         seoAssistant: buildProductSeoAssistant({ form, mode: 'new', productId: null }),
         categories: dbConnected
@@ -3324,26 +3645,10 @@ async function postAdminCreateProduct(req, res, next) {
       });
     }
 
-    const uploadedFiles = Array.isArray(req.files)
-      ? req.files
-      : req.file && req.file.filename
-        ? [req.file]
-        : [];
-
-    const uploadedImageUrl = uploadedFiles.length && uploadedFiles[0].filename
-      ? `/uploads/products/${uploadedFiles[0].filename}`
-      : '';
-    const imageUrl = uploadedImageUrl || form.imageUrl;
-
     const stockQty = parsedStock.qty;
     const inStock = stockQty !== null ? stockQty > 0 : form.inStock;
 
     const galleryUrlsFromForm = parseLinesToArray(form.galleryUrls);
-    const extraGalleryUrls = uploadedFiles
-      .slice(1)
-      .filter((f) => f && f.filename)
-      .map((f) => `/uploads/products/${f.filename}`);
-    const galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
     const keyPoints = parseLinesToArray(form.keyPoints);
     const specs = parsePairsFromLines(form.specs);
     if (Object.prototype.hasOwnProperty.call(req.body, 'specType')) {
@@ -3392,6 +3697,29 @@ async function postAdminCreateProduct(req, res, next) {
         productId: null,
       });
     }
+
+    const uploadedFiles = Array.isArray(req.files)
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
+
+    savedUploads = [];
+    for (const f of uploadedFiles) {
+      if (!f || !f.buffer) continue;
+      const saved = await mediaStorage.saveMulterFile(f, {
+        metadata: { scope: 'product' },
+        fallbackPrefix: 'product',
+      });
+      savedUploads.push(saved);
+    }
+
+    const uploadedImageUrl = savedUploads.length ? savedUploads[0].url : '';
+    const imageUrl = uploadedImageUrl || form.imageUrl;
+
+    const extraGalleryUrls = savedUploads.slice(1).map((s) => s.url);
+    const galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
+
     const createData = {
       name: form.name,
       sku: form.sku,
@@ -3403,6 +3731,7 @@ async function postAdminCreateProduct(req, res, next) {
       compatibleReferences,
       priceCents,
       compareAtPriceCents,
+      options: parsedOptions.ok ? parsedOptions.options : [],
       consigne: {
         enabled: form.consigneEnabled === true && (Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0) > 0,
         amountCents: Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0,
@@ -3459,6 +3788,10 @@ async function postAdminCreateProduct(req, res, next) {
 
     return res.redirect('/admin/catalogue');
   } catch (err) {
+    for (const saved of Array.isArray(savedUploads) ? savedUploads : []) {
+      if (!saved || !saved.url) continue;
+      await mediaStorage.deleteFromUrl(saved.url);
+    }
     return next(err);
   }
 }
@@ -3550,6 +3883,7 @@ async function getAdminEditProductPage(req, res, next) {
               .map((s) => `${s.label || ''}: ${s.value || ''}`.trim())
               .join('\n')
           : '',
+        optionsJson: Array.isArray(product.options) ? JSON.stringify(product.options, null, 2) : '',
         reconditioningSteps: Array.isArray(product.reconditioningSteps)
           ? product.reconditioningSteps
               .filter((s) => s && (s.title || s.description))
@@ -3663,6 +3997,7 @@ async function postAdminUpdateProduct(req, res, next) {
       specs: getTrimmedString(req.body.specs),
       specType: getTrimmedString(req.body.specType),
       specProgrammation: getTrimmedString(req.body.specProgrammation),
+      optionsJson: getTrimmedString(req.body.optionsJson),
       reconditioningSteps: getTrimmedString(req.body.reconditioningSteps),
       compatibility: getTrimmedString(req.body.compatibility),
       faqs: getTrimmedString(req.body.faqs),
@@ -3719,7 +4054,7 @@ async function postAdminUpdateProduct(req, res, next) {
       });
     }
 
-    const existing = await Product.findById(productId).select('_id imageUrl slug').lean();
+    const existing = await Product.findById(productId).select('_id imageUrl slug galleryUrls').lean();
     if (!existing) {
       cleanupUploadedFiles(req);
 
@@ -3773,8 +4108,9 @@ async function postAdminUpdateProduct(req, res, next) {
     const consigneAmountCents = consigneAmountCentsRaw === null ? null : consigneAmountCentsRaw;
     const consigneDelayDays = clampInt(form.consigneDelayDays || '30', { min: 0, max: 3650, fallback: 30 });
     const parsedStock = parseStockQty(form.stockQty);
+    const parsedOptions = productOptions.parseProductOptionsJson(form.optionsJson);
 
-    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok) {
+    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok) {
       cleanupUploadedFiles(req);
 
       const shippingClasses = await ShippingClass.find({ isActive: true })
@@ -3788,11 +4124,13 @@ async function postAdminUpdateProduct(req, res, next) {
         mode: 'edit',
         errorMessage: !parsedStock.ok
           ? 'Merci de renseigner une quantité de stock valide (0 ou plus), ou laisse vide.'
+          : !parsedOptions.ok
+            ? (parsedOptions.error || 'Options invalides.')
           : form.compareAtPrice && compareAtPriceCents === null
             ? 'Le prix barré est invalide.'
             : consigneAmountCents === null
               ? 'Le montant de consigne est invalide.'
-            : 'Merci de renseigner au minimum un nom et un prix valide.',
+              : 'Merci de renseigner au minimum un nom et un prix valide.',
         form: {
           ...form,
           imageUrl: existing.imageUrl || form.imageUrl,
@@ -3830,13 +4168,21 @@ async function postAdminUpdateProduct(req, res, next) {
 
     const uploadedFiles = Array.isArray(req.files)
       ? req.files
-      : req.file && req.file.filename
+      : req.file
         ? [req.file]
         : [];
 
-    const uploadedImageUrl = uploadedFiles.length && uploadedFiles[0].filename
-      ? `/uploads/products/${uploadedFiles[0].filename}`
-      : '';
+    const savedUploads = [];
+    for (const f of uploadedFiles) {
+      if (!f || !f.buffer) continue;
+      const saved = await mediaStorage.saveMulterFile(f, {
+        metadata: { scope: 'product' },
+        fallbackPrefix: 'product',
+      });
+      savedUploads.push(saved);
+    }
+
+    const uploadedImageUrl = savedUploads.length ? savedUploads[0].url : '';
     const shouldRemoveMain = removeMainImage && !uploadedImageUrl;
     const nextImageUrl = uploadedImageUrl || (shouldRemoveMain ? '' : (form.imageUrl || existing.imageUrl || ''));
 
@@ -3844,10 +4190,7 @@ async function postAdminUpdateProduct(req, res, next) {
     const inStock = stockQty !== null ? stockQty > 0 : form.inStock;
 
     const galleryUrlsFromForm = parseLinesToArray(form.galleryUrls);
-    const extraGalleryUrls = uploadedFiles
-      .slice(1)
-      .filter((f) => f && f.filename)
-      .map((f) => `/uploads/products/${f.filename}`);
+    const extraGalleryUrls = savedUploads.slice(1).map((s) => s.url);
     const galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
     const keyPoints = hasKeyPoints ? parseLinesToArray(form.keyPoints) : null;
     const specs = hasSpecs ? parsePairsFromLines(form.specs) : null;
@@ -3911,8 +4254,14 @@ async function postAdminUpdateProduct(req, res, next) {
     }
 
     if (uploadedImageUrl || shouldRemoveMain) {
-      const oldPath = getLocalProductImagePath(existing.imageUrl);
-      tryDeleteFile(oldPath);
+      await mediaStorage.deleteFromUrl(existing.imageUrl);
+    }
+
+    const existingGalleryUrls = Array.isArray(existing.galleryUrls) ? existing.galleryUrls.filter(Boolean) : [];
+    const nextGallerySet = new Set(galleryUrls.filter(Boolean));
+    const removedGalleryUrls = existingGalleryUrls.filter((u) => !nextGallerySet.has(u));
+    for (const url of removedGalleryUrls) {
+      await mediaStorage.deleteFromUrl(url);
     }
 
     const updated = await Product.findByIdAndUpdate(
@@ -3929,6 +4278,7 @@ async function postAdminUpdateProduct(req, res, next) {
           compatibleReferences,
           priceCents,
           compareAtPriceCents,
+          options: parsedOptions.ok ? parsedOptions.options : [],
           consigne: {
             enabled: form.consigneEnabled === true && (Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0) > 0,
             amountCents: Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0,
@@ -3997,6 +4347,15 @@ async function postAdminDeleteProduct(req, res, next) {
     const dbConnected = mongoose.connection.readyState === 1;
     const { productId } = req.params;
 
+    const safeReturnTo = (() => {
+      const value = req.body && typeof req.body.returnTo === 'string' ? req.body.returnTo : '';
+      const trimmed = value.trim();
+      if (!trimmed) return '/admin/catalogue';
+      if (!trimmed.startsWith('/admin')) return '/admin/catalogue';
+      if (trimmed.startsWith('//')) return '/admin/catalogue';
+      return trimmed;
+    })();
+
     if (!dbConnected) {
       return res.status(503).render('errors/500', {
         title: 'Erreur - CarParts France',
@@ -4009,14 +4368,21 @@ async function postAdminDeleteProduct(req, res, next) {
       });
     }
 
-    const existing = await Product.findById(productId).select('_id imageUrl').lean();
-    if (existing && existing.imageUrl) {
-      const absolutePath = getLocalProductImagePath(existing.imageUrl);
-      tryDeleteFile(absolutePath);
+    const existing = await Product.findById(productId).select('_id imageUrl galleryUrls').lean();
+    if (existing) {
+      if (existing.imageUrl) {
+        await mediaStorage.deleteFromUrl(existing.imageUrl);
+      }
+      const galleries = Array.isArray(existing.galleryUrls) ? existing.galleryUrls : [];
+      for (const url of galleries) {
+        if (!url) continue;
+        await mediaStorage.deleteFromUrl(url);
+      }
     }
 
     await Product.findByIdAndDelete(productId);
-    return res.redirect('/admin/catalogue');
+    req.session.adminCatalogSuccess = 'Produit supprimé.';
+    return res.redirect(safeReturnTo);
   } catch (err) {
     return next(err);
   }
@@ -4903,14 +5269,235 @@ async function postAdminUpdateReturnNote(req, res, next) {
   }
 }
 
-async function getAdminSettingsPage(req, res) {
-  const creds = getAdminCredentials();
+async function getAdminSettingsPage(req, res, next) {
+  try {
+    const creds = getAdminCredentials();
+    const dbConnected = mongoose.connection.readyState === 1;
+    const teamSuccessMessage = req.session.adminTeamSuccess || null;
+    const teamErrorMessage = req.session.adminTeamError || null;
+    const passwordSuccessMessage = req.session.adminPasswordSuccess || null;
+    const passwordErrorMessage = req.session.adminPasswordError || null;
 
-  return res.render('admin/settings', {
-    title: 'Admin - Paramètres',
-    dbConnected: mongoose.connection.readyState === 1,
-    isDevFallback: creds.isDevFallback,
-  });
+    delete req.session.adminTeamSuccess;
+    delete req.session.adminTeamError;
+    delete req.session.adminPasswordSuccess;
+    delete req.session.adminPasswordError;
+
+    let backofficeUsers = [];
+    if (dbConnected) {
+      await ensureAdminUserStoreReady();
+      const users = await adminUsers.listAdminUsers();
+      backofficeUsers = users.map((user) => ({
+        ...user,
+        roleLabel: getAdminRoleLabel(user.role),
+        createdAtLabel: formatDateTimeFR(user.createdAt),
+        updatedAtLabel: formatDateTimeFR(user.updatedAt),
+        lastLoginAtLabel: user.lastLoginAt ? formatDateTimeFR(user.lastLoginAt) : 'Jamais',
+        canToggle: user.role !== 'owner',
+      }));
+    }
+
+    return res.render('admin/settings', {
+      title: 'Admin - Paramètres',
+      dbConnected,
+      isDevFallback: !dbConnected && creds.isDevFallback,
+      canManageAdminUsers: canManageAdminUsers(req),
+      currentAdminSession: getCurrentAdminSession(req),
+      teamSuccessMessage,
+      teamErrorMessage,
+      passwordSuccessMessage,
+      passwordErrorMessage,
+      backofficeUsers,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminCreateBackofficeUser(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminTeamError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/parametres');
+    }
+
+    if (!canManageAdminUsers(req)) {
+      req.session.adminTeamError = 'Seul le compte principal peut gérer les membres du back-office.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const firstName = getTrimmedString(req.body && req.body.firstName);
+    const lastName = getTrimmedString(req.body && req.body.lastName);
+    const email = normalizeEmail(req.body && req.body.email);
+    const password = normalizeEnvString(req.body && req.body.password);
+    const passwordConfirm = normalizeEnvString(req.body && req.body.passwordConfirm);
+
+    if (!firstName || !lastName || !email) {
+      req.session.adminTeamError = 'Merci de renseigner le prénom, le nom et l’email.';
+      return res.redirect('/admin/parametres');
+    }
+
+    if (!password || password.length < 8) {
+      req.session.adminTeamError = 'Le mot de passe du nouvel utilisateur doit faire au moins 8 caractères.';
+      return res.redirect('/admin/parametres');
+    }
+
+    if (password !== passwordConfirm) {
+      req.session.adminTeamError = 'Les deux mots de passe du nouvel utilisateur ne correspondent pas.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const createdBy = getCurrentAdminSession(req);
+    await adminUsers.createStaffAdminUser({
+      firstName,
+      lastName,
+      email,
+      password,
+      createdByAdminUserId: createdBy && createdBy.adminUserId ? createdBy.adminUserId : null,
+    });
+
+    req.session.adminTeamSuccess = 'Compte back-office créé.';
+    return res.redirect('/admin/parametres');
+  } catch (err) {
+    if (err && err.code === 11000) {
+      req.session.adminTeamError = 'Un compte back-office existe déjà avec cet email.';
+      return res.redirect('/admin/parametres');
+    }
+    return next(err);
+  }
+}
+
+async function postAdminToggleBackofficeUser(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminTeamError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/parametres');
+    }
+
+    if (!canManageAdminUsers(req)) {
+      req.session.adminTeamError = 'Seul le compte principal peut gérer les membres du back-office.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const { adminUserId } = req.params;
+    const shouldEnable = getTrimmedString(req.body && req.body.isActive) === 'true';
+    const result = await adminUsers.toggleAdminUserActive({ adminUserId, isActive: shouldEnable });
+
+    if (!result || !result.ok) {
+      req.session.adminTeamError = result && result.reason === 'owner_locked'
+        ? 'Le compte administrateur principal ne peut pas être désactivé.'
+        : 'Impossible de modifier ce compte back-office.';
+      return res.redirect('/admin/parametres');
+    }
+
+    req.session.adminTeamSuccess = shouldEnable
+      ? 'Compte back-office réactivé.'
+      : 'Compte back-office désactivé.';
+    return res.redirect('/admin/parametres');
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminResetBackofficeUserPassword(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminTeamError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/parametres');
+    }
+
+    if (!canManageAdminUsers(req)) {
+      req.session.adminTeamError = 'Seul le compte principal peut gérer les membres du back-office.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const { adminUserId } = req.params;
+    const nextPassword = normalizeEnvString(req.body && req.body.nextPassword);
+    const nextPasswordConfirm = normalizeEnvString(req.body && req.body.nextPasswordConfirm);
+
+    if (!nextPassword || nextPassword.length < 8) {
+      req.session.adminTeamError = 'Le nouveau mot de passe employé doit faire au moins 8 caractères.';
+      return res.redirect('/admin/parametres');
+    }
+
+    if (nextPassword !== nextPasswordConfirm) {
+      req.session.adminTeamError = 'Les deux mots de passe employés ne correspondent pas.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const result = await adminUsers.updateAdminUserPasswordByOwner({
+      adminUserId,
+      nextPassword,
+    });
+
+    if (!result || !result.ok) {
+      req.session.adminTeamError = result && result.reason === 'owner_locked'
+        ? 'Le mot de passe du compte principal doit être changé depuis la zone de mot de passe du compte connecté.'
+        : 'Impossible de réinitialiser ce mot de passe employé.';
+      return res.redirect('/admin/parametres');
+    }
+
+    req.session.adminTeamSuccess = 'Mot de passe employé mis à jour.';
+    return res.redirect('/admin/parametres');
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminChangeOwnPassword(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminPasswordError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/parametres');
+    }
+
+    const currentAdmin = getCurrentAdminSession(req);
+    if (!currentAdmin || !currentAdmin.adminUserId) {
+      req.session.adminPasswordError = 'Session admin invalide. Merci de te reconnecter.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const currentPassword = normalizeEnvString(req.body && req.body.currentPassword);
+    const nextPassword = normalizeEnvString(req.body && req.body.nextPassword);
+    const nextPasswordConfirm = normalizeEnvString(req.body && req.body.nextPasswordConfirm);
+
+    if (!currentPassword || !nextPassword || !nextPasswordConfirm) {
+      req.session.adminPasswordError = 'Merci de renseigner tous les champs du mot de passe.';
+      return res.redirect('/admin/parametres');
+    }
+
+    if (nextPassword.length < 8) {
+      req.session.adminPasswordError = 'Le nouveau mot de passe doit faire au moins 8 caractères.';
+      return res.redirect('/admin/parametres');
+    }
+
+    if (nextPassword !== nextPasswordConfirm) {
+      req.session.adminPasswordError = 'Les deux nouveaux mots de passe ne correspondent pas.';
+      return res.redirect('/admin/parametres');
+    }
+
+    const updated = await adminUsers.updateOwnPassword({
+      adminUserId: currentAdmin.adminUserId,
+      currentPassword,
+      nextPassword,
+    });
+
+    if (!updated || !updated.ok) {
+      req.session.adminPasswordError = updated && updated.reason === 'invalid_current_password'
+        ? 'Le mot de passe actuel est incorrect.'
+        : 'Impossible de mettre à jour le mot de passe pour le moment.';
+      return res.redirect('/admin/parametres');
+    }
+
+    req.session.adminPasswordSuccess = 'Mot de passe mis à jour.';
+    return res.redirect('/admin/parametres');
+  } catch (err) {
+    return next(err);
+  }
 }
 
 async function getAdminInvoiceSettingsPage(req, res) {
@@ -4951,6 +5538,25 @@ async function postAdminInvoiceSettings(req, res, next) {
       return res.redirect('/admin/parametres/facturation');
     }
 
+    if (req.uploadError) {
+      req.session.adminInvoiceSettingsError = req.uploadError;
+      return res.redirect('/admin/parametres/facturation');
+    }
+
+    if (req.file && req.file.buffer) {
+      const previous = await invoiceSettings.getInvoiceSettingsMergedWithFallback();
+      const saved = await mediaStorage.saveMulterFile(req.file, {
+        metadata: { scope: 'invoice-logo' },
+        fallbackPrefix: 'invoice-logo',
+      });
+
+      req.body.logoUrl = saved && saved.url ? saved.url : '';
+
+      if (previous && previous.logoUrl) {
+        await mediaStorage.deleteFromUrl(previous.logoUrl);
+      }
+    }
+
     await invoiceSettings.updateInvoiceSettingsFromForm(req.body);
     req.session.adminInvoiceSettingsSuccess = 'Paramètres de facturation enregistrés.';
     return res.redirect('/admin/parametres/facturation');
@@ -4989,6 +5595,7 @@ module.exports = {
   getAdminEditProductPage,
   postAdminUpdateProduct,
   postAdminDeleteProduct,
+  postAdminBulkDeleteProducts,
   getAdminClientsPage,
   getAdminClientDetailPage,
   postAdminUpdateClientDiscount,
@@ -5008,6 +5615,10 @@ module.exports = {
   postAdminUpdateVehicleModel,
   postAdminDeleteVehicleModel,
   getAdminSettingsPage,
+  postAdminCreateBackofficeUser,
+  postAdminToggleBackofficeUser,
+  postAdminResetBackofficeUserPassword,
+  postAdminChangeOwnPassword,
   getAdminInvoiceSettingsPage,
   postAdminInvoiceSettings,
   getAdminSiteSettingsPage,

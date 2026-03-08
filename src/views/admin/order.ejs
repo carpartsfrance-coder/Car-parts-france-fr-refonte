@@ -187,6 +187,9 @@
                           <% if (it.sku) { %>
                             <div class="mt-1 text-xs text-slate-500">Réf : <%= it.sku %></div>
                           <% } %>
+                          <% if (it.optionsSummary) { %>
+                            <div class="mt-1 text-xs text-slate-500"><%= it.optionsSummary %></div>
+                          <% } %>
                           <div class="mt-2 flex items-center gap-2">
                             <% if (it.inStock === true) { %>
                               <span class="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">En stock</span>

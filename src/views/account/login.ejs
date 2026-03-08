@@ -59,6 +59,7 @@
 
           <form action="/compte/connexion" class="space-y-5" method="POST">
             <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/compte' %>" />
+            <input name="website" type="text" value="" autocomplete="off" tabindex="-1" aria-hidden="true" class="hidden" />
 
             <div>
               <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2" for="email">Email</label>

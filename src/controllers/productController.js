@@ -6,6 +6,7 @@ const BlogPost = require('../models/BlogPost');
 const demoProducts = require('../demoProducts');
 const sanitizeHtml = require('sanitize-html');
 const { markdownToHtml } = require('../services/blogContent');
+const { buildCategoryPublicUrl } = require('../services/categoryPublic');
 const {
   buildProductPublicPath,
   buildProductPublicUrl,
@@ -704,8 +705,8 @@ async function listProducts(req, res, next) {
         !selectedMainCategory &&
         !selectedSubCategory &&
         !selectedStock &&
-        minPriceCents === null &&
-        maxPriceCents === null;
+        minPriceEuros === null &&
+        maxPriceEuros === null;
 
       if (totalCount === 0 && noFilters) {
         totalCount = demoProducts.length;
@@ -752,8 +753,8 @@ async function listProducts(req, res, next) {
           }
           if (selectedStock === 'in' && !p.inStock) return false;
 
-          if (minPriceCents !== null && p.priceCents < minPriceCents) return false;
-          if (maxPriceCents !== null && p.priceCents > maxPriceCents) return false;
+          if (minPriceEuros !== null && p.priceCents < minPriceEuros) return false;
+          if (maxPriceEuros !== null && p.priceCents > maxPriceEuros) return false;
 
           return true;
         })
@@ -847,6 +848,7 @@ async function listProducts(req, res, next) {
 async function getProduct(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
+    const errorMessage = req.session && req.session.cartError ? req.session.cartError : null;
     const rawParam = typeof req.params.id === 'string' ? req.params.id.trim() : '';
     const id = rawParam.includes('-') ? rawParam.split('-').pop() : rawParam;
 
@@ -873,10 +875,12 @@ async function getProduct(req, res, next) {
       product = normalizeProduct(product);
 
       if (!product) {
+        if (req.session) delete req.session.cartError;
         return res.render('products/show', {
           title: 'Produit - CarParts France',
           dbConnected,
           returnTo: req.originalUrl,
+          errorMessage,
           product: null,
           relatedProducts: [],
         });
@@ -942,7 +946,6 @@ async function getProduct(req, res, next) {
     const descriptionForSchema = normalizeMetaText(toPlainText(product.description || product.shortDescription || autoDesc));
 
     const schemaProduct = {
-      '@context': 'https://schema.org',
       '@type': 'Product',
       name: product.name,
       description: truncateText(descriptionForSchema, 5000),
@@ -962,10 +965,55 @@ async function getProduct(req, res, next) {
       },
     };
 
-    const jsonLd = JSON.stringify(schemaProduct)
-      .replace(/</g, '\\u003c')
-      .replace(/>/g, '\\u003e')
-      .replace(/&/g, '\\u0026');
+    const baseUrl = getPublicBaseUrlFromReq(req);
+    const categoryName = typeof product.category === 'string' ? product.category.trim() : '';
+    const categorySlug = categoryName ? slugifyLoose(categoryName) : '';
+    const categoryUrl = categorySlug ? buildCategoryPublicUrl({ slug: categorySlug }, { req }) : '';
+
+    const breadcrumbItems = [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Accueil',
+        item: baseUrl ? `${baseUrl}/` : '/',
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Catalogue',
+        item: baseUrl ? `${baseUrl}/produits` : '/produits',
+      },
+    ];
+
+    if (categoryName && categoryUrl) {
+      breadcrumbItems.push({
+        '@type': 'ListItem',
+        position: 3,
+        name: categoryName,
+        item: categoryUrl,
+      });
+    }
+
+    breadcrumbItems.push({
+      '@type': 'ListItem',
+      position: breadcrumbItems.length + 1,
+      name: product.name,
+      item: canonicalUrl,
+    });
+
+    const jsonLd = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': [
+        schemaProduct,
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbItems,
+        },
+      ],
+    })
+      .replace(/</g, '\u003c')
+      .replace(/>/g, '\u003e')
+      .replace(/&/g, '\u0026');
 
     let relatedProducts = [];
     let relatedBlogPosts = [];
@@ -996,26 +1044,26 @@ async function getProduct(req, res, next) {
       }
 
       const mappedBlogCard = (b) => {
-          const publishedAt = b.publishedAt || b.createdAt || null;
-          const minutes = Number.isFinite(b.readingTimeMinutes) && b.readingTimeMinutes > 0
-            ? b.readingTimeMinutes
-            : estimateReadingTimeMinutes(b.contentHtml || '');
-          const excerpt = (b.excerpt || '').trim() || truncateText(stripHtml(b.contentHtml || ''), 140);
-          const categoryLabel = b.category && b.category.label
-            ? String(b.category.label).trim()
-            : (b.category && b.category.slug ? String(b.category.slug).trim() : 'Blog');
+        const publishedAt = b.publishedAt || b.createdAt || null;
+        const minutes = Number.isFinite(b.readingTimeMinutes) && b.readingTimeMinutes > 0
+          ? b.readingTimeMinutes
+          : estimateReadingTimeMinutes(b.contentHtml || '');
+        const excerpt = (b.excerpt || '').trim() || truncateText(stripHtml(b.contentHtml || ''), 140);
+        const categoryLabel = b.category && b.category.label
+          ? String(b.category.label).trim()
+          : (b.category && b.category.slug ? String(b.category.slug).trim() : 'Blog');
 
-          return {
-            id: String(b._id),
-            slug: String(b.slug),
-            title: b.title || '',
-            excerpt,
-            imageUrl: b.coverImageUrl || '',
-            categoryLabel,
-            dateLabel: formatDateFRShort(publishedAt),
-            readTimeLabel: `${minutes} min`,
-            url: `/blog/${encodeURIComponent(String(b.slug))}`,
-          };
+        return {
+          id: String(b._id),
+          slug: String(b.slug),
+          title: b.title || '',
+          excerpt,
+          imageUrl: b.coverImageUrl || '',
+          categoryLabel,
+          dateLabel: formatDateFRShort(publishedAt),
+          readTimeLabel: `${minutes} min`,
+          url: `/blog/${encodeURIComponent(String(b.slug))}`,
+        };
       };
 
       const blogProjection = 'slug title excerpt coverImageUrl category publishedAt createdAt readingTimeMinutes contentHtml';
@@ -1090,6 +1138,7 @@ async function getProduct(req, res, next) {
       descriptionText: toPlainText(descriptionRaw),
     };
 
+    if (req.session) delete req.session.cartError;
     return res.render('products/show', {
       title: seoTitle,
       metaDescription,
@@ -1098,10 +1147,12 @@ async function getProduct(req, res, next) {
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,
       ogImage,
+      ogSiteName: 'CarParts France',
       ogType: 'product',
       jsonLd,
       dbConnected,
       returnTo: req.originalUrl,
+      errorMessage,
       product,
       relatedProducts,
       relatedBlogPosts,

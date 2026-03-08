@@ -1,31 +1,6 @@
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 
-const uploadDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'blog');
-
-fs.mkdirSync(uploadDir, { recursive: true });
-
-function safeExt(originalName) {
-  const ext = path.extname(originalName || '').toLowerCase();
-  if (ext === '.png') return '.png';
-  if (ext === '.jpg') return '.jpg';
-  if (ext === '.jpeg') return '.jpeg';
-  if (ext === '.webp') return '.webp';
-  if (ext === '.gif') return '.gif';
-  return '.png';
-}
-
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename(req, file, cb) {
-    const ext = safeExt(file.originalname);
-    const rand = Math.random().toString(16).slice(2, 10);
-    cb(null, `blog-${Date.now()}-${rand}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,

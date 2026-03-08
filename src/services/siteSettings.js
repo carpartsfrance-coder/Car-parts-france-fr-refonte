@@ -4,12 +4,26 @@ function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : value ? String(value).trim() : '';
 }
 
+function getSafeUrl(value) {
+  const input = getTrimmedString(value);
+  if (!input) return '';
+  if (!/^https?:\/\//i.test(input)) return '';
+  return input;
+}
+
 function buildEnvFallback() {
   return {
     promoBannerText:
       getTrimmedString(process.env.PROMO_BANNER_TEXT) ||
       'Offre Spéciale : -5% sur toute commande cette semaine avec le code :',
     promoBannerCode: getTrimmedString(process.env.PROMO_BANNER_CODE) || 'PROMO5',
+    aboutTitle: getTrimmedString(process.env.HOME_ABOUT_TITLE) || 'Notre histoire',
+    aboutText:
+      getTrimmedString(process.env.HOME_ABOUT_TEXT)
+      || 'Car Parts France accompagne particuliers et professionnels avec des pièces testées, des conseils précis et un suivi humain pour trouver la bonne référence rapidement.',
+    facebookUrl: getSafeUrl(process.env.SOCIAL_FACEBOOK_URL),
+    instagramUrl: getSafeUrl(process.env.SOCIAL_INSTAGRAM_URL),
+    youtubeUrl: getSafeUrl(process.env.SOCIAL_YOUTUBE_URL),
   };
 }
 
@@ -41,6 +55,11 @@ async function getSiteSettingsMergedWithFallback({ bypassCache = false } = {}) {
     const merged = {
       promoBannerText: saved.promoBannerText || '',
       promoBannerCode: saved.promoBannerCode || '',
+      aboutTitle: saved.aboutTitle || fallback.aboutTitle,
+      aboutText: saved.aboutText || fallback.aboutText,
+      facebookUrl: getSafeUrl(saved.facebookUrl) || fallback.facebookUrl,
+      instagramUrl: getSafeUrl(saved.instagramUrl) || fallback.instagramUrl,
+      youtubeUrl: getSafeUrl(saved.youtubeUrl) || fallback.youtubeUrl,
     };
 
     cached = merged;
@@ -58,6 +77,11 @@ function sanitizeForm(body) {
   return {
     promoBannerText: getTrimmedString(b.promoBannerText),
     promoBannerCode: getTrimmedString(b.promoBannerCode),
+    aboutTitle: getTrimmedString(b.aboutTitle),
+    aboutText: getTrimmedString(b.aboutText),
+    facebookUrl: getSafeUrl(b.facebookUrl),
+    instagramUrl: getSafeUrl(b.instagramUrl),
+    youtubeUrl: getSafeUrl(b.youtubeUrl),
   };
 }
 
@@ -73,6 +97,11 @@ async function updateSiteSettingsFromForm(body) {
   cached = {
     promoBannerText: updated && updated.promoBannerText ? updated.promoBannerText : '',
     promoBannerCode: updated && updated.promoBannerCode ? updated.promoBannerCode : '',
+    aboutTitle: updated && updated.aboutTitle ? updated.aboutTitle : buildEnvFallback().aboutTitle,
+    aboutText: updated && updated.aboutText ? updated.aboutText : buildEnvFallback().aboutText,
+    facebookUrl: updated && updated.facebookUrl ? getSafeUrl(updated.facebookUrl) : '',
+    instagramUrl: updated && updated.instagramUrl ? getSafeUrl(updated.instagramUrl) : '',
+    youtubeUrl: updated && updated.youtubeUrl ? getSafeUrl(updated.youtubeUrl) : '',
   };
   cachedAt = Date.now();
 
