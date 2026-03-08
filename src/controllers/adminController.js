@@ -2995,9 +2995,7 @@ async function runProductDraftGenerationJob(jobOrId) {
   if (!job) return;
 
   try {
-    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {}, {
-      timeoutMs: openaiProductGenerator.getBackgroundRequestTimeoutMs(),
-    });
+    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {});
     await ProductDraftGeneration.updateOne(
       { _id: job._id },
       {
@@ -3112,13 +3110,6 @@ async function postAdminGenerateProductDraft(req, res, next) {
       return res.status(502).json({
         ok: false,
         error: err.message || 'Erreur lors de la génération IA.',
-      });
-    }
-
-    if (err && err.code === 'OPENAI_REQUEST_TIMEOUT') {
-      return res.status(504).json({
-        ok: false,
-        error: err.message || 'La génération IA a pris trop de temps.',
       });
     }
 

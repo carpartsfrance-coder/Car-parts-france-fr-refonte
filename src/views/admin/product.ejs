@@ -35,6 +35,7 @@
   <% const productName = form && form.name ? form.name : (mode === 'new' ? 'New product' : 'Product'); %>
   <% const liveUrl = mode === 'edit' && productId ? ('/produits/' + productId) : null; %>
   <% const currentAiDraftJob = typeof latestAiDraftJob !== 'undefined' ? latestAiDraftJob : null; %>
+  <% const currentAiDraftJobEncoded = encodeURIComponent(JSON.stringify(currentAiDraftJob || null)); %>
   <% const galleryPreview = (form && form.galleryUrls ? String(form.galleryUrls).split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : []).slice(0, 5); %>
   <% const specsText = form && typeof form.specs !== 'undefined' ? String(form.specs || '') : ''; %>
   <% const findSpecValue = (label) => {
@@ -52,6 +53,7 @@
   }; %>
   <% const specTypeValue = findSpecValue('type'); %>
   <% const specProgrammationValue = findSpecValue('programmation'); %>
+  <div id="adminProductRuntimeData" class="hidden" data-product-id="<%= typeof productId !== 'undefined' ? productId : '' %>" data-latest-ai-draft-job="<%= currentAiDraftJobEncoded %>"></div>
 
   <header class="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-50">
     <div class="px-8 py-4 flex items-center justify-between">
@@ -367,7 +369,7 @@
               <div class="relative group aspect-square rounded-lg border border-primary overflow-hidden bg-white" data-kind="main" data-url="<%= form.imageUrl %>">
                 <img alt="Product" class="w-full h-full object-cover" src="<%= form.imageUrl %>" />
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-primary" type="button"><span class="material-symbols-outlined text-sm">open_with</span></button>
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-primary" type="button" title="Image principale fixe"><span class="material-symbols-outlined text-sm">star</span></button>
                   <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-red-600" type="button" data-action="remove"><span class="material-symbols-outlined text-sm">delete</span></button>
                 </div>
                 <span class="absolute top-1 left-1 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 rounded">PRINCIPALE</span>
@@ -378,7 +380,8 @@
               <div class="relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white" data-kind="gallery" data-url="<%= u %>">
                 <img alt="Product" class="w-full h-full object-cover" src="<%= u %>" />
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <button class="p-1.5 bg-white text-gray-900 rounded-full" type="button"><span class="material-symbols-outlined text-sm">open_with</span></button>
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full" type="button" data-action="move-left" title="Déplacer à gauche"><span class="material-symbols-outlined text-sm">arrow_back</span></button>
+                  <button class="p-1.5 bg-white text-gray-900 rounded-full" type="button" data-action="move-right" title="Déplacer à droite"><span class="material-symbols-outlined text-sm">arrow_forward</span></button>
                   <button class="p-1.5 bg-white text-gray-900 rounded-full" type="button" data-action="remove"><span class="material-symbols-outlined text-sm">delete</span></button>
                 </div>
               </div>
@@ -390,7 +393,7 @@
             </button>
           </div>
 
-          <div class="mt-4 text-xs text-gray-500">Champ obligatoire : ajoute au moins une image principale.</div>
+          <div class="mt-4 text-xs text-gray-500">Champ obligatoire : ajoute au moins une image principale. Tu peux aussi réagencer les autres images avec les flèches gauche/droite.</div>
 
           <input id="image" name="image" accept="image/*" type="file" multiple class="hidden" />
           <input id="imageUrl" name="imageUrl" type="hidden" value="<%= form && form.imageUrl ? form.imageUrl : '' %>" />
@@ -597,7 +600,7 @@
           <% } %>
         </div>
 
-        <textarea id="reconditioningSteps" name="reconditioningSteps" class="hidden"><%= form && form.reconditioningSteps ? form.reconditioningSteps : '' %></textarea>
+        <textarea id="reconditioningSteps" name="reconditioningSteps" class="hidden" data-value="<%= form && form.reconditioningSteps ? form.reconditioningSteps : '' %>"></textarea>
       </section>
 
       <section class="order-4 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
@@ -677,7 +680,7 @@
           </div>
         </div>
 
-        <textarea id="compatibility" name="compatibility" class="hidden"><%= form && form.compatibility ? form.compatibility : '' %></textarea>
+        <textarea id="compatibility" name="compatibility" class="hidden" data-value="<%= form && form.compatibility ? form.compatibility : '' %>"></textarea>
       </section>
 
       <section class="order-8 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
@@ -703,7 +706,7 @@
 
         <div class="p-6 space-y-1" id="faqList"></div>
 
-        <textarea id="faqs" name="faqs" class="hidden"><%= form && form.faqs ? form.faqs : '' %></textarea>
+        <textarea id="faqs" name="faqs" class="hidden" data-value="<%= form && form.faqs ? form.faqs : '' %>"></textarea>
       </section>
 
       <section class="order-9 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
@@ -737,7 +740,7 @@
             <div id="relatedBlogSelected" class="mt-2 space-y-2"></div>
           </div>
 
-          <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4"><%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %></textarea>
+          <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4" data-value="<%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %>"></textarea>
           <div class="text-xs text-gray-500">Astuce : si tu ne sélectionnes rien ici, tu peux quand même lier un produit depuis l’article (admin blog).</div>
         </div>
       </section>
@@ -799,11 +802,11 @@
 
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaTitle">Meta Title</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="metaTitle" name="metaTitle" type="text" value="<%= form && form.metaTitle ? form.metaTitle : '' %>" />
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="metaTitle" name="metaTitle" type="text" data-value="<%= form && form.metaTitle ? form.metaTitle : '' %>"/>
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaDescription">Meta Description</label>
-            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="metaDescription" name="metaDescription" rows="3"><%= form && form.metaDescription ? form.metaDescription : '' %></textarea>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="metaDescription" name="metaDescription" rows="3" data-value="<%= form && form.metaDescription ? form.metaDescription : '' %>"></textarea>
           </div>
         </div>
       </section>
@@ -830,6 +833,59 @@
         const selected = [];
 
         const sameFile = (a, b) => a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+        const getMediaTiles = () => Array.from(grid.querySelectorAll('[data-kind]')).filter((el) => el && !el.id);
+        const syncGalleryFieldFromGrid = () => {
+          const orderedGalleryUrls = getMediaTiles()
+            .filter((el) => el.getAttribute('data-kind') === 'gallery')
+            .map((el) => String(el.getAttribute('data-url') || '').trim())
+            .filter(Boolean);
+          galleryField.value = orderedGalleryUrls.join('\n');
+          refreshFieldReviewPanel();
+        };
+        const syncPreviewOrderFromGrid = () => {
+          const previewTiles = getMediaTiles().filter((el) => el.getAttribute('data-kind') === 'preview');
+          const nextSelected = previewTiles
+            .map((el) => {
+              const idx = Number(el.getAttribute('data-preview-idx'));
+              return Number.isFinite(idx) && idx >= 0 && idx < selected.length ? selected[idx] : null;
+            })
+            .filter(Boolean);
+
+          selected.splice(0, selected.length, ...nextSelected);
+          previewTiles.forEach((el, i) => el.setAttribute('data-preview-idx', String(i)));
+          syncInputFiles();
+        };
+        const syncMediaOrder = () => {
+          syncGalleryFieldFromGrid();
+          syncPreviewOrderFromGrid();
+        };
+        const moveTile = (tile, direction) => {
+          if (!tile || !grid || !uploadBtn) return;
+          const kind = tile.getAttribute('data-kind');
+          if (!kind || kind === 'main') return;
+
+          const movableTiles = getMediaTiles().filter((el) => {
+            const currentKind = el.getAttribute('data-kind');
+            return currentKind === 'gallery' || currentKind === 'preview';
+          });
+          const currentIndex = movableTiles.indexOf(tile);
+          if (currentIndex < 0) return;
+
+          const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+          if (targetIndex < 0 || targetIndex >= movableTiles.length) return;
+
+          const targetTile = movableTiles[targetIndex];
+          if (!targetTile || targetTile === tile) return;
+
+          if (direction === 'left') {
+            grid.insertBefore(tile, targetTile);
+          } else {
+            const nextSibling = targetTile.nextSibling === tile ? tile.nextSibling : targetTile.nextSibling;
+            grid.insertBefore(tile, nextSibling || uploadBtn);
+          }
+
+          syncMediaOrder();
+        };
         const syncInputFiles = () => {
           const dt = new DataTransfer();
           selected.forEach((f) => dt.items.add(f));
@@ -855,6 +911,14 @@
 
         if (canUseMedia) {
           grid.addEventListener('click', (e) => {
+            const moveBtn = e.target && e.target.closest ? e.target.closest('button[data-action="move-left"], button[data-action="move-right"]') : null;
+            if (moveBtn) {
+              const tile = moveBtn.closest('[data-kind]');
+              if (!tile) return;
+              moveTile(tile, moveBtn.getAttribute('data-action') === 'move-left' ? 'left' : 'right');
+              return;
+            }
+
             const btn = e.target && e.target.closest ? e.target.closest('button[data-action="remove"]') : null;
             if (!btn) return;
             const tile = btn.closest('[data-kind]');
@@ -877,10 +941,7 @@
               if (removeMainImageField) removeMainImageField.value = 'true';
             }
             tile.remove();
-
-            const previewTiles = Array.from(grid.querySelectorAll('[data-preview="true"]'));
-            previewTiles.forEach((el, i) => el.setAttribute('data-preview-idx', String(i)));
-            refreshFieldReviewPanel();
+            syncMediaOrder();
           });
         }
 
@@ -915,10 +976,19 @@
             const overlay = document.createElement('div');
             overlay.className = 'absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2';
 
-            const moveBtn = document.createElement('button');
-            moveBtn.type = 'button';
-            moveBtn.className = 'p-1.5 bg-white text-gray-900 rounded-full';
-            moveBtn.innerHTML = '<span class="material-symbols-outlined text-sm">open_with</span>';
+            const moveLeftBtn = document.createElement('button');
+            moveLeftBtn.type = 'button';
+            moveLeftBtn.className = 'p-1.5 bg-white text-gray-900 rounded-full';
+            moveLeftBtn.setAttribute('data-action', 'move-left');
+            moveLeftBtn.setAttribute('title', 'Déplacer à gauche');
+            moveLeftBtn.innerHTML = '<span class="material-symbols-outlined text-sm">arrow_back</span>';
+
+            const moveRightBtn = document.createElement('button');
+            moveRightBtn.type = 'button';
+            moveRightBtn.className = 'p-1.5 bg-white text-gray-900 rounded-full';
+            moveRightBtn.setAttribute('data-action', 'move-right');
+            moveRightBtn.setAttribute('title', 'Déplacer à droite');
+            moveRightBtn.innerHTML = '<span class="material-symbols-outlined text-sm">arrow_forward</span>';
 
             const delBtn = document.createElement('button');
             delBtn.type = 'button';
@@ -926,14 +996,15 @@
             delBtn.setAttribute('data-action', 'remove');
             delBtn.innerHTML = '<span class="material-symbols-outlined text-sm">delete</span>';
 
-            overlay.appendChild(moveBtn);
+            overlay.appendChild(moveLeftBtn);
+            overlay.appendChild(moveRightBtn);
             overlay.appendChild(delBtn);
             wrapper.appendChild(img);
             wrapper.appendChild(overlay);
             grid.insertBefore(wrapper, beforeNode);
           });
 
-          refreshFieldReviewPanel();
+          syncMediaOrder();
         });
 
         const stepsGrid = document.getElementById('stepsGrid');
@@ -967,8 +1038,17 @@
         const fieldReviewEmptyCount = document.getElementById('fieldReviewEmptyCount');
         const fieldReviewAiCount = document.getElementById('fieldReviewAiCount');
         const fieldReviewValidatedCount = document.getElementById('fieldReviewValidatedCount');
-        const currentProductId = <%- JSON.stringify(typeof productId !== 'undefined' ? productId : '') %>;
-        const latestAiDraftJob = <%- JSON.stringify(currentAiDraftJob || null).replace(/</g, '\\u003c') %>;
+        const runtimeDataEl = document.getElementById('adminProductRuntimeData');
+        const currentProductId = runtimeDataEl ? String(runtimeDataEl.getAttribute('data-product-id') || '').trim() : '';
+        let latestAiDraftJob = null;
+        const latestAiDraftJobRaw = runtimeDataEl ? String(runtimeDataEl.getAttribute('data-latest-ai-draft-job') || '') : '';
+        if (latestAiDraftJobRaw) {
+          try {
+            latestAiDraftJob = JSON.parse(decodeURIComponent(latestAiDraftJobRaw));
+          } catch (e) {
+            latestAiDraftJob = null;
+          }
+        }
 
         let hydrateStepsGridFromField = function () {};
         const aiTouchedFields = new Set();

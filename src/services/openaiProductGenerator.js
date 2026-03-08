@@ -325,21 +325,6 @@ function getOpenAiApiKey() {
   return normalizeEnvString(process.env.OPENAI_API_KEY);
 }
 
-function clampTimeout(raw, { min = 15000, max = 600000, fallback = 85000 } = {}) {
-  if (!Number.isFinite(raw)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(raw)));
-}
-
-function getRequestTimeoutMs() {
-  const raw = Number.parseInt(normalizeEnvString(process.env.OPENAI_PRODUCT_TIMEOUT_MS), 10);
-  return clampTimeout(raw, { fallback: 85000, max: 180000 });
-}
-
-function getBackgroundRequestTimeoutMs() {
-  const raw = Number.parseInt(normalizeEnvString(process.env.OPENAI_PRODUCT_BACKGROUND_TIMEOUT_MS), 10);
-  return clampTimeout(raw, { fallback: 300000, max: 600000 });
-}
-
 function extractJsonCandidateStrings(node, out = []) {
   if (typeof node === 'string') {
     out.push(node);
@@ -585,18 +570,6 @@ async function generateProductSheet(payload, options = {}) {
     };
   }
 
-  const customTimeoutMs = Number.isFinite(options && options.timeoutMs)
-    ? Number(options.timeoutMs)
-    : null;
-  const timeoutMs = clampTimeout(customTimeoutMs, {
-    fallback: getRequestTimeoutMs(),
-    max: 600000,
-  });
-  const controller = typeof AbortController === 'function' ? new AbortController() : null;
-  const timeoutHandle = controller
-    ? setTimeout(() => controller.abort(), timeoutMs)
-    : null;
-
   let response;
   try {
     response = await fetch(OPENAI_RESPONSES_URL, {
@@ -606,26 +579,13 @@ async function generateProductSheet(payload, options = {}) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: controller ? controller.signal : undefined,
     });
   } catch (error) {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
-
-    if (error && (error.name === 'AbortError' || error.code === 'ABORT_ERR')) {
-      const err = new Error(`La génération IA a dépassé le délai autorisé (${Math.round(timeoutMs / 1000)} s). Réessaie ou réduis la complexité de la demande.`);
-      err.code = 'OPENAI_REQUEST_TIMEOUT';
-      err.status = 504;
-      err.cause = error;
-      throw err;
-    }
-
     const err = new Error('Impossible de contacter OpenAI pour générer la fiche produit. Vérifie la connexion réseau et les paramètres du serveur.');
     err.code = 'OPENAI_NETWORK_ERROR';
     err.status = 502;
     err.cause = error;
     throw err;
-  } finally {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 
   const data = await response.json().catch(() => ({}));
@@ -655,5 +615,4 @@ async function generateProductSheet(payload, options = {}) {
 module.exports = {
   generateProductSheet,
   getModelName,
-  getBackgroundRequestTimeoutMs,
 };
