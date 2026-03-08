@@ -7,6 +7,7 @@ const demoProducts = require('../demoProducts');
 const sanitizeHtml = require('sanitize-html');
 const { markdownToHtml } = require('../services/blogContent');
 const { buildCategoryPublicUrl } = require('../services/categoryPublic');
+const productOptions = require('../services/productOptions');
 const {
   buildProductPublicPath,
   buildProductPublicUrl,
@@ -1110,7 +1111,7 @@ async function getProduct(req, res, next) {
 
       relatedBlogPosts = merged
         .filter((b) => b && b.slug)
-        .slice(0, 3)
+        .slice(0, 4)
         .map(mappedBlogCard);
     } else {
       relatedProducts = demoProducts
@@ -1136,6 +1137,7 @@ async function getProduct(req, res, next) {
       publicPath: canonicalPath,
       descriptionHtmlSafe: safeDescriptionHtml,
       descriptionText: toPlainText(descriptionRaw),
+      displayOptions: productOptions.getProductPageOptions(product.options),
     };
 
     if (req.session) delete req.session.cartError;

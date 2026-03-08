@@ -1,4 +1,6 @@
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const GENERATED_DESCRIPTION_TARGET_LENGTH = 1197;
+const GENERATED_DESCRIPTION_MIN_LENGTH = 1050;
 
 function normalizeEnvString(value) {
   if (typeof value !== 'string') return '';
@@ -69,6 +71,24 @@ function normalizeMultilineText(value, { maxLength = 0 } = {}) {
     .trim();
   if (!maxLength || text.length <= maxLength) return text;
   return text.slice(0, Math.max(0, maxLength - 1)).trim() + '…';
+}
+
+function trimGeneratedDescription(value, { minLength = GENERATED_DESCRIPTION_MIN_LENGTH, maxLength = GENERATED_DESCRIPTION_TARGET_LENGTH } = {}) {
+  const text = normalizeMultilineText(value);
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+
+  const windowStart = Math.max(minLength, Math.floor(maxLength * 0.88));
+  const candidateZone = text.slice(windowStart, maxLength + 1);
+  const punctuationMatches = [...candidateZone.matchAll(/[.!?](?:\s|$)/g)];
+
+  if (punctuationMatches.length) {
+    const lastMatch = punctuationMatches[punctuationMatches.length - 1];
+    const cutIndex = windowStart + lastMatch.index + 1;
+    return text.slice(0, cutIndex).trim();
+  }
+
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
 function normalizeArrayOfStrings(value, { maxItems = 20, maxLength = 180 } = {}) {
@@ -454,6 +474,7 @@ function buildUserPrompt(payload) {
     '- Produis un nom de produit vendable, propre et naturel.',
     '- Génère un slug SEO simple.',
     '- Génère un résumé court et une description détaillée orientée bénéfices + usages + vérifications utiles.',
+    `- La description détaillée doit faire environ ${GENERATED_DESCRIPTION_TARGET_LENGTH} caractères espaces compris, sans dépasser sensiblement cette longueur. Vise une fourchette de ${GENERATED_DESCRIPTION_MIN_LENGTH} à ${GENERATED_DESCRIPTION_TARGET_LENGTH} caractères.`,
     '- La description doit être directement lisible dans un textarea admin : texte clair, paragraphes simples, puces simples, sans Markdown.',
     '- N’ajoute aucune source, aucun lien, aucune URL et aucun nom de site dans la réponse finale.',
     '- Génère des champs Type, Programmation, Garantie et État cohérents.',
@@ -491,7 +512,7 @@ function normalizeGeneratedSheet(raw, payload) {
     badgeTopLeft: normalizeText(raw && raw.badgeTopLeft ? raw.badgeTopLeft : '', { maxLength: 120 }),
     badgeCondition: normalizeText(raw && raw.badgeCondition ? raw.badgeCondition : '', { maxLength: 120 }),
     shortDescription: normalizeText(raw && raw.shortDescription ? raw.shortDescription : '', { maxLength: 320 }),
-    description: normalizeMultilineText(raw && raw.description ? raw.description : '', { maxLength: 7000 }),
+    description: trimGeneratedDescription(raw && raw.description ? raw.description : ''),
     compatibleReferences,
     compatibility: normalizeCompatibility(raw && raw.compatibility ? raw.compatibility : []),
     faqs: normalizeFaqs(raw && raw.faqs ? raw.faqs : []),

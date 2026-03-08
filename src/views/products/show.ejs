@@ -5,7 +5,7 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .compatibility-table tr:nth-child(even) {
-    @apply bg-slate-50/30 dark:bg-slate-800/20;
+    background-color: rgba(248, 250, 252, 0.45);
   }
   .product-html p { margin: 0.75rem 0; }
   .product-html ul, .product-html ol { margin: 0.75rem 0; padding-left: 1.25rem; }
@@ -14,25 +14,41 @@
   .product-html li { margin: 0.25rem 0; }
   .product-html a { color: #dc2626; text-decoration: underline; }
   #tab-description:checked ~ .tabs-nav label[for="tab-description"],
+  #tab-tech:checked ~ .tabs-nav label[for="tab-tech"],
   #tab-process:checked ~ .tabs-nav label[for="tab-process"],
-  #tab-compatibility:checked ~ .tabs-nav label[for="tab-compatibility"],
   #tab-faq:checked ~ .tabs-nav label[for="tab-faq"] {
-    @apply text-primary border-primary border-b-2;
+    color: #dc2626;
+    border-color: #dc2626;
   }
   .tab-content { display: none; }
   #tab-description:checked ~ .tab-content-container #content-description,
+  #tab-tech:checked ~ .tab-content-container #content-tech,
   #tab-process:checked ~ .tab-content-container #content-process,
-  #tab-compatibility:checked ~ .tab-content-container #content-compatibility,
   #tab-faq:checked ~ .tab-content-container #content-faq {
     display: block;
   }
   .refined-shadow {
     box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
   }
+  .choice-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .choice-toggle input:checked + span {
+    background: #ffffff;
+    color: #dc2626;
+    border-color: #e2e8f0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    font-weight: 900;
+  }
+  .fill-1 {
+    font-variation-settings: 'FILL' 1;
+  }
 </style>
 
 <main class="flex-1 bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200 transition-colors duration-200">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
     <% if (!dbConnected) { %>
       <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900 mb-10">
         <div class="font-bold">Mode démo activé</div>
@@ -81,7 +97,7 @@
       <% const keyEtat = findSpec('état') || findSpec('etat') || conditionBadge || ''; %>
       <% const keyProgrammation = findSpec('programmation') || ''; %>
       <% const keyGarantie = findSpec('garantie') || topLeftBadge || ''; %>
-      <% const optionGroups = Array.isArray(product.options) ? product.options : []; %>
+      <% const optionGroups = Array.isArray(product.displayOptions) ? product.displayOptions : []; %>
       <% const compGrouped = {}; %>
       <% (Array.isArray(product.compatibility) ? product.compatibility : []).forEach((c) => {
         const make = c && c.make ? String(c.make).trim() : '';
@@ -98,18 +114,70 @@
       <% const compatibleReferences = Array.isArray(product.compatibleReferences)
         ? product.compatibleReferences.map((v) => String(v || '').trim()).filter(Boolean)
         : []; %>
+      <% const keyPointsList = Array.isArray(product.keyPoints)
+        ? product.keyPoints.map((v) => String(v || '').trim()).filter(Boolean)
+        : []; %>
+      <% const summaryPoints = keyPointsList.length
+        ? keyPointsList.slice(0, 3)
+        : [
+          keyType ? 'Type : ' + keyType : '',
+          keyProgrammation ? 'Programmation : ' + keyProgrammation : '',
+          keyGarantie ? 'Garantie : ' + keyGarantie : '',
+        ].filter(Boolean); %>
+      <% const shippingDelayText = product && product.shippingDelayText ? String(product.shippingDelayText).trim() : ''; %>
+      <% const hasConsigne = product && product.consigne && product.consigne.enabled && product.consigne.amountCents > 0; %>
+      <% const stockLabel = product.inStock ? 'En stock' : 'Sur commande'; %>
+      <% const subtitleParts = []; %>
+      <% if (makes.length) { %>
+        <% subtitleParts.push('Pour ' + makes.slice(0, 4).join(', ')); %>
+      <% } else if (product.brand) { %>
+        <% subtitleParts.push('Pour ' + String(product.brand).trim()); %>
+      <% } %>
+      <% if (ref) subtitleParts.push('Série ' + ref); %>
+      <% const productSubtitle = subtitleParts.join(' - '); %>
+      <% const heroBadge = keyEtat || conditionBadge || topLeftBadge || 'Reconditionnement Professionnel'; %>
+      <% const visibleThumbImages = thumbImages.slice(0, 4); %>
+      <% const hiddenThumbImages = thumbImages.slice(4); %>
+      <% const qualityHighlights = [
+        { icon: 'verified', label: keyGarantie || 'Garantie 24 Mois' },
+        { icon: 'terminal', label: keyProgrammation || 'Programmation Incluse' },
+        { icon: 'analytics', label: 'Testé sur banc' },
+      ]; %>
+      <% const faqCount = Array.isArray(product.faqs) ? product.faqs.length : 0; %>
+      <% const faqPreviewCards = Array.isArray(product.faqs)
+        ? product.faqs.filter((f) => f && f.question && f.answer).slice(0, 3)
+        : []; %>
+      <% const technicalSpecs = []; %>
+      <% const pushTechnicalSpec = (label, value) => {
+        const safeLabel = String(label || '').trim();
+        const safeValue = String(value || '').trim();
+        if (!safeLabel || !safeValue) return;
+        const alreadyExists = technicalSpecs.some((entry) => String(entry.label || '').toLowerCase() === safeLabel.toLowerCase());
+        if (alreadyExists) return;
+        technicalSpecs.push({ label: safeLabel, value: safeValue });
+      }; %>
+      <% (Array.isArray(product.specs) ? product.specs : []).forEach((spec) => {
+        if (!spec || technicalSpecs.length >= 6) return;
+        pushTechnicalSpec(spec.label, spec.value);
+      }); %>
+      <% if (technicalSpecs.length < 6) pushTechnicalSpec('Référence', ref); %>
+      <% if (technicalSpecs.length < 6) pushTechnicalSpec('Type', keyType); %>
+      <% if (technicalSpecs.length < 6) pushTechnicalSpec('État', keyEtat); %>
+      <% if (technicalSpecs.length < 6) pushTechnicalSpec('Programmation', keyProgrammation || 'Selon version'); %>
+      <% if (technicalSpecs.length < 6) pushTechnicalSpec('Garantie', keyGarantie || 'Incluse'); %>
+      <% if (technicalSpecs.length < 6) pushTechnicalSpec('Expédition', shippingDelayText || 'Sous 24/48h'); %>
 
-      <nav class="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-400 mb-12 overflow-x-auto no-scrollbar whitespace-nowrap">
-        <a class="hover:text-primary" href="/">Accueil</a>
-        <span class="material-symbols-outlined text-[10px]">chevron_right</span>
-        <a class="hover:text-primary" href="/produits"><%= product.category || 'Catalogue' %></a>
-        <span class="material-symbols-outlined text-[10px]">chevron_right</span>
-        <span class="font-semibold text-slate-900 dark:text-slate-100"><%= product.name %></span>
-      </nav>
+      <div class="flex flex-wrap items-center gap-2 mb-6 text-sm overflow-x-auto no-scrollbar whitespace-nowrap">
+        <a class="text-slate-500 hover:text-primary transition-colors" href="/">Accueil</a>
+        <span class="text-slate-300">/</span>
+        <a class="text-slate-500 hover:text-primary transition-colors" href="/produits"><%= product.category || 'Catalogue' %></a>
+        <span class="text-slate-300">/</span>
+        <span class="text-slate-900 dark:text-white font-medium"><%= product.name %></span>
+      </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-16 mb-16 sm:mb-24">
-        <div class="lg:col-span-7 space-y-6">
-          <div class="relative bg-slate-50 dark:bg-slate-800 rounded-3xl overflow-hidden aspect-[16/11] refined-shadow">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start lg:items-stretch">
+        <div class="lg:col-span-7 flex flex-col gap-4 h-full">
+          <div class="relative w-full aspect-video rounded-xl bg-slate-100 dark:bg-slate-900 overflow-hidden border border-slate-200 dark:border-slate-800 refined-shadow">
             <% if (mainImage) { %>
               <img alt="<%= product.name %>" class="w-full h-full object-cover" data-main-image decoding="async" loading="eager" src="<%= mainImage %>" />
             <% } else { %>
@@ -117,390 +185,490 @@
                 <span class="material-symbols-outlined text-6xl">inventory_2</span>
               </div>
             <% } %>
-            <% if (keyGarantie) { %>
-              <div class="absolute top-6 left-6 bg-primary text-white text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest"><%= keyGarantie %></div>
-            <% } %>
 
             <% if (images.length > 1) { %>
-              <button aria-label="Image précédente" class="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center refined-shadow transition-colors" data-gallery-prev type="button">
+              <button aria-label="Image précédente" class="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-slate-700 flex items-center justify-center refined-shadow hover:bg-white transition-all" data-gallery-prev type="button">
                 <span class="material-symbols-outlined">chevron_left</span>
               </button>
-              <button aria-label="Image suivante" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center refined-shadow transition-colors" data-gallery-next type="button">
+              <button aria-label="Image suivante" class="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 text-slate-700 flex items-center justify-center refined-shadow hover:bg-white transition-all" data-gallery-next type="button">
                 <span class="material-symbols-outlined">chevron_right</span>
               </button>
             <% } %>
           </div>
 
-          <div class="flex gap-4 overflow-x-auto no-scrollbar pb-1">
-            <% thumbImages.forEach((img, idx) => { %>
-              <button aria-label="Voir l'image <%= idx + 1 %>" class="shrink-0 w-20 sm:w-24 aspect-square rounded-2xl overflow-hidden refined-shadow <%= idx === 0 ? 'border border-primary/20 ring-2 ring-primary' : 'bg-slate-50 hover:opacity-80 transition-opacity' %>" data-thumb data-index="<%= idx %>" data-src="<%= img %>" type="button">
-                <img alt="Thumbnail" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= img %>" />
-              </button>
-            <% }) %>
-
-            <% if (hasVideo) { %>
-              <a class="shrink-0 w-20 sm:w-24 aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center gap-1 refined-shadow hover:bg-slate-100 transition-colors" href="<%= product.media.videoUrl %>" rel="noreferrer" target="_blank">
-                <span class="material-symbols-outlined text-slate-400">play_circle</span>
-                <span class="text-[9px] font-bold uppercase text-slate-500 tracking-tighter">Vidéo</span>
-              </a>
-            <% } %>
-          </div>
-        </div>
-
-        <div class="lg:col-span-5 flex flex-col justify-center space-y-10">
-          <div class="space-y-4">
-            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight"><%= product.name %></h1>
-            <div class="flex items-center gap-4">
-              <p class="text-slate-500 text-sm"><%= makes.length ? makes.join(', ') : (product.brand ? product.brand : ref) %></p>
-            </div>
-          </div>
-
-          <div class="space-y-8">
-            <div class="flex items-baseline gap-2">
-              <span class="text-5xl font-black text-slate-900 dark:text-white tracking-tighter" data-price-display data-base-price-cents="<%= Number(product.priceCents) || 0 %>"><%= formatMoney(product.priceCents) %> €</span>
-              <span class="text-slate-400 text-sm font-medium">TTC</span>
-              <% if (compareAt && compareAt > product.priceCents) { %>
-                <span class="ml-2 text-slate-400 text-sm line-through"><%= formatMoney(compareAt) %> €</span>
-              <% } %>
-            </div>
-
-            <div class="grid grid-cols-2 gap-x-8 gap-y-6 py-8 border-y border-slate-100 dark:border-slate-800">
-              <div class="flex gap-3">
-                <span class="material-symbols-outlined text-emerald-500">local_shipping</span>
-                <div>
-                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Expédition</p>
-                  <% const shippingDelayText = product && product.shippingDelayText ? String(product.shippingDelayText).trim() : ''; %>
-                  <p class="text-xs font-semibold"><%= shippingDelayText || (product.inStock ? 'Expédition sous 24/48h' : 'Sur commande') %></p>
-                </div>
-              </div>
-              <div class="flex gap-3">
-                <span class="material-symbols-outlined text-emerald-500">verified_user</span>
-                <div>
-                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Garantie</p>
-                  <p class="text-xs font-semibold"><%= keyGarantie || '2 Ans incluse' %></p>
-                </div>
-              </div>
-              <div class="flex gap-3">
-                <span class="material-symbols-outlined text-primary">published_with_changes</span>
-                <div>
-                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Type</p>
-                  <p class="text-xs font-semibold"><%= keyType || 'Échange Standard' %></p>
-                </div>
-              </div>
-              <div class="flex gap-3">
-                <span class="material-symbols-outlined text-amber-500">price_check</span>
-                <div>
-                  <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Consigne</p>
-                  <% const hasConsigne = product && product.consigne && product.consigne.enabled && product.consigne.amountCents > 0; %>
-                  <% if (hasConsigne) { %>
-                    <p class="text-xs font-semibold"><%= formatMoney(product.consigne.amountCents) %> € (non encaissée)</p>
-                    <p class="mt-0.5 text-[11px] text-slate-400">Retour sous <%= product.consigne.delayDays %> jours après livraison</p>
-                  <% } else { %>
-                    <p class="text-xs font-semibold">Reprise incluse</p>
+          <% if (visibleThumbImages.length) { %>
+            <div class="grid grid-cols-4 gap-4">
+              <% visibleThumbImages.forEach((img, idx) => { %>
+                <% const remainingImages = thumbImages.length - 4; %>
+                <button aria-label="Voir l'image <%= idx + 1 %>" class="relative aspect-square rounded-lg overflow-hidden cursor-pointer border bg-white dark:bg-slate-900 refined-shadow transition-all <%= idx === 0 ? 'border-primary/20 ring-2 ring-primary' : 'border-slate-200 dark:border-slate-700 hover:border-primary' %>" data-thumb data-index="<%= idx %>" data-src="<%= img %>" type="button">
+                  <img alt="Thumbnail" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= img %>" />
+                  <% if (idx === 3 && remainingImages > 0) { %>
+                    <span class="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white text-xs font-bold uppercase tracking-wider">+<%= remainingImages %> de plus</span>
                   <% } %>
-                </div>
-              </div>
+                </button>
+              <% }) %>
             </div>
+          <% } %>
 
-            <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4" method="POST">
-              <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/panier' %>" />
-              <input data-qty-input name="qty" type="hidden" value="1" />
+          <% hiddenThumbImages.forEach((img, idx) => { %>
+            <button class="hidden" data-thumb data-index="<%= idx + 4 %>" data-src="<%= img %>" type="button"></button>
+          <% }) %>
 
-              <% if (optionGroups && optionGroups.length) { %>
-                <div class="space-y-4">
-                  <% optionGroups.forEach((g) => { %>
-                    <% const gKey = g && g.key ? String(g.key) : ''; %>
-                    <% if (!gKey) return; %>
-                    <% const fieldName = 'opt_' + gKey; %>
-
-                    <div class="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 p-4">
-                      <div class="flex items-start justify-between gap-4">
-                        <div>
-                          <div class="text-sm font-bold text-slate-900 dark:text-white"><%= g && g.label ? g.label : gKey %></div>
-                          <% if (g && g.helpText) { %>
-                            <div class="mt-1 text-xs text-slate-500"><%= g.helpText %></div>
-                          <% } %>
-                        </div>
-                        <% if (g && g.required) { %>
-                          <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Obligatoire</div>
-                        <% } %>
-                      </div>
-
-                      <% if (g && String(g.type) === 'text') { %>
-                        <div class="mt-3">
-                          <input
-                            class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold focus:ring-primary"
-                            type="text"
-                            name="<%= fieldName %>"
-                            placeholder="<%= g && g.placeholder ? g.placeholder : '' %>"
-                            <%= g && g.required ? 'required' : '' %>
-                            data-option-input
-                            data-option-type="text"
-                            data-price-delta-cents="<%= Number(g.priceDeltaCents) || 0 %>"
-                          />
-                        </div>
-                      <% } else { %>
-                        <% const choices = Array.isArray(g && g.choices) ? g.choices : []; %>
-                        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <% choices.forEach((c) => { %>
-                            <% const cKey = c && c.key ? String(c.key) : ''; %>
-                            <% if (!cKey) return; %>
-                            <label class="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold cursor-pointer hover:border-primary transition-colors">
-                              <input
-                                type="radio"
-                                name="<%= fieldName %>"
-                                value="<%= cKey %>"
-                                class="text-primary focus:ring-primary"
-                                <%= g && g.required ? 'required' : '' %>
-                                data-option-input
-                                data-option-type="choice"
-                                data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
-                              />
-                              <span class="flex-1 min-w-0"><%= c && c.label ? c.label : cKey %></span>
-                              <% if (Number(c && c.priceDeltaCents) > 0) { %>
-                                <span class="text-xs font-black text-primary">+ <%= formatMoney(c.priceDeltaCents) %> €</span>
-                              <% } %>
-                            </label>
-                          <% }) %>
-                        </div>
-                      <% } %>
-                    </div>
-                  <% }) %>
-                </div>
-              <% } %>
-
-              <div class="flex items-center bg-slate-50 dark:bg-slate-800 rounded-2xl px-2 w-fit">
-                <button class="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors" data-qty-minus type="button">—</button>
-                <span class="w-8 text-center font-bold text-sm" data-qty-display>1</span>
-                <button class="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors" data-qty-plus type="button">+</button>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-1">
+            <% qualityHighlights.forEach((item) => { %>
+              <div class="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center refined-shadow">
+                <span class="material-symbols-outlined text-primary text-3xl mb-2"><%= item.icon %></span>
+                <span class="text-xs font-bold uppercase tracking-tight text-slate-900 dark:text-white"><%= item.label %></span>
               </div>
-
-              <button class="flex-1 bg-primary text-white font-bold rounded-2xl py-4 flex items-center justify-center gap-3 hover:shadow-xl hover:shadow-primary/20 transition-all disabled:opacity-60" <%= product.inStock ? '' : 'disabled' %> type="submit">
-                <span class="material-symbols-outlined">add_shopping_cart</span>
-                <span>Ajouter au panier</span>
-              </button>
-            </form>
-
-            <p class="text-center text-[11px] text-slate-400"><%= shippingDelayText || (product.inStock ? 'Expédition sous 24/48h' : 'Sur commande') %> • Paiement sécurisé • Support expert</p>
+            <% }) %>
           </div>
-        </div>
-      </div>
 
-      <div class="mt-12">
-        <input checked class="hidden" id="tab-description" name="product-tabs" type="radio" />
-        <input class="hidden" id="tab-process" name="product-tabs" type="radio" />
-        <input class="hidden" id="tab-compatibility" name="product-tabs" type="radio" />
-        <input class="hidden" id="tab-faq" name="product-tabs" type="radio" />
-
-        <div class="tabs-nav flex items-center justify-center gap-12 border-b border-slate-100 dark:border-slate-800 mb-16 overflow-x-auto no-scrollbar">
-          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-description">Description</label>
-          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-process">Reconditionnement</label>
-          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-compatibility">Compatibilité</label>
-          <label class="pb-6 text-sm font-semibold cursor-pointer transition-all whitespace-nowrap border-b-2 border-transparent hover:text-primary" for="tab-faq">FAQ</label>
+          <% if (hasVideo) { %>
+            <div class="flex justify-start">
+              <a class="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold hover:border-primary hover:text-primary transition-colors" href="<%= product.media.videoUrl %>" rel="noreferrer" target="_blank">
+                <span class="material-symbols-outlined">play_circle</span>
+                Voir la vidéo du produit
+              </a>
+            </div>
+          <% } %>
         </div>
 
-        <div class="tab-content-container max-w-5xl mx-auto">
-          <div class="tab-content" id="content-description">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
-              <div class="space-y-6">
-                <h3 class="text-2xl font-bold">Aperçu technique</h3>
-                <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
-                <% if (hasSafeHtml) { %>
-                  <div class="text-slate-500 leading-relaxed text-sm product-html"><%- product.descriptionHtmlSafe %></div>
-                <% } else { %>
-                  <p class="text-slate-500 leading-relaxed text-sm whitespace-pre-line"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
+        <div class="lg:col-span-5 flex flex-col gap-6 h-full">
+          <div>
+            <span class="inline-block px-2 py-1 rounded bg-primary text-white text-[10px] font-black uppercase mb-3 tracking-widest"><%= heroBadge %></span>
+            <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight mb-2 uppercase tracking-tighter"><%= product.name %></h1>
+            <p class="text-slate-500 dark:text-slate-300 text-lg"><%= productSubtitle || ('Série ' + ref) %></p>
+          </div>
+
+          <div class="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 border-l-4 border-l-primary refined-shadow">
+            <div class="flex justify-between items-end gap-4 mb-1">
+              <div>
+                <span class="text-slate-500 text-sm font-medium">Prix public</span>
+                <% if (compareAt && compareAt > product.priceCents) { %>
+                  <div class="mt-1 text-sm text-slate-400 line-through"><%= formatMoney(compareAt) %> €</div>
                 <% } %>
               </div>
-
-              <% if (product.sections && product.sections.showSupportBox) { %>
-                <div class="bg-slate-50 dark:bg-slate-800 p-10 rounded-3xl refined-shadow border border-slate-100 dark:border-slate-700">
-                  <div class="flex items-center gap-4 mb-6">
-                    <div class="w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center refined-shadow">
-                      <span class="material-symbols-outlined text-primary text-2xl">verified</span>
-                    </div>
-                    <h3 class="font-bold text-lg">Expertise VIN incluse</h3>
-                  </div>
-                  <p class="text-sm text-slate-500 mb-8 leading-relaxed">Nos techniciens valident manuellement la compatibilité avant l'envoi pour garantir une installation parfaite.</p>
-                  <a class="block w-full text-center bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 py-3 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors" href="/compte">Demander une vérification</a>
-                </div>
-              <% } else { %>
-                <div class="hidden md:block"></div>
-              <% } %>
+              <div class="text-right">
+                <span class="text-4xl font-black text-primary" data-price-display data-base-price-cents="<%= Number(product.priceCents) || 0 %>"><%= formatMoney(product.priceCents) %> €</span>
+                <div class="text-[11px] uppercase tracking-wide text-slate-400">TTC</div>
+              </div>
             </div>
-
-            <% if (product.sections && product.sections.showKeyPoints && (keyType || keyEtat || keyProgrammation || keyGarantie)) { %>
-              <div class="grid grid-cols-2 gap-4 pt-10">
-                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">published_with_changes</span>
-                  <span class="text-xs font-semibold"><%= keyType || '—' %></span>
-                </div>
-                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">terminal</span>
-                  <span class="text-xs font-semibold"><%= keyProgrammation || 'Programmation selon version' %></span>
-                </div>
-                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">precision_manufacturing</span>
-                  <span class="text-xs font-semibold"><%= keyEtat || '—' %></span>
-                </div>
-                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 refined-shadow flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">verified_user</span>
-                  <span class="text-xs font-semibold"><%= keyGarantie || '—' %></span>
-                </div>
-              </div>
-            <% } %>
-
-            <% if (compatibleReferences.length) { %>
-              <div class="pt-10">
-                <h3 class="text-xl font-bold">Références compatibles</h3>
-                <p class="mt-1 text-sm text-slate-500">Ces références servent à confirmer la compatibilité de la pièce.</p>
-                <div class="mt-4 flex flex-wrap gap-2">
-                  <% compatibleReferences.forEach((r) => { %>
-                    <span class="px-3 py-1 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200"><%= r %></span>
-                  <% }) %>
-                </div>
-              </div>
-            <% } %>
+            <p class="text-right text-xs text-slate-400 italic"><%= hasConsigne ? ('Consigne en supplément • ' + (shippingDelayText || 'Livraison rapide en France')) : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
           </div>
 
-          <div class="tab-content" id="content-process">
-            <% if (product.sections && product.sections.showReconditioning && Array.isArray(product.reconditioningSteps) && product.reconditioningSteps.length) { %>
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                <% product.reconditioningSteps.slice(0, 4).forEach((st, idx) => { %>
-                  <div class="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800 refined-shadow space-y-4">
-                    <div class="text-3xl font-black text-slate-200 dark:text-slate-700"><%= String(idx + 1).padStart(2, '0') %></div>
-                    <h4 class="font-bold text-sm uppercase tracking-wider"><%= st.title %></h4>
-                    <p class="text-xs text-slate-500 leading-relaxed"><%= st.description %></p>
+          <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4 lg:flex-1" method="POST">
+            <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/panier' %>" />
+            <input data-qty-input name="qty" type="hidden" value="1" />
+
+            <% if (optionGroups && optionGroups.length) { %>
+              <div class="flex flex-col gap-3">
+                <% optionGroups.forEach((g) => { %>
+                  <% const gKey = g && g.key ? String(g.key) : ''; %>
+                  <% if (!gKey) return; %>
+                  <% const fieldName = 'opt_' + gKey; %>
+                  <% const choices = Array.isArray(g && g.choices) ? g.choices : []; %>
+
+                  <div class="p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
+                    <div class="flex items-center justify-between gap-4">
+                      <div class="flex flex-col">
+                        <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight"><%= g && g.label ? g.label : gKey %></span>
+                        <span class="text-slate-500 text-[11px] uppercase tracking-wider font-semibold mt-0.5"><%= g && g.helpText ? g.helpText : (g && g.required ? 'Option obligatoire' : 'Option produit') %></span>
+                      </div>
+                      <% if (g && g.required) { %>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-primary">Requis</span>
+                      <% } %>
+                    </div>
+
+                    <% if (g && String(g.type) === 'text') { %>
+                      <input
+                        class="mt-4 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-semibold focus:ring-primary"
+                        type="text"
+                        name="<%= fieldName %>"
+                        placeholder="<%= g && g.placeholder ? g.placeholder : '' %>"
+                        <%= g && g.required ? 'required' : '' %>
+                        data-option-input
+                        data-option-type="text"
+                        data-price-delta-cents="<%= Number(g.priceDeltaCents) || 0 %>"
+                      />
+                    <% } else if (choices.length && choices.length <= 3) { %>
+                      <div class="mt-4 flex bg-slate-200 dark:bg-slate-800 p-1 rounded-lg border border-slate-300 dark:border-slate-700 gap-1 flex-wrap">
+                        <% choices.forEach((c) => { %>
+                          <% const cKey = c && c.key ? String(c.key) : ''; %>
+                          <% if (!cKey) return; %>
+                          <label class="choice-toggle relative flex-1 min-w-[120px] cursor-pointer">
+                            <input
+                              type="radio"
+                              name="<%= fieldName %>"
+                              value="<%= cKey %>"
+                              class="text-primary focus:ring-primary"
+                              <%= g && g.required ? 'required' : '' %>
+                              data-option-input
+                              data-option-type="choice"
+                              data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
+                            />
+                            <span class="flex items-center justify-center rounded-md border border-transparent px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-300 transition-all text-center min-h-[44px]">
+                              <span>
+                                <%= c && c.label ? c.label : cKey %>
+                                <% if (Number(c && c.priceDeltaCents) > 0) { %>
+                                  <span class="block normal-case text-[11px] mt-0.5">+<%= formatMoney(c.priceDeltaCents) %> €</span>
+                                <% } %>
+                              </span>
+                            </span>
+                          </label>
+                        <% }) %>
+                      </div>
+                    <% } else if (choices.length) { %>
+                      <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <% choices.forEach((c) => { %>
+                          <% const cKey = c && c.key ? String(c.key) : ''; %>
+                          <% if (!cKey) return; %>
+                          <label class="flex items-center gap-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-3 text-xs font-bold uppercase tracking-wide cursor-pointer hover:border-primary transition-all">
+                            <input
+                              type="radio"
+                              name="<%= fieldName %>"
+                              value="<%= cKey %>"
+                              class="text-primary focus:ring-primary"
+                              <%= g && g.required ? 'required' : '' %>
+                              data-option-input
+                              data-option-type="choice"
+                              data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
+                            />
+                            <span class="flex-1 min-w-0 normal-case text-sm font-semibold tracking-normal"><%= c && c.label ? c.label : cKey %></span>
+                            <% if (Number(c && c.priceDeltaCents) > 0) { %>
+                              <span class="text-primary font-black normal-case">+<%= formatMoney(c.priceDeltaCents) %> €</span>
+                            <% } %>
+                          </label>
+                        <% }) %>
+                      </div>
+                    <% } %>
                   </div>
                 <% }) %>
               </div>
             <% } else { %>
-              <div class="text-center text-slate-500 text-sm">Aucune information de reconditionnement pour ce produit.</div>
+              <div class="p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="flex flex-col">
+                    <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight">Configuration produit</span>
+                    <span class="text-slate-500 text-[11px] uppercase tracking-wider font-semibold mt-0.5">Version standard</span>
+                  </div>
+                  <span class="px-4 py-2 rounded-md text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-950 text-primary shadow-sm border border-slate-200 dark:border-slate-700">Prête à commander</span>
+                </div>
+                <p class="mt-3 text-[11px] text-slate-400 leading-tight">Cette référence ne nécessite pas de configuration supplémentaire avant l'ajout au panier.</p>
+              </div>
             <% } %>
+
+            <div class="flex flex-col gap-3 lg:mt-auto">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="flex items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 shrink-0 w-fit">
+                  <button class="w-10 h-12 flex items-center justify-center hover:text-primary transition-colors" data-qty-minus type="button">—</button>
+                  <span class="w-10 text-center font-bold text-sm" data-qty-display>1</span>
+                  <button class="w-10 h-12 flex items-center justify-center hover:text-primary transition-colors" data-qty-plus type="button">+</button>
+                </div>
+                <button class="w-full sm:w-auto sm:flex-1 lg:flex-none lg:min-w-[320px] lg:max-w-[420px] bg-primary hover:bg-primary/90 text-white py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-primary/20 disabled:opacity-60" <%= product.inStock ? '' : 'disabled' %> type="submit">
+                  <span class="material-symbols-outlined">add_shopping_cart</span>
+                  Ajouter au panier
+                </button>
+              </div>
+              <div class="flex items-center justify-center gap-6 text-xs text-slate-500 font-medium">
+                <div class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">lock</span> Paiement sécurisé</div>
+                <div class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">local_shipping</span> <%= shippingDelayText || 'Livraison 24/48h' %></div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="mt-16">
+        <input checked class="hidden" id="tab-description" name="product-tabs" type="radio" />
+        <input class="hidden" id="tab-tech" name="product-tabs" type="radio" />
+        <input class="hidden" id="tab-process" name="product-tabs" type="radio" />
+        <input class="hidden" id="tab-faq" name="product-tabs" type="radio" />
+
+        <div class="tabs-nav flex border-b-2 border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap no-scrollbar">
+          <label class="px-8 py-4 border-b-4 border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-bold uppercase text-sm transition-all -mb-[2px] cursor-pointer" for="tab-description">Description</label>
+          <label class="px-8 py-4 border-b-4 border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-bold uppercase text-sm transition-all -mb-[2px] cursor-pointer" for="tab-tech">Fiche technique</label>
+          <label class="px-8 py-4 border-b-4 border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-bold uppercase text-sm transition-all -mb-[2px] cursor-pointer" for="tab-process">Processus qualité</label>
+          <label class="px-8 py-4 border-b-4 border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-bold uppercase text-sm transition-all -mb-[2px] cursor-pointer" for="tab-faq">FAQ (<%= faqCount %>)</label>
+        </div>
+
+        <div class="tab-content-container">
+          <div class="tab-content" id="content-description">
+            <div class="py-10 grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div class="flex flex-col gap-6">
+                <h3 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h3>
+                <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
+                <% if (hasSafeHtml) { %>
+                  <div class="text-slate-700 dark:text-slate-300 leading-relaxed product-html"><%- product.descriptionHtmlSafe %></div>
+                <% } else { %>
+                  <p class="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
+                <% } %>
+
+                <% if (summaryPoints.length) { %>
+                  <ul class="space-y-3">
+                    <% summaryPoints.forEach((point) => { %>
+                      <li class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-primary">check_circle</span>
+                        <span class="text-slate-700 dark:text-slate-300"><%= point %></span>
+                      </li>
+                    <% }) %>
+                  </ul>
+                <% } %>
+              </div>
+
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-8 border border-slate-300 dark:border-slate-700 refined-shadow">
+                <h4 class="text-lg font-bold uppercase text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary">build</span>
+                  Points techniques
+                </h4>
+                <div class="space-y-4">
+                  <% technicalSpecs.slice(0, 6).forEach((entry) => { %>
+                    <div class="flex justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                      <span class="text-slate-500 text-sm"><%= entry.label %></span>
+                      <span class="font-bold text-sm text-right text-slate-900 dark:text-white"><%= entry.value %></span>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="tab-content" id="content-compatibility">
-            <% if (product.sections && product.sections.showCompatibility && compMakes.length) { %>
-              <div class="overflow-hidden rounded-3xl bg-slate-50 dark:bg-slate-800 refined-shadow">
-                <table class="w-full text-left border-collapse compatibility-table">
-                  <thead class="bg-white dark:bg-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    <tr>
-                      <th class="px-8 py-6">Marque</th>
-                      <th class="px-8 py-6">Modèles</th>
-                      <th class="px-8 py-6">Motorisations</th>
-                    </tr>
-                  </thead>
-                  <tbody class="text-xs">
-                    <% compMakes.forEach((mk) => { %>
-                      <% const row = compGrouped[mk]; %>
-                      <% const models = row ? Array.from(row.models) : []; %>
-                      <% const engines = row ? Array.from(row.engines) : []; %>
-                      <tr class="border-t border-slate-100 dark:border-slate-700/50">
-                        <td class="px-8 py-6 font-bold"><%= mk %></td>
-                        <td class="px-8 py-6 text-slate-500"><%= models.join(', ') %></td>
-                        <td class="px-8 py-6 text-slate-400 italic"><%= engines.join(' / ') %></td>
-                      </tr>
+          <div class="tab-content" id="content-tech">
+            <div class="py-10 grid grid-cols-1 xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)] gap-10">
+              <div class="space-y-8">
+                <div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-8 border border-slate-300 dark:border-slate-700 refined-shadow">
+                  <h4 class="text-lg font-bold uppercase text-slate-900 dark:text-white mb-6">Fiche produit</h4>
+                  <div class="space-y-4">
+                    <% technicalSpecs.forEach((entry) => { %>
+                      <div class="flex justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span class="text-slate-500 text-sm"><%= entry.label %></span>
+                        <span class="font-bold text-sm text-right text-slate-900 dark:text-white"><%= entry.value %></span>
+                      </div>
                     <% }) %>
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                <% if (compatibleReferences.length) { %>
+                  <div>
+                    <h4 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-4">Références compatibles</h4>
+                    <div class="flex flex-wrap gap-2">
+                      <% compatibleReferences.forEach((r) => { %>
+                        <span class="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200"><%= r %></span>
+                      <% }) %>
+                    </div>
+                  </div>
+                <% } %>
+
+                <% if (product.sections && product.sections.showSupportBox) { %>
+                  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 refined-shadow">
+                    <div class="flex items-start gap-4">
+                      <div class="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                        <span class="material-symbols-outlined">support_agent</span>
+                      </div>
+                      <div>
+                        <h4 class="text-base font-bold text-slate-900 dark:text-white">Besoin d'une validation avant achat ?</h4>
+                        <p class="mt-2 text-sm text-slate-500">Nos techniciens peuvent confirmer la bonne référence avec ton VIN ou les infos de ta pièce d'origine.</p>
+                        <div class="mt-4 flex flex-wrap gap-3">
+                          <a class="inline-flex items-center justify-center rounded-lg bg-primary text-white px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-colors" href="/devis">Contacter un technicien</a>
+                          <a class="inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-black uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" href="/compte">Demander une vérification</a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
+              </div>
+
+              <div>
+                <% if (product.sections && product.sections.showCompatibility && compMakes.length) { %>
+                  <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 refined-shadow">
+                    <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70">
+                      <h4 class="text-lg font-bold uppercase text-slate-900 dark:text-white">Compatibilité véhicule</h4>
+                      <p class="mt-1 text-sm text-slate-500">Compare toujours la référence de ta pièce et ton VIN avant validation finale.</p>
+                    </div>
+                    <table class="w-full text-left border-collapse compatibility-table">
+                      <thead class="bg-white dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <tr>
+                          <th class="px-5 sm:px-6 py-4">Marque</th>
+                          <th class="px-5 sm:px-6 py-4">Modèles</th>
+                          <th class="px-5 sm:px-6 py-4">Motorisations</th>
+                        </tr>
+                      </thead>
+                      <tbody class="text-[13px]">
+                        <% compMakes.forEach((mk) => { %>
+                          <% const row = compGrouped[mk]; %>
+                          <% const models = row ? Array.from(row.models) : []; %>
+                          <% const engines = row ? Array.from(row.engines) : []; %>
+                          <tr class="border-t border-slate-100 dark:border-slate-700/50">
+                            <td class="px-5 sm:px-6 py-4 font-bold align-top"><%= mk %></td>
+                            <td class="px-5 sm:px-6 py-4 text-slate-500 align-top"><%= models.join(', ') %></td>
+                            <td class="px-5 sm:px-6 py-4 text-slate-400 italic align-top"><%= engines.join(' / ') %></td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+                <% } else { %>
+                  <div class="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-500 refined-shadow">Aucune compatibilité renseignée pour ce produit.</div>
+                <% } %>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-content" id="content-process">
+            <% if (product.sections && product.sections.showReconditioning && Array.isArray(product.reconditioningSteps) && product.reconditioningSteps.length) { %>
+              <div class="py-10">
+                <div class="mb-8">
+                  <h3 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Notre processus qualité</h3>
+                  <p class="mt-2 text-sm text-slate-500">Chaque étape vise à garantir une pièce contrôlée, durable et prête à être montée.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <% product.reconditioningSteps.slice(0, 4).forEach((st, idx) => { %>
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 refined-shadow space-y-3">
+                      <div class="text-3xl font-black text-slate-200 dark:text-slate-700"><%= String(idx + 1).padStart(2, '0') %></div>
+                      <h4 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white"><%= st.title %></h4>
+                      <p class="text-sm text-slate-500 leading-relaxed"><%= st.description %></p>
+                    </div>
+                  <% }) %>
+                </div>
               </div>
             <% } else { %>
-              <div class="text-center text-slate-500 text-sm">Aucune compatibilité renseignée pour ce produit.</div>
+              <div class="py-10 text-center text-slate-500 text-sm">Aucune information de reconditionnement pour ce produit.</div>
             <% } %>
           </div>
 
           <div class="tab-content" id="content-faq">
             <% if (product.sections && product.sections.showFaq && Array.isArray(product.faqs) && product.faqs.length) { %>
-              <div class="space-y-4 max-w-3xl mx-auto">
+              <div class="py-10 max-w-5xl space-y-4">
                 <% product.faqs.forEach((f) => { %>
-                  <details class="bg-slate-50 dark:bg-slate-800 rounded-2xl refined-shadow group">
-                    <summary class="p-6 flex justify-between items-center cursor-pointer">
-                      <span class="font-bold text-sm"><%= f.question %></span>
+                  <details class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl refined-shadow group">
+                    <summary class="p-5 flex justify-between items-center cursor-pointer">
+                      <span class="font-bold text-sm text-slate-900 dark:text-white"><%= f.question %></span>
                       <span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">add</span>
                     </summary>
-                    <div class="px-6 pb-6">
-                      <p class="text-xs text-slate-500 leading-relaxed whitespace-pre-line"><%= f.answer %></p>
+                    <div class="px-5 pb-5">
+                      <p class="text-sm text-slate-500 leading-relaxed whitespace-pre-line"><%= f.answer %></p>
                     </div>
                   </details>
                 <% }) %>
               </div>
             <% } else { %>
-              <div class="text-center text-slate-500 text-sm">Aucune FAQ pour ce produit.</div>
+              <div class="py-10 text-center text-slate-500 text-sm">Aucune FAQ pour ce produit.</div>
             <% } %>
           </div>
         </div>
       </div>
 
-      <% if (Array.isArray(relatedBlogPosts) && relatedBlogPosts.length) { %>
-        <section class="mt-24 pt-16 border-t border-slate-100 dark:border-slate-800">
-          <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
-            <div>
-              <h2 class="text-3xl font-bold">Guides &amp; articles liés</h2>
-              <p class="mt-1 text-sm text-slate-500">Conseils utiles pour mieux choisir, diagnostiquer et monter la pièce.</p>
-            </div>
-            <a class="inline-flex items-center gap-2 text-primary font-bold hover:underline" href="/blog">
-              Voir le blog
-              <span class="material-symbols-outlined text-base">arrow_forward</span>
-            </a>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <% relatedBlogPosts.slice(0, 3).forEach((a) => { %>
-              <article class="group rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 refined-shadow">
-                <a class="block" href="<%= a.url %>">
-                  <div class="relative aspect-[16/10] bg-slate-50 dark:bg-slate-800 overflow-hidden">
-                    <% if (a.imageUrl) { %>
-                      <img alt="<%= a.title %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" src="<%= a.imageUrl %>" />
-                    <% } else { %>
-                      <div class="w-full h-full flex items-center justify-center text-slate-400">
-                        <span class="material-symbols-outlined text-6xl">article</span>
-                      </div>
-                    <% } %>
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                    <div class="absolute bottom-4 left-4 flex flex-wrap gap-2">
-                      <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded"><%= a.categoryLabel ? a.categoryLabel.toUpperCase() : 'BLOG' %></span>
-                      <span class="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded"><%= a.readTimeLabel ? a.readTimeLabel.toUpperCase() : '' %></span>
-                    </div>
-                  </div>
-                  <div class="p-6">
-                    <div class="text-[11px] uppercase tracking-wider text-slate-400 font-bold"><%= a.dateLabel || '' %></div>
-                    <h3 class="mt-2 text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2"><%= a.title %></h3>
-                    <p class="mt-2 text-sm text-slate-500 leading-relaxed line-clamp-3"><%= a.excerpt %></p>
-                  </div>
+      <% if (product.sections && product.sections.showRelatedProducts && Array.isArray(relatedProducts) && relatedProducts.length) { %>
+        <section class="mt-16">
+          <h3 class="text-xl font-black uppercase mb-8 tracking-wider text-slate-900 dark:text-white border-b-2 border-slate-200 dark:border-slate-800 pb-4">Souvent achetés ensemble</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <% relatedProducts.slice(0, 3).forEach((p) => { %>
+              <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
+              <% const relatedBadge = p && p.category ? String(p.category).trim() : 'Pièce liée'; %>
+              <article class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex gap-4 group hover:border-primary hover:shadow-md transition-all">
+                <a class="w-24 h-24 bg-slate-100 dark:bg-slate-950 rounded-lg overflow-hidden flex-shrink-0" href="<%= productUrl %>">
+                  <% if (p.imageUrl) { %>
+                    <img alt="<%= p.name %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform" decoding="async" loading="lazy" src="<%= p.imageUrl %>" />
+                  <% } else { %>
+                    <span class="w-full h-full flex items-center justify-center text-slate-400">
+                      <span class="material-symbols-outlined text-4xl">inventory_2</span>
+                    </span>
+                  <% } %>
                 </a>
+                <div class="flex flex-col justify-between py-1 flex-1 min-w-0">
+                  <div>
+                    <h4 class="text-xs font-bold uppercase text-slate-400"><%= relatedBadge %></h4>
+                    <a class="text-sm font-bold text-slate-900 dark:text-white line-clamp-2 hover:text-primary transition-colors" href="<%= productUrl %>"><%= p.name %></a>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-primary font-black"><%= formatMoney(p.priceCents) %> €</span>
+                    <form action="/panier/ajouter/<%= p._id %>" method="POST">
+                      <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/produits' %>" />
+                      <input name="qty" type="hidden" value="1" />
+                      <button class="text-primary hover:bg-primary hover:text-white rounded-full p-1 transition-all disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">
+                        <span class="material-symbols-outlined">add_circle</span>
+                      </button>
+                    </form>
+                  </div>
+                </div>
               </article>
             <% }) %>
           </div>
         </section>
       <% } %>
 
-      <% if (product.sections && product.sections.showRelatedProducts && Array.isArray(relatedProducts) && relatedProducts.length) { %>
-        <section class="mt-32 pt-16 border-t border-slate-100 dark:border-slate-800">
-          <h2 class="text-3xl font-bold mb-10 text-center">Pièces fréquemment achetées ensemble</h2>
-          <div class="flex overflow-x-auto gap-8 pb-8 no-scrollbar snap-x px-4 lg:px-0 lg:justify-center">
-            <% relatedProducts.forEach((p) => { %>
-              <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
-              <div class="min-w-[240px] snap-center group">
-                <a href="<%= productUrl %>">
-                  <div class="aspect-square rounded-3xl bg-slate-50 dark:bg-slate-800 mb-6 overflow-hidden refined-shadow transition-transform group-hover:-translate-y-1">
-                    <% if (p.imageUrl) { %>
-                      <img alt="<%= p.name %>" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= p.imageUrl %>" />
+      <% if (faqPreviewCards.length) { %>
+        <section class="mt-20">
+          <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 border-b-2 border-slate-200 dark:border-slate-800 pb-4 gap-4">
+            <div class="flex items-center gap-4">
+              <h3 class="text-xl font-black uppercase tracking-wider text-slate-900 dark:text-white">Questions fréquentes</h3>
+              <div class="flex items-center gap-1.5 bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20">
+                <span class="font-black text-[10px] text-primary tracking-tighter uppercase italic">Produit</span>
+                <div class="w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                  <span class="text-[8px] font-black text-white">FAQ</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex text-primary">
+                <span class="material-symbols-outlined fill-1">check_circle</span>
+                <span class="material-symbols-outlined fill-1">check_circle</span>
+                <span class="material-symbols-outlined fill-1">check_circle</span>
+              </div>
+              <span class="text-lg font-black text-slate-900 dark:text-white"><%= faqPreviewCards.length %></span>
+              <span class="text-slate-400 text-sm font-medium">réponses utiles</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <% faqPreviewCards.forEach((f) => { %>
+              <% const initials = String(f.question || 'FAQ').replace(/[^A-Za-zÀ-ÿ0-9 ]/g, ' ').trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'FAQ'; %>
+              <article class="bg-slate-50 dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 refined-shadow">
+                <div class="flex text-primary mb-3 scale-75 -ml-3">
+                  <span class="material-symbols-outlined fill-1">star</span>
+                  <span class="material-symbols-outlined fill-1">star</span>
+                  <span class="material-symbols-outlined fill-1">star</span>
+                </div>
+                <p class="text-slate-700 dark:text-slate-300 italic text-sm leading-relaxed mb-4 line-clamp-5"><%= f.answer %></p>
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-200"><%= initials %></div>
+                  <div>
+                    <p class="text-xs font-bold text-slate-900 dark:text-white uppercase"><%= f.question %></p>
+                    <div class="flex items-center gap-1.5">
+                      <p class="text-[10px] text-slate-400 uppercase">Information utile</p>
+                      <div class="flex items-center gap-1 bg-primary/10 border border-primary/20 px-1 rounded-sm">
+                        <span class="text-[8px] font-bold text-primary uppercase">CarParts</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+
+      <% if (Array.isArray(relatedBlogPosts) && relatedBlogPosts.length) { %>
+        <section class="mt-24 border-t-2 border-slate-200 dark:border-slate-800 pt-16">
+          <div class="flex items-center justify-between mb-8 gap-4">
+            <h3 class="text-xl font-black uppercase tracking-wider text-slate-900 dark:text-white">Articles de blog</h3>
+            <a class="text-xs font-black uppercase text-primary hover:underline flex items-center gap-1" href="/blog">Voir tous les articles <span class="material-symbols-outlined text-sm">chevron_right</span></a>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <% relatedBlogPosts.slice(0, 4).forEach((a) => { %>
+              <article class="group cursor-pointer">
+                <a class="block" href="<%= a.url %>">
+                  <div class="aspect-[16/10] bg-slate-100 dark:bg-slate-900 rounded-lg overflow-hidden mb-4 border border-slate-200 dark:border-slate-800">
+                    <% if (a.imageUrl) { %>
+                      <img alt="<%= a.title %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" src="<%= a.imageUrl %>" />
                     <% } else { %>
                       <div class="w-full h-full flex items-center justify-center text-slate-400">
-                        <span class="material-symbols-outlined text-6xl">inventory_2</span>
+                        <span class="material-symbols-outlined text-5xl">article</span>
                       </div>
                     <% } %>
                   </div>
+                  <h4 class="text-sm font-bold text-slate-900 dark:text-white mb-2 leading-tight group-hover:text-primary transition-colors"><%= a.title %></h4>
+                  <p class="text-xs text-slate-500 line-clamp-2 leading-relaxed"><%= a.excerpt %></p>
                 </a>
-                <h3 class="text-sm font-bold mb-2 text-slate-800 dark:text-slate-200 line-clamp-2"><%= p.name %></h3>
-                <div class="flex items-center justify-between">
-                  <p class="text-primary font-bold text-sm"><%= formatMoney(p.priceCents) %> €</p>
-                  <form action="/panier/ajouter/<%= p._id %>" method="POST">
-                    <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/produits' %>" />
-                    <input name="qty" type="hidden" value="1" />
-                    <button class="h-10 px-4 rounded-full bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">Ajouter</button>
-                  </form>
-                </div>
-              </div>
+              </article>
             <% }) %>
           </div>
         </section>
@@ -580,13 +748,18 @@
           function setActiveThumb(index) {
             if (!thumbs || !thumbs.length) return;
 
-            thumbs.forEach(function (b) {
-              b.classList.remove('ring-2', 'ring-primary', 'border', 'border-primary/20');
+            thumbs.forEach(function (b, idx) {
+              b.classList.remove('ring-2', 'ring-primary', 'border-primary/20', 'border-slate-200', 'dark:border-slate-700');
+              b.classList.add('border');
+              if (idx === index) {
+                b.classList.add('border-primary/20', 'ring-2', 'ring-primary');
+              } else {
+                b.classList.add('border-slate-200', 'dark:border-slate-700');
+              }
             });
 
             var btn = thumbs[index];
             if (!btn) return;
-            btn.classList.add('border', 'border-primary/20', 'ring-2', 'ring-primary');
             try {
               btn.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
             } catch (e) {

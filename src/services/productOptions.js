@@ -25,6 +25,37 @@ function normalizeInt(value, fallback = 0) {
   return fallback;
 }
 
+function normalizeSearchText(value) {
+  return getTrimmedString(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function isCheckoutVehicleOption(option) {
+  const g = option && typeof option === 'object' ? option : null;
+  if (!g || g.type !== 'text') return false;
+
+  const haystack = [g.key, g.label, g.placeholder, g.helpText]
+    .map(normalizeSearchText)
+    .filter(Boolean)
+    .join(' ');
+
+  if (!haystack) return false;
+
+  return (
+    haystack.includes('vin') ||
+    haystack.includes('plaque') ||
+    haystack.includes('immatric') ||
+    haystack.includes('vehicule') ||
+    haystack.includes('vehicle')
+  );
+}
+
+function getProductPageOptions(options) {
+  return normalizeProductOptions(options).filter((option) => !isCheckoutVehicleOption(option));
+}
+
 function normalizeProductOptions(options) {
   const list = Array.isArray(options) ? options : [];
 
@@ -140,7 +171,7 @@ function parseProductOptionsJson(jsonValue) {
 
 function buildSelectionFromBody(body, productOptions) {
   const source = body && typeof body === 'object' ? body : {};
-  const opts = normalizeProductOptions(productOptions);
+  const opts = getProductPageOptions(productOptions);
 
   const selection = {};
   const errors = [];
@@ -209,7 +240,7 @@ function buildCartLineId(productId, selection) {
 }
 
 function computeUnitPriceCents(product, selection) {
-  const opts = normalizeProductOptions(product && product.options ? product.options : []);
+  const opts = getProductPageOptions(product && product.options ? product.options : []);
   const sel = selection && typeof selection === 'object' ? selection : {};
 
   const base = Number.isFinite(product && product.priceCents) ? product.priceCents : 0;
@@ -234,7 +265,7 @@ function computeUnitPriceCents(product, selection) {
 }
 
 function buildOptionsDisplay(productOptions, selection) {
-  const opts = normalizeProductOptions(productOptions);
+  const opts = getProductPageOptions(productOptions);
   const sel = selection && typeof selection === 'object' ? selection : {};
 
   const lines = [];
@@ -277,6 +308,7 @@ function buildOptionsDisplay(productOptions, selection) {
 
 module.exports = {
   normalizeProductOptions,
+  getProductPageOptions,
   buildOptionFromTemplate,
   extractOptionTemplateIds,
   serializeProductOptions,
