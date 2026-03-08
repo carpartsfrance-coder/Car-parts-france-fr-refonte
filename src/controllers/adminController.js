@@ -2774,7 +2774,9 @@ async function runProductDraftGenerationJob(jobId) {
   if (!job) return;
 
   try {
-    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {});
+    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {}, {
+      timeoutMs: openaiProductGenerator.getBackgroundRequestTimeoutMs(),
+    });
     await ProductDraftGeneration.updateOne(
       { _id: job._id },
       {

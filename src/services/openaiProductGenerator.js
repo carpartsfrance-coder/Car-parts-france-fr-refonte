@@ -305,10 +305,19 @@ function getOpenAiApiKey() {
   return normalizeEnvString(process.env.OPENAI_API_KEY);
 }
 
+function clampTimeout(raw, { min = 15000, max = 600000, fallback = 85000 } = {}) {
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(raw)));
+}
+
 function getRequestTimeoutMs() {
   const raw = Number.parseInt(normalizeEnvString(process.env.OPENAI_PRODUCT_TIMEOUT_MS), 10);
-  if (!Number.isFinite(raw)) return 85000;
-  return Math.min(180000, Math.max(15000, raw));
+  return clampTimeout(raw, { fallback: 85000, max: 180000 });
+}
+
+function getBackgroundRequestTimeoutMs() {
+  const raw = Number.parseInt(normalizeEnvString(process.env.OPENAI_PRODUCT_BACKGROUND_TIMEOUT_MS), 10);
+  return clampTimeout(raw, { fallback: 300000, max: 600000 });
 }
 
 function extractJsonCandidateStrings(node, out = []) {
@@ -483,7 +492,7 @@ function normalizeGeneratedSheet(raw, payload) {
   };
 }
 
-async function generateProductSheet(payload) {
+async function generateProductSheet(payload, options = {}) {
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
     const err = new Error('OPENAI_API_KEY manquante.');
@@ -544,7 +553,13 @@ async function generateProductSheet(payload) {
     };
   }
 
-  const timeoutMs = getRequestTimeoutMs();
+  const customTimeoutMs = Number.isFinite(options && options.timeoutMs)
+    ? Number(options.timeoutMs)
+    : null;
+  const timeoutMs = clampTimeout(customTimeoutMs, {
+    fallback: getRequestTimeoutMs(),
+    max: 600000,
+  });
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
   const timeoutHandle = controller
     ? setTimeout(() => controller.abort(), timeoutMs)
@@ -608,4 +623,5 @@ async function generateProductSheet(payload) {
 module.exports = {
   generateProductSheet,
   getModelName,
+  getBackgroundRequestTimeoutMs,
 };
