@@ -77,6 +77,33 @@
       </div>
     </div>
 
+    <div class="rounded-xl border border-violet-200 bg-violet-50 p-4 text-violet-950">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div class="font-bold">Assistant IA pour pré-remplir la fiche</div>
+          <div class="mt-2 text-sm space-y-1">
+            <div>1. Renseigne au minimum le nom du produit ou la référence.</div>
+            <div>2. Ajoute des notes si tu veux orienter la recherche.</div>
+            <div>3. Clique sur <span class="font-semibold">Générer avec l’IA</span> : la page se remplit, mais rien n’est enregistré automatiquement.</div>
+          </div>
+        </div>
+
+        <button class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-60" id="aiGenerateBtn" type="button">
+          <span class="material-symbols-outlined mr-2 text-lg">auto_awesome</span>
+          Générer avec l’IA
+        </button>
+      </div>
+
+      <div class="mt-4">
+        <label class="block text-xs font-bold uppercase tracking-widest text-violet-900" for="aiSourceNotes">Notes complémentaires pour l’IA</label>
+        <textarea class="mt-2 w-full rounded-lg border border-violet-200 bg-white/90 px-4 py-3 text-sm text-gray-900 focus:border-violet-400 focus:ring-violet-400" id="aiSourceNotes" rows="4" placeholder="Ex: calculateur moteur Bosch pour Audi A3 2.0 TDI, priorité SEO, ton rassurant, éviter les affirmations non vérifiées."></textarea>
+      </div>
+
+      <div class="mt-3 text-sm text-violet-900/80" id="aiGenerateStatus">L’IA utilisera le nom du produit, la référence, la marque, la catégorie et les notes ci-dessus.</div>
+
+      <div class="mt-3 hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900" id="aiGenerateWarnings"></div>
+    </div>
+
     <div class="mt-4 rounded-lg border border-sky-200 bg-white/70 px-4 py-3 text-sm">
       <div class="font-bold text-sky-900">Ordre conseillé pour un novice</div>
       <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sky-900/90">
@@ -680,7 +707,7 @@
     <script id="productOptionTemplatesJson" type="application/json"><%- JSON.stringify((typeof productOptionTemplates !== 'undefined' && productOptionTemplates) ? productOptionTemplates : []) %></script>
 
     <script id="seoAssistantSeed" type="application/json"><%- JSON.stringify({
-      baseUrl: (seoAssistant && seoAssistant.computed && seoAssistant.computed.baseUrl) ? seoAssistant.computed.baseUrl : '',
+      baseUrl: (typeof seoAssistant !== 'undefined' && seoAssistant && seoAssistant.computed && seoAssistant.computed.baseUrl) ? seoAssistant.computed.baseUrl : '',
       productId: productId ? String(productId) : 'ID',
     }) %></script>
 
@@ -820,6 +847,12 @@
         const optionsEmpty = document.getElementById('productOptionsEmpty');
         const addCustomOptionBtn = document.getElementById('addCustomOptionBtn');
         const applyOptionsJsonBtn = document.getElementById('applyOptionsJsonBtn');
+        const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+        const aiSourceNotes = document.getElementById('aiSourceNotes');
+        const aiGenerateStatus = document.getElementById('aiGenerateStatus');
+        const aiGenerateWarnings = document.getElementById('aiGenerateWarnings');
+
+        let hydrateStepsGridFromField = function () {};
 
         const compatIndexEl = document.getElementById('compatIndexJson');
         let SERVER_COMPAT_INDEX = { makes: [], modelsByMake: {} };
@@ -1562,29 +1595,33 @@
             });
           }
 
-          const initial = parseSteps();
-          const blocks = Array.from(stepsGrid.querySelectorAll('[data-step]'));
-          blocks.forEach((b, i) => {
-            const sel = b.querySelector('[data-step-title-select]');
-            const custom = b.querySelector('[data-step-title-custom]');
-            const d = b.querySelector('[data-step-description]');
-            const initialTitle = initial[i] ? String(initial[i].title || '').trim() : '';
+          hydrateStepsGridFromField = function () {
+            const initial = parseSteps();
+            const blocks = Array.from(stepsGrid.querySelectorAll('[data-step]'));
+            blocks.forEach((b, i) => {
+              const sel = b.querySelector('[data-step-title-select]');
+              const custom = b.querySelector('[data-step-title-custom]');
+              const d = b.querySelector('[data-step-description]');
+              const initialTitle = initial[i] ? String(initial[i].title || '').trim() : '';
 
-            if (sel) {
-              const exists = Array.from(sel.options || []).some((o) => o && o.value === initialTitle);
-              if (exists || initialTitle === '') {
-                sel.value = initialTitle;
-                if (custom) custom.classList.add('hidden');
-              } else {
-                sel.value = '__custom__';
-                if (custom) {
-                  custom.classList.remove('hidden');
-                  custom.value = initialTitle;
+              if (sel) {
+                const exists = Array.from(sel.options || []).some((o) => o && o.value === initialTitle);
+                if (exists || initialTitle === '') {
+                  sel.value = initialTitle;
+                  if (custom) custom.classList.add('hidden');
+                } else {
+                  sel.value = '__custom__';
+                  if (custom) {
+                    custom.classList.remove('hidden');
+                    custom.value = initialTitle;
+                  }
                 }
               }
-            }
-            if (d) d.value = initial[i] ? initial[i].description : '';
-          });
+              if (d) d.value = initial[i] ? initial[i].description : '';
+            });
+          };
+
+          hydrateStepsGridFromField();
           stepsGrid.addEventListener('input', syncStepsField);
           stepsGrid.addEventListener('change', (e) => {
             const target = e && e.target ? e.target : null;
@@ -2013,6 +2050,188 @@
         }
         if (faqField && faqList) {
           renderFaqs();
+        }
+
+        function setAiStatus(message, tone) {
+          if (!aiGenerateStatus) return;
+          aiGenerateStatus.className = 'mt-3 text-sm ' + (
+            tone === 'error'
+              ? 'text-red-700'
+              : tone === 'success'
+                ? 'text-emerald-700'
+                : 'text-violet-900/80'
+          );
+          aiGenerateStatus.textContent = message;
+        }
+
+        function renderAiWarnings(items) {
+          if (!aiGenerateWarnings) return;
+          const warnings = Array.isArray(items) ? items.filter(Boolean) : [];
+          aiGenerateWarnings.innerHTML = '';
+          aiGenerateWarnings.classList.toggle('hidden', warnings.length === 0);
+          if (!warnings.length) return;
+
+          const title = document.createElement('div');
+          title.className = 'font-bold';
+          title.textContent = 'Points à vérifier';
+          aiGenerateWarnings.appendChild(title);
+
+          const list = document.createElement('ul');
+          list.className = 'mt-2 space-y-1 text-sm';
+          warnings.forEach((warning) => {
+            const item = document.createElement('li');
+            item.textContent = '• ' + String(warning);
+            list.appendChild(item);
+          });
+          aiGenerateWarnings.appendChild(list);
+        }
+
+        function dispatchFieldUpdates(el) {
+          if (!el) return;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function setInputValue(id, value) {
+          const el = document.getElementById(id);
+          const nextValue = String(value || '').trim();
+          if (!el || !nextValue) return;
+
+          if (el.tagName === 'SELECT') {
+            const existing = Array.from(el.options || []).find((option) => String(option.value || '').toLowerCase() === nextValue.toLowerCase());
+            if (existing) {
+              el.value = existing.value;
+            } else {
+              const temp = document.createElement('option');
+              temp.value = nextValue;
+              temp.textContent = nextValue;
+              el.appendChild(temp);
+              el.value = nextValue;
+            }
+          } else {
+            el.value = value;
+          }
+
+          dispatchFieldUpdates(el);
+        }
+
+        function hasMeaningfulAiTargetContent() {
+          const ids = ['shortDescription', 'description', 'metaTitle', 'metaDescription', 'compatibility', 'faqs', 'optionsJson'];
+          return ids.some((id) => {
+            const el = document.getElementById(id);
+            return !!(el && String(el.value || '').trim());
+          });
+        }
+
+        if (aiGenerateBtn) {
+          const defaultAiGenerateBtnHtml = aiGenerateBtn.innerHTML;
+
+          aiGenerateBtn.addEventListener('click', async () => {
+            const payload = {
+              name: String((document.getElementById('name') || {}).value || '').trim(),
+              sku: String((document.getElementById('sku') || {}).value || '').trim(),
+              brand: String((document.getElementById('brand') || {}).value || '').trim(),
+              category: String((document.getElementById('category') || {}).value || '').trim(),
+              compatibleReferences: String((document.getElementById('compatibleReferences') || {}).value || '').trim(),
+              sourceNotes: String((aiSourceNotes || {}).value || '').trim(),
+            };
+
+            if (!payload.name && !payload.sku && !payload.compatibleReferences && !payload.sourceNotes) {
+              setAiStatus('Renseigne au moins un nom, une référence ou une note avant de lancer l’IA.', 'error');
+              window.alert('Merci de renseigner au moins un nom de produit, une référence ou quelques notes.');
+              return;
+            }
+
+            if (hasMeaningfulAiTargetContent()) {
+              const shouldReplace = window.confirm('Des contenus sont déjà remplis dans la fiche. Veux-tu les remplacer par la proposition IA ?');
+              if (!shouldReplace) return;
+            }
+
+            aiGenerateBtn.disabled = true;
+            aiGenerateBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-lg">hourglass_top</span>Recherche…';
+            setAiStatus('Recherche web et génération en cours… Cela peut prendre quelques secondes.', 'loading');
+            renderAiWarnings([]);
+
+            try {
+              const response = await fetch('/admin/api/products/generate-draft', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              });
+
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok || !data || data.ok !== true || !data.draft) {
+                throw new Error(data && data.error ? data.error : 'Impossible de générer la fiche avec l’IA.');
+              }
+
+              const draft = data.draft;
+
+              setInputValue('name', draft.name);
+              setInputValue('slug', draft.slug);
+              setInputValue('brand', draft.brand);
+              setInputValue('category', draft.category);
+              setInputValue('shippingDelayText', draft.shippingDelayText);
+              setInputValue('specType', draft.specType);
+              setInputValue('specProgrammation', draft.specProgrammation);
+              setInputValue('badgeTopLeft', draft.badgeTopLeft);
+              setInputValue('badgeCondition', draft.badgeCondition);
+              setInputValue('shortDescription', draft.shortDescription);
+              setInputValue('description', draft.description);
+              setInputValue('compatibleReferences', draft.compatibleReferences);
+              setInputValue('metaTitle', draft.metaTitle);
+              setInputValue('metaDescription', draft.metaDescription);
+
+              if (typeof syncSpecsFromKeyFields === 'function') syncSpecsFromKeyFields();
+
+              if (compatField && typeof draft.compatibility === 'string') {
+                compatField.value = draft.compatibility;
+                compatItems = parseCompatibility();
+                selectedMake = compatItems.length ? (compatItems[0].make || '') : '';
+                if (compatMakeSelect) compatMakeSelect.value = selectedMake || '';
+                renderCompatibilityUI();
+              }
+
+              if (faqField && typeof draft.faqs === 'string') {
+                faqField.value = draft.faqs;
+                faqItems = parseFaqs();
+                renderFaqs();
+              }
+
+              if (stepsField && typeof draft.reconditioningSteps === 'string') {
+                stepsField.value = draft.reconditioningSteps;
+                hydrateStepsGridFromField();
+              }
+
+              if (optionsField) {
+                optionsField.value = typeof draft.optionsJson === 'string' ? draft.optionsJson : '';
+                if (!String(optionsField.value || '').trim()) {
+                  productOptionsState = [];
+                } else {
+                  try {
+                    const parsed = JSON.parse(optionsField.value);
+                    productOptionsState = Array.isArray(parsed) ? parsed.map((option, index) => createOptionState(option, index)) : [];
+                  } catch (e) {
+                    productOptionsState = [];
+                  }
+                }
+                renderProductOptionsEditor();
+                renderTemplateLibrary();
+                syncOptionsField();
+              }
+
+              if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
+              renderAiWarnings(Array.isArray(draft.warnings) ? draft.warnings : []);
+              setAiStatus(`Brouillon IA généré${data.model ? ' avec ' + data.model : ''}. Relis puis clique sur “Save Changes” si tout te convient.`, 'success');
+            } catch (err) {
+              setAiStatus(err && err.message ? err.message : 'Erreur pendant la génération IA.', 'error');
+            } finally {
+              aiGenerateBtn.disabled = false;
+              aiGenerateBtn.innerHTML = defaultAiGenerateBtnHtml;
+            }
+          });
         }
 
         var scoreValueEl = document.getElementById('seoScoreValue');

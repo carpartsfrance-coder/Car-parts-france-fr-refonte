@@ -21,9 +21,11 @@ const siteSettings = require('../services/siteSettings');
 const productOptions = require('../services/productOptions');
 const mediaStorage = require('../services/mediaStorage');
 const adminUsers = require('../services/adminUsers');
+const openaiProductGenerator = require('../services/openaiProductGenerator');
 
 const ADMIN_LOGIN_BUCKETS = new Map();
 const ADMIN_RESET_BUCKETS = new Map();
+const ADMIN_AI_PRODUCT_BUCKETS = new Map();
 
 function getClientIp(req) {
   const xfwd = req && req.headers ? req.headers['x-forwarded-for'] : null;
@@ -2421,6 +2423,78 @@ function extractProductOptionTemplateObjectIds(options) {
     .map((id) => new mongoose.Types.ObjectId(id));
 }
 
+function formatCompatibilityLines(items) {
+  return Array.isArray(items)
+    ? items
+        .map((item) => {
+          const make = getTrimmedString(item && item.make);
+          const model = getTrimmedString(item && item.model);
+          const years = getTrimmedString(item && item.years);
+          const engine = getTrimmedString(item && item.engine);
+          if (!make && !model && !years && !engine) return '';
+          return `${make} | ${model} | ${years} | ${engine}`.trim();
+        })
+        .filter(Boolean)
+        .join('\n')
+    : '';
+}
+
+function formatFaqLines(items) {
+  return Array.isArray(items)
+    ? items
+        .map((item) => {
+          const question = getTrimmedString(item && item.question);
+          const answer = getTrimmedString(item && item.answer);
+          if (!question && !answer) return '';
+          return `${question} | ${answer}`.trim();
+        })
+        .filter(Boolean)
+        .join('\n')
+    : '';
+}
+
+function formatStepLines(items) {
+  return Array.isArray(items)
+    ? items
+        .map((item) => {
+          const title = getTrimmedString(item && item.title);
+          const description = getTrimmedString(item && item.description);
+          if (!title && !description) return '';
+          return `${title}: ${description}`.trim();
+        })
+        .filter(Boolean)
+        .join('\n')
+    : '';
+}
+
+function buildGeneratedProductDraftResponse(draft) {
+  const safeDraft = draft && typeof draft === 'object' ? draft : {};
+  const options = Array.isArray(safeDraft.options) ? safeDraft.options : [];
+  return {
+    name: getTrimmedString(safeDraft.name),
+    slug: getTrimmedString(safeDraft.slug),
+    brand: getTrimmedString(safeDraft.brand),
+    category: getTrimmedString(safeDraft.category),
+    shippingDelayText: getTrimmedString(safeDraft.shippingDelayText),
+    specType: getTrimmedString(safeDraft.specType),
+    specProgrammation: getTrimmedString(safeDraft.specProgrammation),
+    badgeTopLeft: getTrimmedString(safeDraft.badgeTopLeft),
+    badgeCondition: getTrimmedString(safeDraft.badgeCondition),
+    shortDescription: getTrimmedString(safeDraft.shortDescription),
+    description: getTrimmedString(safeDraft.description),
+    compatibleReferences: Array.isArray(safeDraft.compatibleReferences)
+      ? safeDraft.compatibleReferences.filter(Boolean).join('\n')
+      : '',
+    compatibility: formatCompatibilityLines(safeDraft.compatibility),
+    faqs: formatFaqLines(safeDraft.faqs),
+    reconditioningSteps: formatStepLines(safeDraft.reconditioningSteps),
+    optionsJson: options.length ? JSON.stringify(options, null, 2) : '',
+    metaTitle: getTrimmedString(safeDraft.metaTitle),
+    metaDescription: getTrimmedString(safeDraft.metaDescription),
+    warnings: Array.isArray(safeDraft.warnings) ? safeDraft.warnings.filter(Boolean) : [],
+  };
+}
+
 function normalizeMetaText(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
@@ -2618,6 +2692,62 @@ function parseLinesToArray(value) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+async function postAdminGenerateProductDraft(req, res, next) {
+  try {
+    const rate = consumeRateLimit(ADMIN_AI_PRODUCT_BUCKETS, getClientIp(req), {
+      limit: 8,
+      windowMs: 10 * 60 * 1000,
+    });
+
+    if (rate.limited) {
+      return res.status(429).json({
+        ok: false,
+        error: 'Trop de demandes IA en peu de temps. Attends quelques minutes puis réessaie.',
+      });
+    }
+
+    const payload = {
+      name: getTrimmedString(req.body && req.body.name),
+      sku: getTrimmedString(req.body && req.body.sku),
+      brand: getTrimmedString(req.body && req.body.brand),
+      category: getTrimmedString(req.body && req.body.category),
+      compatibleReferences: parseLinesToArray(getTrimmedString(req.body && req.body.compatibleReferences)),
+      sourceNotes: getTrimmedString(req.body && req.body.sourceNotes),
+    };
+
+    if (!payload.name && !payload.sku && !payload.compatibleReferences.length && !payload.sourceNotes) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Renseigne au moins un nom de produit, une référence ou quelques notes avant de lancer l’IA.',
+      });
+    }
+
+    const generated = await openaiProductGenerator.generateProductSheet(payload);
+
+    return res.json({
+      ok: true,
+      model: generated.model,
+      draft: buildGeneratedProductDraftResponse(generated.draft),
+    });
+  } catch (err) {
+    if (err && err.code === 'OPENAI_API_KEY_MISSING') {
+      return res.status(400).json({
+        ok: false,
+        error: 'La clé OPENAI_API_KEY est absente dans l’environnement du projet.',
+      });
+    }
+
+    if (err && (err.code === 'OPENAI_API_ERROR' || err.code === 'OPENAI_INVALID_RESPONSE')) {
+      return res.status(502).json({
+        ok: false,
+        error: err.message || 'Erreur lors de la génération IA.',
+      });
+    }
+
+    return next(err);
+  }
 }
 
 function parseObjectIdListFromLines(value) {
@@ -5903,6 +6033,7 @@ module.exports = {
   postAdminLogout,
   getAdminResetPassword,
   postAdminResetPassword,
+  postAdminGenerateProductDraft,
   getAdminDashboard,
   getAdminOrdersPage,
   getAdminOrderDetailPage,
