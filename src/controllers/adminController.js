@@ -13,6 +13,7 @@ const PromoRedemption = require('../models/PromoRedemption');
 const VehicleMake = require('../models/VehicleMake');
 const ShippingClass = require('../models/ShippingClass');
 const ProductOptionTemplate = require('../models/ProductOptionTemplate');
+const ProductDraftGeneration = require('../models/ProductDraftGeneration');
 
 const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
@@ -225,6 +226,51 @@ async function postAdminMarkOrderConsigneReceived(req, res, next) {
 
     req.session.adminOrderSuccess = 'Consigne marquée comme reçue.';
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getAdminGenerateProductDraftStatus(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      return res.status(503).json({
+        ok: false,
+        error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+      });
+    }
+
+    const jobId = getTrimmedString(req.params && req.params.jobId);
+    if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Identifiant de génération invalide.',
+      });
+    }
+
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const filter = { _id: jobId };
+    if (adminUserId) filter.adminUserId = adminUserId;
+
+    const job = await ProductDraftGeneration.findOne(filter).lean();
+    if (!job) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Demande de génération introuvable.',
+      });
+    }
+
+    return res.json({
+      ok: true,
+      jobId: String(job._id),
+      status: job.status,
+      model: job.model || '',
+      error: job.status === 'failed' ? getTrimmedString(job.errorMessage) : '',
+      draft: job.status === 'completed' && job.resultDraft
+        ? buildGeneratedProductDraftResponse(job.resultDraft)
+        : null,
+    });
   } catch (err) {
     return next(err);
   }
@@ -2694,8 +2740,77 @@ function parseLinesToArray(value) {
     .filter(Boolean);
 }
 
+function getAdminUserIdFromRequest(req) {
+  const value = req && req.session && req.session.admin && typeof req.session.admin.adminUserId === 'string'
+    ? req.session.admin.adminUserId.trim()
+    : '';
+  return value && mongoose.Types.ObjectId.isValid(value)
+    ? new mongoose.Types.ObjectId(value)
+    : null;
+}
+
+async function runProductDraftGenerationJob(jobId) {
+  if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) return;
+
+  const startedAt = new Date();
+  const job = await ProductDraftGeneration.findOneAndUpdate(
+    {
+      _id: jobId,
+      status: 'queued',
+    },
+    {
+      $set: {
+        status: 'processing',
+        startedAt,
+        completedAt: null,
+        errorMessage: '',
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  if (!job) return;
+
+  try {
+    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {});
+    await ProductDraftGeneration.updateOne(
+      { _id: job._id },
+      {
+        $set: {
+          status: 'completed',
+          model: generated && generated.model ? String(generated.model) : '',
+          resultDraft: generated && generated.draft ? generated.draft : null,
+          errorMessage: '',
+          completedAt: new Date(),
+        },
+      }
+    );
+  } catch (err) {
+    await ProductDraftGeneration.updateOne(
+      { _id: job._id },
+      {
+        $set: {
+          status: 'failed',
+          errorMessage: err && err.message ? String(err.message) : 'Erreur pendant la génération IA.',
+          completedAt: new Date(),
+        },
+      }
+    );
+  }
+}
+
 async function postAdminGenerateProductDraft(req, res, next) {
   try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      return res.status(503).json({
+        ok: false,
+        error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+      });
+    }
+
     const rate = consumeRateLimit(ADMIN_AI_PRODUCT_BUCKETS, getClientIp(req), {
       limit: 8,
       windowMs: 10 * 60 * 1000,
@@ -2724,12 +2839,20 @@ async function postAdminGenerateProductDraft(req, res, next) {
       });
     }
 
-    const generated = await openaiProductGenerator.generateProductSheet(payload);
+    const job = await ProductDraftGeneration.create({
+      adminUserId: getAdminUserIdFromRequest(req),
+      status: 'queued',
+      requestPayload: payload,
+    });
 
-    return res.json({
+    setImmediate(() => {
+      runProductDraftGenerationJob(String(job._id)).catch(() => {});
+    });
+
+    return res.status(202).json({
       ok: true,
-      model: generated.model,
-      draft: buildGeneratedProductDraftResponse(generated.draft),
+      jobId: String(job._id),
+      status: 'queued',
     });
   } catch (err) {
     if (err && err.code === 'OPENAI_API_KEY_MISSING') {
@@ -6048,6 +6171,7 @@ module.exports = {
   getAdminResetPassword,
   postAdminResetPassword,
   postAdminGenerateProductDraft,
+  getAdminGenerateProductDraftStatus,
   getAdminDashboard,
   getAdminOrdersPage,
   getAdminOrderDetailPage,

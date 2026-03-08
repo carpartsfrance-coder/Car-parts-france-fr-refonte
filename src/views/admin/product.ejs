@@ -2338,6 +2338,119 @@
           });
         }
 
+        function sleep(ms) {
+          return new Promise((resolve) => window.setTimeout(resolve, ms));
+        }
+
+        function applyGeneratedDraft(data) {
+          const draft = data && data.draft ? data.draft : null;
+          if (!draft) throw new Error('Brouillon IA introuvable.');
+
+          setInputValue('name', draft.name);
+          setInputValue('slug', draft.slug);
+          setInputValue('brand', draft.brand);
+          setInputValue('category', draft.category);
+          setInputValue('shippingDelayText', draft.shippingDelayText);
+          setInputValue('specType', draft.specType);
+          setInputValue('specProgrammation', draft.specProgrammation);
+          setInputValue('badgeTopLeft', draft.badgeTopLeft);
+          setInputValue('badgeCondition', draft.badgeCondition);
+          setInputValue('shortDescription', draft.shortDescription);
+          setInputValue('description', draft.description);
+          setInputValue('compatibleReferences', draft.compatibleReferences);
+          setInputValue('metaTitle', draft.metaTitle);
+          setInputValue('metaDescription', draft.metaDescription);
+
+          if (typeof syncSpecsFromKeyFields === 'function') syncSpecsFromKeyFields();
+
+          if (compatField && typeof draft.compatibility === 'string') {
+            compatField.value = draft.compatibility;
+            aiTouchedFields.add('compatibility');
+            validatedFields.delete('compatibility');
+            compatItems = parseCompatibility();
+            selectedMake = compatItems.length ? (compatItems[0].make || '') : '';
+            if (compatMakeSelect) compatMakeSelect.value = selectedMake || '';
+            renderCompatibilityUI();
+          }
+
+          if (faqField && typeof draft.faqs === 'string') {
+            faqField.value = draft.faqs;
+            aiTouchedFields.add('faqs');
+            validatedFields.delete('faqs');
+            faqItems = parseFaqs();
+            renderFaqs();
+          }
+
+          if (stepsField && typeof draft.reconditioningSteps === 'string') {
+            stepsField.value = draft.reconditioningSteps;
+            aiTouchedFields.add('reconditioningSteps');
+            validatedFields.delete('reconditioningSteps');
+            hydrateStepsGridFromField();
+          }
+
+          if (optionsField) {
+            optionsField.value = typeof draft.optionsJson === 'string' ? draft.optionsJson : '';
+            if (String(optionsField.value || '').trim()) {
+              aiTouchedFields.add('optionsJson');
+              validatedFields.delete('optionsJson');
+            }
+            if (!String(optionsField.value || '').trim()) {
+              productOptionsState = [];
+            } else {
+              try {
+                const parsed = JSON.parse(optionsField.value);
+                productOptionsState = Array.isArray(parsed) ? parsed.map((option, index) => createOptionState(option, index)) : [];
+              } catch (e) {
+                productOptionsState = [];
+              }
+            }
+            renderProductOptionsEditor();
+            renderTemplateLibrary();
+            syncOptionsField();
+          }
+
+          if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
+          renderAiWarnings(Array.isArray(draft.warnings) ? draft.warnings : []);
+          setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relis puis clique sur “Save Changes” si tout te convient.`, 'success');
+        }
+
+        async function waitForDraftJob(jobId) {
+          const maxWaitMs = 10 * 60 * 1000;
+          const startedAt = Date.now();
+          let attempt = 0;
+
+          while ((Date.now() - startedAt) < maxWaitMs) {
+            if (attempt > 0) {
+              await sleep(3000);
+            }
+            attempt += 1;
+
+            const statusResponse = await fetch(`/admin/api/products/generate-draft/${encodeURIComponent(jobId)}`, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+              },
+            });
+
+            const statusData = await statusResponse.json().catch(() => ({}));
+            if (!statusResponse.ok || !statusData || statusData.ok !== true) {
+              throw new Error(statusData && statusData.error ? statusData.error : 'Impossible de suivre la génération IA.');
+            }
+
+            if (statusData.status === 'completed' && statusData.draft) {
+              return statusData;
+            }
+
+            if (statusData.status === 'failed') {
+              throw new Error(statusData.error || 'La génération IA a échoué.');
+            }
+
+            setAiStatus(`Recherche web et génération approfondie en cours… ${attempt > 1 ? 'Toujours en cours, merci de patienter.' : 'La page attend le résultat en arrière-plan.'}`, 'loading');
+          }
+
+          throw new Error('La génération IA prend vraiment trop de temps. Réessaie dans quelques instants.');
+        }
+
         if (aiGenerateBtn) {
           const defaultAiGenerateBtnHtml = aiGenerateBtn.innerHTML;
 
@@ -2364,7 +2477,7 @@
 
             aiGenerateBtn.disabled = true;
             aiGenerateBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-lg">hourglass_top</span>Recherche…';
-            setAiStatus('Recherche web et génération en cours… Cela peut prendre quelques secondes.', 'loading');
+            setAiStatus('Recherche web et génération approfondie en cours… La page va attendre le résultat en arrière-plan.', 'loading');
             renderAiWarnings([]);
 
             try {
@@ -2378,78 +2491,11 @@
               });
 
               const data = await response.json().catch(() => ({}));
-              if (!response.ok || !data || data.ok !== true || !data.draft) {
+              if (!response.ok || !data || data.ok !== true || !data.jobId) {
                 throw new Error(data && data.error ? data.error : 'Impossible de générer la fiche avec l’IA.');
               }
-
-              const draft = data.draft;
-
-              setInputValue('name', draft.name);
-              setInputValue('slug', draft.slug);
-              setInputValue('brand', draft.brand);
-              setInputValue('category', draft.category);
-              setInputValue('shippingDelayText', draft.shippingDelayText);
-              setInputValue('specType', draft.specType);
-              setInputValue('specProgrammation', draft.specProgrammation);
-              setInputValue('badgeTopLeft', draft.badgeTopLeft);
-              setInputValue('badgeCondition', draft.badgeCondition);
-              setInputValue('shortDescription', draft.shortDescription);
-              setInputValue('description', draft.description);
-              setInputValue('compatibleReferences', draft.compatibleReferences);
-              setInputValue('metaTitle', draft.metaTitle);
-              setInputValue('metaDescription', draft.metaDescription);
-
-              if (typeof syncSpecsFromKeyFields === 'function') syncSpecsFromKeyFields();
-
-              if (compatField && typeof draft.compatibility === 'string') {
-                compatField.value = draft.compatibility;
-                aiTouchedFields.add('compatibility');
-                validatedFields.delete('compatibility');
-                compatItems = parseCompatibility();
-                selectedMake = compatItems.length ? (compatItems[0].make || '') : '';
-                if (compatMakeSelect) compatMakeSelect.value = selectedMake || '';
-                renderCompatibilityUI();
-              }
-
-              if (faqField && typeof draft.faqs === 'string') {
-                faqField.value = draft.faqs;
-                aiTouchedFields.add('faqs');
-                validatedFields.delete('faqs');
-                faqItems = parseFaqs();
-                renderFaqs();
-              }
-
-              if (stepsField && typeof draft.reconditioningSteps === 'string') {
-                stepsField.value = draft.reconditioningSteps;
-                aiTouchedFields.add('reconditioningSteps');
-                validatedFields.delete('reconditioningSteps');
-                hydrateStepsGridFromField();
-              }
-
-              if (optionsField) {
-                optionsField.value = typeof draft.optionsJson === 'string' ? draft.optionsJson : '';
-                if (String(optionsField.value || '').trim()) {
-                  aiTouchedFields.add('optionsJson');
-                  validatedFields.delete('optionsJson');
-                }
-                if (!String(optionsField.value || '').trim()) {
-                  productOptionsState = [];
-                } else {
-                  try {
-                    const parsed = JSON.parse(optionsField.value);
-                    productOptionsState = Array.isArray(parsed) ? parsed.map((option, index) => createOptionState(option, index)) : [];
-                  } catch (e) {
-                    productOptionsState = [];
-                  }
-                }
-                renderProductOptionsEditor();
-                renderTemplateLibrary();
-                syncOptionsField();
-              }
-
-              if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
-              renderAiWarnings(Array.isArray(draft.warnings) ? draft.warnings : []);
-              setAiStatus(`Brouillon IA généré${data.model ? ' avec ' + data.model : ''}. Relis puis clique sur “Save Changes” si tout te convient.`, 'success');
+              const finalData = await waitForDraftJob(data.jobId);
+              applyGeneratedDraft(finalData);
             } catch (err) {
               setAiStatus(err && err.message ? err.message : 'Erreur pendant la génération IA.', 'error');
             } finally {

@@ -97,6 +97,7 @@ router.post('/catalogue/options', requireAdminAuth, adminController.postAdminCre
 router.post('/catalogue/options/:templateId', requireAdminAuth, adminController.postAdminUpdateProductOptionTemplate);
 router.post('/catalogue/options/:templateId/toggle', requireAdminAuth, adminController.postAdminToggleProductOptionTemplate);
 router.post('/api/products/generate-draft', requireAdminAuth, adminController.postAdminGenerateProductDraft);
+router.get('/api/products/generate-draft/:jobId', requireAdminAuth, adminController.getAdminGenerateProductDraftStatus);
 
 router.get('/catalogue/nouveau', requireAdminAuth, adminController.getAdminNewProductPage);
 router.post('/catalogue/nouveau', requireAdminAuth, handleProductImageUpload, adminController.postAdminCreateProduct);
