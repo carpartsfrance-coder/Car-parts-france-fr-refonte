@@ -10,10 +10,16 @@
         <div class="mt-1 text-sm text-slate-600">Produits, prix et stock.</div>
       </div>
 
-      <a class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" href="/admin/catalogue/nouveau">
-        <span class="material-symbols-outlined mr-2 text-base">add</span>
-        Nouveau produit
-      </a>
+      <div class="flex flex-wrap items-center gap-3">
+        <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/catalogue/options">
+          <span class="material-symbols-outlined mr-2 text-base">tune</span>
+          Options produit
+        </a>
+        <a class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" href="/admin/catalogue/nouveau">
+          <span class="material-symbols-outlined mr-2 text-base">add</span>
+          Nouveau produit
+        </a>
+      </div>
     </div>
 
     <form action="/admin/catalogue" class="sticky top-0 z-30 mt-6 bg-white/98 backdrop-blur rounded-2xl border border-slate-200 p-4 shadow-lg shadow-slate-200/70" method="GET">

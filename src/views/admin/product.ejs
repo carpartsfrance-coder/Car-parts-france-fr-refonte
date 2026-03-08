@@ -64,42 +64,58 @@
       </div>
     <% } %>
 
-    <form id="productForm" action="<%= mode === 'new' ? '/admin/catalogue/nouveau' : ('/admin/catalogue/' + productId) %>" enctype="multipart/form-data" method="POST" class="space-y-8">
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sky-900">
+      <div class="font-bold">Aide rapide pour créer un produit</div>
+      <div class="mt-2 text-sm space-y-1">
+        <div><span class="font-bold text-red-600">*</span> = champ obligatoire pour créer le produit.</div>
+        <div><span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-red-700">Obligatoire</span> = nécessaire pour enregistrer le produit.</div>
+        <div><span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700">Recommandé</span> = fortement conseillé pour une fiche produit complète.</div>
+        <div><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span> = utile selon le produit, mais non bloquant.</div>
+        <div>Minimum demandé aujourd’hui : <span class="font-semibold">Nom du produit</span> et <span class="font-semibold">Prix</span>.</div>
+        <div>Si tu laisses le <span class="font-semibold">slug</span> vide, il sera créé automatiquement à partir du nom du produit.</div>
+        <div>Les autres champs peuvent être remplis maintenant ou plus tard pour améliorer la fiche produit.</div>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-lg border border-sky-200 bg-white/70 px-4 py-3 text-sm">
+      <div class="font-bold text-sky-900">Ordre conseillé pour un novice</div>
+      <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sky-900/90">
+        <div><span class="font-semibold">1.</span> Informations essentielles</div>
+        <div><span class="font-semibold">2.</span> Description produit</div>
+        <div><span class="font-semibold">3.</span> Médias</div>
+        <div><span class="font-semibold">4.</span> Compatibilité véhicule</div>
+        <div><span class="font-semibold">5.</span> SEO</div>
+        <div><span class="font-semibold">6.</span> Options et réglages avancés</div>
+      </div>
+    </div>
+
+    <form id="productForm" action="<%= mode === 'new' ? '/admin/catalogue/nouveau' : ('/admin/catalogue/' + productId) %>" enctype="multipart/form-data" method="POST" class="flex flex-col gap-8">
+      <section class="order-1 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">info</span>
-            General Information
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">info</span>
+              Étape 1 · Informations essentielles
+              <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-red-700">Obligatoire</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Commence par cette section : c’est ici que se trouvent les champs minimums pour créer le produit.</div>
+          </div>
         </div>
 
         <div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div class="md:col-span-2">
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="name">Product Title</label>
+          <div class="md:col-span-2 md:order-1">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="name">Product Title <span class="text-red-600">*</span></label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="name" name="name" required type="text" value="<%= form && form.name ? form.name : '' %>" />
+            <div class="mt-2 text-xs text-gray-500">Obligatoire pour créer le produit.</div>
           </div>
 
-          <div class="md:col-span-2">
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="slug">Slug (URL)</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="slug" name="slug" placeholder="Ex: moteur-complet-porsche-cayenne" type="text" value="<%= form && typeof form.slug !== 'undefined' ? (form.slug || '') : '' %>" />
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="sku">SKU</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="sku" name="sku" type="text" value="<%= form && form.sku ? form.sku : '' %>" />
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="price">Price (€)</label>
+          <div class="md:order-2">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="price">Price (€) <span class="text-red-600">*</span></label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="price" name="price" placeholder="Ex: 199,90" required type="text" value="<%= form && form.price ? form.price : '' %>" />
+            <div class="mt-2 text-xs text-gray-500">Obligatoire pour créer le produit.</div>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="brand">Marque</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="brand" name="brand" type="text" value="<%= form && form.brand ? form.brand : '' %>" />
-          </div>
-
-          <div>
+          <div class="md:order-3">
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="category">Catégorie</label>
             <% if (typeof categories !== 'undefined' && categories && categories.length) { %>
               <select class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="category" name="category">
@@ -111,9 +127,43 @@
             <% } else { %>
               <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="category" name="category" placeholder="Ex: Freinage" type="text" value="<%= form && form.category ? form.category : '' %>" />
             <% } %>
+            <div class="mt-2 text-xs text-gray-500">Recommandé pour bien classer le produit dans le catalogue.</div>
           </div>
 
-          <div>
+          <div class="md:order-4">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="brand">Marque</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="brand" name="brand" type="text" value="<%= form && form.brand ? form.brand : '' %>" />
+            <div class="mt-2 text-xs text-gray-500">Recommandé pour aider la recherche et la compréhension du produit.</div>
+          </div>
+
+          <div class="md:col-span-2 md:order-5">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="slug">Slug (URL)</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="slug" name="slug" placeholder="Ex: moteur-complet-porsche-cayenne" type="text" value="<%= form && typeof form.slug !== 'undefined' ? (form.slug || '') : '' %>" />
+            <div class="mt-2 text-xs text-gray-500">Optionnel. Si tu ne le remplis pas, il sera généré automatiquement.</div>
+          </div>
+
+          <div class="md:order-6">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="sku">SKU</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="sku" name="sku" type="text" value="<%= form && form.sku ? form.sku : '' %>" />
+            <div class="mt-2 text-xs text-gray-500">Recommandé si tu gères beaucoup de produits.</div>
+          </div>
+
+          <div class="md:order-7">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="stockQty">Stock</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="stockQty" name="stockQty" placeholder="Laisse vide si non géré" type="number" min="0" value="<%= form && typeof form.stockQty !== 'undefined' ? form.stockQty : '' %>" />
+          </div>
+
+          <div class="flex items-center gap-3 md:col-span-4 md:order-8">
+            <input class="rounded border-gray-300 text-primary focus:ring-primary" id="inStock" name="inStock" type="checkbox" <%= form && form.inStock ? 'checked' : '' %> />
+            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300" for="inStock">Produit en stock</label>
+          </div>
+
+          <div class="md:order-9">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shippingDelayText">Délai d’expédition (affiché sur la fiche produit)</label>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingDelayText" name="shippingDelayText" placeholder="Ex: Expédition sous 24/48h • Expédition sous 3 jours • Sur commande" type="text" value="<%= form && typeof form.shippingDelayText !== 'undefined' ? form.shippingDelayText : '' %>" />
+          </div>
+
+          <div class="md:order-10">
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shippingClassId">Classe d’expédition</label>
             <% if (typeof shippingClasses !== 'undefined' && shippingClasses && shippingClasses.length) { %>
               <select class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingClassId" name="shippingClassId">
@@ -128,22 +178,17 @@
             <% } %>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shippingDelayText">Délai d’expédition (affiché sur la fiche produit)</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingDelayText" name="shippingDelayText" placeholder="Ex: Expédition sous 24/48h • Expédition sous 3 jours • Sur commande" type="text" value="<%= form && typeof form.shippingDelayText !== 'undefined' ? form.shippingDelayText : '' %>" />
-          </div>
-
-          <div class="md:col-span-4">
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="compatibleReferences">Références compatibles (1 par ligne)</label>
-            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary min-h-[90px]" id="compatibleReferences" name="compatibleReferences" placeholder="Ex: 0281011234 (une par ligne)"><%= form && typeof form.compatibleReferences !== 'undefined' ? form.compatibleReferences : '' %></textarea>
-          </div>
-
-          <div>
+          <div class="md:order-11">
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="compareAtPrice">Prix barré</label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="compareAtPrice" name="compareAtPrice" placeholder="Ex: 249,90" type="text" value="<%= form && form.compareAtPrice ? form.compareAtPrice : '' %>" />
           </div>
 
-          <div class="md:col-span-4">
+          <div class="md:col-span-4 md:order-12">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="compatibleReferences">Références compatibles (1 par ligne)</label>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary min-h-[90px]" id="compatibleReferences" name="compatibleReferences" placeholder="Ex: 0281011234 (une par ligne)"><%= form && typeof form.compatibleReferences !== 'undefined' ? form.compatibleReferences : '' %></textarea>
+          </div>
+
+          <div class="md:col-span-4 md:order-13">
             <div class="flex items-center gap-3">
               <input class="rounded border-gray-300 text-primary focus:ring-primary" id="consigneEnabled" name="consigneEnabled" type="checkbox" <%= form && form.consigneEnabled ? 'checked' : '' %> />
               <label class="text-sm font-semibold text-gray-700 dark:text-gray-300" for="consigneEnabled">Activer la consigne (ancienne pièce à retourner)</label>
@@ -160,30 +205,25 @@
             </div>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="stockQty">Stock</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="stockQty" name="stockQty" placeholder="Laisse vide si non géré" type="number" min="0" value="<%= form && typeof form.stockQty !== 'undefined' ? form.stockQty : '' %>" />
-          </div>
-
-          <div class="flex items-center gap-3 md:col-span-4">
-            <input class="rounded border-gray-300 text-primary focus:ring-primary" id="inStock" name="inStock" type="checkbox" <%= form && form.inStock ? 'checked' : '' %> />
-            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300" for="inStock">Produit en stock</label>
-          </div>
         </div>
       </section>
 
       <input id="videoUrl" name="videoUrl" type="hidden" value="<%= form && form.videoUrl ? form.videoUrl : '' %>" />
       <textarea id="specs" name="specs" class="hidden"><%= form && form.specs ? form.specs : '' %></textarea>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+      <section class="order-3 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">imagesmode</span>
-            Media Management
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">imagesmode</span>
+              Étape 3 · Médias
+              <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-red-700">Obligatoire</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Une image principale est obligatoire pour enregistrer le produit.</div>
+          </div>
           <button class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" id="mediaAddNew" type="button">
             <span class="material-symbols-outlined text-lg">add_a_photo</span>
-            Add New
+            Ajouter
           </button>
         </div>
 
@@ -196,7 +236,7 @@
                   <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-primary" type="button"><span class="material-symbols-outlined text-sm">open_with</span></button>
                   <button class="p-1.5 bg-white text-gray-900 rounded-full hover:text-red-600" type="button" data-action="remove"><span class="material-symbols-outlined text-sm">delete</span></button>
                 </div>
-                <span class="absolute top-1 left-1 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 rounded">MAIN</span>
+                <span class="absolute top-1 left-1 bg-primary text-white text-[8px] font-bold px-1.5 py-0.5 rounded">PRINCIPALE</span>
               </div>
             <% } %>
 
@@ -212,9 +252,11 @@
 
             <button class="aspect-square rounded-lg border-2 border-dashed border-border-light dark:border-border-dark flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all" id="mediaUploadBtn" type="button">
               <span class="material-symbols-outlined text-3xl mb-1">add</span>
-              <span class="text-[10px] font-bold">UPLOAD</span>
+              <span class="text-[10px] font-bold">AJOUTER</span>
             </button>
           </div>
+
+          <div class="mt-4 text-xs text-gray-500">Champ obligatoire : ajoute au moins une image principale.</div>
 
           <input id="image" name="image" accept="image/*" type="file" multiple class="hidden" />
           <input id="imageUrl" name="imageUrl" type="hidden" value="<%= form && form.imageUrl ? form.imageUrl : '' %>" />
@@ -223,12 +265,16 @@
         </div>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
+      <section class="order-2 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">description</span>
-            Description
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">description</span>
+              Étape 2 · Description du produit
+              <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-red-700">Obligatoire</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Tous les champs de cette section sont obligatoires.</div>
+          </div>
         </div>
 
         <div class="p-6 space-y-6">
@@ -265,26 +311,27 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="specType">Type (Caractéristiques principales)</label>
-              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="specType" name="specType" type="text" placeholder="Ex: Boîte de vitesses" value="<%= specTypeValue %>" />
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="specType">Type (Caractéristiques principales) <span class="text-red-600">*</span></label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="specType" name="specType" required type="text" placeholder="Ex: Boîte de vitesses" value="<%= specTypeValue %>" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="specProgrammation">Programmation (Caractéristiques principales)</label>
-              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="specProgrammation" name="specProgrammation" type="text" placeholder="Ex: Oui / Non / À coder" value="<%= specProgrammationValue %>" />
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="specProgrammation">Programmation (Caractéristiques principales) <span class="text-red-600">*</span></label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="specProgrammation" name="specProgrammation" required type="text" placeholder="Ex: Oui / Non / À coder" value="<%= specProgrammationValue %>" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="badgeTopLeft">Garantie (affiché sur la fiche produit)</label>
-              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="badgeTopLeft" name="badgeTopLeft" placeholder="Ex: Garantie 24 mois" type="text" value="<%= form && form.badgeTopLeft ? form.badgeTopLeft : '' %>" />
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="badgeTopLeft">Garantie (affiché sur la fiche produit) <span class="text-red-600">*</span></label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="badgeTopLeft" name="badgeTopLeft" placeholder="Ex: Garantie 24 mois" required type="text" value="<%= form && form.badgeTopLeft ? form.badgeTopLeft : '' %>" />
             </div>
             <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="badgeCondition">État (affiché sur la fiche produit)</label>
-              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="badgeCondition" name="badgeCondition" placeholder="Ex: Reconditionné" type="text" value="<%= form && form.badgeCondition ? form.badgeCondition : '' %>" />
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="badgeCondition">État (affiché sur la fiche produit) <span class="text-red-600">*</span></label>
+              <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="badgeCondition" name="badgeCondition" placeholder="Ex: Reconditionné" required type="text" value="<%= form && form.badgeCondition ? form.badgeCondition : '' %>" />
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shortDescription">Résumé</label>
-            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="shortDescription" name="shortDescription" rows="2"><%= form && form.shortDescription ? form.shortDescription : '' %></textarea>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="shortDescription">Résumé <span class="text-red-600">*</span></label>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="shortDescription" name="shortDescription" required rows="2"><%= form && form.shortDescription ? form.shortDescription : '' %></textarea>
+            <div class="mt-2 text-xs text-gray-500">Obligatoire : un résumé court et clair visible rapidement par le client.</div>
           </div>
 
           <div class="border border-border-light dark:border-border-dark rounded-lg overflow-hidden">
@@ -295,31 +342,95 @@
               <div class="w-px h-6 bg-border-light dark:bg-border-dark mx-1"></div>
               <button class="p-1 hover:bg-white dark:hover:bg-gray-700 rounded" type="button"><span class="material-symbols-outlined text-lg">link</span></button>
             </div>
-            <textarea class="w-full bg-transparent border-none focus:ring-0 p-4 text-sm resize-none" id="description" name="description" placeholder="Description du produit..." rows="8"><%= form && form.description ? form.description : '' %></textarea>
+            <textarea class="w-full bg-transparent border-none focus:ring-0 p-4 text-sm resize-none" id="description" name="description" placeholder="Description du produit..." required rows="8"><%= form && form.description ? form.description : '' %></textarea>
           </div>
         </div>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
+      <section class="order-6 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">tune</span>
-            Options / Variantes
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">tune</span>
+              Étape 6 · Options / Variantes
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">À utiliser seulement si le client doit choisir une variante, une programmation, une consigne ou un complément.</div>
+          </div>
+
+          <a class="inline-flex items-center justify-center rounded-lg border border-border-light dark:border-border-dark px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition" href="/admin/catalogue/options">
+            <span class="material-symbols-outlined mr-2 text-sm">inventory</span>
+            Bibliothèque d’options
+          </a>
         </div>
 
-        <div class="p-6">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="optionsJson">Options (JSON)</label>
-          <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary font-mono min-h-[220px]" id="optionsJson" name="optionsJson" placeholder='[{"key":"programmation","label":"Programmation","type":"choice","required":true,"choices":[{"key":"avec","label":"Avec programmation","priceDeltaCents":5000},{"key":"sans","label":"Sans programmation","priceDeltaCents":0}]}]'><%= form && typeof form.optionsJson !== 'undefined' ? form.optionsJson : '' %></textarea>
+        <div class="p-6 space-y-6">
+          <div class="rounded-2xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 p-5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div class="text-sm font-bold text-gray-900 dark:text-white">Options réutilisables</div>
+                <div class="mt-1 text-xs text-gray-500">Crée tes options une fois dans la bibliothèque, puis applique-les ici en un clic.</div>
+              </div>
+              <a class="inline-flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 border border-border-light dark:border-border-dark px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition" href="/admin/catalogue/options">
+                <span class="material-symbols-outlined mr-2 text-sm">settings</span>
+                Gérer la bibliothèque
+              </a>
+            </div>
+
+            <% if (productOptionTemplates && productOptionTemplates.length) { %>
+              <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3" id="templateLibrary"></div>
+            <% } else { %>
+              <div class="mt-4 rounded-xl border border-dashed border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-4 text-sm text-gray-500">
+                Aucune option réutilisable pour le moment. Crée-les depuis la bibliothèque, puis reviens ici.
+              </div>
+            <% } %>
+          </div>
+
+          <div class="rounded-2xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-950/40 p-5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div class="text-sm font-bold text-gray-900 dark:text-white">Options de ce produit</div>
+                <div class="mt-1 text-xs text-gray-500">Tu peux ajouter une option manuelle ou partir d’une option réutilisable.</div>
+              </div>
+
+              <button class="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary-hover transition" id="addCustomOptionBtn" type="button">
+                <span class="material-symbols-outlined mr-2 text-sm">add</span>
+                Ajouter une option
+              </button>
+            </div>
+
+            <div class="mt-4 space-y-4" id="productOptionsBuilder"></div>
+            <div class="mt-4 rounded-xl border border-dashed border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 px-4 py-4 text-sm text-gray-500" id="productOptionsEmpty">
+              Aucune option pour ce produit pour le moment.
+            </div>
+          </div>
+
+          <details class="rounded-2xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 overflow-hidden">
+            <summary class="cursor-pointer px-5 py-4 text-sm font-bold text-gray-900 dark:text-white">Mode expert (JSON)</summary>
+            <div class="border-t border-border-light dark:border-border-dark p-5 space-y-4">
+              <div class="text-xs text-gray-500">Si besoin, tu peux toujours modifier le JSON brut puis recharger l’éditeur visuel.</div>
+              <label class="block text-xs font-bold text-gray-500 uppercase" for="optionsJson">Options (JSON)</label>
+              <textarea class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary font-mono min-h-[220px]" id="optionsJson" name="optionsJson" placeholder='[{"key":"programmation","label":"Programmation","type":"choice","required":true,"choices":[{"key":"avec","label":"Avec programmation","priceDeltaCents":5000},{"key":"sans","label":"Sans programmation","priceDeltaCents":0}]}]'><%= form && typeof form.optionsJson !== 'undefined' ? form.optionsJson : '' %></textarea>
+              <div class="flex justify-end">
+                <button class="inline-flex items-center justify-center rounded-lg border border-border-light dark:border-border-dark px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 transition" id="applyOptionsJsonBtn" type="button">
+                  Recharger depuis le JSON
+                </button>
+              </div>
+            </div>
+          </details>
         </div>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+      <section class="order-7 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-4">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">autorenew</span>
-            Reconditioning Process Steps
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">autorenew</span>
+              Étape 7 · Étapes de reconditionnement
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Utile si tu veux détailler le processus de reconditionnement ou de contrôle qualité.</div>
+          </div>
 
           <button class="px-4 py-2 text-xs font-bold bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-lg flex items-center gap-1 hover:bg-black transition-colors" id="stepsPrefillBtn" type="button">
             <span class="material-symbols-outlined text-sm">auto_fix</span>
@@ -355,12 +466,16 @@
         <textarea id="reconditioningSteps" name="reconditioningSteps" class="hidden"><%= form && form.reconditioningSteps ? form.reconditioningSteps : '' %></textarea>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+      <section class="order-4 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">directions_car</span>
-            Compatibilité Véhicules
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">directions_car</span>
+              Étape 4 · Compatibilité véhicules
+              <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700">Recommandé</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Très utile pour les pièces auto : cela aide le client à savoir si la pièce correspond à son véhicule.</div>
+          </div>
           <button class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" id="compatAddBtn" type="button">
             <span class="material-symbols-outlined text-lg">add</span>
             Link New Model
@@ -431,12 +546,16 @@
         <textarea id="compatibility" name="compatibility" class="hidden"><%= form && form.compatibility ? form.compatibility : '' %></textarea>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+      <section class="order-8 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between flex-wrap gap-4">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">quiz</span>
-            Questions Fréquentes
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">quiz</span>
+              Étape 8 · Questions fréquentes
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Pratique pour répondre aux questions courantes sans avoir à les répéter aux clients.</div>
+          </div>
           <div class="flex items-center gap-3">
             <div class="relative w-64">
               <input class="w-full text-xs py-2 pl-9 pr-4 bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg focus:ring-primary focus:border-primary" placeholder="Search questions..." type="text" id="faqSearch" />
@@ -453,12 +572,16 @@
         <textarea id="faqs" name="faqs" class="hidden"><%= form && form.faqs ? form.faqs : '' %></textarea>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+      <section class="order-9 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between flex-wrap gap-4">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">article</span>
-            Articles de blog liés
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">article</span>
+              Étape 9 · Articles de blog liés
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Utile si tu veux enrichir la fiche avec un article d’explication ou de conseil.</div>
+          </div>
           <div class="text-[11px] text-gray-500">Ces articles apparaîtront sur la fiche produit.</div>
         </div>
 
@@ -485,12 +608,16 @@
         </div>
       </section>
 
-      <section class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+      <section class="order-5 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
         <div class="p-6 border-b border-border-light dark:border-border-dark">
-          <h2 class="font-bold flex items-center gap-2">
-            <span class="material-symbols-outlined text-gray-400">language</span>
-            SEO &amp; Meta Tags
-          </h2>
+          <div>
+            <h2 class="font-bold flex items-center gap-2">
+              <span class="material-symbols-outlined text-gray-400">language</span>
+              Étape 5 · SEO &amp; Meta Tags
+              <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700">Recommandé</span>
+            </h2>
+            <div class="mt-2 text-xs text-gray-500">Cette section aide ton produit à être mieux compris par Google et mieux présenté dans les résultats de recherche.</div>
+          </div>
         </div>
         <div class="p-6 space-y-6">
           <% if (typeof seoAssistant !== 'undefined' && seoAssistant) { %>
@@ -549,6 +676,8 @@
     </form>
 
     <script id="compatIndexJson" type="application/json"><%- JSON.stringify((typeof compatIndex !== 'undefined' && compatIndex) ? compatIndex : { makes: [], modelsByMake: {} }) %></script>
+
+    <script id="productOptionTemplatesJson" type="application/json"><%- JSON.stringify((typeof productOptionTemplates !== 'undefined' && productOptionTemplates) ? productOptionTemplates : []) %></script>
 
     <script id="seoAssistantSeed" type="application/json"><%- JSON.stringify({
       baseUrl: (seoAssistant && seoAssistant.computed && seoAssistant.computed.baseUrl) ? seoAssistant.computed.baseUrl : '',
@@ -685,6 +814,12 @@
         const faqList = document.getElementById('faqList');
         const faqAddBtn = document.getElementById('faqAddBtn');
         const faqSearch = document.getElementById('faqSearch');
+        const optionsField = document.getElementById('optionsJson');
+        const templateLibrary = document.getElementById('templateLibrary');
+        const optionsBuilder = document.getElementById('productOptionsBuilder');
+        const optionsEmpty = document.getElementById('productOptionsEmpty');
+        const addCustomOptionBtn = document.getElementById('addCustomOptionBtn');
+        const applyOptionsJsonBtn = document.getElementById('applyOptionsJsonBtn');
 
         const compatIndexEl = document.getElementById('compatIndexJson');
         let SERVER_COMPAT_INDEX = { makes: [], modelsByMake: {} };
@@ -704,6 +839,16 @@
             : { baseUrl: '', productId: 'ID' };
         } catch (e) {
           SEO_SEED = { baseUrl: '', productId: 'ID' };
+        }
+
+        const productOptionTemplatesEl = document.getElementById('productOptionTemplatesJson');
+        let PRODUCT_OPTION_TEMPLATES = [];
+        try {
+          PRODUCT_OPTION_TEMPLATES = productOptionTemplatesEl && productOptionTemplatesEl.textContent
+            ? JSON.parse(productOptionTemplatesEl.textContent)
+            : [];
+        } catch (e) {
+          PRODUCT_OPTION_TEMPLATES = [];
         }
 
         const DEFAULT_MAKES = [
@@ -780,6 +925,549 @@
           if (specProgrammationInput) specProgrammationInput.addEventListener('input', syncSpecsFromKeyFields);
           syncSpecsFromKeyFields();
         }
+
+        const slugifyOptionKey = (value) => {
+          let s = String(value || '');
+          try {
+            s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          } catch (e) {}
+          return s
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+/, '')
+            .replace(/-+$/, '');
+        };
+
+        const parsePriceInputToCents = (value) => {
+          const trimmed = String(value || '').trim();
+          if (!trimmed) return 0;
+          const normalized = trimmed.replace(/€/g, '').replace(/\s+/g, '').replace(',', '.');
+          const num = Number(normalized);
+          if (!Number.isFinite(num) || num < 0) return null;
+          return Math.round(num * 100);
+        };
+
+        const formatPriceInputFromCents = (value) => {
+          const cents = Number(value);
+          if (!Number.isFinite(cents) || cents <= 0) return '';
+          return (cents / 100).toFixed(2).replace('.', ',');
+        };
+
+        const createChoiceState = (choice) => ({
+          key: String(choice && choice.key ? choice.key : '').trim(),
+          label: String(choice && choice.label ? choice.label : '').trim(),
+          priceDeltaCents: Number.isFinite(Number(choice && choice.priceDeltaCents)) ? Math.round(Number(choice.priceDeltaCents)) : 0,
+        });
+
+        const createEmptyOptionState = () => ({
+          templateId: '',
+          key: '',
+          label: '',
+          type: 'choice',
+          required: false,
+          placeholder: '',
+          helpText: '',
+          priceDeltaCents: 0,
+          choices: [createChoiceState({})],
+        });
+
+        const normalizeOptionState = (option, index) => {
+          const src = option && typeof option === 'object' ? option : {};
+          const label = String(src.label || '').trim();
+          const rawKey = slugifyOptionKey(String(src.key || '').trim());
+          if (!label && !rawKey) return null;
+          const key = rawKey || slugifyOptionKey(label) || `option-${index + 1}`;
+
+          const type = String(src.type || '') === 'text' ? 'text' : 'choice';
+          const normalized = {
+            templateId: String(src.templateId || '').trim(),
+            key,
+            label: label || key,
+            type,
+            required: src.required === true,
+            placeholder: String(src.placeholder || '').trim(),
+            helpText: String(src.helpText || '').trim(),
+            priceDeltaCents: Number.isFinite(Number(src.priceDeltaCents)) ? Math.round(Number(src.priceDeltaCents)) : 0,
+            choices: [],
+          };
+
+          if (type === 'choice') {
+            normalized.choices = Array.isArray(src.choices)
+              ? src.choices.map(createChoiceState).filter((choice, choiceIndex) => {
+                  const choiceLabel = String(choice.label || '').trim();
+                  choice.key = slugifyOptionKey(choice.key || choiceLabel || `choix-${choiceIndex + 1}`);
+                  return !!choiceLabel;
+                })
+              : [];
+            normalized.priceDeltaCents = 0;
+          } else {
+            normalized.choices = [];
+          }
+
+          return normalized;
+        };
+
+        const createOptionState = (option, index) => {
+          const normalized = normalizeOptionState(option, index);
+          if (!normalized) return createEmptyOptionState();
+          return {
+            templateId: normalized.templateId,
+            key: normalized.key,
+            label: normalized.label,
+            type: normalized.type,
+            required: normalized.required,
+            placeholder: normalized.placeholder,
+            helpText: normalized.helpText,
+            priceDeltaCents: normalized.priceDeltaCents,
+            choices: normalized.type === 'choice' && normalized.choices.length ? normalized.choices.map(createChoiceState) : [createChoiceState({})],
+          };
+        };
+
+        const buildOptionStateFromTemplate = (template) => createOptionState({
+          templateId: template && template.id ? template.id : '',
+          key: template && template.key ? template.key : '',
+          label: template && template.name ? template.name : '',
+          type: template && template.type ? template.type : 'choice',
+          required: !!(template && template.required),
+          placeholder: template && template.placeholder ? template.placeholder : '',
+          helpText: template && template.helpText ? template.helpText : '',
+          priceDeltaCents: template && Number.isFinite(Number(template.priceDeltaCents)) ? Number(template.priceDeltaCents) : 0,
+          choices: template && Array.isArray(template.choices) ? template.choices : [],
+        }, 0);
+
+        const parseInitialOptionsState = () => {
+          if (!optionsField) return [];
+          const raw = String(optionsField.value || '').trim();
+          if (!raw) return [];
+          try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.map((option, index) => createOptionState(option, index)) : [];
+          } catch (e) {
+            return [];
+          }
+        };
+
+        let productOptionsState = parseInitialOptionsState();
+
+        const syncOptionsField = () => {
+          if (!optionsField) return;
+          const normalized = productOptionsState
+            .map((option, index) => normalizeOptionState(option, index))
+            .filter(Boolean);
+          optionsField.value = JSON.stringify(normalized, null, 2);
+          if (optionsEmpty) optionsEmpty.classList.toggle('hidden', productOptionsState.length > 0);
+        };
+
+        const renderTemplateLibrary = () => {
+          if (!templateLibrary) return;
+          templateLibrary.innerHTML = '';
+
+          PRODUCT_OPTION_TEMPLATES.forEach((template) => {
+            const templateId = String(template && template.id ? template.id : '');
+            const checked = productOptionsState.some((option) => String(option && option.templateId ? option.templateId : '') === templateId);
+            const disabled = template && template.isActive === false && !checked;
+
+            const card = document.createElement('label');
+            card.className = `flex items-start gap-3 rounded-xl border px-4 py-4 transition ${checked ? 'border-primary bg-primary/5' : 'border-border-light dark:border-border-dark bg-white dark:bg-gray-900'} ${disabled ? 'opacity-60' : 'cursor-pointer hover:border-primary/60'}`;
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'mt-1 rounded border-gray-300 text-primary focus:ring-primary';
+            input.checked = checked;
+            input.disabled = disabled;
+
+            const content = document.createElement('div');
+            content.className = 'min-w-0 flex-1';
+
+            const top = document.createElement('div');
+            top.className = 'flex flex-wrap items-center gap-2';
+
+            const name = document.createElement('div');
+            name.className = 'text-sm font-bold text-gray-900 dark:text-white';
+            name.textContent = template && template.name ? template.name : 'Option';
+
+            const type = document.createElement('span');
+            type.className = `inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-widest ${template && template.type === 'text' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`;
+            type.textContent = template && template.type === 'text' ? 'Texte' : 'Liste';
+
+            top.appendChild(name);
+            top.appendChild(type);
+
+            if (template && template.required) {
+              const required = document.createElement('span');
+              required.className = 'inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-amber-800';
+              required.textContent = 'Obligatoire';
+              top.appendChild(required);
+            }
+
+            if (template && template.isActive === false) {
+              const inactive = document.createElement('span');
+              inactive.className = 'inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600';
+              inactive.textContent = 'Inactive';
+              top.appendChild(inactive);
+            }
+
+            const meta = document.createElement('div');
+            meta.className = 'mt-2 text-xs text-gray-500';
+            meta.textContent = template && template.helpText
+              ? template.helpText
+              : (template && template.type === 'text'
+                ? 'Champ texte libre pour le client.'
+                : 'Choix proposés au client.');
+
+            content.appendChild(top);
+            content.appendChild(meta);
+
+            if (template && Array.isArray(template.choices) && template.choices.length) {
+              const choices = document.createElement('div');
+              choices.className = 'mt-2 flex flex-wrap gap-2';
+              template.choices.slice(0, 3).forEach((choice) => {
+                const badge = document.createElement('span');
+                badge.className = 'inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600';
+                badge.textContent = choice && choice.label ? choice.label : 'Choix';
+                choices.appendChild(badge);
+              });
+              content.appendChild(choices);
+            }
+
+            input.addEventListener('change', () => {
+              if (!templateId) return;
+              productOptionsState = productOptionsState.filter((option) => String(option && option.templateId ? option.templateId : '') !== templateId);
+              if (input.checked) {
+                productOptionsState.push(buildOptionStateFromTemplate(template));
+              }
+              renderProductOptionsEditor();
+              renderTemplateLibrary();
+              syncOptionsField();
+            });
+
+            card.appendChild(input);
+            card.appendChild(content);
+            templateLibrary.appendChild(card);
+          });
+        };
+
+        const createField = (labelText, wide) => {
+          const wrap = document.createElement('div');
+          if (wide) wrap.className = 'md:col-span-2';
+
+          const label = document.createElement('label');
+          label.className = 'block text-[11px] font-bold uppercase tracking-widest text-gray-500';
+          label.textContent = labelText;
+          wrap.appendChild(label);
+          return { wrap, label };
+        };
+
+        function renderProductOptionsEditor() {
+          if (!optionsBuilder) return;
+          optionsBuilder.innerHTML = '';
+
+          productOptionsState.forEach((option, index) => {
+            const card = document.createElement('div');
+            card.className = 'rounded-2xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 p-5';
+
+            const header = document.createElement('div');
+            header.className = 'flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4';
+
+            const headerLeft = document.createElement('div');
+            const title = document.createElement('div');
+            title.className = 'text-sm font-bold text-gray-900 dark:text-white';
+            title.textContent = option && option.label ? option.label : `Option ${index + 1}`;
+
+            const badges = document.createElement('div');
+            badges.className = 'mt-2 flex flex-wrap items-center gap-2';
+
+            const typeBadge = document.createElement('span');
+            typeBadge.className = `inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-widest ${option && option.type === 'text' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`;
+            typeBadge.textContent = option && option.type === 'text' ? 'Texte libre' : 'Liste de choix';
+            badges.appendChild(typeBadge);
+
+            if (option && option.templateId) {
+              const fromTemplate = document.createElement('span');
+              fromTemplate.className = 'inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary';
+              fromTemplate.textContent = 'Issue de la bibliothèque';
+              badges.appendChild(fromTemplate);
+            }
+
+            headerLeft.appendChild(title);
+            headerLeft.appendChild(badges);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-600 hover:bg-red-50 transition';
+            removeBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-sm">delete</span>Retirer';
+            removeBtn.addEventListener('click', () => {
+              productOptionsState.splice(index, 1);
+              renderProductOptionsEditor();
+              renderTemplateLibrary();
+              syncOptionsField();
+            });
+
+            header.appendChild(headerLeft);
+            header.appendChild(removeBtn);
+            card.appendChild(header);
+
+            const fields = document.createElement('div');
+            fields.className = 'mt-5 grid grid-cols-1 md:grid-cols-2 gap-4';
+
+            const labelField = createField('Nom affiché');
+            const labelInput = document.createElement('input');
+            labelInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
+            labelInput.type = 'text';
+            labelInput.value = option && option.label ? option.label : '';
+            labelInput.placeholder = 'Ex: Programmation';
+            labelField.wrap.appendChild(labelInput);
+
+            const keyField = createField('Clé technique');
+            const keyInput = document.createElement('input');
+            keyInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
+            keyInput.type = 'text';
+            keyInput.value = option && option.key ? option.key : '';
+            keyInput.placeholder = 'Ex: programmation';
+            keyField.wrap.appendChild(keyInput);
+
+            const typeField = createField('Type');
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
+            typeSelect.innerHTML = '<option value="choice">Liste de choix</option><option value="text">Texte libre</option>';
+            typeSelect.value = option && option.type === 'text' ? 'text' : 'choice';
+            typeField.wrap.appendChild(typeSelect);
+
+            const requiredWrap = document.createElement('div');
+            requiredWrap.className = 'flex items-end';
+            const requiredLabel = document.createElement('label');
+            requiredLabel.className = 'inline-flex items-center gap-3 rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200';
+            const requiredInput = document.createElement('input');
+            requiredInput.className = 'rounded border-gray-300 text-primary focus:ring-primary';
+            requiredInput.type = 'checkbox';
+            requiredInput.checked = !!(option && option.required);
+            const requiredText = document.createElement('span');
+            requiredText.textContent = 'Champ obligatoire';
+            requiredLabel.appendChild(requiredInput);
+            requiredLabel.appendChild(requiredText);
+            requiredWrap.appendChild(requiredLabel);
+
+            const placeholderField = createField('Placeholder');
+            const placeholderInput = document.createElement('input');
+            placeholderInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
+            placeholderInput.type = 'text';
+            placeholderInput.value = option && option.placeholder ? option.placeholder : '';
+            placeholderInput.placeholder = 'Ex: Tape la référence';
+            placeholderField.wrap.appendChild(placeholderInput);
+
+            const helpField = createField('Texte d’aide', true);
+            const helpInput = document.createElement('input');
+            helpInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
+            helpInput.type = 'text';
+            helpInput.value = option && option.helpText ? option.helpText : '';
+            helpInput.placeholder = 'Ex: Choisis si la pièce doit être programmée';
+            helpField.wrap.appendChild(helpInput);
+
+            const priceField = createField('Supplément prix (€)');
+            const priceInput = document.createElement('input');
+            priceInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
+            priceInput.type = 'text';
+            priceInput.value = formatPriceInputFromCents(option && option.priceDeltaCents ? option.priceDeltaCents : 0);
+            priceInput.placeholder = 'Ex: 49,90';
+            priceField.wrap.appendChild(priceInput);
+
+            fields.appendChild(labelField.wrap);
+            fields.appendChild(keyField.wrap);
+            fields.appendChild(typeField.wrap);
+            fields.appendChild(requiredWrap);
+            fields.appendChild(placeholderField.wrap);
+            fields.appendChild(priceField.wrap);
+            fields.appendChild(helpField.wrap);
+            card.appendChild(fields);
+
+            const choicesWrap = document.createElement('div');
+            choicesWrap.className = 'mt-5';
+            card.appendChild(choicesWrap);
+
+            const renderChoices = () => {
+              choicesWrap.innerHTML = '';
+              priceField.wrap.style.display = option && option.type === 'text' ? '' : 'none';
+              if (!option || option.type !== 'choice') return;
+
+              const top = document.createElement('div');
+              top.className = 'flex items-center justify-between gap-4';
+
+              const titleChoices = document.createElement('div');
+              titleChoices.className = 'text-xs font-bold uppercase tracking-widest text-gray-500';
+              titleChoices.textContent = 'Choix proposés';
+              top.appendChild(titleChoices);
+
+              const addChoiceBtn = document.createElement('button');
+              addChoiceBtn.type = 'button';
+              addChoiceBtn.className = 'inline-flex items-center justify-center rounded-lg border border-border-light dark:border-border-dark px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 transition';
+              addChoiceBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-sm">add</span>Ajouter un choix';
+              addChoiceBtn.addEventListener('click', () => {
+                option.choices = Array.isArray(option.choices) ? option.choices : [];
+                option.choices.push(createChoiceState({}));
+                renderProductOptionsEditor();
+                syncOptionsField();
+              });
+              top.appendChild(addChoiceBtn);
+              choicesWrap.appendChild(top);
+
+              const list = document.createElement('div');
+              list.className = 'mt-3 space-y-3';
+
+              const choices = Array.isArray(option.choices) && option.choices.length ? option.choices : [createChoiceState({})];
+              option.choices = choices;
+
+              choices.forEach((choice, choiceIndex) => {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-3 items-end rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 p-4';
+
+                const choiceLabelField = createField('Libellé');
+                const choiceLabelInput = document.createElement('input');
+                choiceLabelInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm';
+                choiceLabelInput.type = 'text';
+                choiceLabelInput.value = choice && choice.label ? choice.label : '';
+                choiceLabelInput.placeholder = 'Ex: Avec programmation';
+                choiceLabelField.wrap.appendChild(choiceLabelInput);
+
+                const choicePriceField = createField('Supplément (€)');
+                const choicePriceInput = document.createElement('input');
+                choicePriceInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm';
+                choicePriceInput.type = 'text';
+                choicePriceInput.value = formatPriceInputFromCents(choice && choice.priceDeltaCents ? choice.priceDeltaCents : 0);
+                choicePriceInput.placeholder = 'Ex: 49,90';
+                choicePriceField.wrap.appendChild(choicePriceInput);
+
+                const removeChoiceBtn = document.createElement('button');
+                removeChoiceBtn.type = 'button';
+                removeChoiceBtn.className = 'inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-3 text-xs font-bold uppercase tracking-wider text-red-600 hover:bg-red-50 transition';
+                removeChoiceBtn.textContent = 'Supprimer';
+                removeChoiceBtn.addEventListener('click', () => {
+                  option.choices.splice(choiceIndex, 1);
+                  if (!option.choices.length) option.choices.push(createChoiceState({}));
+                  renderProductOptionsEditor();
+                  syncOptionsField();
+                });
+
+                choiceLabelInput.addEventListener('input', () => {
+                  const previousLabel = choice.label || '';
+                  choice.label = choiceLabelInput.value;
+                  if (!choice.key || choice.key === slugifyOptionKey(previousLabel)) {
+                    choice.key = slugifyOptionKey(choice.label);
+                  }
+                  syncOptionsField();
+                });
+
+                choicePriceInput.addEventListener('blur', () => {
+                  const parsed = parsePriceInputToCents(choicePriceInput.value);
+                  if (parsed !== null) choice.priceDeltaCents = parsed;
+                  choicePriceInput.value = formatPriceInputFromCents(choice.priceDeltaCents);
+                  syncOptionsField();
+                });
+
+                row.appendChild(choiceLabelField.wrap);
+                row.appendChild(choicePriceField.wrap);
+                row.appendChild(removeChoiceBtn);
+                list.appendChild(row);
+              });
+
+              choicesWrap.appendChild(list);
+            };
+
+            labelInput.addEventListener('input', () => {
+              const previousLabel = option.label || '';
+              const previousKey = option.key || '';
+              option.label = labelInput.value;
+              if (!previousKey || previousKey === slugifyOptionKey(previousLabel)) {
+                option.key = slugifyOptionKey(option.label);
+                keyInput.value = option.key;
+              }
+              title.textContent = option.label ? option.label : `Option ${index + 1}`;
+              syncOptionsField();
+            });
+
+            keyInput.addEventListener('input', () => {
+              option.key = keyInput.value;
+              syncOptionsField();
+            });
+
+            typeSelect.addEventListener('change', () => {
+              option.type = typeSelect.value === 'text' ? 'text' : 'choice';
+              if (option.type === 'choice' && (!Array.isArray(option.choices) || !option.choices.length)) {
+                option.choices = [createChoiceState({})];
+              }
+              if (option.type === 'text') {
+                option.choices = [createChoiceState({})];
+              }
+              renderProductOptionsEditor();
+              syncOptionsField();
+            });
+
+            requiredInput.addEventListener('change', () => {
+              option.required = requiredInput.checked;
+              syncOptionsField();
+            });
+
+            placeholderInput.addEventListener('input', () => {
+              option.placeholder = placeholderInput.value;
+              syncOptionsField();
+            });
+
+            helpInput.addEventListener('input', () => {
+              option.helpText = helpInput.value;
+              syncOptionsField();
+            });
+
+            priceInput.addEventListener('blur', () => {
+              const parsed = parsePriceInputToCents(priceInput.value);
+              if (parsed !== null) option.priceDeltaCents = parsed;
+              priceInput.value = formatPriceInputFromCents(option.priceDeltaCents);
+              syncOptionsField();
+            });
+
+            renderChoices();
+            optionsBuilder.appendChild(card);
+          });
+
+          if (optionsEmpty) optionsEmpty.classList.toggle('hidden', productOptionsState.length > 0);
+        }
+
+        if (addCustomOptionBtn) {
+          addCustomOptionBtn.addEventListener('click', () => {
+            productOptionsState.push(createEmptyOptionState());
+            renderProductOptionsEditor();
+            renderTemplateLibrary();
+            syncOptionsField();
+          });
+        }
+
+        if (applyOptionsJsonBtn) {
+          applyOptionsJsonBtn.addEventListener('click', () => {
+            if (!optionsField) return;
+            const raw = String(optionsField.value || '').trim();
+            if (!raw) {
+              productOptionsState = [];
+              renderProductOptionsEditor();
+              renderTemplateLibrary();
+              syncOptionsField();
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(raw);
+              if (!Array.isArray(parsed)) throw new Error('invalid');
+              productOptionsState = parsed.map((option, index) => createOptionState(option, index));
+              renderProductOptionsEditor();
+              renderTemplateLibrary();
+              syncOptionsField();
+            } catch (e) {
+              window.alert('Le JSON des options est invalide.');
+            }
+          });
+        }
+
+        renderProductOptionsEditor();
+        renderTemplateLibrary();
+        syncOptionsField();
 
         const parseSteps = () => {
           const lines = parseLinesValue(stepsField ? stepsField.value : '');

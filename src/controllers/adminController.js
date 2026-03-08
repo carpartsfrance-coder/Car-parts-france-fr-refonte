@@ -12,6 +12,7 @@ const PromoCode = require('../models/PromoCode');
 const PromoRedemption = require('../models/PromoRedemption');
 const VehicleMake = require('../models/VehicleMake');
 const ShippingClass = require('../models/ShippingClass');
+const ProductOptionTemplate = require('../models/ProductOptionTemplate');
 
 const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
@@ -2263,6 +2264,163 @@ function getTrimmedString(value, fallback = '') {
   return value.trim();
 }
 
+function getRequiredProductContentError({ form, hasMainImage }) {
+  const missing = [];
+
+  if (!hasMainImage) missing.push('image principale');
+  if (!getTrimmedString(form && form.specType)) missing.push('type');
+  if (!getTrimmedString(form && form.specProgrammation)) missing.push('programmation');
+  if (!getTrimmedString(form && form.badgeTopLeft)) missing.push('garantie');
+  if (!getTrimmedString(form && form.badgeCondition)) missing.push('état');
+  if (!getTrimmedString(form && form.shortDescription)) missing.push('résumé');
+  if (!getTrimmedString(form && form.description)) missing.push('description');
+
+  if (!missing.length) return null;
+
+  return `Merci de renseigner les champs obligatoires des sections Médias et Description : ${missing.join(', ')}.`;
+}
+
+function formatOptionChoiceLines(choices) {
+  return Array.isArray(choices)
+    ? choices
+        .filter((choice) => choice && choice.label)
+        .map((choice) => {
+          const label = getTrimmedString(choice.label);
+          const price = Number.isFinite(choice.priceDeltaCents) ? choice.priceDeltaCents : 0;
+          if (!label) return '';
+          return price > 0 ? `${label} | ${formatPriceForInput(price)}` : label;
+        })
+        .filter(Boolean)
+        .join('\n')
+    : '';
+}
+
+function parseOptionChoiceLines(value) {
+  const lines = String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const choices = [];
+  for (const line of lines) {
+    const parts = line.split('|');
+    const label = getTrimmedString(parts[0]);
+    const priceRaw = getTrimmedString(parts.slice(1).join('|'));
+    if (!label) continue;
+
+    let priceDeltaCents = 0;
+    if (priceRaw) {
+      const parsed = parsePriceToCents(priceRaw);
+      if (parsed === null) {
+        return { ok: false, error: `Choix invalide : ${label}` };
+      }
+      priceDeltaCents = parsed;
+    }
+
+    choices.push({ label, priceDeltaCents });
+  }
+
+  return { ok: true, choices };
+}
+
+function parseProductOptionTemplatePayload(body) {
+  const name = getTrimmedString(body && body.name);
+  const key = getTrimmedString(body && body.key);
+  const type = getTrimmedString(body && body.type) === 'text' ? 'text' : 'choice';
+  const required = body && (body.required === 'on' || body.required === 'true');
+  const placeholder = getTrimmedString(body && body.placeholder);
+  const helpText = getTrimmedString(body && body.helpText);
+  const priceDelta = getTrimmedString(body && body.priceDelta);
+
+  if (!name) {
+    return { ok: false, error: 'Merci de renseigner le nom de l’option.' };
+  }
+
+  const priceDeltaCents = priceDelta ? parsePriceToCents(priceDelta) : 0;
+  if (priceDelta && priceDeltaCents === null) {
+    return { ok: false, error: 'Le supplément de prix est invalide.' };
+  }
+
+  const parsedChoices = parseOptionChoiceLines(body && body.choicesText);
+  if (!parsedChoices.ok) {
+    return parsedChoices;
+  }
+
+  if (type === 'choice' && !parsedChoices.choices.length) {
+    return { ok: false, error: 'Ajoute au moins un choix pour une option de type liste.' };
+  }
+
+  const normalized = productOptions.normalizeProductOptions([
+    {
+      key,
+      label: name,
+      type,
+      required,
+      placeholder,
+      helpText,
+      priceDeltaCents: type === 'text' ? (priceDeltaCents || 0) : 0,
+      choices: type === 'choice' ? parsedChoices.choices : [],
+    },
+  ]);
+
+  const option = normalized.length ? normalized[0] : null;
+  if (!option) {
+    return { ok: false, error: 'Impossible de préparer cette option.' };
+  }
+
+  return {
+    ok: true,
+    option,
+    templateData: {
+      name: option.label,
+      key: option.key,
+      type: option.type,
+      required: option.required,
+      placeholder: option.placeholder,
+      helpText: option.helpText,
+      priceDeltaCents: option.type === 'text' ? option.priceDeltaCents : 0,
+      choices: option.type === 'choice' ? option.choices : [],
+    },
+  };
+}
+
+async function listProductOptionTemplates({ includeInactive = true } = {}) {
+  const query = includeInactive ? {} : { isActive: true };
+  const templates = await ProductOptionTemplate.find(query)
+    .sort({ isActive: -1, sortOrder: 1, name: 1, createdAt: 1 })
+    .lean();
+
+  return templates.map((template) => ({
+    id: String(template._id),
+    name: getTrimmedString(template.name),
+    key: getTrimmedString(template.key),
+    type: getTrimmedString(template.type) === 'text' ? 'text' : 'choice',
+    required: template.required === true,
+    placeholder: getTrimmedString(template.placeholder),
+    helpText: getTrimmedString(template.helpText),
+    priceDeltaCents: Number.isFinite(template.priceDeltaCents) ? template.priceDeltaCents : 0,
+    priceDeltaLabel: formatPriceForInput(Number.isFinite(template.priceDeltaCents) ? template.priceDeltaCents : 0),
+    choices: Array.isArray(template.choices)
+      ? template.choices.map((choice) => ({
+          key: getTrimmedString(choice && choice.key),
+          label: getTrimmedString(choice && choice.label),
+          priceDeltaCents: Number.isFinite(choice && choice.priceDeltaCents) ? choice.priceDeltaCents : 0,
+          priceDeltaLabel: formatPriceForInput(Number.isFinite(choice && choice.priceDeltaCents) ? choice.priceDeltaCents : 0),
+        }))
+      : [],
+    choicesText: formatOptionChoiceLines(Array.isArray(template.choices) ? template.choices : []),
+    isActive: template.isActive !== false,
+    updatedAtLabel: formatDateTimeFR(template.updatedAt),
+  }));
+}
+
+function extractProductOptionTemplateObjectIds(options) {
+  return productOptions
+    .extractOptionTemplateIds(options)
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+}
+
 function normalizeMetaText(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
@@ -3366,6 +3524,139 @@ async function postAdminDeleteShippingClass(req, res, next) {
   }
 }
 
+async function getAdminProductOptionTemplatesPage(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const successMessage = req.session.adminProductOptionTemplateSuccess || null;
+    const errorMessage = req.session.adminProductOptionTemplateError || null;
+
+    delete req.session.adminProductOptionTemplateSuccess;
+    delete req.session.adminProductOptionTemplateError;
+
+    if (!dbConnected) {
+      return res.render('admin/product-options', {
+        title: 'Admin - Options produit',
+        dbConnected,
+        successMessage: null,
+        errorMessage: "La base de données n'est pas disponible.",
+        templates: [],
+      });
+    }
+
+    const templates = await listProductOptionTemplates({ includeInactive: true });
+    return res.render('admin/product-options', {
+      title: 'Admin - Options produit',
+      dbConnected,
+      successMessage,
+      errorMessage,
+      templates,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminCreateProductOptionTemplate(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      req.session.adminProductOptionTemplateError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    const parsed = parseProductOptionTemplatePayload(req.body);
+    if (!parsed.ok) {
+      req.session.adminProductOptionTemplateError = parsed.error || 'Option invalide.';
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    const count = await ProductOptionTemplate.countDocuments({});
+    await ProductOptionTemplate.create({
+      ...parsed.templateData,
+      isActive: true,
+      sortOrder: count,
+    });
+
+    req.session.adminProductOptionTemplateSuccess = 'Option réutilisable créée.';
+    return res.redirect('/admin/catalogue/options');
+  } catch (err) {
+    if (err && err.code === 11000) {
+      req.session.adminProductOptionTemplateError = 'Une option réutilisable existe déjà avec cette clé.';
+      return res.redirect('/admin/catalogue/options');
+    }
+    return next(err);
+  }
+}
+
+async function postAdminUpdateProductOptionTemplate(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const { templateId } = req.params;
+
+    if (!dbConnected) {
+      req.session.adminProductOptionTemplateError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+      req.session.adminProductOptionTemplateError = 'Option réutilisable introuvable.';
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    const parsed = parseProductOptionTemplatePayload(req.body);
+    if (!parsed.ok) {
+      req.session.adminProductOptionTemplateError = parsed.error || 'Option invalide.';
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    await ProductOptionTemplate.findByIdAndUpdate(templateId, {
+      $set: parsed.templateData,
+    });
+
+    req.session.adminProductOptionTemplateSuccess = 'Option réutilisable mise à jour.';
+    return res.redirect('/admin/catalogue/options');
+  } catch (err) {
+    if (err && err.code === 11000) {
+      req.session.adminProductOptionTemplateError = 'Une option réutilisable existe déjà avec cette clé.';
+      return res.redirect('/admin/catalogue/options');
+    }
+    return next(err);
+  }
+}
+
+async function postAdminToggleProductOptionTemplate(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const { templateId } = req.params;
+
+    if (!dbConnected) {
+      req.session.adminProductOptionTemplateError = "La base de données n'est pas disponible.";
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+      req.session.adminProductOptionTemplateError = 'Option réutilisable introuvable.';
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    const existing = await ProductOptionTemplate.findById(templateId);
+    if (!existing) {
+      req.session.adminProductOptionTemplateError = 'Option réutilisable introuvable.';
+      return res.redirect('/admin/catalogue/options');
+    }
+
+    existing.isActive = existing.isActive === false;
+    await existing.save();
+
+    req.session.adminProductOptionTemplateSuccess = existing.isActive
+      ? 'Option réutilisable réactivée.'
+      : 'Option réutilisable désactivée.';
+    return res.redirect('/admin/catalogue/options');
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function getAdminNewProductPage(req, res) {
   const dbConnected = mongoose.connection.readyState === 1;
 
@@ -3388,6 +3679,10 @@ async function getAdminNewProductPage(req, res) {
         .sort({ sortOrder: 1, name: 1 })
         .select('_id name isActive isDefault')
         .lean()
+    : [];
+
+  const productOptionTemplates = dbConnected
+    ? await listProductOptionTemplates({ includeInactive: true })
     : [];
 
   return res.render('admin/product', {
@@ -3461,6 +3756,7 @@ async function getAdminNewProductPage(req, res) {
       isActive: c.isActive !== false,
       isDefault: c.isDefault === true,
     })),
+    productOptionTemplates,
     compatIndex,
     productId: null,
   });
@@ -3475,6 +3771,10 @@ async function postAdminCreateProduct(req, res, next) {
     const compatIndex = dbConnected
       ? await getCompatibilityIndex()
       : { makes: [], modelsByMake: {} };
+
+    const productOptionTemplates = dbConnected
+      ? await listProductOptionTemplates({ includeInactive: true })
+      : [];
 
     const form = {
       name: getTrimmedString(req.body.name),
@@ -3559,6 +3859,7 @@ async function postAdminCreateProduct(req, res, next) {
           isActive: c.isActive !== false,
           isDefault: c.isDefault === true,
         })),
+        productOptionTemplates,
         compatIndex,
         productId: null,
       });
@@ -3576,6 +3877,7 @@ async function postAdminCreateProduct(req, res, next) {
         seoAssistant: buildProductSeoAssistant({ form, mode: 'new', productId: null }),
         categories: [],
         shippingClasses: [],
+        productOptionTemplates,
         compatIndex,
         productId: null,
       });
@@ -3604,8 +3906,10 @@ async function postAdminCreateProduct(req, res, next) {
     const consigneDelayDays = clampInt(form.consigneDelayDays || '30', { min: 0, max: 3650, fallback: 30 });
     const parsedStock = parseStockQty(form.stockQty);
     const parsedOptions = productOptions.parseProductOptionsJson(form.optionsJson);
+    const hasMainImage = !!(getTrimmedString(form.imageUrl) || (Array.isArray(req.files) && req.files.length) || req.file);
+    const requiredContentError = getRequiredProductContentError({ form, hasMainImage });
 
-    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok) {
+    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok || requiredContentError) {
       cleanupUploadedFiles(req);
 
       const shippingClasses = await ShippingClass.find({})
@@ -3621,6 +3925,8 @@ async function postAdminCreateProduct(req, res, next) {
           ? 'Merci de renseigner une quantité de stock valide (0 ou plus), ou laisse vide.'
           : !parsedOptions.ok
             ? (parsedOptions.error || 'Options invalides.')
+          : requiredContentError
+            ? requiredContentError
           : form.compareAtPrice && compareAtPriceCents === null
             ? 'Le prix barré est invalide.'
             : consigneAmountCents === null
@@ -3640,6 +3946,7 @@ async function postAdminCreateProduct(req, res, next) {
           isActive: c.isActive !== false,
           isDefault: c.isDefault === true,
         })),
+        productOptionTemplates,
         compatIndex,
         productId: null,
       });
@@ -3693,6 +4000,7 @@ async function postAdminCreateProduct(req, res, next) {
           isActive: c.isActive !== false,
           isDefault: c.isDefault === true,
         })),
+        productOptionTemplates,
         compatIndex,
         productId: null,
       });
@@ -3732,6 +4040,7 @@ async function postAdminCreateProduct(req, res, next) {
       priceCents,
       compareAtPriceCents,
       options: parsedOptions.ok ? parsedOptions.options : [],
+      optionTemplateIds: extractProductOptionTemplateObjectIds(parsedOptions.ok ? parsedOptions.options : []),
       consigne: {
         enabled: form.consigneEnabled === true && (Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0) > 0,
         amountCents: Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0,
@@ -3811,6 +4120,7 @@ async function getAdminEditProductPage(req, res, next) {
         seoAssistant: null,
         categories: [],
         shippingClasses: [],
+        productOptionTemplates: [],
         compatIndex: { makes: [], modelsByMake: {} },
         productId: null,
       });
@@ -3843,6 +4153,10 @@ async function getAdminEditProductPage(req, res, next) {
           .sort({ sortOrder: 1, name: 1 })
           .select('_id name isActive isDefault')
           .lean()
+      : [];
+
+    const productOptionTemplates = dbConnected
+      ? await listProductOptionTemplates({ includeInactive: true })
       : [];
 
     const compatIndex = dbConnected
@@ -3955,6 +4269,7 @@ async function getAdminEditProductPage(req, res, next) {
         isActive: c.isActive !== false,
         isDefault: c.isDefault === true,
       })),
+      productOptionTemplates,
       compatIndex,
       productId: String(product._id),
     });
@@ -3971,6 +4286,10 @@ async function postAdminUpdateProduct(req, res, next) {
     const compatIndex = dbConnected
       ? await getCompatibilityIndex()
       : { makes: [], modelsByMake: {} };
+
+    const productOptionTemplates = dbConnected
+      ? await listProductOptionTemplates({ includeInactive: true })
+      : [];
 
     const removeMainImage = req.body.removeMainImage === 'true' || req.body.removeMainImage === 'on';
 
@@ -4041,6 +4360,7 @@ async function postAdminUpdateProduct(req, res, next) {
         form,
         seoAssistant: buildProductSeoAssistant({ form, mode: 'edit', productId }),
         shippingClasses: [],
+        productOptionTemplates,
         compatIndex,
         productId: null,
       });
@@ -4097,6 +4417,7 @@ async function postAdminUpdateProduct(req, res, next) {
           isActive: c.isActive !== false,
           isDefault: c.isDefault === true,
         })),
+        productOptionTemplates,
         compatIndex,
         productId,
       });
@@ -4109,8 +4430,14 @@ async function postAdminUpdateProduct(req, res, next) {
     const consigneDelayDays = clampInt(form.consigneDelayDays || '30', { min: 0, max: 3650, fallback: 30 });
     const parsedStock = parseStockQty(form.stockQty);
     const parsedOptions = productOptions.parseProductOptionsJson(form.optionsJson);
+    const hasMainImage = !!(
+      (removeMainImage ? '' : (getTrimmedString(form.imageUrl) || getTrimmedString(existing && existing.imageUrl)))
+      || (Array.isArray(req.files) && req.files.length)
+      || req.file
+    );
+    const requiredContentError = getRequiredProductContentError({ form, hasMainImage });
 
-    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok) {
+    if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok || requiredContentError) {
       cleanupUploadedFiles(req);
 
       const shippingClasses = await ShippingClass.find({ isActive: true })
@@ -4126,6 +4453,8 @@ async function postAdminUpdateProduct(req, res, next) {
           ? 'Merci de renseigner une quantité de stock valide (0 ou plus), ou laisse vide.'
           : !parsedOptions.ok
             ? (parsedOptions.error || 'Options invalides.')
+          : requiredContentError
+            ? requiredContentError
           : form.compareAtPrice && compareAtPriceCents === null
             ? 'Le prix barré est invalide.'
             : consigneAmountCents === null
@@ -4147,6 +4476,7 @@ async function postAdminUpdateProduct(req, res, next) {
           isActive: c.isActive !== false,
           isDefault: c.isDefault === true,
         })),
+        productOptionTemplates,
         compatIndex,
         productId,
       });
@@ -4247,6 +4577,7 @@ async function postAdminUpdateProduct(req, res, next) {
             isActive: c.isActive !== false,
             isDefault: c.isDefault === true,
           })),
+          productOptionTemplates,
           compatIndex,
           productId,
         });
@@ -4279,6 +4610,7 @@ async function postAdminUpdateProduct(req, res, next) {
           priceCents,
           compareAtPriceCents,
           options: parsedOptions.ok ? parsedOptions.options : [],
+          optionTemplateIds: extractProductOptionTemplateObjectIds(parsedOptions.ok ? parsedOptions.options : []),
           consigne: {
             enabled: form.consigneEnabled === true && (Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0) > 0,
             amountCents: Number.isFinite(consigneAmountCents) ? consigneAmountCents : 0,
@@ -5590,6 +5922,10 @@ module.exports = {
   postAdminCreateShippingClass,
   postAdminUpdateShippingClass,
   postAdminDeleteShippingClass,
+  getAdminProductOptionTemplatesPage,
+  postAdminCreateProductOptionTemplate,
+  postAdminUpdateProductOptionTemplate,
+  postAdminToggleProductOptionTemplate,
   getAdminNewProductPage,
   postAdminCreateProduct,
   getAdminEditProductPage,

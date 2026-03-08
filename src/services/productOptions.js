@@ -34,6 +34,7 @@ function normalizeProductOptions(options) {
     const g = list[i] && typeof list[i] === 'object' ? list[i] : null;
     if (!g) continue;
 
+    const templateId = getTrimmedString(g.templateId);
     const label = getTrimmedString(g.label);
     const keyRaw = getTrimmedString(g.key) || slugifyKey(label) || `option_${i + 1}`;
     const key = slugifyKey(keyRaw) || `option_${i + 1}`;
@@ -47,6 +48,7 @@ function normalizeProductOptions(options) {
     const priceDeltaCents = normalizeInt(g.priceDeltaCents, 0);
 
     const group = {
+      templateId,
       key,
       label: label || key,
       type,
@@ -87,6 +89,35 @@ function normalizeProductOptions(options) {
   }
 
   return out;
+}
+
+function buildOptionFromTemplate(template) {
+  if (!template || typeof template !== 'object') return null;
+
+  const normalized = normalizeProductOptions([
+    {
+      templateId: template._id ? String(template._id) : getTrimmedString(template.templateId),
+      key: getTrimmedString(template.key),
+      label: getTrimmedString(template.name || template.label),
+      type: getTrimmedString(template.type),
+      required: template.required === true,
+      placeholder: getTrimmedString(template.placeholder),
+      helpText: getTrimmedString(template.helpText),
+      priceDeltaCents: normalizeInt(template.priceDeltaCents, 0),
+      choices: Array.isArray(template.choices) ? template.choices : [],
+    },
+  ]);
+
+  return normalized.length ? normalized[0] : null;
+}
+
+function extractOptionTemplateIds(options) {
+  const normalized = normalizeProductOptions(options);
+  return Array.from(new Set(normalized.map((option) => getTrimmedString(option.templateId)).filter(Boolean)));
+}
+
+function serializeProductOptions(options) {
+  return JSON.stringify(normalizeProductOptions(options), null, 2);
 }
 
 function parseProductOptionsJson(jsonValue) {
@@ -246,6 +277,9 @@ function buildOptionsDisplay(productOptions, selection) {
 
 module.exports = {
   normalizeProductOptions,
+  buildOptionFromTemplate,
+  extractOptionTemplateIds,
+  serializeProductOptions,
   parseProductOptionsJson,
   buildSelectionFromBody,
   buildVariantKey,

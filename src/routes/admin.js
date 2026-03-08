@@ -92,6 +92,11 @@ router.post('/expedition', requireAdminAuth, adminController.postAdminCreateShip
 router.post('/expedition/:classId', requireAdminAuth, adminController.postAdminUpdateShippingClass);
 router.post('/expedition/:classId/supprimer', requireAdminAuth, adminController.postAdminDeleteShippingClass);
 
+router.get('/catalogue/options', requireAdminAuth, adminController.getAdminProductOptionTemplatesPage);
+router.post('/catalogue/options', requireAdminAuth, adminController.postAdminCreateProductOptionTemplate);
+router.post('/catalogue/options/:templateId', requireAdminAuth, adminController.postAdminUpdateProductOptionTemplate);
+router.post('/catalogue/options/:templateId/toggle', requireAdminAuth, adminController.postAdminToggleProductOptionTemplate);
+
 router.get('/catalogue/nouveau', requireAdminAuth, adminController.getAdminNewProductPage);
 router.post('/catalogue/nouveau', requireAdminAuth, handleProductImageUpload, adminController.postAdminCreateProduct);
 router.post('/catalogue/supprimer-multi', requireAdminAuth, adminController.postAdminBulkDeleteProducts);

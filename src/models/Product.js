@@ -49,6 +49,7 @@ const productSchema = new mongoose.Schema(
     options: {
       type: [
         {
+          templateId: { type: String, default: '', trim: true },
           key: { type: String, default: '', trim: true },
           label: { type: String, default: '', trim: true },
           type: { type: String, default: 'choice', trim: true },
@@ -66,6 +67,16 @@ const productSchema = new mongoose.Schema(
             ],
             default: [],
           },
+        },
+      ],
+      default: [],
+    },
+
+    optionTemplateIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'ProductOptionTemplate',
         },
       ],
       default: [],
