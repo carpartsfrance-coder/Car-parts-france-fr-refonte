@@ -305,6 +305,12 @@ function getOpenAiApiKey() {
   return normalizeEnvString(process.env.OPENAI_API_KEY);
 }
 
+function getRequestTimeoutMs() {
+  const raw = Number.parseInt(normalizeEnvString(process.env.OPENAI_PRODUCT_TIMEOUT_MS), 10);
+  if (!Number.isFinite(raw)) return 85000;
+  return Math.min(180000, Math.max(15000, raw));
+}
+
 function extractJsonCandidateStrings(node, out = []) {
   if (typeof node === 'string') {
     out.push(node);
@@ -538,14 +544,42 @@ async function generateProductSheet(payload) {
     };
   }
 
-  const response = await fetch(OPENAI_RESPONSES_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const timeoutMs = getRequestTimeoutMs();
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeoutHandle = controller
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : null;
+
+  let response;
+  try {
+    response = await fetch(OPENAI_RESPONSES_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller ? controller.signal : undefined,
+    });
+  } catch (error) {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+
+    if (error && (error.name === 'AbortError' || error.code === 'ABORT_ERR')) {
+      const err = new Error(`La génération IA a dépassé le délai autorisé (${Math.round(timeoutMs / 1000)} s). Réessaie ou réduis la complexité de la demande.`);
+      err.code = 'OPENAI_REQUEST_TIMEOUT';
+      err.status = 504;
+      err.cause = error;
+      throw err;
+    }
+
+    const err = new Error('Impossible de contacter OpenAI pour générer la fiche produit. Vérifie la connexion réseau et les paramètres du serveur.');
+    err.code = 'OPENAI_NETWORK_ERROR';
+    err.status = 502;
+    err.cause = error;
+    throw err;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {

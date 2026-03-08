@@ -2746,6 +2746,20 @@ async function postAdminGenerateProductDraft(req, res, next) {
       });
     }
 
+    if (err && err.code === 'OPENAI_REQUEST_TIMEOUT') {
+      return res.status(504).json({
+        ok: false,
+        error: err.message || 'La génération IA a pris trop de temps.',
+      });
+    }
+
+    if (err && err.code === 'OPENAI_NETWORK_ERROR') {
+      return res.status(502).json({
+        ok: false,
+        error: err.message || 'Impossible de contacter OpenAI depuis le serveur.',
+      });
+    }
+
     return next(err);
   }
 }
