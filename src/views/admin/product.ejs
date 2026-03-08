@@ -2,6 +2,34 @@
 
 <%- include('./partials/sidebar', { active: 'catalog' }) %>
 
+<style>
+  .field-review-empty {
+    border-color: rgb(252 165 165) !important;
+    background-color: rgb(254 242 242) !important;
+    box-shadow: 0 0 0 3px rgba(252, 165, 165, 0.18);
+  }
+
+  .field-review-ai {
+    border-color: rgb(167 139 250) !important;
+    background-color: rgb(245 243 255) !important;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.18);
+  }
+
+  .field-review-validated {
+    border-color: rgb(74 222 128) !important;
+    background-color: rgb(240 253 244) !important;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.18);
+  }
+
+  .field-review-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+</style>
+
 <main class="flex-1">
   <% const pageTitle = mode === 'new' ? 'New Product' : 'Edit Product'; %>
   <% const productName = form && form.name ? form.name : (mode === 'new' ? 'New product' : 'Product'); %>
@@ -102,6 +130,36 @@
       <div class="mt-3 text-sm text-violet-900/80" id="aiGenerateStatus">L’IA utilisera le nom du produit, la référence, la marque, la catégorie et les notes ci-dessus.</div>
 
       <div class="mt-3 hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900" id="aiGenerateWarnings"></div>
+    </div>
+
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" id="fieldReviewPanel">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div class="font-bold">Suivi simple de la fiche produit</div>
+          <div class="mt-2 text-sm space-y-1">
+            <div>Les champs encore vides ressortent en rouge.</div>
+            <div>Les champs remplis par l’IA reçoivent un badge <span class="font-semibold">IA</span>.</div>
+            <div>Tu peux cocher <span class="font-semibold">Validé</span> après relecture pour te repérer facilement.</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center text-xs font-black uppercase tracking-widest">
+          <div class="rounded-lg border border-red-200 bg-white px-3 py-2 text-red-700">
+            <div>À remplir</div>
+            <div class="mt-1 text-lg" id="fieldReviewEmptyCount">0</div>
+          </div>
+          <div class="rounded-lg border border-violet-200 bg-white px-3 py-2 text-violet-700">
+            <div>IA</div>
+            <div class="mt-1 text-lg" id="fieldReviewAiCount">0</div>
+          </div>
+          <div class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-emerald-700">
+            <div>Validés</div>
+            <div class="mt-1 text-lg" id="fieldReviewValidatedCount">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 text-xs text-emerald-900/80">Les mini coches sont maintenant directement affichées à côté des champs et blocs importants.</div>
     </div>
 
     <div class="mt-4 rounded-lg border border-sky-200 bg-white/70 px-4 py-3 text-sm">
@@ -727,6 +785,7 @@
           const dt = new DataTransfer();
           selected.forEach((f) => dt.items.add(f));
           fileInput.files = dt.files;
+          refreshFieldReviewPanel();
         };
 
         const openPicker = () => fileInput.click();
@@ -742,6 +801,7 @@
             .filter(Boolean);
           const next = lines.filter((l) => l !== url);
           galleryField.value = next.join('\n');
+          refreshFieldReviewPanel();
         };
 
         if (canUseMedia) {
@@ -771,6 +831,7 @@
 
             const previewTiles = Array.from(grid.querySelectorAll('[data-preview="true"]'));
             previewTiles.forEach((el, i) => el.setAttribute('data-preview-idx', String(i)));
+            refreshFieldReviewPanel();
           });
         }
 
@@ -822,6 +883,8 @@
             wrapper.appendChild(overlay);
             grid.insertBefore(wrapper, beforeNode);
           });
+
+          refreshFieldReviewPanel();
         });
 
         const stepsGrid = document.getElementById('stepsGrid');
@@ -851,8 +914,152 @@
         const aiSourceNotes = document.getElementById('aiSourceNotes');
         const aiGenerateStatus = document.getElementById('aiGenerateStatus');
         const aiGenerateWarnings = document.getElementById('aiGenerateWarnings');
+        const fieldReviewEmptyCount = document.getElementById('fieldReviewEmptyCount');
+        const fieldReviewAiCount = document.getElementById('fieldReviewAiCount');
+        const fieldReviewValidatedCount = document.getElementById('fieldReviewValidatedCount');
 
         let hydrateStepsGridFromField = function () {};
+        const aiTouchedFields = new Set();
+        const validatedFields = new Set();
+
+        const FIELD_REVIEW_DEFS = [
+          { id: 'name', label: 'Nom du produit', focusId: 'name', highlightId: 'name' },
+          { id: 'price', label: 'Prix', focusId: 'price', highlightId: 'price' },
+          { id: 'category', label: 'Catégorie', focusId: 'category', highlightId: 'category' },
+          { id: 'brand', label: 'Marque', focusId: 'brand', highlightId: 'brand' },
+          { id: 'slug', label: 'Slug', focusId: 'slug', highlightId: 'slug' },
+          { id: 'sku', label: 'SKU', focusId: 'sku', highlightId: 'sku' },
+          { id: 'shippingDelayText', label: 'Délai d’expédition', focusId: 'shippingDelayText', highlightId: 'shippingDelayText' },
+          { id: 'compatibleReferences', label: 'Références compatibles', focusId: 'compatibleReferences', highlightId: 'compatibleReferences' },
+          {
+            id: 'imageUrl',
+            label: 'Image principale',
+            focusId: 'mediaAddNew',
+            highlightId: 'mediaGrid',
+            mountSelector: '#mediaAddNew',
+            getValue: () => {
+              const imageUrlField = document.getElementById('imageUrl');
+              const mainImage = String((imageUrlField || {}).value || '').trim();
+              const previewCount = fileInput && fileInput.files ? Array.from(fileInput.files).length : 0;
+              return mainImage || previewCount ? 'ok' : '';
+            },
+          },
+          { id: 'specType', label: 'Type', focusId: 'specType', highlightId: 'specType' },
+          { id: 'specProgrammation', label: 'Programmation', focusId: 'specProgrammation', highlightId: 'specProgrammation' },
+          { id: 'badgeTopLeft', label: 'Garantie', focusId: 'badgeTopLeft', highlightId: 'badgeTopLeft' },
+          { id: 'badgeCondition', label: 'État', focusId: 'badgeCondition', highlightId: 'badgeCondition' },
+          { id: 'shortDescription', label: 'Résumé', focusId: 'shortDescription', highlightId: 'shortDescription' },
+          { id: 'description', label: 'Description longue', focusId: 'description', highlightId: 'description' },
+          { id: 'compatibility', label: 'Compatibilité véhicules', focusId: 'compatMakeSelect', highlightId: 'compatMakeSelect', mountSelector: '#compatAddBtn' },
+          { id: 'faqs', label: 'FAQ', focusId: 'faqAddBtn', highlightId: 'faqList', mountSelector: '#faqAddBtn' },
+          { id: 'reconditioningSteps', label: 'Étapes de reconditionnement', focusId: 'stepsPrefillBtn', highlightId: 'stepsGrid', mountSelector: '#stepsPrefillBtn' },
+          { id: 'optionsJson', label: 'Options produit', focusId: 'addCustomOptionBtn', highlightId: 'productOptionsBuilder', mountSelector: '#addCustomOptionBtn' },
+          { id: 'metaTitle', label: 'Meta title', focusId: 'metaTitle', highlightId: 'metaTitle' },
+          { id: 'metaDescription', label: 'Meta description', focusId: 'metaDescription', highlightId: 'metaDescription' },
+        ];
+
+        function getFieldReviewValue(def) {
+          if (!def) return '';
+          if (typeof def.getValue === 'function') return String(def.getValue() || '').trim();
+          const el = document.getElementById(def.id);
+          if (!el) return '';
+          if (el.type === 'checkbox') return el.checked ? 'true' : '';
+          return String(el.value || '').trim();
+        }
+
+        function findFieldReviewMount(def) {
+          if (!def) return null;
+          if (def.mountSelector) return document.querySelector(def.mountSelector);
+          return document.querySelector(`label[for="${def.id}"]`);
+        }
+
+        function getFieldHighlightElement(def) {
+          return document.getElementById(def && def.highlightId ? def.highlightId : (def ? def.id : ''));
+        }
+
+        function syncFieldReviewInline(def, { hasValue, isAi, isValidated } = {}) {
+          const mount = findFieldReviewMount(def);
+          if (!mount) return;
+
+          let inline = document.querySelector(`[data-field-review-inline="${def.id}"]`);
+          if (!inline) {
+            inline = document.createElement('span');
+            inline.className = 'field-review-inline';
+            inline.setAttribute('data-field-review-inline', def.id);
+
+            const aiBadge = document.createElement('span');
+            aiBadge.className = 'hidden rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-violet-700';
+            aiBadge.setAttribute('data-field-review-ai-badge', def.id);
+            aiBadge.textContent = 'IA';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500';
+            checkbox.title = `Valider ${def.label}`;
+            checkbox.setAttribute('data-field-review-checkbox', def.id);
+            checkbox.addEventListener('change', () => {
+              if (checkbox.checked) validatedFields.add(def.id);
+              else validatedFields.delete(def.id);
+              refreshFieldReviewPanel();
+            });
+
+            inline.appendChild(aiBadge);
+            inline.appendChild(checkbox);
+
+            if (mount.tagName === 'LABEL') {
+              mount.appendChild(inline);
+            } else {
+              mount.insertAdjacentElement('afterend', inline);
+            }
+          }
+
+          const aiBadge = inline.querySelector(`[data-field-review-ai-badge="${def.id}"]`);
+          const checkbox = inline.querySelector(`[data-field-review-checkbox="${def.id}"]`);
+          if (aiBadge) aiBadge.classList.toggle('hidden', !isAi);
+          if (checkbox) {
+            checkbox.checked = !!isValidated;
+            checkbox.disabled = !hasValue;
+          }
+          inline.classList.toggle('opacity-50', !hasValue);
+        }
+
+        function applyFieldReviewHighlight(def, state) {
+          const target = getFieldHighlightElement(def);
+          if (!target) return;
+          target.classList.remove('field-review-empty', 'field-review-ai', 'field-review-validated');
+          if (state === 'empty') target.classList.add('field-review-empty');
+          if (state === 'ai') target.classList.add('field-review-ai');
+          if (state === 'validated') target.classList.add('field-review-validated');
+        }
+
+        function refreshFieldReviewPanel() {
+          let emptyCount = 0;
+          let aiCount = 0;
+          let validatedCount = 0;
+
+          FIELD_REVIEW_DEFS.forEach((def) => {
+            const value = getFieldReviewValue(def);
+            const hasValue = !!value;
+            if (!hasValue) {
+              aiTouchedFields.delete(def.id);
+              validatedFields.delete(def.id);
+            }
+
+            const isAi = hasValue && aiTouchedFields.has(def.id);
+            const isValidated = hasValue && validatedFields.has(def.id);
+
+            if (!hasValue) emptyCount += 1;
+            if (isAi) aiCount += 1;
+            if (isValidated) validatedCount += 1;
+
+            applyFieldReviewHighlight(def, !hasValue ? 'empty' : (isValidated ? 'validated' : (isAi ? 'ai' : 'filled')));
+            syncFieldReviewInline(def, { hasValue, isAi, isValidated });
+          });
+
+          if (fieldReviewEmptyCount) fieldReviewEmptyCount.textContent = String(emptyCount);
+          if (fieldReviewAiCount) fieldReviewAiCount.textContent = String(aiCount);
+          if (fieldReviewValidatedCount) fieldReviewValidatedCount.textContent = String(validatedCount);
+        }
 
         const compatIndexEl = document.getElementById('compatIndexJson');
         let SERVER_COMPAT_INDEX = { makes: [], modelsByMake: {} };
@@ -1090,6 +1297,7 @@
             .filter(Boolean);
           optionsField.value = JSON.stringify(normalized, null, 2);
           if (optionsEmpty) optionsEmpty.classList.toggle('hidden', productOptionsState.length > 0);
+          refreshFieldReviewPanel();
         };
 
         const renderTemplateLibrary = () => {
@@ -1536,6 +1744,7 @@
             })
             .filter(Boolean);
           stepsField.value = lines.join('\n');
+          refreshFieldReviewPanel();
         };
 
         if (stepsGrid && stepsField) {
@@ -1668,6 +1877,7 @@
             .join('\n');
 
           if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
+          refreshFieldReviewPanel();
         };
 
         let compatItems = parseCompatibility();
@@ -1958,6 +2168,7 @@
           faqField.value = items.map((x) => `${x.question} | ${x.answer}`.trim()).join('\n');
 
           if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
+          refreshFieldReviewPanel();
         };
 
         let faqItems = parseFaqs();
@@ -2090,12 +2301,16 @@
           if (!el) return;
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
+          refreshFieldReviewPanel();
         }
 
         function setInputValue(id, value) {
           const el = document.getElementById(id);
           const nextValue = String(value || '').trim();
           if (!el || !nextValue) return;
+
+          aiTouchedFields.add(id);
+          validatedFields.delete(id);
 
           if (el.tagName === 'SELECT') {
             const existing = Array.from(el.options || []).find((option) => String(option.value || '').toLowerCase() === nextValue.toLowerCase());
@@ -2188,6 +2403,8 @@
 
               if (compatField && typeof draft.compatibility === 'string') {
                 compatField.value = draft.compatibility;
+                aiTouchedFields.add('compatibility');
+                validatedFields.delete('compatibility');
                 compatItems = parseCompatibility();
                 selectedMake = compatItems.length ? (compatItems[0].make || '') : '';
                 if (compatMakeSelect) compatMakeSelect.value = selectedMake || '';
@@ -2196,17 +2413,25 @@
 
               if (faqField && typeof draft.faqs === 'string') {
                 faqField.value = draft.faqs;
+                aiTouchedFields.add('faqs');
+                validatedFields.delete('faqs');
                 faqItems = parseFaqs();
                 renderFaqs();
               }
 
               if (stepsField && typeof draft.reconditioningSteps === 'string') {
                 stepsField.value = draft.reconditioningSteps;
+                aiTouchedFields.add('reconditioningSteps');
+                validatedFields.delete('reconditioningSteps');
                 hydrateStepsGridFromField();
               }
 
               if (optionsField) {
                 optionsField.value = typeof draft.optionsJson === 'string' ? draft.optionsJson : '';
+                if (String(optionsField.value || '').trim()) {
+                  aiTouchedFields.add('optionsJson');
+                  validatedFields.delete('optionsJson');
+                }
                 if (!String(optionsField.value || '').trim()) {
                   productOptionsState = [];
                 } else {
@@ -2414,6 +2639,15 @@
           el.addEventListener('input', updateSeoAssistant);
           el.addEventListener('change', updateSeoAssistant);
         });
+
+        FIELD_REVIEW_DEFS.forEach(function (def) {
+          var el = document.getElementById(def.id);
+          if (!el) return;
+          el.addEventListener('input', refreshFieldReviewPanel);
+          el.addEventListener('change', refreshFieldReviewPanel);
+        });
+
+        refreshFieldReviewPanel();
 
         function fetchJson(url, cb) {
           fetch(url, { headers: { 'Accept': 'application/json' } })
