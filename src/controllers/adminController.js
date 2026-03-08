@@ -27,6 +27,13 @@ const openaiProductGenerator = require('../services/openaiProductGenerator');
 const ADMIN_LOGIN_BUCKETS = new Map();
 const ADMIN_RESET_BUCKETS = new Map();
 const ADMIN_AI_PRODUCT_BUCKETS = new Map();
+const ADMIN_AI_PRODUCT_LIMIT = 12;
+const ADMIN_AI_PRODUCT_WINDOW_MS = 10 * 60 * 1000;
+const PRODUCT_DRAFT_QUEUE_CONCURRENCY = 1;
+const PRODUCT_DRAFT_BATCH_MAX = 12;
+
+let activeProductDraftQueueWorkers = 0;
+let productDraftQueueScheduled = false;
 
 function getClientIp(req) {
   const xfwd = req && req.headers ? req.headers['x-forwarded-for'] : null;
@@ -35,18 +42,19 @@ function getClientIp(req) {
   return candidate || 'unknown';
 }
 
-function consumeRateLimit(buckets, key, { limit, windowMs } = {}) {
+function consumeRateLimit(buckets, key, { limit, windowMs, units } = {}) {
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 20;
   const safeWindowMs = Number.isFinite(windowMs) ? Math.max(1000, Math.floor(windowMs)) : 10 * 60 * 1000;
+  const safeUnits = Number.isFinite(units) ? Math.max(1, Math.floor(units)) : 1;
   const now = Date.now();
   const entry = buckets.get(key);
 
   if (!entry || typeof entry.resetAt !== 'number' || now >= entry.resetAt) {
-    buckets.set(key, { count: 1, resetAt: now + safeWindowMs });
-    return { limited: false, remaining: safeLimit - 1 };
+    buckets.set(key, { count: safeUnits, resetAt: now + safeWindowMs });
+    return { limited: safeUnits > safeLimit, remaining: Math.max(0, safeLimit - safeUnits) };
   }
 
-  entry.count += 1;
+  entry.count += safeUnits;
   const remaining = Math.max(0, safeLimit - entry.count);
   return { limited: entry.count > safeLimit, remaining };
 }
@@ -93,6 +101,115 @@ function readAdminCredentialsFile() {
     return { salt, hash };
   } catch (err) {
     return null;
+  }
+}
+
+async function postAdminBulkGenerateProductDrafts(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const safeReturnTo = getSafeAdminReturnTo(req.body && req.body.returnTo, '/admin/catalogue');
+
+    if (!dbConnected) {
+      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const uniqueIds = parseAdminSelectedIds(req.body && (req.body.productIds || req.body.productId || req.body.ids));
+    if (!uniqueIds.length) {
+      req.session.adminCatalogError = 'Aucun produit sélectionné pour la génération IA.';
+      return res.redirect(safeReturnTo);
+    }
+
+    if (uniqueIds.length > PRODUCT_DRAFT_BATCH_MAX) {
+      req.session.adminCatalogError = `Tu peux lancer jusqu’à ${PRODUCT_DRAFT_BATCH_MAX} produits à la fois pour garder une génération stable.`;
+      return res.redirect(safeReturnTo);
+    }
+
+    const validIds = uniqueIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (!validIds.length) {
+      req.session.adminCatalogError = 'Sélection invalide.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const selectedProducts = await Product.find({ _id: { $in: validIds } })
+      .select('_id name sku brand category compatibleReferences')
+      .lean();
+
+    if (!selectedProducts.length) {
+      req.session.adminCatalogError = 'Aucun produit trouvé.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const orderedProducts = validIds
+      .map((id) => selectedProducts.find((product) => String(product._id) === String(id)))
+      .filter(Boolean);
+
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const sourceNotes = getTrimmedString(req.body && req.body.bulkAiSourceNotes);
+    const activeJobs = await ProductDraftGeneration.find({
+      productId: { $in: orderedProducts.map((product) => product._id) },
+      status: { $in: ['queued', 'processing'] },
+      adminUserId: adminUserId || null,
+    })
+      .select('productId')
+      .lean();
+
+    const activeProductIds = new Set(activeJobs.map((job) => String(job.productId)));
+    const jobsToCreate = [];
+    let skippedActiveCount = 0;
+    let skippedEmptyCount = 0;
+
+    for (const product of orderedProducts) {
+      const productId = String(product._id);
+      if (activeProductIds.has(productId)) {
+        skippedActiveCount += 1;
+        continue;
+      }
+
+      const payload = buildProductDraftPayloadFromProduct(product, { sourceNotes });
+      if (!hasProductDraftPayloadContent(payload)) {
+        skippedEmptyCount += 1;
+        continue;
+      }
+
+      jobsToCreate.push({
+        productId: product._id,
+        adminUserId,
+        status: 'queued',
+        requestPayload: payload,
+      });
+    }
+
+    if (!jobsToCreate.length) {
+      req.session.adminCatalogError = skippedActiveCount
+        ? 'Des générations IA sont déjà en cours pour les produits sélectionnés.'
+        : 'Impossible de lancer l’IA : les produits sélectionnés ne contiennent pas assez d’informations de base.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const rate = consumeRateLimit(ADMIN_AI_PRODUCT_BUCKETS, getClientIp(req), {
+      limit: ADMIN_AI_PRODUCT_LIMIT,
+      windowMs: ADMIN_AI_PRODUCT_WINDOW_MS,
+      units: jobsToCreate.length,
+    });
+
+    if (rate.limited) {
+      req.session.adminCatalogError = 'Trop de demandes IA en peu de temps. Attends quelques minutes puis réessaie.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const createdJobs = await ProductDraftGeneration.insertMany(jobsToCreate);
+    scheduleProductDraftQueue();
+
+    const launchedCount = Array.isArray(createdJobs) ? createdJobs.length : 0;
+    const details = [];
+    if (skippedActiveCount) details.push(`${skippedActiveCount} déjà en cours`);
+    if (skippedEmptyCount) details.push(`${skippedEmptyCount} sans assez d’informations`);
+
+    req.session.adminCatalogSuccess = `${launchedCount} brouillon(s) IA lancé(s). Ouvre ensuite chaque fiche produit pour relire et appliquer la proposition.${details.length ? ` (${details.join(' • ')})` : ''}`;
+    return res.redirect(safeReturnTo);
+  } catch (err) {
+    return next(err);
   }
 }
 
@@ -2749,15 +2866,96 @@ function getAdminUserIdFromRequest(req) {
     : null;
 }
 
-async function runProductDraftGenerationJob(jobId) {
-  if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) return;
+function getSafeAdminReturnTo(value, fallback = '/admin/catalogue') {
+  const raw = typeof value === 'string' ? value : '';
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  if (!trimmed.startsWith('/admin')) return fallback;
+  if (trimmed.startsWith('//')) return fallback;
+  return trimmed;
+}
 
+function parseAdminSelectedIds(rawIds) {
+  const ids = Array.isArray(rawIds)
+    ? rawIds
+    : typeof rawIds === 'string'
+      ? [rawIds]
+      : [];
+
+  return Array.from(
+    new Set(
+      ids
+        .map((v) => (typeof v === 'string' ? v.trim() : ''))
+        .filter(Boolean)
+    )
+  );
+}
+
+function buildProductDraftPayloadFromProduct(product, { sourceNotes = '' } = {}) {
+  const compatibleReferences = Array.isArray(product && product.compatibleReferences)
+    ? Array.from(
+        new Set(
+          product.compatibleReferences
+            .map((value) => getTrimmedString(value))
+            .filter(Boolean)
+        )
+      )
+    : [];
+
+  return {
+    name: getTrimmedString(product && product.name),
+    sku: getTrimmedString(product && product.sku),
+    brand: getTrimmedString(product && product.brand),
+    category: getTrimmedString(product && product.category),
+    compatibleReferences,
+    sourceNotes: getTrimmedString(sourceNotes),
+  };
+}
+
+function hasProductDraftPayloadContent(payload) {
+  return Boolean(
+    getTrimmedString(payload && payload.name)
+    || getTrimmedString(payload && payload.sku)
+    || getTrimmedString(payload && payload.sourceNotes)
+    || (Array.isArray(payload && payload.compatibleReferences) && payload.compatibleReferences.length)
+  );
+}
+
+function buildProductDraftJobView(job, { includeDraft = false } = {}) {
+  if (!job) return null;
+
+  const hasDraft = job.hasDraft === true || Boolean(job.resultDraft);
+  return {
+    jobId: String(job._id || job.jobId || ''),
+    status: getTrimmedString(job.status),
+    model: getTrimmedString(job.model),
+    errorMessage: getTrimmedString(job.errorMessage || job.error),
+    createdAtLabel: job.createdAt ? formatDateTimeFR(job.createdAt) : '',
+    completedAtLabel: job.completedAt ? formatDateTimeFR(job.completedAt) : '',
+    hasDraft,
+    draft: includeDraft && hasDraft ? buildGeneratedProductDraftResponse(job.resultDraft) : null,
+  };
+}
+
+function scheduleProductDraftQueue() {
+  if (productDraftQueueScheduled) return;
+  productDraftQueueScheduled = true;
+
+  setImmediate(() => {
+    productDraftQueueScheduled = false;
+    processProductDraftQueue().catch(() => {});
+  });
+}
+
+async function claimProductDraftGenerationJob(jobId) {
   const startedAt = new Date();
-  const job = await ProductDraftGeneration.findOneAndUpdate(
-    {
-      _id: jobId,
-      status: 'queued',
-    },
+  const filter = { status: 'queued' };
+  if (jobId && mongoose.Types.ObjectId.isValid(jobId)) {
+    filter._id = new mongoose.Types.ObjectId(jobId);
+  }
+
+  return ProductDraftGeneration.findOneAndUpdate(
+    filter,
     {
       $set: {
         status: 'processing',
@@ -2768,8 +2966,31 @@ async function runProductDraftGenerationJob(jobId) {
     },
     {
       new: true,
+      sort: { createdAt: 1 },
     }
   );
+}
+
+async function processProductDraftQueue() {
+  while (activeProductDraftQueueWorkers < PRODUCT_DRAFT_QUEUE_CONCURRENCY) {
+    const claimedJob = await claimProductDraftGenerationJob();
+    if (!claimedJob) return;
+
+    activeProductDraftQueueWorkers += 1;
+
+    runProductDraftGenerationJob(claimedJob)
+      .catch(() => {})
+      .finally(() => {
+        activeProductDraftQueueWorkers = Math.max(0, activeProductDraftQueueWorkers - 1);
+        scheduleProductDraftQueue();
+      });
+  }
+}
+
+async function runProductDraftGenerationJob(jobOrId) {
+  const job = jobOrId && typeof jobOrId === 'object' && jobOrId.requestPayload
+    ? jobOrId
+    : await claimProductDraftGenerationJob(typeof jobOrId === 'string' ? jobOrId : '');
 
   if (!job) return;
 
@@ -2814,8 +3035,9 @@ async function postAdminGenerateProductDraft(req, res, next) {
     }
 
     const rate = consumeRateLimit(ADMIN_AI_PRODUCT_BUCKETS, getClientIp(req), {
-      limit: 8,
-      windowMs: 10 * 60 * 1000,
+      limit: ADMIN_AI_PRODUCT_LIMIT,
+      windowMs: ADMIN_AI_PRODUCT_WINDOW_MS,
+      units: 1,
     });
 
     if (rate.limited) {
@@ -2833,6 +3055,10 @@ async function postAdminGenerateProductDraft(req, res, next) {
       compatibleReferences: parseLinesToArray(getTrimmedString(req.body && req.body.compatibleReferences)),
       sourceNotes: getTrimmedString(req.body && req.body.sourceNotes),
     };
+    const productId = req.body && typeof req.body.productId === 'string' && mongoose.Types.ObjectId.isValid(req.body.productId)
+      ? new mongoose.Types.ObjectId(req.body.productId)
+      : null;
+    const adminUserId = getAdminUserIdFromRequest(req);
 
     if (!payload.name && !payload.sku && !payload.compatibleReferences.length && !payload.sourceNotes) {
       return res.status(400).json({
@@ -2841,15 +3067,33 @@ async function postAdminGenerateProductDraft(req, res, next) {
       });
     }
 
+    if (productId) {
+      const activeFilter = {
+        productId,
+        status: { $in: ['queued', 'processing'] },
+        adminUserId: adminUserId || null,
+      };
+      const existingActiveJob = await ProductDraftGeneration.findOne(activeFilter)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      if (existingActiveJob) {
+        return res.status(202).json({
+          ok: true,
+          jobId: String(existingActiveJob._id),
+          status: existingActiveJob.status,
+        });
+      }
+    }
+
     const job = await ProductDraftGeneration.create({
-      adminUserId: getAdminUserIdFromRequest(req),
+      productId,
+      adminUserId,
       status: 'queued',
       requestPayload: payload,
     });
 
-    setImmediate(() => {
-      runProductDraftGenerationJob(String(job._id)).catch(() => {});
-    });
+    scheduleProductDraftQueue();
 
     return res.status(202).json({
       ok: true,
@@ -3339,6 +3583,7 @@ async function postAdminDeleteVehicleModel(req, res, next) {
 async function getAdminCatalogPage(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
+    scheduleProductDraftQueue();
 
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const stock = typeof req.query.stock === 'string' ? req.query.stock.trim() : '';
@@ -3398,6 +3643,48 @@ async function getAdminCatalogPage(req, res, next) {
       .limit(perPage)
       .lean();
 
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const productObjectIds = products
+      .map((p) => (p && p._id ? p._id : null))
+      .filter(Boolean);
+    const latestJobsByProductId = new Map();
+
+    if (productObjectIds.length) {
+      const latestJobs = await ProductDraftGeneration.aggregate([
+        {
+          $match: {
+            productId: { $in: productObjectIds },
+            adminUserId: adminUserId || null,
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: '$productId',
+            jobId: { $first: '$_id' },
+            status: { $first: '$status' },
+            model: { $first: '$model' },
+            errorMessage: { $first: '$errorMessage' },
+            createdAt: { $first: '$createdAt' },
+            completedAt: { $first: '$completedAt' },
+            hasDraft: {
+              $first: {
+                $cond: [
+                  { $ifNull: ['$resultDraft', false] },
+                  true,
+                  false
+                ]
+              }
+            },
+          },
+        },
+      ]);
+
+      for (const job of latestJobs) {
+        latestJobsByProductId.set(String(job._id), buildProductDraftJobView(job));
+      }
+    }
+
     const viewProducts = products.map((p) => ({
       seoScore: buildProductSeoAssistant({
         form: {
@@ -3425,6 +3712,7 @@ async function getAdminCatalogPage(req, res, next) {
       price: formatEuro(p.priceCents),
       inStock: p.inStock,
       stockQty: Number.isFinite(p.stockQty) ? p.stockQty : null,
+      aiDraft: latestJobsByProductId.get(String(p._id)) || null,
     }));
 
     return res.render('admin/catalog', {
@@ -3462,29 +3750,8 @@ async function postAdminBulkDeleteProducts(req, res, next) {
       });
     }
 
-    const rawIds = req.body && (req.body.productIds || req.body.productId || req.body.ids);
-    const ids = Array.isArray(rawIds)
-      ? rawIds
-      : typeof rawIds === 'string'
-        ? [rawIds]
-        : [];
-
-    const uniqueIds = Array.from(
-      new Set(
-        ids
-          .map((v) => (typeof v === 'string' ? v.trim() : ''))
-          .filter(Boolean)
-      )
-    );
-
-    const safeReturnTo = (() => {
-      const value = req.body && typeof req.body.returnTo === 'string' ? req.body.returnTo : '';
-      const trimmed = value.trim();
-      if (!trimmed) return '/admin/catalogue';
-      if (!trimmed.startsWith('/admin')) return '/admin/catalogue';
-      if (trimmed.startsWith('//')) return '/admin/catalogue';
-      return trimmed;
-    })();
+    const uniqueIds = parseAdminSelectedIds(req.body && (req.body.productIds || req.body.productId || req.body.ids));
+    const safeReturnTo = getSafeAdminReturnTo(req.body && req.body.returnTo, '/admin/catalogue');
 
     if (!uniqueIds.length) {
       req.session.adminCatalogError = 'Aucun produit sélectionné.';
@@ -4378,6 +4645,7 @@ async function getAdminEditProductPage(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const { productId } = req.params;
+    scheduleProductDraftQueue();
 
     if (!dbConnected) {
       return res.status(503).render('admin/product', {
@@ -4392,6 +4660,7 @@ async function getAdminEditProductPage(req, res, next) {
         productOptionTemplates: [],
         compatIndex: { makes: [], modelsByMake: {} },
         productId: null,
+        latestAiDraftJob: null,
       });
     }
 
@@ -4431,6 +4700,13 @@ async function getAdminEditProductPage(req, res, next) {
     const compatIndex = dbConnected
       ? await getCompatibilityIndex()
       : { makes: [], modelsByMake: {} };
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const latestAiDraftJobDoc = await ProductDraftGeneration.findOne({
+      productId: product._id,
+      adminUserId: adminUserId || null,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
     const errorMessage = req.session.adminShippingClassError || null;
     delete req.session.adminShippingClassError;
@@ -4541,6 +4817,7 @@ async function getAdminEditProductPage(req, res, next) {
       productOptionTemplates,
       compatIndex,
       productId: String(product._id),
+      latestAiDraftJob: buildProductDraftJobView(latestAiDraftJobDoc, { includeDraft: true }),
     });
   } catch (err) {
     return next(err);
@@ -6173,6 +6450,7 @@ module.exports = {
   getAdminResetPassword,
   postAdminResetPassword,
   postAdminGenerateProductDraft,
+  postAdminBulkGenerateProductDrafts,
   getAdminGenerateProductDraftStatus,
   getAdminDashboard,
   getAdminOrdersPage,

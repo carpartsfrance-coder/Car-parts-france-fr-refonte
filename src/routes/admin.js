@@ -101,6 +101,7 @@ router.get('/api/products/generate-draft/:jobId', requireAdminAuth, adminControl
 
 router.get('/catalogue/nouveau', requireAdminAuth, adminController.getAdminNewProductPage);
 router.post('/catalogue/nouveau', requireAdminAuth, handleProductImageUpload, adminController.postAdminCreateProduct);
+router.post('/catalogue/generer-ia-multi', requireAdminAuth, adminController.postAdminBulkGenerateProductDrafts);
 router.post('/catalogue/supprimer-multi', requireAdminAuth, adminController.postAdminBulkDeleteProducts);
 router.get('/catalogue/:productId', requireAdminAuth, adminController.getAdminEditProductPage);
 router.post('/catalogue/:productId', requireAdminAuth, handleProductImageUpload, adminController.postAdminUpdateProduct);

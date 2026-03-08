@@ -77,33 +77,52 @@
       </div>
 
       <% if (products && products.length) { %>
-        <% 
-          const currentPage = pagination && pagination.page ? pagination.page : 1;
-          const currentLimit = pagination && pagination.perPage ? pagination.perPage : 20;
-          const currentQ = filters && filters.q ? filters.q : '';
-          const currentStock = filters && filters.stock ? filters.stock : '';
-          const queryParts = [];
-          if (currentQ) queryParts.push('q=' + encodeURIComponent(currentQ));
-          if (currentStock) queryParts.push('stock=' + encodeURIComponent(currentStock));
-          if (currentLimit) queryParts.push('limit=' + encodeURIComponent(String(currentLimit)));
-          const baseQuery = queryParts.length ? ('?' + queryParts.join('&')) : '';
-          const urlForPage = (p) => {
-            const parts = queryParts.slice();
-            parts.push('page=' + encodeURIComponent(String(p)));
-            return '/admin/catalogue?' + parts.join('&');
-          };
-        %>
+      <% 
+        const currentPage = pagination && pagination.page ? pagination.page : 1;
+        const currentLimit = pagination && pagination.perPage ? pagination.perPage : 20;
+        const currentQ = filters && filters.q ? filters.q : '';
+        const currentStock = filters && filters.stock ? filters.stock : '';
+        const queryParts = [];
+        if (currentQ) queryParts.push('q=' + encodeURIComponent(currentQ));
+        if (currentStock) queryParts.push('stock=' + encodeURIComponent(currentStock));
+        if (currentLimit) queryParts.push('limit=' + encodeURIComponent(String(currentLimit)));
+        const baseQuery = queryParts.length ? ('?' + queryParts.join('&')) : '';
+        const urlForPage = (p) => {
+          const parts = queryParts.slice();
+          parts.push('page=' + encodeURIComponent(String(p)));
+          return '/admin/catalogue?' + parts.join('&');
+        };
+        const getDraftBadge = (draft) => {
+          if (!draft || !draft.status) return null;
+          if (draft.status === 'completed') return { label: 'Brouillon IA prêt', className: 'bg-emerald-50 text-emerald-700' };
+          if (draft.status === 'processing') return { label: 'IA en cours', className: 'bg-violet-50 text-violet-700' };
+          if (draft.status === 'queued') return { label: 'IA en file', className: 'bg-sky-50 text-sky-700' };
+          if (draft.status === 'failed') return { label: 'IA en erreur', className: 'bg-red-50 text-red-700' };
+          return { label: 'IA', className: 'bg-slate-100 text-slate-700' };
+        };
+      %>
 
         <form id="bulkForm" action="/admin/catalogue/supprimer-multi" method="POST">
           <input type="hidden" name="returnTo" value="<%= urlForPage(currentPage) %>" />
 
           <div class="px-6 py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <button id="bulkDeleteBtn" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" type="submit" disabled>
-                <span class="material-symbols-outlined mr-2 text-base">delete</span>
-                Supprimer la sélection
-              </button>
-              <div id="selectedCount" class="text-xs font-bold text-slate-500">0 sélectionné</div>
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <button id="bulkGenerateBtn" class="inline-flex items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-violet-700 transition disabled:opacity-50" type="submit" formaction="/admin/catalogue/generer-ia-multi" formmethod="POST" disabled>
+                  <span class="material-symbols-outlined mr-2 text-base">auto_awesome</span>
+                  Générer IA la sélection
+                </button>
+                <button id="bulkDeleteBtn" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" type="submit" disabled>
+                  <span class="material-symbols-outlined mr-2 text-base">delete</span>
+                  Supprimer la sélection
+                </button>
+                <div id="selectedCount" class="text-xs font-bold text-slate-500">0 sélectionné</div>
+              </div>
+              <div>
+                <label class="block text-[11px] font-black uppercase tracking-widest text-violet-700" for="bulkAiSourceNotes">Notes pour l’IA (optionnel)</label>
+                <textarea class="mt-2 min-h-[84px] w-full max-w-2xl rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-slate-700" id="bulkAiSourceNotes" name="bulkAiSourceNotes" placeholder="Ex: ton rassurant, priorité SEO, éviter les affirmations non vérifiées, viser les références d’origine."></textarea>
+                <div class="mt-2 text-[11px] font-bold text-slate-500">Jusqu’à 12 produits à la fois. La génération part en arrière-plan et tu pourras relire chaque brouillon dans la fiche produit.</div>
+              </div>
             </div>
             <div class="text-xs font-bold text-slate-500">
               Page <%= currentPage %> / <%= pagination && pagination.totalPages ? pagination.totalPages : 1 %>
@@ -142,6 +161,18 @@
                     <% const score = Number.isFinite(p.seoScore) ? p.seoScore : 0; %>
                     <% const badgeClass = score >= 85 ? 'bg-green-50 text-green-700' : (score >= 65 ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-700'); %>
                     <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= badgeClass %>"><%= score %>/100</span>
+                    <% const draftBadge = getDraftBadge(p.aiDraft); %>
+                    <% if (draftBadge) { %>
+                      <div class="mt-2">
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= draftBadge.className %>"><%= draftBadge.label %></span>
+                      </div>
+                    <% } %>
+                    <% if (p.aiDraft && p.aiDraft.createdAtLabel) { %>
+                      <div class="mt-2 text-[11px] font-bold text-slate-500">Dernière demande : <%= p.aiDraft.createdAtLabel %></div>
+                    <% } %>
+                    <% if (p.aiDraft && p.aiDraft.status === 'failed' && p.aiDraft.errorMessage) { %>
+                      <div class="mt-2 text-[11px] font-bold text-red-600"><%= p.aiDraft.errorMessage %></div>
+                    <% } %>
                   </td>
                   <td class="px-6 py-4 font-black text-slate-900"><%= p.price %></td>
                   <td class="px-6 py-4 text-sm font-black text-slate-900"><%= p.stockQty !== null && typeof p.stockQty !== 'undefined' ? p.stockQty : '—' %></td>
@@ -208,6 +239,7 @@
             var form = document.getElementById('bulkForm');
             var selectAll = document.getElementById('selectAll');
             var bulkBtn = document.getElementById('bulkDeleteBtn');
+            var bulkGenerateBtn = document.getElementById('bulkGenerateBtn');
             var selectedCount = document.getElementById('selectedCount');
             var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.rowSelect'));
 
@@ -219,6 +251,11 @@
                     e.preventDefault();
                   }
                 }
+                if (submitter && submitter.id === 'bulkGenerateBtn') {
+                  if (!window.confirm('Lancer la génération IA pour les produits sélectionnés ? Les brouillons seront à relire ensuite sur chaque fiche produit.')) {
+                    e.preventDefault();
+                  }
+                }
               });
             }
 
@@ -226,6 +263,7 @@
               var count = checkboxes.filter(function (c) { return c && c.checked; }).length;
               if (selectedCount) selectedCount.textContent = count + ' sélectionné' + (count > 1 ? 's' : '');
               if (bulkBtn) bulkBtn.disabled = count === 0;
+              if (bulkGenerateBtn) bulkGenerateBtn.disabled = count === 0;
               if (selectAll) {
                 selectAll.checked = count > 0 && count === checkboxes.length;
                 selectAll.indeterminate = count > 0 && count < checkboxes.length;

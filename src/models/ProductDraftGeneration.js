@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 
 const productDraftGenerationSchema = new mongoose.Schema(
   {
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      default: null,
+      index: true,
+    },
     adminUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'AdminUser',

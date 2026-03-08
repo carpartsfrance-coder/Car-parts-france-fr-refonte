@@ -34,6 +34,7 @@
   <% const pageTitle = mode === 'new' ? 'New Product' : 'Edit Product'; %>
   <% const productName = form && form.name ? form.name : (mode === 'new' ? 'New product' : 'Product'); %>
   <% const liveUrl = mode === 'edit' && productId ? ('/produits/' + productId) : null; %>
+  <% const currentAiDraftJob = typeof latestAiDraftJob !== 'undefined' ? latestAiDraftJob : null; %>
   <% const galleryPreview = (form && form.galleryUrls ? String(form.galleryUrls).split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : []).slice(0, 5); %>
   <% const specsText = form && typeof form.specs !== 'undefined' ? String(form.specs || '') : ''; %>
   <% const findSpecValue = (label) => {
@@ -130,6 +131,54 @@
       <div class="mt-3 text-sm text-violet-900/80" id="aiGenerateStatus">L’IA utilisera le nom du produit, la référence, la marque, la catégorie et les notes ci-dessus.</div>
 
       <div class="mt-3 hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900" id="aiGenerateWarnings"></div>
+
+      <% if (currentAiDraftJob) { %>
+        <div class="mt-4 rounded-lg border border-white/70 bg-white/80 p-4 text-slate-900">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="font-bold">Dernier brouillon IA enregistré</div>
+              <div class="mt-2 text-sm space-y-1">
+                <div>
+                  Statut :
+                  <% if (currentAiDraftJob.status === 'completed') { %>
+                    <span class="font-semibold text-emerald-700">prêt à relire</span>
+                  <% } else if (currentAiDraftJob.status === 'processing') { %>
+                    <span class="font-semibold text-violet-700">génération en cours</span>
+                  <% } else if (currentAiDraftJob.status === 'queued') { %>
+                    <span class="font-semibold text-sky-700">en file d’attente</span>
+                  <% } else if (currentAiDraftJob.status === 'failed') { %>
+                    <span class="font-semibold text-red-700">en erreur</span>
+                  <% } else { %>
+                    <span class="font-semibold"><%= currentAiDraftJob.status || 'inconnu' %></span>
+                  <% } %>
+                </div>
+                <% if (currentAiDraftJob.createdAtLabel) { %>
+                  <div>Demandé le <span class="font-semibold"><%= currentAiDraftJob.createdAtLabel %></span></div>
+                <% } %>
+                <% if (currentAiDraftJob.completedAtLabel) { %>
+                  <div>Terminé le <span class="font-semibold"><%= currentAiDraftJob.completedAtLabel %></span></div>
+                <% } %>
+                <% if (currentAiDraftJob.model) { %>
+                  <div>Modèle : <span class="font-semibold"><%= currentAiDraftJob.model %></span></div>
+                <% } %>
+                <% if (currentAiDraftJob.status === 'processing' || currentAiDraftJob.status === 'queued') { %>
+                  <div class="text-slate-600">Recharge cette page dans quelques instants pour récupérer le brouillon automatiquement préparé en arrière-plan.</div>
+                <% } %>
+                <% if (currentAiDraftJob.status === 'failed' && currentAiDraftJob.errorMessage) { %>
+                  <div class="text-red-700"><%= currentAiDraftJob.errorMessage %></div>
+                <% } %>
+              </div>
+            </div>
+
+            <% if (currentAiDraftJob.status === 'completed' && currentAiDraftJob.hasDraft) { %>
+              <button class="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-100 px-4 py-2 text-sm font-bold text-violet-900 transition hover:bg-violet-200" id="applyLatestAiDraftBtn" type="button">
+                <span class="material-symbols-outlined mr-2 text-lg">download</span>
+                Appliquer le dernier brouillon IA
+              </button>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
     </div>
 
     <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" id="fieldReviewPanel">
@@ -914,9 +963,12 @@
         const aiSourceNotes = document.getElementById('aiSourceNotes');
         const aiGenerateStatus = document.getElementById('aiGenerateStatus');
         const aiGenerateWarnings = document.getElementById('aiGenerateWarnings');
+        const applyLatestAiDraftBtn = document.getElementById('applyLatestAiDraftBtn');
         const fieldReviewEmptyCount = document.getElementById('fieldReviewEmptyCount');
         const fieldReviewAiCount = document.getElementById('fieldReviewAiCount');
         const fieldReviewValidatedCount = document.getElementById('fieldReviewValidatedCount');
+        const currentProductId = <%- JSON.stringify(typeof productId !== 'undefined' ? productId : '') %>;
+        const latestAiDraftJob = <%- JSON.stringify(currentAiDraftJob || null).replace(/</g, '\\u003c') %>;
 
         let hydrateStepsGridFromField = function () {};
         const aiTouchedFields = new Set();
@@ -2451,11 +2503,28 @@
           throw new Error('La génération IA prend vraiment trop de temps. Réessaie dans quelques instants.');
         }
 
+        if (applyLatestAiDraftBtn) {
+          applyLatestAiDraftBtn.addEventListener('click', function () {
+            if (!latestAiDraftJob || !latestAiDraftJob.draft) {
+              setAiStatus('Le brouillon IA enregistré est introuvable.', 'error');
+              return;
+            }
+
+            if (hasMeaningfulAiTargetContent()) {
+              const shouldReplace = window.confirm('Des contenus sont déjà remplis dans la fiche. Veux-tu les remplacer par le dernier brouillon IA enregistré ?');
+              if (!shouldReplace) return;
+            }
+
+            applyGeneratedDraft(latestAiDraftJob);
+          });
+        }
+
         if (aiGenerateBtn) {
           const defaultAiGenerateBtnHtml = aiGenerateBtn.innerHTML;
 
           aiGenerateBtn.addEventListener('click', async () => {
             const payload = {
+              productId: String(currentProductId || '').trim(),
               name: String((document.getElementById('name') || {}).value || '').trim(),
               sku: String((document.getElementById('sku') || {}).value || '').trim(),
               brand: String((document.getElementById('brand') || {}).value || '').trim(),
