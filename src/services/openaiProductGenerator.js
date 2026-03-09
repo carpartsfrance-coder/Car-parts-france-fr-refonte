@@ -8,6 +8,76 @@ const OPENAI_NETWORK_MAX_RETRIES = 4;
 const OPENAI_NETWORK_RETRY_BASE_MS = 2000;
 const OPENAI_NETWORK_RETRY_MAX_WAIT_MS = 30000;
 
+const DEFAULT_SINGLE_AI_PROFILE_KEY = 'single_premium';
+const DEFAULT_BATCH_AI_PROFILE_KEY = 'batch_quality';
+
+const AI_GENERATION_PROFILES = Object.freeze({
+  single_standard: Object.freeze({
+    key: 'single_standard',
+    scope: 'single',
+    label: 'Standard',
+    description: 'Bonne qualité avec un budget temps et coût plus raisonnable.',
+    defaultModel: 'gpt-4.1',
+    modelEnvKeys: ['OPENAI_PRODUCT_STANDARD_MODEL', 'OPENAI_MODEL'],
+    defaultReasoning: 'low',
+    reasoningEnvKeys: ['OPENAI_PRODUCT_STANDARD_REASONING_EFFORT'],
+    useWebSearch: true,
+    maxDurationMs: 4 * 60 * 1000,
+    maxOutputTokens: 3600,
+    maxRateLimitRetries: 4,
+    maxNetworkRetries: 3,
+    promptStyle: 'standard',
+  }),
+  single_premium: Object.freeze({
+    key: 'single_premium',
+    scope: 'single',
+    label: 'Premium',
+    description: 'Recherche plus poussée et fiche plus riche, mais plus lente.',
+    defaultModel: 'gpt-5.4',
+    modelEnvKeys: ['OPENAI_PRODUCT_PREMIUM_MODEL', 'OPENAI_PRODUCT_MODEL', 'OPENAI_MODEL'],
+    defaultReasoning: 'high',
+    reasoningEnvKeys: ['OPENAI_PRODUCT_PREMIUM_REASONING_EFFORT', 'OPENAI_PRODUCT_REASONING_EFFORT'],
+    useWebSearch: true,
+    maxDurationMs: 8 * 60 * 1000,
+    maxOutputTokens: 5200,
+    maxRateLimitRetries: 8,
+    maxNetworkRetries: 4,
+    promptStyle: 'premium',
+  }),
+  batch_fast: Object.freeze({
+    key: 'batch_fast',
+    scope: 'batch',
+    label: 'Rapide',
+    description: 'Priorité à la vitesse et au coût pour les lots.',
+    defaultModel: 'gpt-4.1',
+    modelEnvKeys: ['OPENAI_PRODUCT_BATCH_FAST_MODEL', 'OPENAI_PRODUCT_BATCH_MODEL', 'OPENAI_MODEL'],
+    defaultReasoning: 'low',
+    reasoningEnvKeys: ['OPENAI_PRODUCT_BATCH_FAST_REASONING_EFFORT', 'OPENAI_PRODUCT_BATCH_REASONING_EFFORT'],
+    useWebSearch: true,
+    maxDurationMs: 3 * 60 * 1000,
+    maxOutputTokens: 3000,
+    maxRateLimitRetries: 2,
+    maxNetworkRetries: 2,
+    promptStyle: 'batch_fast',
+  }),
+  batch_quality: Object.freeze({
+    key: 'batch_quality',
+    scope: 'batch',
+    label: 'Qualité',
+    description: 'Meilleur équilibre entre qualité, délai et coût pour les lots.',
+    defaultModel: 'gpt-4.1',
+    modelEnvKeys: ['OPENAI_PRODUCT_BATCH_QUALITY_MODEL', 'OPENAI_PRODUCT_BATCH_MODEL', 'OPENAI_MODEL'],
+    defaultReasoning: 'medium',
+    reasoningEnvKeys: ['OPENAI_PRODUCT_BATCH_QUALITY_REASONING_EFFORT', 'OPENAI_PRODUCT_BATCH_REASONING_EFFORT'],
+    useWebSearch: true,
+    maxDurationMs: 5 * 60 * 1000,
+    maxOutputTokens: 3800,
+    maxRateLimitRetries: 4,
+    maxNetworkRetries: 3,
+    promptStyle: 'batch_quality',
+  }),
+});
+
 function normalizeEnvString(value) {
   if (typeof value !== 'string') return '';
   let v = value.trim();
@@ -15,6 +85,59 @@ function normalizeEnvString(value) {
     v = v.slice(1, -1);
   }
   return v;
+}
+
+function getDefaultAiGenerationProfileKey(scope = 'single') {
+  return scope === 'batch' ? DEFAULT_BATCH_AI_PROFILE_KEY : DEFAULT_SINGLE_AI_PROFILE_KEY;
+}
+
+function normalizeAiGenerationProfile(profileKey, { scope = '' } = {}) {
+  const rawKey = normalizeEnvString(profileKey);
+  const defaultKey = getDefaultAiGenerationProfileKey(scope || 'single');
+  const candidate = rawKey && AI_GENERATION_PROFILES[rawKey] ? rawKey : defaultKey;
+  const profile = AI_GENERATION_PROFILES[candidate] || AI_GENERATION_PROFILES[defaultKey];
+
+  if (scope && profile && profile.scope !== scope) {
+    return getDefaultAiGenerationProfileKey(scope);
+  }
+
+  return profile ? profile.key : defaultKey;
+}
+
+function getAiGenerationProfileConfig(profileKey, { scope = '' } = {}) {
+  return AI_GENERATION_PROFILES[normalizeAiGenerationProfile(profileKey, { scope })];
+}
+
+function getEnvValueFromKeys(keys = []) {
+  for (const key of keys) {
+    const value = normalizeEnvString(process.env[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function normalizeReasoningEffortValue(value, fallback = '') {
+  const normalized = normalizeEnvString(value).toLowerCase();
+  if (!normalized) return fallback;
+  if (['none', 'low', 'medium', 'high', 'xhigh'].includes(normalized)) return normalized;
+  return fallback;
+}
+
+function getAiGenerationProfileMeta(profileKey, { scope = '' } = {}) {
+  const profile = getAiGenerationProfileConfig(profileKey, { scope });
+  return {
+    key: profile.key,
+    scope: profile.scope,
+    label: profile.label,
+    description: profile.description,
+    defaultModel: getModelName(profile.key),
+  };
+}
+
+function getAiGenerationProfilesByScope(scope = '') {
+  return Object.values(AI_GENERATION_PROFILES)
+    .filter((profile) => !scope || profile.scope === scope)
+    .map((profile) => getAiGenerationProfileMeta(profile.key, { scope: profile.scope }));
 }
 
 function slugify(value) {
@@ -314,17 +437,18 @@ const PRODUCT_SHEET_SCHEMA = {
   ],
 };
 
-function getModelName() {
-  return normalizeEnvString(process.env.OPENAI_PRODUCT_MODEL)
-    || normalizeEnvString(process.env.OPENAI_MODEL)
-    || 'gpt-4.1';
+function getModelName(profileKey = DEFAULT_SINGLE_AI_PROFILE_KEY) {
+  const profile = getAiGenerationProfileConfig(profileKey);
+  return getEnvValueFromKeys(profile.modelEnvKeys)
+    || profile.defaultModel;
 }
 
-function getReasoningEffort() {
-  const value = normalizeEnvString(process.env.OPENAI_PRODUCT_REASONING_EFFORT).toLowerCase();
-  if (!value) return '';
-  if (['none', 'low', 'medium', 'high', 'xhigh'].includes(value)) return value;
-  return '';
+function getReasoningEffort(profileKey = DEFAULT_SINGLE_AI_PROFILE_KEY) {
+  const profile = getAiGenerationProfileConfig(profileKey);
+  return normalizeReasoningEffortValue(
+    getEnvValueFromKeys(profile.reasoningEnvKeys),
+    normalizeReasoningEffortValue(profile.defaultReasoning, '')
+  );
 }
 
 function getOpenAiApiKey() {
@@ -362,6 +486,50 @@ function getErrorChain(error) {
   }
 
   return chain;
+}
+
+function getNetworkDiagnosticSummary(error) {
+  const chain = getErrorChain(error);
+  const parts = [];
+
+  chain.forEach((item) => {
+    if (!item || typeof item !== 'object') return;
+    const code = typeof item.code === 'string' ? item.code.trim() : '';
+    const name = typeof item.name === 'string' ? item.name.trim() : '';
+    const message = typeof item.message === 'string' ? item.message.trim() : '';
+    const values = [code, name, message].filter(Boolean);
+    if (!values.length) return;
+    const text = values.join(' | ');
+    if (!parts.includes(text)) parts.push(text);
+  });
+
+  return parts.join(' -> ');
+}
+
+function buildOpenAiNetworkError(error, { attempts = 1 } = {}) {
+  const diagnostic = getNetworkDiagnosticSummary(error);
+  const suffix = diagnostic ? ` Détail technique : ${diagnostic}.` : '';
+  const err = new Error(`Impossible de contacter OpenAI pour générer la fiche produit après ${attempts} tentative(s). Vérifie la connexion réseau et les paramètres du serveur.${suffix}`);
+  err.code = 'OPENAI_NETWORK_ERROR';
+  err.status = 502;
+  err.cause = error;
+  err.diagnostic = diagnostic;
+  return err;
+}
+
+function formatDurationLabel(ms) {
+  const totalMinutes = Number.isFinite(Number(ms)) ? Math.max(1, Math.ceil(Number(ms) / 60000)) : 1;
+  return `${totalMinutes} min`;
+}
+
+function buildOpenAiTimeoutError(profile, { maxDurationMs = 0 } = {}) {
+  const safeDurationMs = Number.isFinite(Number(maxDurationMs)) && Number(maxDurationMs) > 0
+    ? Number(maxDurationMs)
+    : profile.maxDurationMs;
+  const err = new Error(`La génération IA en mode ${profile.label} a dépassé le temps maximum autorisé (${formatDurationLabel(safeDurationMs)}). Essaie un mode plus rapide ou ajoute une référence plus précise.`);
+  err.code = 'OPENAI_TIMEOUT';
+  err.status = 504;
+  return err;
 }
 
 function isTransientNetworkError(error) {
@@ -562,8 +730,8 @@ function parseOpenAiError(data, response) {
   return `Erreur OpenAI (${response.status}).`;
 }
 
-function buildSystemInstruction() {
-  return [
+function buildSystemInstruction(profile) {
+  const lines = [
     'Tu es un expert e-commerce automobile B2C/B2B pour CarParts France.',
     'Tu dois impérativement utiliser la recherche web disponible avant de rédiger la fiche.',
     'Tu travailles en français.',
@@ -584,14 +752,35 @@ function buildSystemInstruction() {
     '- Les compatibilités véhicules doivent rester prudentes : seulement si des sources sérieuses permettent de les déduire.',
     '- Les FAQ doivent répondre à de vraies questions client.',
     '- Les options doivent rester sobres, réalistes et utiles pour un vendeur de pièces auto.',
-  ].join('\n');
+  ];
+
+  if (profile.promptStyle === 'premium') {
+    lines.push('- Pour un produit complexe, prends le temps de croiser plusieurs sources sérieuses avant de conclure.');
+  }
+
+  if (profile.promptStyle === 'standard') {
+    lines.push('- Reste efficace : privilégie quelques recherches ciblées et fiables plutôt qu’une recherche trop longue.');
+    lines.push('- Si un champ secondaire demande trop de vérifications, laisse-le vide plutôt que de ralentir la réponse.');
+  }
+
+  if (profile.promptStyle === 'batch_fast') {
+    lines.push('- Mode lot rapide : concentre-toi sur les informations les plus fiables et les plus utiles pour la vente.');
+    lines.push('- Les champs secondaires comme les FAQ, les options et les étapes de reconditionnement sont facultatifs : laisse-les vides si cela évite une recherche longue.');
+  }
+
+  if (profile.promptStyle === 'batch_quality') {
+    lines.push('- Mode lot qualité : vise une fiche solide mais garde un temps de recherche raisonnable.');
+    lines.push('- Priorise les champs essentiels si une recherche exhaustive ralentit trop la réponse.');
+  }
+
+  return lines.join('\n');
 }
 
-function buildUserPrompt(payload) {
+function buildUserPrompt(payload, profile) {
   const sourceNotes = normalizeMultilineText(payload && payload.sourceNotes ? payload.sourceNotes : '', { maxLength: 4000 });
   const compatibleReferences = normalizeArrayOfStrings(payload && payload.compatibleReferences ? payload.compatibleReferences : [], { maxItems: 20, maxLength: 120 });
 
-  return [
+  const lines = [
     'Prépare une fiche produit complète en te basant sur une recherche web.',
     'Priorité absolue : identifier les véhicules compatibles et remplir la compatibilité véhicule de la façon la plus utile possible.',
     '',
@@ -621,7 +810,27 @@ function buildUserPrompt(payload) {
     '- Propose jusqu’à 4 étapes de reconditionnement si cela a du sens.',
     '- Si tu n’es pas sûr d’une donnée, préfère un avertissement dans warnings.',
     '- Si aucune source fiable n’est trouvée, signale-le clairement dans warnings.',
-  ].join('\n');
+  ];
+
+  if (profile.promptStyle === 'standard') {
+    lines.push('- Reste pragmatique : livre une bonne fiche sans chercher trop longtemps des détails secondaires.');
+  }
+
+  if (profile.promptStyle === 'batch_fast') {
+    lines.push('- Mode lot rapide : priorise name, shortDescription, description, compatibility, metaTitle, metaDescription et warnings.');
+    lines.push('- Si une FAQ, une option ou une étape de reconditionnement n’est pas évidente, laisse le champ vide.');
+  }
+
+  if (profile.promptStyle === 'batch_quality') {
+    lines.push('- Mode lot qualité : vise une fiche complète, mais garde une recherche ciblée et raisonnable.');
+    lines.push('- Si une donnée reste floue après quelques recherches sérieuses, n’insiste pas inutilement.');
+  }
+
+  if (profile.promptStyle === 'premium') {
+    lines.push('- Mode premium : privilégie la qualité finale, surtout sur la compatibilité véhicule et la clarté SEO.');
+  }
+
+  return lines.join('\n');
 }
 
 function normalizeGeneratedSheet(raw, payload) {
@@ -670,6 +879,10 @@ async function generateProductSheet(payload, options = {}) {
     throw err;
   }
 
+  const requestedScope = normalizeEnvString(options && options.scope);
+  const profile = getAiGenerationProfileConfig(options && options.profile, { scope: requestedScope || '' });
+  const deadlineAt = Date.now() + profile.maxDurationMs;
+
   const safePayload = {
     name: normalizeText(payload && payload.name ? payload.name : '', { maxLength: 220 }),
     sku: normalizeText(payload && payload.sku ? payload.sku : '', { maxLength: 120 }),
@@ -680,19 +893,14 @@ async function generateProductSheet(payload, options = {}) {
   };
 
   const body = {
-    model: getModelName(),
-    tools: [
-      {
-        type: 'web_search_preview',
-      },
-    ],
+    model: getModelName(profile.key),
     input: [
       {
         role: 'system',
         content: [
           {
             type: 'input_text',
-            text: buildSystemInstruction(),
+            text: buildSystemInstruction(profile),
           },
         ],
       },
@@ -701,7 +909,7 @@ async function generateProductSheet(payload, options = {}) {
         content: [
           {
             type: 'input_text',
-            text: buildUserPrompt(safePayload),
+            text: buildUserPrompt(safePayload, profile),
           },
         ],
       },
@@ -716,7 +924,19 @@ async function generateProductSheet(payload, options = {}) {
     },
   };
 
-  const reasoningEffort = getReasoningEffort();
+  if (profile.useWebSearch) {
+    body.tools = [
+      {
+        type: 'web_search_preview',
+      },
+    ];
+  }
+
+  if (profile.maxOutputTokens) {
+    body.max_output_tokens = profile.maxOutputTokens;
+  }
+
+  const reasoningEffort = getReasoningEffort(profile.key);
   if (reasoningEffort) {
     body.reasoning = {
       effort: reasoningEffort,
@@ -725,15 +945,28 @@ async function generateProductSheet(payload, options = {}) {
 
   const maxRateLimitRetries = Number.isFinite(Number(options && options.maxRateLimitRetries))
     ? Math.max(0, Math.floor(Number(options.maxRateLimitRetries)))
-    : OPENAI_RATE_LIMIT_MAX_RETRIES;
+    : Math.min(OPENAI_RATE_LIMIT_MAX_RETRIES, profile.maxRateLimitRetries);
   const maxNetworkRetries = Number.isFinite(Number(options && options.maxNetworkRetries))
     ? Math.max(0, Math.floor(Number(options.maxNetworkRetries)))
-    : OPENAI_NETWORK_MAX_RETRIES;
+    : Math.min(OPENAI_NETWORK_MAX_RETRIES, profile.maxNetworkRetries);
   let networkAttempt = 0;
   let rateLimitAttempt = 0;
+  let lastNetworkError = null;
 
   while (true) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      throw buildOpenAiTimeoutError(profile, { maxDurationMs: profile.maxDurationMs });
+    }
+
     let response;
+    const controller = new AbortController();
+    let requestTimedOut = false;
+    const requestTimeoutId = setTimeout(() => {
+      requestTimedOut = true;
+      controller.abort();
+    }, remainingMs);
+
     try {
       response = await fetch(OPENAI_RESPONSES_URL, {
         method: 'POST',
@@ -742,20 +975,42 @@ async function generateProductSheet(payload, options = {}) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (error) {
+      clearTimeout(requestTimeoutId);
+      lastNetworkError = error;
+      if (requestTimedOut) {
+        throw buildOpenAiTimeoutError(profile, { maxDurationMs: profile.maxDurationMs });
+      }
       if (isTransientNetworkError(error) && networkAttempt < maxNetworkRetries) {
         const waitMs = getNetworkRetryDelayMs(networkAttempt);
+        const remainingRetryBudgetMs = deadlineAt - Date.now();
+        if (remainingRetryBudgetMs <= waitMs + 500) {
+          throw buildOpenAiTimeoutError(profile, { maxDurationMs: profile.maxDurationMs });
+        }
+        console.warn('[openaiProductGenerator] tentative réseau échouée, nouvelle tentative prévue', {
+          profile: profile.key,
+          attempt: networkAttempt + 1,
+          maxNetworkRetries,
+          waitMs,
+          diagnostic: getNetworkDiagnosticSummary(error),
+        });
         networkAttempt += 1;
         await sleep(waitMs);
         continue;
       }
 
-      const err = new Error('Impossible de contacter OpenAI pour générer la fiche produit. Vérifie la connexion réseau et les paramètres du serveur.');
-      err.code = 'OPENAI_NETWORK_ERROR';
-      err.status = 502;
-      err.cause = error;
+      const err = buildOpenAiNetworkError(error, { attempts: networkAttempt + 1 });
+      console.error('[openaiProductGenerator] échec réseau OpenAI', {
+        profile: profile.key,
+        attempts: networkAttempt + 1,
+        maxNetworkRetries,
+        diagnostic: err.diagnostic || '',
+      });
       throw err;
+    } finally {
+      clearTimeout(requestTimeoutId);
     }
 
     const data = await response.json().catch(() => ({}));
@@ -763,7 +1018,12 @@ async function generateProductSheet(payload, options = {}) {
 
     if (!response.ok) {
       if (isRateLimited && rateLimitAttempt < maxRateLimitRetries) {
-        await sleep(getRateLimitRetryDelayMs(response, data, rateLimitAttempt));
+        const waitMs = getRateLimitRetryDelayMs(response, data, rateLimitAttempt);
+        const remainingRetryBudgetMs = deadlineAt - Date.now();
+        if (remainingRetryBudgetMs <= waitMs + 500) {
+          throw buildOpenAiTimeoutError(profile, { maxDurationMs: profile.maxDurationMs });
+        }
+        await sleep(waitMs);
         rateLimitAttempt += 1;
         continue;
       }
@@ -789,9 +1049,15 @@ async function generateProductSheet(payload, options = {}) {
       raw: data,
     };
   }
+
+  throw buildOpenAiNetworkError(lastNetworkError, { attempts: networkAttempt + 1 });
 }
 
 module.exports = {
   generateProductSheet,
   getModelName,
+  getAiGenerationProfileMeta,
+  getAiGenerationProfilesByScope,
+  getDefaultAiGenerationProfileKey,
+  normalizeAiGenerationProfile,
 };

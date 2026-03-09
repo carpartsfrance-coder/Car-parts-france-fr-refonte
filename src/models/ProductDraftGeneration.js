@@ -28,6 +28,7 @@ const productDraftGenerationSchema = new mongoose.Schema(
       category: { type: String, default: '', trim: true },
       compatibleReferences: { type: [String], default: [] },
       sourceNotes: { type: String, default: '', trim: true },
+      profile: { type: String, default: '', trim: true },
     },
     model: { type: String, default: '', trim: true },
     resultDraft: { type: mongoose.Schema.Types.Mixed, default: null },

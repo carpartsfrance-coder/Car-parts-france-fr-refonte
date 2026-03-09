@@ -35,6 +35,15 @@ const PRODUCT_DRAFT_BATCH_MAX = 12;
 let activeProductDraftQueueWorkers = 0;
 let productDraftQueueScheduled = false;
 
+function buildAiProfileViewData() {
+  return {
+    aiSingleProfiles: openaiProductGenerator.getAiGenerationProfilesByScope('single'),
+    defaultAiSingleProfileKey: openaiProductGenerator.getDefaultAiGenerationProfileKey('single'),
+    aiBatchProfiles: openaiProductGenerator.getAiGenerationProfilesByScope('batch'),
+    defaultAiBatchProfileKey: openaiProductGenerator.getDefaultAiGenerationProfileKey('batch'),
+  };
+}
+
 function getClientIp(req) {
   const xfwd = req && req.headers ? req.headers['x-forwarded-for'] : null;
   const fromHeader = Array.isArray(xfwd) ? xfwd[0] : typeof xfwd === 'string' ? xfwd.split(',')[0] : '';
@@ -108,6 +117,8 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const safeReturnTo = getSafeAdminReturnTo(req.body && req.body.returnTo, '/admin/catalogue');
+    const aiProfile = openaiProductGenerator.normalizeAiGenerationProfile(req.body && req.body.aiProfile, { scope: 'batch' });
+    const aiProfileMeta = openaiProductGenerator.getAiGenerationProfileMeta(aiProfile, { scope: 'batch' });
 
     if (!dbConnected) {
       req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
@@ -166,7 +177,7 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
         continue;
       }
 
-      const payload = buildProductDraftPayloadFromProduct(product, { sourceNotes });
+      const payload = buildProductDraftPayloadFromProduct(product, { sourceNotes, profile: aiProfile });
       if (!hasProductDraftPayloadContent(payload)) {
         skippedEmptyCount += 1;
         continue;
@@ -206,7 +217,7 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
     if (skippedActiveCount) details.push(`${skippedActiveCount} déjà en cours`);
     if (skippedEmptyCount) details.push(`${skippedEmptyCount} sans assez d’informations`);
 
-    req.session.adminCatalogSuccess = `${launchedCount} brouillon(s) IA lancé(s). Ouvre ensuite chaque fiche produit pour relire et appliquer la proposition.${details.length ? ` (${details.join(' • ')})` : ''}`;
+    req.session.adminCatalogSuccess = `${launchedCount} brouillon(s) IA lancé(s) en mode ${aiProfileMeta.label.toLowerCase()}. Ouvre ensuite chaque fiche produit pour relire et appliquer la proposition.${details.length ? ` (${details.join(' • ')})` : ''}`;
     return res.redirect(safeReturnTo);
   } catch (err) {
     return next(err);
@@ -383,6 +394,7 @@ async function getAdminGenerateProductDraftStatus(req, res, next) {
       jobId: String(job._id),
       status: job.status,
       model: job.model || '',
+      profile: getTrimmedString(job && job.requestPayload && job.requestPayload.profile),
       error: job.status === 'failed' ? getTrimmedString(job.errorMessage) : '',
       draft: job.status === 'completed' && job.resultDraft
         ? buildGeneratedProductDraftResponse(job.resultDraft)
@@ -2891,7 +2903,7 @@ function parseAdminSelectedIds(rawIds) {
   );
 }
 
-function buildProductDraftPayloadFromProduct(product, { sourceNotes = '' } = {}) {
+function buildProductDraftPayloadFromProduct(product, { sourceNotes = '', profile = '' } = {}) {
   const compatibleReferences = Array.isArray(product && product.compatibleReferences)
     ? Array.from(
         new Set(
@@ -2909,6 +2921,7 @@ function buildProductDraftPayloadFromProduct(product, { sourceNotes = '' } = {})
     category: getTrimmedString(product && product.category),
     compatibleReferences,
     sourceNotes: getTrimmedString(sourceNotes),
+    profile: getTrimmedString(profile),
   };
 }
 
@@ -2925,10 +2938,21 @@ function buildProductDraftJobView(job, { includeDraft = false } = {}) {
   if (!job) return null;
 
   const hasDraft = job.hasDraft === true || Boolean(job.resultDraft);
+  const requestedProfile = getTrimmedString(job && job.profile ? job.profile : (job.requestPayload && job.requestPayload.profile));
+  const profileScope = requestedProfile.startsWith('batch_') ? 'batch' : 'single';
+  const normalizedProfile = requestedProfile
+    ? openaiProductGenerator.normalizeAiGenerationProfile(requestedProfile, { scope: profileScope })
+    : '';
+  const profileMeta = normalizedProfile
+    ? openaiProductGenerator.getAiGenerationProfileMeta(normalizedProfile, { scope: profileScope })
+    : null;
+
   return {
     jobId: String(job._id || job.jobId || ''),
     status: getTrimmedString(job.status),
     model: getTrimmedString(job.model),
+    profile: profileMeta ? profileMeta.key : '',
+    profileLabel: profileMeta ? profileMeta.label : '',
     errorMessage: getTrimmedString(job.errorMessage || job.error),
     createdAtLabel: job.createdAt ? formatDateTimeFR(job.createdAt) : '',
     completedAtLabel: job.completedAt ? formatDateTimeFR(job.completedAt) : '',
@@ -2995,7 +3019,13 @@ async function runProductDraftGenerationJob(jobOrId) {
   if (!job) return;
 
   try {
-    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {});
+    const requestedProfile = getTrimmedString(job && job.requestPayload && job.requestPayload.profile);
+    const profileScope = requestedProfile.startsWith('batch_') ? 'batch' : 'single';
+    const normalizedProfile = openaiProductGenerator.normalizeAiGenerationProfile(requestedProfile, { scope: profileScope });
+    const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {}, {
+      profile: normalizedProfile,
+      scope: profileScope,
+    });
     await ProductDraftGeneration.updateOne(
       { _id: job._id },
       {
@@ -3045,6 +3075,9 @@ async function postAdminGenerateProductDraft(req, res, next) {
       });
     }
 
+    const aiProfile = openaiProductGenerator.normalizeAiGenerationProfile(req.body && req.body.aiProfile, { scope: 'single' });
+    const aiProfileMeta = openaiProductGenerator.getAiGenerationProfileMeta(aiProfile, { scope: 'single' });
+
     const payload = {
       name: getTrimmedString(req.body && req.body.name),
       sku: getTrimmedString(req.body && req.body.sku),
@@ -3052,6 +3085,7 @@ async function postAdminGenerateProductDraft(req, res, next) {
       category: getTrimmedString(req.body && req.body.category),
       compatibleReferences: parseLinesToArray(getTrimmedString(req.body && req.body.compatibleReferences)),
       sourceNotes: getTrimmedString(req.body && req.body.sourceNotes),
+      profile: aiProfile,
     };
     const productId = req.body && typeof req.body.productId === 'string' && mongoose.Types.ObjectId.isValid(req.body.productId)
       ? new mongoose.Types.ObjectId(req.body.productId)
@@ -3076,10 +3110,24 @@ async function postAdminGenerateProductDraft(req, res, next) {
         .lean();
 
       if (existingActiveJob) {
+        const existingProfile = openaiProductGenerator.normalizeAiGenerationProfile(
+          existingActiveJob && existingActiveJob.requestPayload ? existingActiveJob.requestPayload.profile : '',
+          { scope: 'single' }
+        );
+
+        if (existingProfile && existingProfile !== aiProfile) {
+          const existingProfileMeta = openaiProductGenerator.getAiGenerationProfileMeta(existingProfile, { scope: 'single' });
+          return res.status(409).json({
+            ok: false,
+            error: `Une génération IA est déjà en cours pour cette fiche en mode ${existingProfileMeta.label}. Attends sa fin avant d’en lancer une autre avec un mode différent.`,
+          });
+        }
+
         return res.status(202).json({
           ok: true,
           jobId: String(existingActiveJob._id),
           status: existingActiveJob.status,
+          profile: existingProfile || aiProfile,
         });
       }
     }
@@ -3097,6 +3145,8 @@ async function postAdminGenerateProductDraft(req, res, next) {
       ok: true,
       jobId: String(job._id),
       status: 'queued',
+      profile: aiProfile,
+      profileLabel: aiProfileMeta.label,
     });
   } catch (err) {
     if (err && err.code === 'OPENAI_API_KEY_MISSING') {
@@ -3606,6 +3656,7 @@ async function getAdminCatalogPage(req, res, next) {
           prevPage: 1,
           nextPage: 1,
         },
+        ...buildAiProfileViewData(),
       });
     }
 
@@ -3655,6 +3706,7 @@ async function getAdminCatalogPage(req, res, next) {
             jobId: { $first: '$_id' },
             status: { $first: '$status' },
             model: { $first: '$model' },
+            profile: { $first: '$requestPayload.profile' },
             errorMessage: { $first: '$errorMessage' },
             createdAt: { $first: '$createdAt' },
             completedAt: { $first: '$completedAt' },
@@ -3725,6 +3777,7 @@ async function getAdminCatalogPage(req, res, next) {
         prevPage: Math.max(1, page - 1),
         nextPage: Math.min(totalPages, page + 1),
       },
+      ...buildAiProfileViewData(),
     });
   } catch (err) {
     return next(err);
@@ -4286,6 +4339,8 @@ async function getAdminNewProductPage(req, res) {
     productOptionTemplates,
     compatIndex,
     productId: null,
+    latestAiDraftJob: null,
+    ...buildAiProfileViewData(),
   });
 }
 
@@ -4652,6 +4707,7 @@ async function getAdminEditProductPage(req, res, next) {
         compatIndex: { makes: [], modelsByMake: {} },
         productId: null,
         latestAiDraftJob: null,
+        ...buildAiProfileViewData(),
       });
     }
 
@@ -4809,6 +4865,7 @@ async function getAdminEditProductPage(req, res, next) {
       compatIndex,
       productId: String(product._id),
       latestAiDraftJob: buildProductDraftJobView(latestAiDraftJobDoc, { includeDraft: true }),
+      ...buildAiProfileViewData(),
     });
   } catch (err) {
     return next(err);
