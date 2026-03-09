@@ -37,6 +37,7 @@
   <% const currentAiDraftJob = typeof latestAiDraftJob !== 'undefined' ? latestAiDraftJob : null; %>
   <% const singleAiProfiles = typeof aiSingleProfiles !== 'undefined' && Array.isArray(aiSingleProfiles) && aiSingleProfiles.length ? aiSingleProfiles : [
     { key: 'single_standard', label: 'Standard', description: 'Bonne qualité avec un budget plus raisonnable.', defaultModel: 'gpt-4.1' },
+    { key: 'single_balanced', label: 'Avancé', description: 'gpt-5.4 plus qualitatif que Standard, sans aller aussi loin que Premium.', defaultModel: 'gpt-5.4' },
     { key: 'single_premium', label: 'Premium', description: 'Recherche plus approfondie.', defaultModel: 'gpt-5.4' },
   ]; %>
   <% const defaultSingleAiProfileKey = typeof defaultAiSingleProfileKey !== 'undefined' && defaultAiSingleProfileKey ? defaultAiSingleProfileKey : 'single_premium'; %>
@@ -138,7 +139,7 @@
               <option value="<%= profile.key %>" <%= profile.key === defaultSingleAiProfileKey ? 'selected' : '' %>><%= profile.label %> — <%= profile.defaultModel %></option>
             <% }) %>
           </select>
-          <div class="mt-2 text-xs text-violet-900/75">Standard = plus rapide et moins coûteux. Premium = plus approfondi mais plus lent.</div>
+          <div class="mt-2 text-xs text-violet-900/75">Standard = plus rapide. Avancé = gpt-5.4 équilibré. Premium = le plus approfondi, mais aussi le plus lent.</div>
         </div>
 
         <div>

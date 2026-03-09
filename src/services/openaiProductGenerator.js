@@ -32,6 +32,26 @@ const AI_GENERATION_PROFILES = Object.freeze({
     descriptionMaxWords: 220,
     descriptionMaxLength: 1500,
   }),
+  single_balanced: Object.freeze({
+    key: 'single_balanced',
+    scope: 'single',
+    label: 'Avancé',
+    description: 'Qualité renforcée avec gpt-5.4, mais avec une recherche plus ciblée que Premium.',
+    defaultModel: 'gpt-5.4',
+    modelEnvKeys: ['OPENAI_PRODUCT_BALANCED_MODEL', 'OPENAI_PRODUCT_MID_MODEL', 'OPENAI_PRODUCT_MODEL', 'OPENAI_MODEL'],
+    defaultReasoning: 'medium',
+    reasoningEnvKeys: ['OPENAI_PRODUCT_BALANCED_REASONING_EFFORT', 'OPENAI_PRODUCT_MID_REASONING_EFFORT', 'OPENAI_PRODUCT_REASONING_EFFORT'],
+    useWebSearch: true,
+    maxDurationMs: 5 * 60 * 1000,
+    maxOutputTokens: 4300,
+    maxRateLimitRetries: 6,
+    maxNetworkRetries: 4,
+    promptStyle: 'balanced',
+    descriptionTargetWords: 220,
+    descriptionMinWords: 190,
+    descriptionMaxWords: 250,
+    descriptionMaxLength: 1700,
+  }),
   single_premium: Object.freeze({
     key: 'single_premium',
     scope: 'single',
@@ -800,6 +820,12 @@ function buildSystemInstruction(profile) {
     lines.push('- Même en mode standard, la compatibilité véhicule, la description et la FAQ restent prioritaires.');
   }
 
+  if (profile.promptStyle === 'balanced') {
+    lines.push('- Mode avancé : vise une meilleure précision qu’en standard, mais sans mener une recherche exhaustive comme en premium.');
+    lines.push('- Vérifie plusieurs pistes de compatibilité utiles, surtout si la référence existe sur différentes marques ou modèles, puis retiens les compatibilités les plus solides.');
+    lines.push('- Fournis une fiche soignée et crédible, mais garde un niveau d’approfondissement intermédiaire pour tenir un bon délai.');
+  }
+
   if (profile.promptStyle === 'batch_fast') {
     lines.push('- Mode lot rapide : concentre-toi sur les informations les plus fiables et les plus utiles pour la vente.');
     lines.push('- Les champs secondaires comme les FAQ, les options et les étapes de reconditionnement sont facultatifs : laisse-les vides si cela évite une recherche longue.');
@@ -860,6 +886,13 @@ function buildUserPrompt(payload, profile) {
     lines.push('- Ne te limite pas à un seul exemple : essaie de faire ressortir plusieurs marques et plusieurs modèles distincts si les sources les confirment.');
     lines.push('- Génère au moins 4 FAQ concrètes avec des réponses complètes et rassurantes pour le client.');
     lines.push('- Dans la FAQ, couvre en priorité la compatibilité, la programmation/codage, l’état ou le reconditionnement, la garantie et les vérifications avant achat si pertinent.');
+  }
+
+  if (profile.promptStyle === 'balanced') {
+    lines.push('- Mode avancé : vise une compatibilité véhicule plus solide qu’en standard, notamment quand la pièce couvre plusieurs marques ou plusieurs modèles.');
+    lines.push('- Cherche plusieurs correspondances crédibles, mais arrête-toi dès que tu as assez d’éléments fiables pour une bonne fiche.');
+    lines.push('- Génère au moins 4 FAQ utiles avec des réponses détaillées, sans aller dans un niveau d’exhaustivité premium.');
+    lines.push('- La description doit être qualitative, rassurante et claire, avec un bon équilibre entre précision technique et rapidité de génération.');
   }
 
   if (profile.promptStyle === 'batch_fast') {
