@@ -5,9 +5,11 @@
 <main class="flex-1">
   <% const batchAiProfiles = typeof aiBatchProfiles !== 'undefined' && Array.isArray(aiBatchProfiles) && aiBatchProfiles.length ? aiBatchProfiles : [
     { key: 'batch_fast', label: 'Rapide', description: 'Priorité à la vitesse et au coût.', defaultModel: 'gpt-4.1' },
+    { key: 'batch_balanced', label: 'Avancé', description: 'Qualité renforcée avec gpt-5.4 pour les lots.', defaultModel: 'gpt-5.4' },
     { key: 'batch_quality', label: 'Qualité', description: 'Meilleur équilibre pour les lots.', defaultModel: 'gpt-4.1' },
   ]; %>
   <% const defaultBatchAiProfileKey = typeof defaultAiBatchProfileKey !== 'undefined' && defaultAiBatchProfileKey ? defaultAiBatchProfileKey : 'batch_quality'; %>
+  <% const maxBatchDraftSelection = typeof batchDraftMax !== 'undefined' && batchDraftMax ? batchDraftMax : 50; %>
   <div class="px-6 lg:px-10 py-8">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
       <div>
@@ -144,14 +146,14 @@
                         <option value="<%= profile.key %>" <%= profile.key === defaultBatchAiProfileKey ? 'selected' : '' %>><%= profile.label %> — <%= profile.defaultModel %></option>
                       <% }) %>
                     </select>
-                    <div class="mt-2 text-[11px] font-bold text-slate-500">Rapide = coût et délai réduits. Qualité = plus complet mais plus lent.</div>
+                    <div class="mt-2 text-[11px] font-bold text-slate-500">Rapide = plus rapide. Avancé = gpt-5.4 avec une qualité proche du mode individuel avancé. Qualité = équilibré pour de gros lots.</div>
                   </div>
                   <div>
                     <label class="block text-[11px] font-black uppercase tracking-widest text-violet-700" for="bulkAiSourceNotes">Notes pour l’IA (optionnel)</label>
                     <textarea class="mt-2 min-h-[84px] w-full rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-slate-700" id="bulkAiSourceNotes" name="bulkAiSourceNotes" placeholder="Ex: ton rassurant, priorité SEO, éviter les affirmations non vérifiées, viser les références d’origine."></textarea>
                   </div>
                 </div>
-                <div class="mt-2 text-[11px] font-bold text-slate-500">Jusqu’à 12 produits à la fois. La génération part en arrière-plan et tu pourras relire chaque brouillon dans la fiche produit.</div>
+                <div class="mt-2 text-[11px] font-bold text-slate-500">Jusqu’à <%= maxBatchDraftSelection %> produits à la fois. La génération part en arrière-plan et tu pourras relire chaque brouillon dans la fiche produit.</div>
               </div>
             </div>
             <div class="text-xs font-bold text-slate-500">

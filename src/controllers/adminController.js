@@ -27,10 +27,10 @@ const openaiProductGenerator = require('../services/openaiProductGenerator');
 const ADMIN_LOGIN_BUCKETS = new Map();
 const ADMIN_RESET_BUCKETS = new Map();
 const ADMIN_AI_PRODUCT_BUCKETS = new Map();
-const ADMIN_AI_PRODUCT_LIMIT = 12;
+const ADMIN_AI_PRODUCT_LIMIT = 60;
 const ADMIN_AI_PRODUCT_WINDOW_MS = 10 * 60 * 1000;
 const PRODUCT_DRAFT_QUEUE_CONCURRENCY = 1;
-const PRODUCT_DRAFT_BATCH_MAX = 12;
+const PRODUCT_DRAFT_BATCH_MAX = 50;
 
 let activeProductDraftQueueWorkers = 0;
 let productDraftQueueScheduled = false;
@@ -41,6 +41,7 @@ function buildAiProfileViewData() {
     defaultAiSingleProfileKey: openaiProductGenerator.getDefaultAiGenerationProfileKey('single'),
     aiBatchProfiles: openaiProductGenerator.getAiGenerationProfilesByScope('batch'),
     defaultAiBatchProfileKey: openaiProductGenerator.getDefaultAiGenerationProfileKey('batch'),
+    batchDraftMax: PRODUCT_DRAFT_BATCH_MAX,
   };
 }
 
@@ -3848,7 +3849,7 @@ async function getAdminCatalogPage(req, res, next) {
       title: 'Admin - Catalogue',
       dbConnected,
       products: viewProducts,
-      filters: { q, stock },
+      filters: { q, stock, sort: sortKey },
       successMessage,
       errorMessage,
       pagination: {
