@@ -43,6 +43,16 @@
             <option value="out" <%= filters && filters.stock === 'out' ? 'selected' : '' %>>Stock limité</option>
           </select>
 
+          <% const currentSort = filters && filters.sort ? filters.sort : 'updated_desc'; %>
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="sort">
+            <option value="updated_desc" <%= currentSort === 'updated_desc' ? 'selected' : '' %>>Plus récents d'abord</option>
+            <option value="updated_asc" <%= currentSort === 'updated_asc' ? 'selected' : '' %>>Plus anciens d'abord</option>
+            <option value="category_asc" <%= currentSort === 'category_asc' ? 'selected' : '' %>>Catégorie A → Z</option>
+            <option value="category_desc" <%= currentSort === 'category_desc' ? 'selected' : '' %>>Catégorie Z → A</option>
+            <option value="seo_desc" <%= currentSort === 'seo_desc' ? 'selected' : '' %>>Score SEO décroissant</option>
+            <option value="seo_asc" <%= currentSort === 'seo_asc' ? 'selected' : '' %>>Score SEO croissant</option>
+          </select>
+
           <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="limit">
             <% const perPage = pagination && pagination.perPage ? pagination.perPage : 20; %>
             <option value="20" <%= perPage === 20 ? 'selected' : '' %>>20 / page</option>
@@ -87,9 +97,11 @@
         const currentLimit = pagination && pagination.perPage ? pagination.perPage : 20;
         const currentQ = filters && filters.q ? filters.q : '';
         const currentStock = filters && filters.stock ? filters.stock : '';
+        const currentSort = filters && filters.sort ? filters.sort : '';
         const queryParts = [];
         if (currentQ) queryParts.push('q=' + encodeURIComponent(currentQ));
         if (currentStock) queryParts.push('stock=' + encodeURIComponent(currentStock));
+        if (currentSort) queryParts.push('sort=' + encodeURIComponent(currentSort));
         if (currentLimit) queryParts.push('limit=' + encodeURIComponent(String(currentLimit)));
         const baseQuery = queryParts.length ? ('?' + queryParts.join('&')) : '';
         const urlForPage = (p) => {

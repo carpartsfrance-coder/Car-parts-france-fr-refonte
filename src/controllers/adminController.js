@@ -2311,6 +2311,61 @@ function buildStockQuery(stockKey) {
   return {};
 }
 
+function buildSeoAssistantFormFromProduct(product) {
+  const safeProduct = product || {};
+  const galleryValue = Array.isArray(safeProduct.galleryUrls)
+    ? safeProduct.galleryUrls.filter(Boolean).join('\n')
+    : '';
+  const faqsValue = Array.isArray(safeProduct.faqs)
+    ? safeProduct.faqs
+        .filter((f) => f && (f.question || f.answer))
+        .map((f) => `${f.question || ''} | ${f.answer || ''}`.trim())
+        .join('\n')
+    : '';
+  const compatibilityValue = Array.isArray(safeProduct.compatibility)
+    ? safeProduct.compatibility
+        .filter((c) => c && (c.make || c.model || c.years || c.engine))
+        .map((c) => `${c.make || ''} | ${c.model || ''} | ${c.years || ''} | ${c.engine || ''}`.trim())
+        .join('\n')
+    : '';
+
+  return {
+    name: safeProduct.name || '',
+    sku: safeProduct.sku || '',
+    brand: safeProduct.brand || '',
+    category: safeProduct.category || '',
+    imageUrl: safeProduct.imageUrl || '',
+    galleryUrls: galleryValue,
+    shortDescription: safeProduct.shortDescription || '',
+    description: safeProduct.description || '',
+    faqs: faqsValue,
+    compatibility: compatibilityValue,
+    metaTitle: safeProduct.seo && safeProduct.seo.metaTitle ? safeProduct.seo.metaTitle : '',
+    metaDescription: safeProduct.seo && safeProduct.seo.metaDescription ? safeProduct.seo.metaDescription : '',
+  };
+}
+
+function computeCatalogSeoScore(product) {
+  return buildProductSeoAssistant({
+    form: buildSeoAssistantFormFromProduct(product),
+    mode: 'catalog',
+    productId: product && product._id ? String(product._id) : '',
+  }).score;
+}
+
+function resolveAdminCatalogMongoSort(sortKey) {
+  switch (sortKey) {
+    case 'updated_asc':
+      return { updatedAt: 1 };
+    case 'category_asc':
+      return { category: 1, name: 1 };
+    case 'category_desc':
+      return { category: -1, name: 1 };
+    default:
+      return { updatedAt: -1 };
+  }
+}
+
 function parseStockQty(value) {
   if (typeof value !== 'string') {
     return { ok: true, qty: null };
@@ -3628,6 +3683,10 @@ async function getAdminCatalogPage(req, res, next) {
 
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const stock = typeof req.query.stock === 'string' ? req.query.stock.trim() : '';
+    const sortRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
+    const allowedSortKeys = new Set(['updated_desc', 'updated_asc', 'category_asc', 'category_desc', 'seo_desc', 'seo_asc']);
+    const sortKey = allowedSortKeys.has(sortRaw) ? sortRaw : 'updated_desc';
+    const requiresMemorySort = sortKey === 'seo_desc' || sortKey === 'seo_asc';
 
     const pageRaw = typeof req.query.page === 'string' ? req.query.page.trim() : '';
     const requestedPage = Math.max(1, Number.parseInt(pageRaw || '1', 10) || 1);
@@ -3641,7 +3700,7 @@ async function getAdminCatalogPage(req, res, next) {
         title: 'Admin - Catalogue',
         dbConnected,
         products: [],
-        filters: { q, stock },
+        filters: { q, stock, sort: sortKey },
         successMessage: null,
         errorMessage: "La base de données n'est pas disponible.",
         pagination: {
@@ -3671,7 +3730,21 @@ async function getAdminCatalogPage(req, res, next) {
 
     if (q) {
       const rx = new RegExp(escapeRegExp(q), 'i');
-      productQuery.$or = [{ name: rx }, { sku: rx }, { brand: rx }, { category: rx }];
+      productQuery.$or = [
+        { name: rx },
+        { sku: rx },
+        { brand: rx },
+        { category: rx },
+        { slug: rx },
+        { 'seo.metaTitle': rx },
+        { 'seo.metaDescription': rx },
+        { 'compatibility.make': rx },
+        { 'compatibility.model': rx },
+        { 'compatibility.years': rx },
+        { 'compatibility.engine': rx },
+        { 'faqs.question': rx },
+        { 'faqs.answer': rx },
+      ];
     }
 
     const totalItems = await Product.countDocuments(productQuery);
@@ -3679,11 +3752,39 @@ async function getAdminCatalogPage(req, res, next) {
     const page = Math.min(requestedPage, totalPages);
     const skip = (page - 1) * perPage;
 
-    const products = await Product.find(productQuery)
-      .sort({ updatedAt: -1 })
-      .skip(skip)
-      .limit(perPage)
-      .lean();
+    const seoScoresByProductId = new Map();
+    let products;
+
+    if (requiresMemorySort) {
+      const rawProducts = await Product.find(productQuery)
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      rawProducts.forEach((product) => {
+        const score = computeCatalogSeoScore(product);
+        seoScoresByProductId.set(String(product._id), score);
+      });
+
+      rawProducts.sort((a, b) => {
+        const scoreA = seoScoresByProductId.get(String(a._id)) || 0;
+        const scoreB = seoScoresByProductId.get(String(b._id)) || 0;
+        if (scoreA !== scoreB) {
+          return sortKey === 'seo_desc' ? scoreB - scoreA : scoreA - scoreB;
+        }
+        const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      products = rawProducts.slice(skip, skip + perPage);
+    } else {
+      const mongoSort = resolveAdminCatalogMongoSort(sortKey);
+      products = await Product.find(productQuery)
+        .sort(mongoSort)
+        .skip(skip)
+        .limit(perPage)
+        .lean();
+    }
 
     const adminUserId = getAdminUserIdFromRequest(req);
     const productObjectIds = products
@@ -3729,24 +3830,9 @@ async function getAdminCatalogPage(req, res, next) {
     }
 
     const viewProducts = products.map((p) => ({
-      seoScore: buildProductSeoAssistant({
-        form: {
-          name: p.name || '',
-          sku: p.sku || '',
-          brand: p.brand || '',
-          category: p.category || '',
-          imageUrl: p.imageUrl || '',
-          galleryUrls: Array.isArray(p.galleryUrls) ? p.galleryUrls.filter(Boolean).join('\n') : '',
-          shortDescription: p.shortDescription || '',
-          description: p.description || '',
-          faqs: Array.isArray(p.faqs) ? p.faqs.filter((f) => f && (f.question || f.answer)).map((f) => `${f.question || ''} | ${f.answer || ''}`.trim()).join('\n') : '',
-          compatibility: Array.isArray(p.compatibility) ? p.compatibility.filter((c) => c && (c.make || c.model || c.years || c.engine)).map((c) => `${c.make || ''} | ${c.model || ''} | ${c.years || ''} | ${c.engine || ''}`.trim()).join('\n') : '',
-          metaTitle: p.seo && p.seo.metaTitle ? p.seo.metaTitle : '',
-          metaDescription: p.seo && p.seo.metaDescription ? p.seo.metaDescription : '',
-        },
-        mode: 'catalog',
-        productId: String(p._id),
-      }).score,
+      seoScore: seoScoresByProductId.has(String(p._id))
+        ? seoScoresByProductId.get(String(p._id))
+        : computeCatalogSeoScore(p),
       id: String(p._id),
       name: p.name,
       sku: p.sku,
