@@ -1368,7 +1368,7 @@
           const trimmed = String(value).trim();
           if (!trimmed) return null;
           const parsed = Number(trimmed);
-          return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : null;
+          return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
         };
 
         const createChoiceState = (choice) => ({

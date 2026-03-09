@@ -5,7 +5,7 @@ function getTrimmedString(value) {
 }
 
 function normalizeOptionalPriceInt(value) {
-  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.round(value);
   }
 
@@ -13,7 +13,7 @@ function normalizeOptionalPriceInt(value) {
     const trimmed = value.trim();
     if (!trimmed) return null;
     const n = Number(trimmed);
-    if (Number.isFinite(n) && n >= 0) return Math.round(n);
+    if (Number.isFinite(n) && n > 0) return Math.round(n);
   }
 
   return null;
