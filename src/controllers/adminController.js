@@ -34,6 +34,7 @@ const PRODUCT_DRAFT_BATCH_MAX = 50;
 
 let activeProductDraftQueueWorkers = 0;
 let productDraftQueueScheduled = false;
+const activeProductDraftAbortControllers = new Map();
 
 function buildAiProfileViewData() {
   return {
@@ -396,11 +397,128 @@ async function getAdminGenerateProductDraftStatus(req, res, next) {
       status: job.status,
       model: job.model || '',
       profile: getTrimmedString(job && job.requestPayload && job.requestPayload.profile),
-      error: job.status === 'failed' ? getTrimmedString(job.errorMessage) : '',
+      error: job.status === 'failed' || job.status === 'canceled' ? getTrimmedString(job.errorMessage) : '',
       draft: job.status === 'completed' && job.resultDraft
         ? buildGeneratedProductDraftResponse(job.resultDraft)
         : null,
     });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminCancelProductDraft(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const acceptHeader = req && req.headers && typeof req.headers.accept === 'string' ? req.headers.accept : '';
+    const wantsJson = acceptHeader.includes('application/json');
+    const safeReturnTo = getSafeAdminReturnTo(req.body && req.body.returnTo, '/admin/catalogue');
+
+    if (!dbConnected) {
+      if (wantsJson) {
+        return res.status(503).json({
+          ok: false,
+          error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+        });
+      }
+      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const jobId = getTrimmedString(req.params && req.params.jobId);
+    if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+      if (wantsJson) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Identifiant de génération invalide.',
+        });
+      }
+      req.session.adminCatalogError = 'Identifiant de génération invalide.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const filter = { _id: jobId };
+    if (adminUserId) filter.adminUserId = adminUserId;
+
+    const existingJob = await ProductDraftGeneration.findOne(filter)
+      .select('_id status')
+      .lean();
+
+    if (!existingJob) {
+      if (wantsJson) {
+        return res.status(404).json({
+          ok: false,
+          error: 'Demande de génération introuvable.',
+        });
+      }
+      req.session.adminCatalogError = 'Demande de génération introuvable.';
+      return res.redirect(safeReturnTo);
+    }
+
+    if (existingJob.status !== 'queued' && existingJob.status !== 'processing') {
+      const errorMessage = existingJob.status === 'canceled'
+        ? 'Cette génération IA est déjà arrêtée.'
+        : 'Cette génération IA est déjà terminée et ne peut plus être arrêtée.';
+      if (wantsJson) {
+        return res.status(409).json({
+          ok: false,
+          error: errorMessage,
+          status: existingJob.status,
+        });
+      }
+      req.session.adminCatalogError = errorMessage;
+      return res.redirect(safeReturnTo);
+    }
+
+    const canceledMessage = existingJob.status === 'processing'
+      ? 'Génération IA arrêtée à la demande.'
+      : 'Génération IA retirée de la file d’attente.';
+
+    const updatedJob = await ProductDraftGeneration.findOneAndUpdate(
+      {
+        _id: existingJob._id,
+        status: { $in: ['queued', 'processing'] },
+      },
+      {
+        $set: {
+          status: 'canceled',
+          errorMessage: canceledMessage,
+          completedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+      }
+    ).lean();
+
+    if (!updatedJob) {
+      if (wantsJson) {
+        return res.status(409).json({
+          ok: false,
+          error: 'La génération IA ne peut plus être arrêtée car son état a changé entre-temps.',
+        });
+      }
+      req.session.adminCatalogError = 'La génération IA ne peut plus être arrêtée car son état a changé entre-temps.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const activeController = activeProductDraftAbortControllers.get(String(existingJob._id));
+    if (activeController) {
+      activeController.abort();
+    }
+
+    if (wantsJson) {
+      return res.json({
+        ok: true,
+        jobId: String(updatedJob._id),
+        status: 'canceled',
+        message: canceledMessage,
+      });
+    }
+
+    req.session.adminCatalogSuccess = canceledMessage;
+    return res.redirect(safeReturnTo);
   } catch (err) {
     return next(err);
   }
@@ -3074,6 +3192,10 @@ async function runProductDraftGenerationJob(jobOrId) {
 
   if (!job) return;
 
+  const jobId = String(job._id);
+  const abortController = new AbortController();
+  activeProductDraftAbortControllers.set(jobId, abortController);
+
   try {
     const requestedProfile = getTrimmedString(job && job.requestPayload && job.requestPayload.profile);
     const profileScope = requestedProfile.startsWith('batch_') ? 'batch' : 'single';
@@ -3081,9 +3203,10 @@ async function runProductDraftGenerationJob(jobOrId) {
     const generated = await openaiProductGenerator.generateProductSheet(job.requestPayload || {}, {
       profile: normalizedProfile,
       scope: profileScope,
+      abortSignal: abortController.signal,
     });
     await ProductDraftGeneration.updateOne(
-      { _id: job._id },
+      { _id: job._id, status: 'processing' },
       {
         $set: {
           status: 'completed',
@@ -3095,16 +3218,21 @@ async function runProductDraftGenerationJob(jobOrId) {
       }
     );
   } catch (err) {
+    const isCanceled = err && err.code === 'OPENAI_ABORTED';
     await ProductDraftGeneration.updateOne(
-      { _id: job._id },
+      { _id: job._id, status: 'processing' },
       {
         $set: {
-          status: 'failed',
-          errorMessage: err && err.message ? String(err.message) : 'Erreur pendant la génération IA.',
+          status: isCanceled ? 'canceled' : 'failed',
+          errorMessage: isCanceled
+            ? 'Génération IA arrêtée à la demande.'
+            : (err && err.message ? String(err.message) : 'Erreur pendant la génération IA.'),
           completedAt: new Date(),
         },
       }
     );
+  } finally {
+    activeProductDraftAbortControllers.delete(jobId);
   }
 }
 
@@ -6587,6 +6715,7 @@ module.exports = {
   postAdminGenerateProductDraft,
   postAdminBulkGenerateProductDrafts,
   getAdminGenerateProductDraftStatus,
+  postAdminCancelProductDraft,
   getAdminDashboard,
   getAdminOrdersPage,
   getAdminOrderDetailPage,

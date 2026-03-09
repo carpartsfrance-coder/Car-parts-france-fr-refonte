@@ -116,6 +116,7 @@
           if (draft.status === 'completed') return { label: 'Brouillon IA prêt', className: 'bg-emerald-50 text-emerald-700' };
           if (draft.status === 'processing') return { label: 'IA en cours', className: 'bg-violet-50 text-violet-700' };
           if (draft.status === 'queued') return { label: 'IA en file', className: 'bg-sky-50 text-sky-700' };
+          if (draft.status === 'canceled') return { label: 'IA arrêtée', className: 'bg-slate-100 text-slate-700' };
           if (draft.status === 'failed') return { label: 'IA en erreur', className: 'bg-red-50 text-red-700' };
           return { label: 'IA', className: 'bg-slate-100 text-slate-700' };
         };
@@ -202,7 +203,7 @@
                     <% if (p.aiDraft && p.aiDraft.createdAtLabel) { %>
                       <div class="mt-2 text-[11px] font-bold text-slate-500">Dernière demande : <%= p.aiDraft.createdAtLabel %></div>
                     <% } %>
-                    <% if (p.aiDraft && p.aiDraft.status === 'failed' && p.aiDraft.errorMessage) { %>
+                    <% if (p.aiDraft && (p.aiDraft.status === 'failed' || p.aiDraft.status === 'canceled') && p.aiDraft.errorMessage) { %>
                       <div class="mt-2 text-[11px] font-bold text-red-600"><%= p.aiDraft.errorMessage %></div>
                     <% } %>
                   </td>
@@ -217,6 +218,18 @@
                   </td>
                   <td class="px-6 py-4 text-right">
                     <div class="inline-flex items-center gap-2">
+                      <% if (p.aiDraft && (p.aiDraft.status === 'queued' || p.aiDraft.status === 'processing')) { %>
+                        <button
+                          class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition"
+                          type="submit"
+                          formaction="/admin/api/products/generate-draft/<%= p.aiDraft.jobId %>/cancel"
+                          formmethod="POST"
+                          onclick="return confirm('Arrêter cette génération IA ?');"
+                        >
+                          <span class="material-symbols-outlined mr-2 text-base">stop_circle</span>
+                          Arrêter l’IA
+                        </button>
+                      <% } %>
                       <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition" href="/admin/catalogue/<%= p.id %>">
                         <span class="material-symbols-outlined mr-2 text-base">edit</span>
                         Modifier

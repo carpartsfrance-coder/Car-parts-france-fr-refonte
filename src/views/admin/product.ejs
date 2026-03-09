@@ -125,10 +125,16 @@
           </div>
         </div>
 
-        <button class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-60" id="aiGenerateBtn" type="button">
-          <span class="material-symbols-outlined mr-2 text-lg">auto_awesome</span>
-          Générer avec l’IA
-        </button>
+        <div class="flex flex-wrap items-center gap-3">
+          <button class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-60" id="aiGenerateBtn" type="button">
+            <span class="material-symbols-outlined mr-2 text-lg">auto_awesome</span>
+            Générer avec l’IA
+          </button>
+          <button class="<%= currentAiDraftJob && (currentAiDraftJob.status === 'queued' || currentAiDraftJob.status === 'processing') ? '' : 'hidden ' %>inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:opacity-60" id="aiCancelBtn" type="button">
+            <span class="material-symbols-outlined mr-2 text-lg">stop_circle</span>
+            Arrêter l’IA
+          </button>
+        </div>
       </div>
 
       <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start">
@@ -166,6 +172,8 @@
                     <span class="font-semibold text-violet-700">génération en cours</span>
                   <% } else if (currentAiDraftJob.status === 'queued') { %>
                     <span class="font-semibold text-sky-700">en file d’attente</span>
+                  <% } else if (currentAiDraftJob.status === 'canceled') { %>
+                    <span class="font-semibold text-slate-700">arrêtée</span>
                   <% } else if (currentAiDraftJob.status === 'failed') { %>
                     <span class="font-semibold text-red-700">en erreur</span>
                   <% } else { %>
@@ -187,7 +195,7 @@
                 <% if (currentAiDraftJob.status === 'processing' || currentAiDraftJob.status === 'queued') { %>
                   <div class="text-slate-600">Recharge cette page dans quelques instants pour récupérer le brouillon automatiquement préparé en arrière-plan.</div>
                 <% } %>
-                <% if (currentAiDraftJob.status === 'failed' && currentAiDraftJob.errorMessage) { %>
+                <% if ((currentAiDraftJob.status === 'failed' || currentAiDraftJob.status === 'canceled') && currentAiDraftJob.errorMessage) { %>
                   <div class="text-red-700"><%= currentAiDraftJob.errorMessage %></div>
                 <% } %>
               </div>
@@ -1052,6 +1060,7 @@
         const addCustomOptionBtn = document.getElementById('addCustomOptionBtn');
         const applyOptionsJsonBtn = document.getElementById('applyOptionsJsonBtn');
         const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+        const aiCancelBtn = document.getElementById('aiCancelBtn');
         const aiProfileSelect = document.getElementById('aiProfile');
         const aiSourceNotes = document.getElementById('aiSourceNotes');
         const aiGenerateStatus = document.getElementById('aiGenerateStatus');
@@ -2506,6 +2515,21 @@
           return String(selectedOption.text || '').split('—')[0].trim() || 'Premium';
         }
 
+        function isCancelableAiJob(job) {
+          return !!(job && job.jobId && (job.status === 'queued' || job.status === 'processing'));
+        }
+
+        function updateAiCancelButton() {
+          if (!aiCancelBtn) return;
+          if (isCancelableAiJob(latestAiDraftJob)) {
+            aiCancelBtn.classList.remove('hidden');
+            aiCancelBtn.disabled = false;
+            return;
+          }
+          aiCancelBtn.classList.add('hidden');
+          aiCancelBtn.disabled = true;
+        }
+
         function applyGeneratedDraft(data) {
           const draft = data && data.draft ? data.draft : null;
           if (!draft) throw new Error('Brouillon IA introuvable.');
@@ -2575,6 +2599,8 @@
 
           if (typeof updateSeoAssistant === 'function') updateSeoAssistant();
           renderAiWarnings(Array.isArray(draft.warnings) ? draft.warnings : []);
+          if (latestAiDraftJob) latestAiDraftJob.status = 'completed';
+          updateAiCancelButton();
           setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relis puis clique sur “Save Changes” si tout te convient.`, 'success');
         }
 
@@ -2609,6 +2635,10 @@
               throw new Error(statusData.error || 'La génération IA a échoué.');
             }
 
+            if (statusData.status === 'canceled') {
+              throw new Error(statusData.error || 'Génération IA arrêtée à la demande.');
+            }
+
             setAiStatus(`Recherche web et génération approfondie en cours… ${attempt > 1 ? 'Toujours en cours, merci de patienter.' : 'La page attend le résultat en arrière-plan.'}`, 'loading');
           }
 
@@ -2628,6 +2658,53 @@
             }
 
             applyGeneratedDraft(latestAiDraftJob);
+          });
+        }
+
+        if (aiCancelBtn) {
+          const defaultAiCancelBtnHtml = aiCancelBtn.innerHTML;
+
+          aiCancelBtn.addEventListener('click', async function () {
+            if (!isCancelableAiJob(latestAiDraftJob)) {
+              setAiStatus('Aucune génération IA en cours à arrêter.', 'error');
+              updateAiCancelButton();
+              return;
+            }
+
+            const shouldCancel = window.confirm('Arrêter la génération IA en cours ?');
+            if (!shouldCancel) return;
+
+            aiCancelBtn.disabled = true;
+            aiCancelBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-lg">hourglass_top</span>Arrêt…';
+
+            try {
+              const response = await fetch(`/admin/api/products/generate-draft/${encodeURIComponent(latestAiDraftJob.jobId)}/cancel`, {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({}),
+              });
+
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok || !data || data.ok !== true) {
+                throw new Error(data && data.error ? data.error : 'Impossible d’arrêter la génération IA.');
+              }
+
+              if (!latestAiDraftJob) latestAiDraftJob = {};
+              latestAiDraftJob.status = 'canceled';
+              latestAiDraftJob.errorMessage = data && data.message ? String(data.message) : 'Génération IA arrêtée à la demande.';
+              updateAiCancelButton();
+              setAiStatus(latestAiDraftJob.errorMessage, 'success');
+            } catch (err) {
+              aiCancelBtn.disabled = false;
+              aiCancelBtn.innerHTML = defaultAiCancelBtnHtml;
+              setAiStatus(err && err.message ? err.message : 'Impossible d’arrêter la génération IA.', 'error');
+              return;
+            }
+
+            aiCancelBtn.innerHTML = defaultAiCancelBtnHtml;
           });
         }
 
@@ -2676,9 +2753,23 @@
               if (!response.ok || !data || data.ok !== true || !data.jobId) {
                 throw new Error(data && data.error ? data.error : 'Impossible de générer la fiche avec l’IA.');
               }
+              latestAiDraftJob = {
+                jobId: String(data.jobId),
+                status: String(data.status || 'queued'),
+                profile: String(data.profile || payload.aiProfile || ''),
+                profileLabel: String(data.profileLabel || getSelectedAiProfileLabel()),
+                errorMessage: '',
+                draft: null,
+              };
+              updateAiCancelButton();
               const finalData = await waitForDraftJob(data.jobId);
+              latestAiDraftJob = Object.assign({}, latestAiDraftJob || {}, finalData || {}, {
+                jobId: String((finalData && finalData.jobId) || data.jobId),
+                status: String((finalData && finalData.status) || 'completed'),
+              });
               applyGeneratedDraft(finalData);
             } catch (err) {
+              updateAiCancelButton();
               setAiStatus(err && err.message ? err.message : 'Erreur pendant la génération IA.', 'error');
             } finally {
               aiGenerateBtn.disabled = false;
@@ -2686,6 +2777,8 @@
             }
           });
         }
+
+        updateAiCancelButton();
 
         var scoreValueEl = document.getElementById('seoScoreValue');
         var fill = document.getElementById('seoProgressFill');

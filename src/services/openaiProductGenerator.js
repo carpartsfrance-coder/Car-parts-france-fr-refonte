@@ -1197,6 +1197,7 @@ async function generateProductSheet(payload, options = {}) {
   const maxNetworkRetries = Number.isFinite(Number(options && options.maxNetworkRetries))
     ? Math.max(0, Math.floor(Number(options.maxNetworkRetries)))
     : Math.min(OPENAI_NETWORK_MAX_RETRIES, profile.maxNetworkRetries);
+  const externalAbortSignal = options && options.abortSignal ? options.abortSignal : null;
   let networkAttempt = 0;
   let rateLimitAttempt = 0;
   let lastNetworkError = null;
@@ -1211,10 +1212,23 @@ async function generateProductSheet(payload, options = {}) {
     let response;
     const controller = new AbortController();
     let requestTimedOut = false;
+    let requestCanceled = false;
     const requestTimeoutId = setTimeout(() => {
       requestTimedOut = true;
       controller.abort();
     }, remainingMs);
+    const handleExternalAbort = () => {
+      requestCanceled = true;
+      controller.abort();
+    };
+
+    if (externalAbortSignal) {
+      if (externalAbortSignal.aborted) {
+        handleExternalAbort();
+      } else {
+        externalAbortSignal.addEventListener('abort', handleExternalAbort, { once: true });
+      }
+    }
 
     try {
       response = await fetch(OPENAI_RESPONSES_URL, {
@@ -1228,7 +1242,15 @@ async function generateProductSheet(payload, options = {}) {
       });
     } catch (error) {
       clearTimeout(requestTimeoutId);
+      if (externalAbortSignal) {
+        externalAbortSignal.removeEventListener('abort', handleExternalAbort);
+      }
       lastNetworkError = error;
+      if (requestCanceled) {
+        const err = new Error('Génération IA arrêtée à la demande.');
+        err.code = 'OPENAI_ABORTED';
+        throw err;
+      }
       if (requestTimedOut) {
         throw buildOpenAiTimeoutError(profile, { maxDurationMs: profile.maxDurationMs });
       }
@@ -1260,6 +1282,9 @@ async function generateProductSheet(payload, options = {}) {
       throw err;
     } finally {
       clearTimeout(requestTimeoutId);
+      if (externalAbortSignal) {
+        externalAbortSignal.removeEventListener('abort', handleExternalAbort);
+      }
     }
 
     const data = await response.json().catch(() => ({}));

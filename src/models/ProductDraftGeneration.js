@@ -16,7 +16,7 @@ const productDraftGenerationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['queued', 'processing', 'completed', 'failed'],
+      enum: ['queued', 'processing', 'completed', 'failed', 'canceled'],
       default: 'queued',
       trim: true,
       index: true,
