@@ -1,6 +1,9 @@
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const GENERATED_DESCRIPTION_TARGET_LENGTH = 1197;
 const GENERATED_DESCRIPTION_MIN_LENGTH = 1050;
+const OPENAI_RATE_LIMIT_MAX_RETRIES = 8;
+const OPENAI_RATE_LIMIT_FALLBACK_WAIT_MS = 5000;
+const OPENAI_RATE_LIMIT_MAX_WAIT_MS = 120000;
 
 function normalizeEnvString(value) {
   if (typeof value !== 'string') return '';
@@ -325,6 +328,87 @@ function getOpenAiApiKey() {
   return normalizeEnvString(process.env.OPENAI_API_KEY);
 }
 
+function sleep(ms) {
+  const delay = Number.isFinite(Number(ms)) ? Math.max(0, Math.floor(Number(ms))) : 0;
+  return new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+function clampRetryDelayMs(value, fallback = OPENAI_RATE_LIMIT_FALLBACK_WAIT_MS) {
+  const safeValue = Number.isFinite(Number(value)) ? Math.ceil(Number(value)) : fallback;
+  return Math.min(OPENAI_RATE_LIMIT_MAX_WAIT_MS, Math.max(1000, safeValue));
+}
+
+function parseRetryAfterHeaderToMs(value) {
+  const raw = normalizeEnvString(value);
+  if (!raw) return 0;
+
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) {
+    return Math.max(0, Math.ceil(asNumber * 1000));
+  }
+
+  const asDate = Date.parse(raw);
+  if (Number.isFinite(asDate)) {
+    return Math.max(0, asDate - Date.now());
+  }
+
+  return 0;
+}
+
+function parseRetryAfterMsHeader(value) {
+  const asNumber = Number(normalizeEnvString(value));
+  if (!Number.isFinite(asNumber)) return 0;
+  return Math.max(0, Math.ceil(asNumber));
+}
+
+function extractRetryDelayMsFromMessage(message) {
+  const raw = String(message || '').trim();
+  if (!raw) return 0;
+
+  const match = raw.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+  if (!match) return 0;
+
+  const seconds = Number.parseFloat(match[1]);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+  return Math.ceil(seconds * 1000);
+}
+
+function isRateLimitResponse(response, data) {
+  const errorCode = data && data.error && typeof data.error.code === 'string'
+    ? data.error.code.trim().toLowerCase()
+    : '';
+  const errorType = data && data.error && typeof data.error.type === 'string'
+    ? data.error.type.trim().toLowerCase()
+    : '';
+  const errorMessage = data && data.error && typeof data.error.message === 'string'
+    ? data.error.message.trim()
+    : '';
+
+  return (response && response.status === 429)
+    || errorCode === 'rate_limit_exceeded'
+    || errorType === 'rate_limit_exceeded'
+    || /rate limit/i.test(errorMessage)
+    || /tokens per min/i.test(errorMessage)
+    || /requests per min/i.test(errorMessage);
+}
+
+function getRateLimitRetryDelayMs(response, data, attempt = 0) {
+  const retryAfterMs = response && response.headers && typeof response.headers.get === 'function'
+    ? parseRetryAfterMsHeader(response.headers.get('retry-after-ms'))
+    : 0;
+  if (retryAfterMs > 0) return clampRetryDelayMs(retryAfterMs);
+
+  const retryAfterSeconds = response && response.headers && typeof response.headers.get === 'function'
+    ? parseRetryAfterHeaderToMs(response.headers.get('retry-after'))
+    : 0;
+  if (retryAfterSeconds > 0) return clampRetryDelayMs(retryAfterSeconds);
+
+  const messageDelay = extractRetryDelayMsFromMessage(data && data.error ? data.error.message : '');
+  if (messageDelay > 0) return clampRetryDelayMs(messageDelay);
+
+  return clampRetryDelayMs(OPENAI_RATE_LIMIT_FALLBACK_WAIT_MS * (attempt + 1));
+}
+
 function extractJsonCandidateStrings(node, out = []) {
   if (typeof node === 'string') {
     out.push(node);
@@ -401,6 +485,12 @@ function parseOpenAiError(data, response) {
 
   if (quotaExceeded) {
     return 'Le compte OpenAI a dépassé son quota ou la facturation API n’est pas active. Va dans Platform OpenAI > Billing pour ajouter du crédit ou activer la facturation, puis réessaie.';
+  }
+
+  if (isRateLimitResponse(response, data)) {
+    const retryDelayMs = getRateLimitRetryDelayMs(response, data);
+    const retryDelaySeconds = Math.max(1, Math.ceil(retryDelayMs / 1000));
+    return `OpenAI a temporairement atteint sa limite de débit sur les tokens/minute. Le serveur a déjà essayé de patienter automatiquement. Réessaie dans environ ${retryDelaySeconds} s.`;
   }
 
   if (errorMessage) {
@@ -570,46 +660,64 @@ async function generateProductSheet(payload, options = {}) {
     };
   }
 
-  let response;
-  try {
-    response = await fetch(OPENAI_RESPONSES_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    const err = new Error('Impossible de contacter OpenAI pour générer la fiche produit. Vérifie la connexion réseau et les paramètres du serveur.');
-    err.code = 'OPENAI_NETWORK_ERROR';
-    err.status = 502;
-    err.cause = error;
-    throw err;
+  const maxRateLimitRetries = Number.isFinite(Number(options && options.maxRateLimitRetries))
+    ? Math.max(0, Math.floor(Number(options.maxRateLimitRetries)))
+    : OPENAI_RATE_LIMIT_MAX_RETRIES;
+
+  for (let attempt = 0; attempt <= maxRateLimitRetries; attempt += 1) {
+    let response;
+    try {
+      response = await fetch(OPENAI_RESPONSES_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      const err = new Error('Impossible de contacter OpenAI pour générer la fiche produit. Vérifie la connexion réseau et les paramètres du serveur.');
+      err.code = 'OPENAI_NETWORK_ERROR';
+      err.status = 502;
+      err.cause = error;
+      throw err;
+    }
+
+    const data = await response.json().catch(() => ({}));
+    const isRateLimited = isRateLimitResponse(response, data);
+
+    if (!response.ok) {
+      if (isRateLimited && attempt < maxRateLimitRetries) {
+        await sleep(getRateLimitRetryDelayMs(response, data, attempt));
+        continue;
+      }
+
+      const err = new Error(parseOpenAiError(data, response));
+      err.code = isRateLimited ? 'OPENAI_RATE_LIMIT' : 'OPENAI_API_ERROR';
+      err.status = response.status;
+      err.details = data;
+      throw err;
+    }
+
+    const parsed = extractStructuredOutput(data);
+    if (!parsed) {
+      const err = new Error('Réponse OpenAI impossible à lire.');
+      err.code = 'OPENAI_INVALID_RESPONSE';
+      err.details = data;
+      throw err;
+    }
+
+    return {
+      model: body.model,
+      draft: normalizeGeneratedSheet(parsed, safePayload),
+      raw: data,
+    };
   }
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const err = new Error(parseOpenAiError(data, response));
-    err.code = 'OPENAI_API_ERROR';
-    err.status = response.status;
-    err.details = data;
-    throw err;
-  }
-
-  const parsed = extractStructuredOutput(data);
-  if (!parsed) {
-    const err = new Error('Réponse OpenAI impossible à lire.');
-    err.code = 'OPENAI_INVALID_RESPONSE';
-    err.details = data;
-    throw err;
-  }
-
-  return {
-    model: body.model,
-    draft: normalizeGeneratedSheet(parsed, safePayload),
-    raw: data,
-  };
+  const err = new Error('La génération IA n’a pas pu aboutir après plusieurs tentatives automatiques.');
+  err.code = 'OPENAI_RATE_LIMIT';
+  err.status = 429;
+  throw err;
 }
 
 module.exports = {
