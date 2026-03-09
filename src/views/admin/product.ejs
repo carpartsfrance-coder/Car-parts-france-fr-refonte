@@ -2460,7 +2460,10 @@
 
         function setInputValue(id, value) {
           const el = document.getElementById(id);
-          const nextValue = String(value || '').trim();
+          const safeValue = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+            ? String(value)
+            : '';
+          const nextValue = safeValue.trim();
           if (!el || !nextValue) return;
 
           aiTouchedFields.add(id);
@@ -2478,7 +2481,7 @@
               el.value = nextValue;
             }
           } else {
-            el.value = value;
+            el.value = safeValue;
           }
 
           dispatchFieldUpdates(el);

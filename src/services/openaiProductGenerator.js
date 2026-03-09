@@ -176,12 +176,18 @@ function slugify(value) {
     .replace(/-+$/, '');
 }
 
+function normalizeLooseTextInput(value) {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
 function compactSpaces(value) {
-  return String(value || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return normalizeLooseTextInput(value).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
 function stripMarkdownInline(value) {
-  return String(value || '')
+  return normalizeLooseTextInput(value)
     .replace(/!?\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, '')
     .replace(/\(\s*(?:https?:\/\/|www\.)[^)]*\)/gi, '')
     .replace(/\bhttps?:\/\/\S+/gi, '')
@@ -196,7 +202,7 @@ function stripMarkdownInline(value) {
 }
 
 function stripMarkdownMultiline(value) {
-  return String(value || '')
+  return normalizeLooseTextInput(value)
     .replace(/\r/g, '')
     .split('\n')
     .map((line) => String(line || '').trim())
@@ -744,15 +750,47 @@ function isStructuredProductSheetCandidate(node) {
   const keys = Object.keys(node);
   if (!keys.length) return false;
 
+  const looksLikeSchemaNode = typeof node.type === 'string'
+    && ('properties' in node || 'required' in node || 'additionalProperties' in node);
+  if (looksLikeSchemaNode) return false;
+
   let matchingKeys = 0;
   for (const key of keys) {
     if (PRODUCT_SHEET_TOP_LEVEL_KEYS.has(key)) matchingKeys += 1;
   }
 
-  if (matchingKeys >= 5) return true;
+  const hasStringContent = [
+    'name',
+    'slug',
+    'brand',
+    'category',
+    'shippingDelayText',
+    'specType',
+    'specProgrammation',
+    'badgeTopLeft',
+    'badgeCondition',
+    'shortDescription',
+    'description',
+    'metaTitle',
+    'metaDescription',
+  ].some((key) => typeof node[key] === 'string');
+
+  const hasArrayContent = [
+    'compatibleReferences',
+    'compatibility',
+    'faqs',
+    'reconditioningSteps',
+    'options',
+    'warnings',
+  ].some((key) => Array.isArray(node[key]));
+
+  if (matchingKeys >= 5 && (hasStringContent || hasArrayContent)) return true;
 
   return matchingKeys >= 3
-    && ('description' in node || 'compatibility' in node || 'faqs' in node || 'warnings' in node);
+    && (typeof node.description === 'string'
+      || Array.isArray(node.compatibility)
+      || Array.isArray(node.faqs)
+      || Array.isArray(node.warnings));
 }
 
 function extractStructuredObjectCandidates(node, out = [], seen = new Set()) {
