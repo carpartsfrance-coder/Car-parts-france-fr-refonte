@@ -816,6 +816,64 @@ function extractStructuredObjectCandidates(node, out = [], seen = new Set()) {
   return out;
 }
 
+function extractRefusalMessages(node, out = [], seen = new Set()) {
+  if (!node || typeof node !== 'object') return out;
+  if (seen.has(node)) return out;
+  seen.add(node);
+
+  if (!Array.isArray(node) && normalizeEnvString(node.type).toLowerCase() === 'refusal') {
+    const refusalText = normalizeLooseTextInput(node.refusal || node.text || node.reason);
+    if (refusalText) out.push(refusalText);
+  }
+
+  if (Array.isArray(node)) {
+    node.forEach((item) => extractRefusalMessages(item, out, seen));
+    return out;
+  }
+
+  Object.values(node).forEach((value) => {
+    if (value && typeof value === 'object') {
+      extractRefusalMessages(value, out, seen);
+    }
+  });
+
+  return out;
+}
+
+function getIncompleteResponseReason(data) {
+  return normalizeEnvString(data && data.incomplete_details && data.incomplete_details.reason).toLowerCase();
+}
+
+function buildUnreadableOpenAiResponseMessage(data) {
+  const refusalMessage = extractRefusalMessages(data, []).find(Boolean) || '';
+  if (refusalMessage) {
+    return `OpenAI a refusé de générer la fiche structurée. ${refusalMessage}`.trim();
+  }
+
+  const responseStatus = normalizeEnvString(data && data.status).toLowerCase();
+  const incompleteReason = getIncompleteResponseReason(data);
+
+  if (responseStatus === 'incomplete') {
+    if (incompleteReason === 'max_output_tokens') {
+      return 'OpenAI a coupé la réponse avant la fin car la limite de sortie a été atteinte. Réessaie ou choisis un mode plus court.';
+    }
+    if (incompleteReason === 'content_filter') {
+      return 'OpenAI a interrompu la réponse à cause d’un filtre de sécurité sur le contenu retourné.';
+    }
+    if (incompleteReason) {
+      return `OpenAI a renvoyé une réponse incomplète (${incompleteReason}).`;
+    }
+    return 'OpenAI a renvoyé une réponse incomplète avant la fin de la fiche produit.';
+  }
+
+  const outputText = normalizeLooseTextInput(data && data.output_text);
+  if (outputText) {
+    return 'OpenAI a répondu, mais pas dans le format structuré attendu par la fiche produit.';
+  }
+
+  return 'Réponse OpenAI impossible à lire.';
+}
+
 function extractStructuredOutput(data) {
   if (data && data.output_parsed && typeof data.output_parsed === 'object') {
     return data.output_parsed;
@@ -1122,6 +1180,7 @@ async function generateProductSheet(payload, options = {}) {
   let networkAttempt = 0;
   let rateLimitAttempt = 0;
   let lastNetworkError = null;
+  let structuredOutputRetryDone = false;
 
   while (true) {
     const remainingMs = deadlineAt - Date.now();
@@ -1207,7 +1266,28 @@ async function generateProductSheet(payload, options = {}) {
 
     const parsed = extractStructuredOutput(data);
     if (!parsed) {
-      const err = new Error('Réponse OpenAI impossible à lire.');
+      const incompleteReason = getIncompleteResponseReason(data);
+      if (!structuredOutputRetryDone && incompleteReason === 'max_output_tokens' && Number.isFinite(Number(body.max_output_tokens))) {
+        const previousMaxOutputTokens = Number(body.max_output_tokens) || 0;
+        const nextMaxOutputTokens = Math.min(9000, Math.max(
+          Math.ceil(previousMaxOutputTokens * 1.35),
+          previousMaxOutputTokens + 1200,
+        ));
+        const remainingRetryBudgetMs = deadlineAt - Date.now();
+        if (nextMaxOutputTokens > previousMaxOutputTokens && remainingRetryBudgetMs > 15000) {
+          structuredOutputRetryDone = true;
+          body.max_output_tokens = nextMaxOutputTokens;
+          console.warn('[openaiProductGenerator] réponse incomplète, nouvelle tentative avec plus de tokens', {
+            profile: profile.key,
+            previousMaxOutputTokens,
+            nextMaxOutputTokens,
+            reason: incompleteReason,
+          });
+          continue;
+        }
+      }
+
+      const err = new Error(buildUnreadableOpenAiResponseMessage(data));
       err.code = 'OPENAI_INVALID_RESPONSE';
       err.details = data;
       throw err;
