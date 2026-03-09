@@ -226,6 +226,83 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
   }
 }
 
+async function postAdminCancelAllProductDrafts(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const acceptHeader = req && req.headers && typeof req.headers.accept === 'string' ? req.headers.accept : '';
+    const wantsJson = acceptHeader.includes('application/json');
+    const safeReturnTo = getSafeAdminReturnTo(req.body && req.body.returnTo, '/admin/catalogue');
+
+    if (!dbConnected) {
+      if (wantsJson) {
+        return res.status(503).json({
+          ok: false,
+          error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+        });
+      }
+      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const activeJobs = await ProductDraftGeneration.find({
+      adminUserId: adminUserId || null,
+      status: { $in: ['queued', 'processing'] },
+    })
+      .select('_id')
+      .lean();
+
+    if (!activeJobs.length) {
+      if (wantsJson) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Aucune génération IA active à arrêter.',
+        });
+      }
+      req.session.adminCatalogError = 'Aucune génération IA active à arrêter.';
+      return res.redirect(safeReturnTo);
+    }
+
+    const activeJobIds = activeJobs.map((job) => String(job._id));
+    await ProductDraftGeneration.updateMany(
+      {
+        _id: { $in: activeJobIds },
+        status: { $in: ['queued', 'processing'] },
+      },
+      {
+        $set: {
+          status: 'canceled',
+          errorMessage: 'Génération IA arrêtée à la demande.',
+          completedAt: new Date(),
+        },
+      }
+    );
+
+    for (const jobId of activeJobIds) {
+      const activeController = activeProductDraftAbortControllers.get(jobId);
+      if (activeController) {
+        activeController.abort();
+      }
+    }
+
+    const successMessage = `${activeJobIds.length} génération${activeJobIds.length > 1 ? 's' : ''} IA arrêtée${activeJobIds.length > 1 ? 's' : ''}.`;
+
+    if (wantsJson) {
+      return res.json({
+        ok: true,
+        canceledCount: activeJobIds.length,
+        status: 'canceled',
+        message: successMessage,
+      });
+    }
+
+    req.session.adminCatalogSuccess = successMessage;
+    return res.redirect(safeReturnTo);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 function writeAdminCredentialsFile({ salt, hash } = {}) {
   if (!salt || !hash) return false;
   try {
@@ -3832,6 +3909,7 @@ async function getAdminCatalogPage(req, res, next) {
         filters: { q, stock, sort: sortKey },
         successMessage: null,
         errorMessage: "La base de données n'est pas disponible.",
+        activeAiDraftJobsCount: 0,
         pagination: {
           page: 1,
           perPage,
@@ -3880,6 +3958,11 @@ async function getAdminCatalogPage(req, res, next) {
     const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
     const page = Math.min(requestedPage, totalPages);
     const skip = (page - 1) * perPage;
+    const adminUserId = getAdminUserIdFromRequest(req);
+    const activeAiDraftJobsCount = await ProductDraftGeneration.countDocuments({
+      adminUserId: adminUserId || null,
+      status: { $in: ['queued', 'processing'] },
+    });
 
     const seoScoresByProductId = new Map();
     let products;
@@ -3915,7 +3998,6 @@ async function getAdminCatalogPage(req, res, next) {
         .lean();
     }
 
-    const adminUserId = getAdminUserIdFromRequest(req);
     const productObjectIds = products
       .map((p) => (p && p._id ? p._id : null))
       .filter(Boolean);
@@ -3980,6 +4062,7 @@ async function getAdminCatalogPage(req, res, next) {
       filters: { q, stock, sort: sortKey },
       successMessage,
       errorMessage,
+      activeAiDraftJobsCount,
       pagination: {
         page,
         perPage,
@@ -6716,6 +6799,7 @@ module.exports = {
   postAdminBulkGenerateProductDrafts,
   getAdminGenerateProductDraftStatus,
   postAdminCancelProductDraft,
+  postAdminCancelAllProductDrafts,
   getAdminDashboard,
   getAdminOrdersPage,
   getAdminOrderDetailPage,

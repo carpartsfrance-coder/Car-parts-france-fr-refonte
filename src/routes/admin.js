@@ -99,6 +99,7 @@ router.post('/catalogue/options/:templateId/toggle', requireAdminAuth, adminCont
 router.post('/api/products/generate-draft', requireAdminAuth, adminController.postAdminGenerateProductDraft);
 router.get('/api/products/generate-draft/:jobId', requireAdminAuth, adminController.getAdminGenerateProductDraftStatus);
 router.post('/api/products/generate-draft/:jobId/cancel', requireAdminAuth, adminController.postAdminCancelProductDraft);
+router.post('/api/products/generate-draft/cancel-all', requireAdminAuth, adminController.postAdminCancelAllProductDrafts);
 
 router.get('/catalogue/nouveau', requireAdminAuth, adminController.getAdminNewProductPage);
 router.post('/catalogue/nouveau', requireAdminAuth, handleProductImageUpload, adminController.postAdminCreateProduct);

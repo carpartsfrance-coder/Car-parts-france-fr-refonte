@@ -132,6 +132,11 @@
                   <span class="material-symbols-outlined mr-2 text-base">auto_awesome</span>
                   Générer IA la sélection
                 </button>
+                <% const activeJobsCount = typeof activeAiDraftJobsCount === 'number' ? activeAiDraftJobsCount : 0; %>
+                <button id="cancelAllAiBtn" class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition disabled:opacity-50" type="submit" formaction="/admin/api/products/generate-draft/cancel-all" formmethod="POST" <%= activeJobsCount > 0 ? '' : 'disabled' %>>
+                  <span class="material-symbols-outlined mr-2 text-base">stop_circle</span>
+                  Arrêter toute l’IA<%= activeJobsCount > 0 ? ' (' + activeJobsCount + ')' : '' %>
+                </button>
                 <button id="bulkDeleteBtn" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" type="submit" disabled>
                   <span class="material-symbols-outlined mr-2 text-base">delete</span>
                   Supprimer la sélection
@@ -285,6 +290,7 @@
             var selectAll = document.getElementById('selectAll');
             var bulkBtn = document.getElementById('bulkDeleteBtn');
             var bulkGenerateBtn = document.getElementById('bulkGenerateBtn');
+            var cancelAllAiBtn = document.getElementById('cancelAllAiBtn');
             var selectedCount = document.getElementById('selectedCount');
             var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.rowSelect'));
 
@@ -298,6 +304,11 @@
                 }
                 if (submitter && submitter.id === 'bulkGenerateBtn') {
                   if (!window.confirm('Lancer la génération IA pour les produits sélectionnés ? Les brouillons seront à relire ensuite sur chaque fiche produit.')) {
+                    e.preventDefault();
+                  }
+                }
+                if (submitter && submitter.id === 'cancelAllAiBtn') {
+                  if (!window.confirm('Arrêter toutes les générations IA actives ?')) {
                     e.preventDefault();
                   }
                 }
