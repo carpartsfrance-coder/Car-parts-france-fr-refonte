@@ -294,6 +294,8 @@
                       <div class="mt-4 flex bg-slate-200 dark:bg-slate-800 p-1 rounded-lg border border-slate-300 dark:border-slate-700 gap-1 flex-wrap">
                         <% choices.forEach((c) => { %>
                           <% const cKey = c && c.key ? String(c.key) : ''; %>
+                          <% const cAbsoluteRaw = c && c.absolutePriceCents !== null && typeof c.absolutePriceCents !== 'undefined' ? String(c.absolutePriceCents).trim() : ''; %>
+                          <% const hasAbsolutePrice = cAbsoluteRaw !== '' && Number.isFinite(Number(cAbsoluteRaw)) && Number(cAbsoluteRaw) >= 0; %>
                           <% if (!cKey) return; %>
                           <label class="choice-toggle relative flex-1 min-w-[120px] cursor-pointer">
                             <input
@@ -304,13 +306,13 @@
                               <%= g && g.required ? 'required' : '' %>
                               data-option-input
                               data-option-type="choice"
-                              data-absolute-price-cents="<%= Number.isFinite(Number(c && c.absolutePriceCents)) ? Number(c.absolutePriceCents) : '' %>"
+                              data-absolute-price-cents="<%= hasAbsolutePrice ? Number(cAbsoluteRaw) : '' %>"
                               data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
                             />
                             <span class="flex items-center justify-center rounded-md border border-transparent px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-300 transition-all text-center min-h-[44px]">
                               <span>
                                 <%= c && c.label ? c.label : cKey %>
-                                <% if (Number.isFinite(Number(c && c.absolutePriceCents)) && Number(c.absolutePriceCents) >= 0) { %>
+                                <% if (hasAbsolutePrice) { %>
                                   <span class="block normal-case text-[11px] mt-0.5"><%= formatMoney(c.absolutePriceCents) %> €</span>
                                 <% } else if (Number(c && c.priceDeltaCents) > 0) { %>
                                   <span class="block normal-case text-[11px] mt-0.5">+<%= formatMoney(c.priceDeltaCents) %> €</span>
@@ -324,6 +326,8 @@
                       <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <% choices.forEach((c) => { %>
                           <% const cKey = c && c.key ? String(c.key) : ''; %>
+                          <% const cAbsoluteRaw = c && c.absolutePriceCents !== null && typeof c.absolutePriceCents !== 'undefined' ? String(c.absolutePriceCents).trim() : ''; %>
+                          <% const hasAbsolutePrice = cAbsoluteRaw !== '' && Number.isFinite(Number(cAbsoluteRaw)) && Number(cAbsoluteRaw) >= 0; %>
                           <% if (!cKey) return; %>
                           <label class="flex items-center gap-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-3 text-xs font-bold uppercase tracking-wide cursor-pointer hover:border-primary transition-all">
                             <input
@@ -334,11 +338,11 @@
                               <%= g && g.required ? 'required' : '' %>
                               data-option-input
                               data-option-type="choice"
-                              data-absolute-price-cents="<%= Number.isFinite(Number(c && c.absolutePriceCents)) ? Number(c.absolutePriceCents) : '' %>"
+                              data-absolute-price-cents="<%= hasAbsolutePrice ? Number(cAbsoluteRaw) : '' %>"
                               data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
                             />
                             <span class="flex-1 min-w-0 normal-case text-sm font-semibold tracking-normal"><%= c && c.label ? c.label : cKey %></span>
-                            <% if (Number.isFinite(Number(c && c.absolutePriceCents)) && Number(c.absolutePriceCents) >= 0) { %>
+                            <% if (hasAbsolutePrice) { %>
                               <span class="text-primary font-black normal-case"><%= formatMoney(c.absolutePriceCents) %> €</span>
                             <% } else if (Number(c && c.priceDeltaCents) > 0) { %>
                               <span class="text-primary font-black normal-case">+<%= formatMoney(c.priceDeltaCents) %> €</span>

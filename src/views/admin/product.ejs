@@ -1363,13 +1363,19 @@
           return parsePriceInputToCents(trimmed);
         };
 
+        const normalizeOptionalStoredPriceCents = (value) => {
+          if (value === null || typeof value === 'undefined') return null;
+          const trimmed = String(value).trim();
+          if (!trimmed) return null;
+          const parsed = Number(trimmed);
+          return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : null;
+        };
+
         const createChoiceState = (choice) => ({
           key: String(choice && choice.key ? choice.key : '').trim(),
           label: String(choice && choice.label ? choice.label : '').trim(),
           priceDeltaCents: Number.isFinite(Number(choice && choice.priceDeltaCents)) ? Math.round(Number(choice.priceDeltaCents)) : 0,
-          absolutePriceCents: Number.isFinite(Number(choice && choice.absolutePriceCents)) && Number(choice.absolutePriceCents) >= 0
-            ? Math.round(Number(choice.absolutePriceCents))
-            : null,
+          absolutePriceCents: normalizeOptionalStoredPriceCents(choice && choice.absolutePriceCents),
         });
 
         const createEmptyOptionState = () => ({

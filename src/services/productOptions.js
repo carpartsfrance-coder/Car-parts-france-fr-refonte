@@ -4,6 +4,21 @@ function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeOptionalPriceInt(value) {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return Math.round(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    if (Number.isFinite(n) && n >= 0) return Math.round(n);
+  }
+
+  return null;
+}
+
 function slugifyKey(value) {
   const input = getTrimmedString(value);
   if (!input) return '';
@@ -108,9 +123,7 @@ function normalizeProductOptions(options) {
           key: choiceKey,
           label: choiceLabel || choiceKey,
           priceDeltaCents: normalizeInt(c.priceDeltaCents, 0),
-          absolutePriceCents: Number.isFinite(Number(c && c.absolutePriceCents)) && Number(c.absolutePriceCents) >= 0
-            ? Math.round(Number(c.absolutePriceCents))
-            : null,
+          absolutePriceCents: normalizeOptionalPriceInt(c && c.absolutePriceCents),
         });
       }
 
@@ -256,8 +269,9 @@ function computeUnitPriceCents(product, selection) {
     if (g.type === 'choice') {
       const choice = g.choices.find((c) => c && String(c.key) === String(value));
       if (choice) {
-        if (Number.isFinite(Number(choice.absolutePriceCents)) && Number(choice.absolutePriceCents) >= 0) {
-          absolutePriceOverride = Math.round(Number(choice.absolutePriceCents));
+        const absolutePrice = normalizeOptionalPriceInt(choice.absolutePriceCents);
+        if (absolutePrice !== null) {
+          absolutePriceOverride = absolutePrice;
         } else {
           deltaTotal += normalizeInt(choice.priceDeltaCents, 0);
         }
@@ -294,9 +308,7 @@ function buildOptionsDisplay(productOptions, selection) {
         label: g.label,
         value: choice.label,
         priceDeltaCents: normalizeInt(choice.priceDeltaCents, 0),
-        absolutePriceCents: Number.isFinite(Number(choice.absolutePriceCents)) && Number(choice.absolutePriceCents) >= 0
-          ? Math.round(Number(choice.absolutePriceCents))
-          : null,
+        absolutePriceCents: normalizeOptionalPriceInt(choice.absolutePriceCents),
       });
       continue;
     }
