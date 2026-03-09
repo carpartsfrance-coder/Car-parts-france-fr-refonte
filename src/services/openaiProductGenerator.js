@@ -4,6 +4,9 @@ const GENERATED_DESCRIPTION_MIN_LENGTH = 1050;
 const OPENAI_RATE_LIMIT_MAX_RETRIES = 8;
 const OPENAI_RATE_LIMIT_FALLBACK_WAIT_MS = 5000;
 const OPENAI_RATE_LIMIT_MAX_WAIT_MS = 120000;
+const OPENAI_NETWORK_MAX_RETRIES = 4;
+const OPENAI_NETWORK_RETRY_BASE_MS = 2000;
+const OPENAI_NETWORK_RETRY_MAX_WAIT_MS = 30000;
 
 function normalizeEnvString(value) {
   if (typeof value !== 'string') return '';
@@ -338,6 +341,66 @@ function clampRetryDelayMs(value, fallback = OPENAI_RATE_LIMIT_FALLBACK_WAIT_MS)
   return Math.min(OPENAI_RATE_LIMIT_MAX_WAIT_MS, Math.max(1000, safeValue));
 }
 
+function clampNetworkRetryDelayMs(value, fallback = OPENAI_NETWORK_RETRY_BASE_MS) {
+  const safeValue = Number.isFinite(Number(value)) ? Math.ceil(Number(value)) : fallback;
+  return Math.min(OPENAI_NETWORK_RETRY_MAX_WAIT_MS, Math.max(1000, safeValue));
+}
+
+function getNetworkRetryDelayMs(attempt = 0) {
+  return clampNetworkRetryDelayMs(OPENAI_NETWORK_RETRY_BASE_MS * Math.pow(2, Math.max(0, attempt)));
+}
+
+function getErrorChain(error) {
+  const chain = [];
+  const seen = new Set();
+  let current = error;
+
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    chain.push(current);
+    seen.add(current);
+    current = current.cause;
+  }
+
+  return chain;
+}
+
+function isTransientNetworkError(error) {
+  const chain = getErrorChain(error);
+  const transientCodes = new Set([
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'ECONNABORTED',
+    'ETIMEDOUT',
+    'EAI_AGAIN',
+    'ENETDOWN',
+    'ENETUNREACH',
+    'EHOSTUNREACH',
+    'UND_ERR_CONNECT_TIMEOUT',
+    'UND_ERR_HEADERS_TIMEOUT',
+    'UND_ERR_BODY_TIMEOUT',
+    'UND_ERR_SOCKET',
+  ]);
+
+  return chain.some((item) => {
+    const code = item && typeof item.code === 'string' ? item.code.trim().toUpperCase() : '';
+    const name = item && typeof item.name === 'string' ? item.name.trim().toLowerCase() : '';
+    const message = item && typeof item.message === 'string' ? item.message.trim().toLowerCase() : '';
+
+    return transientCodes.has(code)
+      || name === 'aborterror'
+      || /fetch failed/.test(message)
+      || /network/.test(message)
+      || /socket/.test(message)
+      || /timeout/.test(message)
+      || /timed out/.test(message)
+      || /econnreset/.test(message)
+      || /econnrefused/.test(message)
+      || /eai_again/.test(message)
+      || /headers timeout/.test(message)
+      || /body timeout/.test(message);
+  });
+}
+
 function parseRetryAfterHeaderToMs(value) {
   const raw = normalizeEnvString(value);
   if (!raw) return 0;
@@ -663,8 +726,13 @@ async function generateProductSheet(payload, options = {}) {
   const maxRateLimitRetries = Number.isFinite(Number(options && options.maxRateLimitRetries))
     ? Math.max(0, Math.floor(Number(options.maxRateLimitRetries)))
     : OPENAI_RATE_LIMIT_MAX_RETRIES;
+  const maxNetworkRetries = Number.isFinite(Number(options && options.maxNetworkRetries))
+    ? Math.max(0, Math.floor(Number(options.maxNetworkRetries)))
+    : OPENAI_NETWORK_MAX_RETRIES;
+  let networkAttempt = 0;
+  let rateLimitAttempt = 0;
 
-  for (let attempt = 0; attempt <= maxRateLimitRetries; attempt += 1) {
+  while (true) {
     let response;
     try {
       response = await fetch(OPENAI_RESPONSES_URL, {
@@ -676,6 +744,13 @@ async function generateProductSheet(payload, options = {}) {
         body: JSON.stringify(body),
       });
     } catch (error) {
+      if (isTransientNetworkError(error) && networkAttempt < maxNetworkRetries) {
+        const waitMs = getNetworkRetryDelayMs(networkAttempt);
+        networkAttempt += 1;
+        await sleep(waitMs);
+        continue;
+      }
+
       const err = new Error('Impossible de contacter OpenAI pour générer la fiche produit. Vérifie la connexion réseau et les paramètres du serveur.');
       err.code = 'OPENAI_NETWORK_ERROR';
       err.status = 502;
@@ -687,8 +762,9 @@ async function generateProductSheet(payload, options = {}) {
     const isRateLimited = isRateLimitResponse(response, data);
 
     if (!response.ok) {
-      if (isRateLimited && attempt < maxRateLimitRetries) {
-        await sleep(getRateLimitRetryDelayMs(response, data, attempt));
+      if (isRateLimited && rateLimitAttempt < maxRateLimitRetries) {
+        await sleep(getRateLimitRetryDelayMs(response, data, rateLimitAttempt));
+        rateLimitAttempt += 1;
         continue;
       }
 
@@ -713,11 +789,6 @@ async function generateProductSheet(payload, options = {}) {
       raw: data,
     };
   }
-
-  const err = new Error('La génération IA n’a pas pu aboutir après plusieurs tentatives automatiques.');
-  err.code = 'OPENAI_RATE_LIMIT';
-  err.status = 429;
-  throw err;
 }
 
 module.exports = {
