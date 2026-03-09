@@ -27,6 +27,10 @@ const AI_GENERATION_PROFILES = Object.freeze({
     maxRateLimitRetries: 4,
     maxNetworkRetries: 3,
     promptStyle: 'standard',
+    descriptionTargetWords: 200,
+    descriptionMinWords: 180,
+    descriptionMaxWords: 220,
+    descriptionMaxLength: 1500,
   }),
   single_premium: Object.freeze({
     key: 'single_premium',
@@ -202,9 +206,31 @@ function normalizeMultilineText(value, { maxLength = 0 } = {}) {
   return text.slice(0, Math.max(0, maxLength - 1)).trim() + '…';
 }
 
-function trimGeneratedDescription(value, { minLength = GENERATED_DESCRIPTION_MIN_LENGTH, maxLength = GENERATED_DESCRIPTION_TARGET_LENGTH } = {}) {
-  const text = normalizeMultilineText(value);
+function trimGeneratedDescriptionToMaxWords(text, maxWords) {
+  const safeText = normalizeMultilineText(text);
+  const words = safeText.split(/\s+/).filter(Boolean);
+  if (!maxWords || words.length <= maxWords) return safeText;
+
+  const tokens = safeText.match(/\S+\s*/g) || [];
+  const rawCut = tokens.slice(0, maxWords).join('').trim();
+  const tailWindow = safeText.slice(rawCut.length, Math.min(safeText.length, rawCut.length + 220));
+  const sentenceEndMatch = tailWindow.match(/^[\s\S]*?[.!?](?=\s|$)/);
+
+  if (sentenceEndMatch) {
+    return `${rawCut}${sentenceEndMatch[0]}`.trim();
+  }
+
+  return `${rawCut}…`;
+}
+
+function trimGeneratedDescription(value, { minLength = GENERATED_DESCRIPTION_MIN_LENGTH, maxLength = GENERATED_DESCRIPTION_TARGET_LENGTH, maxWords = 0 } = {}) {
+  let text = normalizeMultilineText(value);
   if (!text) return '';
+
+  if (maxWords > 0) {
+    text = trimGeneratedDescriptionToMaxWords(text, maxWords);
+  }
+
   if (text.length <= maxLength) return text;
 
   const windowStart = Math.max(minLength, Math.floor(maxLength * 0.88));
@@ -251,7 +277,7 @@ function normalizeFaqs(value) {
       const src = item && typeof item === 'object' ? item : {};
       return {
         question: normalizeText(src.question, { maxLength: 220 }),
-        answer: normalizeText(src.answer, { maxLength: 400 }),
+        answer: normalizeText(src.answer, { maxLength: 520 }),
       };
     })
     .filter((item) => item.question || item.answer)
@@ -769,7 +795,9 @@ function buildSystemInstruction(profile) {
 
   if (profile.promptStyle === 'standard') {
     lines.push('- Reste efficace : privilégie quelques recherches ciblées et fiables plutôt qu’une recherche trop longue.');
-    lines.push('- Si un champ secondaire demande trop de vérifications, laisse-le vide plutôt que de ralentir la réponse.');
+    lines.push('- Ne t’arrête pas au premier véhicule trouvé : si la référence remonte sur plusieurs marques ou modèles fiables, liste les différentes compatibilités utiles.');
+    lines.push('- Quand une même pièce couvre plusieurs marques ou plusieurs modèles, privilégie une compatibilité large mais prudente, en dédupliquant les doublons.');
+    lines.push('- Même en mode standard, la compatibilité véhicule, la description et la FAQ restent prioritaires.');
   }
 
   if (profile.promptStyle === 'batch_fast') {
@@ -788,6 +816,9 @@ function buildSystemInstruction(profile) {
 function buildUserPrompt(payload, profile) {
   const sourceNotes = normalizeMultilineText(payload && payload.sourceNotes ? payload.sourceNotes : '', { maxLength: 4000 });
   const compatibleReferences = normalizeArrayOfStrings(payload && payload.compatibleReferences ? payload.compatibleReferences : [], { maxItems: 20, maxLength: 120 });
+  const descriptionTargetWords = Number.isFinite(Number(profile && profile.descriptionTargetWords)) ? Math.max(0, Math.floor(Number(profile.descriptionTargetWords))) : 0;
+  const descriptionMinWords = Number.isFinite(Number(profile && profile.descriptionMinWords)) ? Math.max(0, Math.floor(Number(profile.descriptionMinWords))) : 0;
+  const descriptionMaxWords = Number.isFinite(Number(profile && profile.descriptionMaxWords)) ? Math.max(0, Math.floor(Number(profile.descriptionMaxWords))) : 0;
 
   const lines = [
     'Prépare une fiche produit complète en te basant sur une recherche web.',
@@ -810,7 +841,9 @@ function buildUserPrompt(payload, profile) {
     '- Produis un nom de produit vendable, propre et naturel.',
     '- Génère un slug SEO simple.',
     '- Génère un résumé court et une description détaillée orientée bénéfices + usages + vérifications utiles.',
-    `- La description détaillée doit faire environ ${GENERATED_DESCRIPTION_TARGET_LENGTH} caractères espaces compris, sans dépasser sensiblement cette longueur. Vise une fourchette de ${GENERATED_DESCRIPTION_MIN_LENGTH} à ${GENERATED_DESCRIPTION_TARGET_LENGTH} caractères.`,
+    descriptionTargetWords > 0
+      ? `- La description détaillée doit faire environ ${descriptionTargetWords} mots. Vise une fourchette de ${descriptionMinWords || descriptionTargetWords} à ${descriptionMaxWords || descriptionTargetWords} mots.`
+      : `- La description détaillée doit faire environ ${GENERATED_DESCRIPTION_TARGET_LENGTH} caractères espaces compris, sans dépasser sensiblement cette longueur. Vise une fourchette de ${GENERATED_DESCRIPTION_MIN_LENGTH} à ${GENERATED_DESCRIPTION_TARGET_LENGTH} caractères.`,
     '- La description doit être directement lisible dans un textarea admin : texte clair, paragraphes simples, puces simples, sans Markdown.',
     '- N’ajoute aucune source, aucun lien, aucune URL et aucun nom de site dans la réponse finale.',
     '- Génère des champs Type, Programmation, Garantie et État cohérents.',
@@ -823,6 +856,10 @@ function buildUserPrompt(payload, profile) {
 
   if (profile.promptStyle === 'standard') {
     lines.push('- Reste pragmatique : livre une bonne fiche sans chercher trop longtemps des détails secondaires.');
+    lines.push('- Cherche activement les compatibilités multi-marques et multi-modèles quand une même référence est utilisée sur plusieurs véhicules différents.');
+    lines.push('- Ne te limite pas à un seul exemple : essaie de faire ressortir plusieurs marques et plusieurs modèles distincts si les sources les confirment.');
+    lines.push('- Génère au moins 4 FAQ concrètes avec des réponses complètes et rassurantes pour le client.');
+    lines.push('- Dans la FAQ, couvre en priorité la compatibilité, la programmation/codage, l’état ou le reconditionnement, la garantie et les vérifications avant achat si pertinent.');
   }
 
   if (profile.promptStyle === 'batch_fast') {
@@ -842,7 +879,7 @@ function buildUserPrompt(payload, profile) {
   return lines.join('\n');
 }
 
-function normalizeGeneratedSheet(raw, payload) {
+function normalizeGeneratedSheet(raw, payload, profile = null) {
   const sourceName = normalizeText(raw && raw.name ? raw.name : '', { maxLength: 220 })
     || normalizeText(payload && payload.name ? payload.name : '', { maxLength: 220 });
   const sourceBrand = normalizeText(raw && raw.brand ? raw.brand : '', { maxLength: 120 })
@@ -868,7 +905,11 @@ function normalizeGeneratedSheet(raw, payload) {
     badgeTopLeft: normalizeText(raw && raw.badgeTopLeft ? raw.badgeTopLeft : '', { maxLength: 120 }),
     badgeCondition: normalizeText(raw && raw.badgeCondition ? raw.badgeCondition : '', { maxLength: 120 }),
     shortDescription: normalizeText(raw && raw.shortDescription ? raw.shortDescription : '', { maxLength: 320 }),
-    description: trimGeneratedDescription(raw && raw.description ? raw.description : ''),
+    description: trimGeneratedDescription(raw && raw.description ? raw.description : '', {
+      minLength: Number.isFinite(Number(profile && profile.descriptionMinLength)) ? Math.max(0, Math.floor(Number(profile.descriptionMinLength))) : GENERATED_DESCRIPTION_MIN_LENGTH,
+      maxLength: Number.isFinite(Number(profile && profile.descriptionMaxLength)) ? Math.max(0, Math.floor(Number(profile.descriptionMaxLength))) : GENERATED_DESCRIPTION_TARGET_LENGTH,
+      maxWords: Number.isFinite(Number(profile && profile.descriptionMaxWords)) ? Math.max(0, Math.floor(Number(profile.descriptionMaxWords))) : 0,
+    }),
     compatibleReferences,
     compatibility: normalizeCompatibility(raw && raw.compatibility ? raw.compatibility : []),
     faqs: normalizeFaqs(raw && raw.faqs ? raw.faqs : []),
@@ -1055,7 +1096,7 @@ async function generateProductSheet(payload, options = {}) {
 
     return {
       model: body.model,
-      draft: normalizeGeneratedSheet(parsed, safePayload),
+      draft: normalizeGeneratedSheet(parsed, safePayload, profile),
       raw: data,
     };
   }
