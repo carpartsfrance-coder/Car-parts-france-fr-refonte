@@ -304,12 +304,15 @@
                               <%= g && g.required ? 'required' : '' %>
                               data-option-input
                               data-option-type="choice"
+                              data-absolute-price-cents="<%= Number.isFinite(Number(c && c.absolutePriceCents)) ? Number(c.absolutePriceCents) : '' %>"
                               data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
                             />
                             <span class="flex items-center justify-center rounded-md border border-transparent px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-300 transition-all text-center min-h-[44px]">
                               <span>
                                 <%= c && c.label ? c.label : cKey %>
-                                <% if (Number(c && c.priceDeltaCents) > 0) { %>
+                                <% if (Number.isFinite(Number(c && c.absolutePriceCents)) && Number(c.absolutePriceCents) >= 0) { %>
+                                  <span class="block normal-case text-[11px] mt-0.5"><%= formatMoney(c.absolutePriceCents) %> €</span>
+                                <% } else if (Number(c && c.priceDeltaCents) > 0) { %>
                                   <span class="block normal-case text-[11px] mt-0.5">+<%= formatMoney(c.priceDeltaCents) %> €</span>
                                 <% } %>
                               </span>
@@ -331,10 +334,13 @@
                               <%= g && g.required ? 'required' : '' %>
                               data-option-input
                               data-option-type="choice"
+                              data-absolute-price-cents="<%= Number.isFinite(Number(c && c.absolutePriceCents)) ? Number(c.absolutePriceCents) : '' %>"
                               data-price-delta-cents="<%= Number(c.priceDeltaCents) || 0 %>"
                             />
                             <span class="flex-1 min-w-0 normal-case text-sm font-semibold tracking-normal"><%= c && c.label ? c.label : cKey %></span>
-                            <% if (Number(c && c.priceDeltaCents) > 0) { %>
+                            <% if (Number.isFinite(Number(c && c.absolutePriceCents)) && Number(c.absolutePriceCents) >= 0) { %>
+                              <span class="text-primary font-black normal-case"><%= formatMoney(c.absolutePriceCents) %> €</span>
+                            <% } else if (Number(c && c.priceDeltaCents) > 0) { %>
                               <span class="text-primary font-black normal-case">+<%= formatMoney(c.priceDeltaCents) %> €</span>
                             <% } %>
                           </label>
@@ -698,30 +704,36 @@
             }
           }
 
-          function computeOptionsDeltaCents() {
+          function computeOptionPricing() {
             var total = 0;
+            var absolute = null;
             optionInputs.forEach(function (el) {
               if (!el) return;
               var type = el.getAttribute('data-option-type') || '';
               var delta = Number(el.getAttribute('data-price-delta-cents') || '0');
+              var absoluteRaw = el.getAttribute('data-absolute-price-cents');
+              var absolutePrice = absoluteRaw === '' || absoluteRaw === null ? null : Number(absoluteRaw);
               if (!Number.isFinite(delta)) delta = 0;
 
               if (type === 'choice') {
-                if (el.checked) total += delta;
+                if (el.checked) {
+                  if (Number.isFinite(absolutePrice) && absolutePrice >= 0) absolute = absolutePrice;
+                  else total += delta;
+                }
               } else if (type === 'text') {
                 var v = (el.value || '').trim();
                 if (v) total += delta;
               }
             });
-            return total;
+            return { delta: total, absolute: absolute };
           }
 
           function syncDisplayedPrice() {
             if (!priceEl) return;
             var base = Number(priceEl.getAttribute('data-base-price-cents') || '0');
             if (!Number.isFinite(base)) base = 0;
-            var delta = computeOptionsDeltaCents();
-            var next = base + delta;
+            var pricing = computeOptionPricing();
+            var next = (pricing.absolute !== null ? pricing.absolute : base) + pricing.delta;
             priceEl.textContent = formatMoney(next) + ' €';
           }
 

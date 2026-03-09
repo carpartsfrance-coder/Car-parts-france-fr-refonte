@@ -108,6 +108,9 @@ function normalizeProductOptions(options) {
           key: choiceKey,
           label: choiceLabel || choiceKey,
           priceDeltaCents: normalizeInt(c.priceDeltaCents, 0),
+          absolutePriceCents: Number.isFinite(Number(c && c.absolutePriceCents)) && Number(c.absolutePriceCents) >= 0
+            ? Math.round(Number(c.absolutePriceCents))
+            : null,
         });
       }
 
@@ -244,23 +247,31 @@ function computeUnitPriceCents(product, selection) {
   const sel = selection && typeof selection === 'object' ? selection : {};
 
   const base = Number.isFinite(product && product.priceCents) ? product.priceCents : 0;
-  let total = base;
+  let deltaTotal = 0;
+  let absolutePriceOverride = null;
 
   for (const g of opts) {
     const value = Object.prototype.hasOwnProperty.call(sel, g.key) ? sel[g.key] : '';
 
     if (g.type === 'choice') {
       const choice = g.choices.find((c) => c && String(c.key) === String(value));
-      if (choice) total += normalizeInt(choice.priceDeltaCents, 0);
+      if (choice) {
+        if (Number.isFinite(Number(choice.absolutePriceCents)) && Number(choice.absolutePriceCents) >= 0) {
+          absolutePriceOverride = Math.round(Number(choice.absolutePriceCents));
+        } else {
+          deltaTotal += normalizeInt(choice.priceDeltaCents, 0);
+        }
+      }
       continue;
     }
 
     if (g.type === 'text') {
       const hasValue = typeof value === 'string' ? value.trim() : String(value || '').trim();
-      if (hasValue) total += normalizeInt(g.priceDeltaCents, 0);
+      if (hasValue) deltaTotal += normalizeInt(g.priceDeltaCents, 0);
     }
   }
 
+  const total = (absolutePriceOverride !== null ? absolutePriceOverride : base) + deltaTotal;
   return Math.max(0, Math.trunc(total));
 }
 
@@ -283,6 +294,9 @@ function buildOptionsDisplay(productOptions, selection) {
         label: g.label,
         value: choice.label,
         priceDeltaCents: normalizeInt(choice.priceDeltaCents, 0),
+        absolutePriceCents: Number.isFinite(Number(choice.absolutePriceCents)) && Number(choice.absolutePriceCents) >= 0
+          ? Math.round(Number(choice.absolutePriceCents))
+          : null,
       });
       continue;
     }
@@ -295,6 +309,7 @@ function buildOptionsDisplay(productOptions, selection) {
         label: g.label,
         value,
         priceDeltaCents: normalizeInt(g.priceDeltaCents, 0),
+        absolutePriceCents: null,
       });
     }
   }

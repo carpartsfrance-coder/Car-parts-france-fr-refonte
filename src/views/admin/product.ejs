@@ -1357,10 +1357,19 @@
           return (cents / 100).toFixed(2).replace('.', ',');
         };
 
+        const parseOptionalPriceInputToCents = (value) => {
+          const trimmed = String(value || '').trim();
+          if (!trimmed) return null;
+          return parsePriceInputToCents(trimmed);
+        };
+
         const createChoiceState = (choice) => ({
           key: String(choice && choice.key ? choice.key : '').trim(),
           label: String(choice && choice.label ? choice.label : '').trim(),
           priceDeltaCents: Number.isFinite(Number(choice && choice.priceDeltaCents)) ? Math.round(Number(choice.priceDeltaCents)) : 0,
+          absolutePriceCents: Number.isFinite(Number(choice && choice.absolutePriceCents)) && Number(choice.absolutePriceCents) >= 0
+            ? Math.round(Number(choice.absolutePriceCents))
+            : null,
         });
 
         const createEmptyOptionState = () => ({
@@ -1723,7 +1732,7 @@
 
               choices.forEach((choice, choiceIndex) => {
                 const row = document.createElement('div');
-                row.className = 'grid grid-cols-1 md:grid-cols-[1fr_180px_auto] gap-3 items-end rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 p-4';
+                row.className = 'grid grid-cols-1 md:grid-cols-[1fr_180px_180px_auto] gap-3 items-end rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 p-4';
 
                 const choiceLabelField = createField('Libellé');
                 const choiceLabelInput = document.createElement('input');
@@ -1732,6 +1741,14 @@
                 choiceLabelInput.value = choice && choice.label ? choice.label : '';
                 choiceLabelInput.placeholder = 'Ex: Avec programmation';
                 choiceLabelField.wrap.appendChild(choiceLabelInput);
+
+                const choiceAbsolutePriceField = createField('Prix final (€)');
+                const choiceAbsolutePriceInput = document.createElement('input');
+                choiceAbsolutePriceInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm';
+                choiceAbsolutePriceInput.type = 'text';
+                choiceAbsolutePriceInput.value = formatPriceInputFromCents(choice && choice.absolutePriceCents);
+                choiceAbsolutePriceInput.placeholder = 'Ex: 199,90';
+                choiceAbsolutePriceField.wrap.appendChild(choiceAbsolutePriceInput);
 
                 const choicePriceField = createField('Supplément (€)');
                 const choicePriceInput = document.createElement('input');
@@ -1761,6 +1778,15 @@
                   syncOptionsField();
                 });
 
+                choiceAbsolutePriceInput.addEventListener('blur', () => {
+                  const parsed = parseOptionalPriceInputToCents(choiceAbsolutePriceInput.value);
+                  if (parsed !== null || !String(choiceAbsolutePriceInput.value || '').trim()) {
+                    choice.absolutePriceCents = parsed;
+                  }
+                  choiceAbsolutePriceInput.value = formatPriceInputFromCents(choice.absolutePriceCents);
+                  syncOptionsField();
+                });
+
                 choicePriceInput.addEventListener('blur', () => {
                   const parsed = parsePriceInputToCents(choicePriceInput.value);
                   if (parsed !== null) choice.priceDeltaCents = parsed;
@@ -1769,6 +1795,7 @@
                 });
 
                 row.appendChild(choiceLabelField.wrap);
+                row.appendChild(choiceAbsolutePriceField.wrap);
                 row.appendChild(choicePriceField.wrap);
                 row.appendChild(removeChoiceBtn);
                 list.appendChild(row);
