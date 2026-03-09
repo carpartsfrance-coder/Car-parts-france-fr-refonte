@@ -621,7 +621,7 @@
           <% } %>
         </div>
 
-        <textarea id="reconditioningSteps" name="reconditioningSteps" class="hidden" data-value="<%= form && form.reconditioningSteps ? form.reconditioningSteps : '' %>"></textarea>
+        <textarea id="reconditioningSteps" name="reconditioningSteps" class="hidden"><%= form && form.reconditioningSteps ? form.reconditioningSteps : '' %></textarea>
       </section>
 
       <section class="order-4 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
@@ -701,7 +701,7 @@
           </div>
         </div>
 
-        <textarea id="compatibility" name="compatibility" class="hidden" data-value="<%= form && form.compatibility ? form.compatibility : '' %>"></textarea>
+        <textarea id="compatibility" name="compatibility" class="hidden"><%= form && form.compatibility ? form.compatibility : '' %></textarea>
       </section>
 
       <section class="order-8 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
@@ -727,7 +727,7 @@
 
         <div class="p-6 space-y-1" id="faqList"></div>
 
-        <textarea id="faqs" name="faqs" class="hidden" data-value="<%= form && form.faqs ? form.faqs : '' %>"></textarea>
+        <textarea id="faqs" name="faqs" class="hidden"><%= form && form.faqs ? form.faqs : '' %></textarea>
       </section>
 
       <section class="order-9 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm">
@@ -761,7 +761,7 @@
             <div id="relatedBlogSelected" class="mt-2 space-y-2"></div>
           </div>
 
-          <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4" data-value="<%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %>"></textarea>
+          <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4"><%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %></textarea>
           <div class="text-xs text-gray-500">Astuce : si tu ne sélectionnes rien ici, tu peux quand même lier un produit depuis l’article (admin blog).</div>
         </div>
       </section>
@@ -823,11 +823,11 @@
 
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaTitle">Meta Title</label>
-            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="metaTitle" name="metaTitle" type="text" data-value="<%= form && form.metaTitle ? form.metaTitle : '' %>"/>
+            <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="metaTitle" name="metaTitle" type="text" value="<%= form && form.metaTitle ? form.metaTitle : '' %>"/>
           </div>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="metaDescription">Meta Description</label>
-            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="metaDescription" name="metaDescription" rows="3" data-value="<%= form && form.metaDescription ? form.metaDescription : '' %>"></textarea>
+            <textarea class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary resize-none" id="metaDescription" name="metaDescription" rows="3"><%= form && form.metaDescription ? form.metaDescription : '' %></textarea>
           </div>
         </div>
       </section>
