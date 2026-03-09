@@ -451,6 +451,15 @@ function getReasoningEffort(profileKey = DEFAULT_SINGLE_AI_PROFILE_KEY) {
   );
 }
 
+function modelSupportsReasoningEffort(modelName) {
+  const normalized = normalizeEnvString(modelName).toLowerCase();
+  if (!normalized) return false;
+  return normalized.startsWith('gpt-5')
+    || normalized.startsWith('o1')
+    || normalized.startsWith('o3')
+    || normalized.startsWith('o4');
+}
+
 function getOpenAiApiKey() {
   return normalizeEnvString(process.env.OPENAI_API_KEY);
 }
@@ -892,8 +901,9 @@ async function generateProductSheet(payload, options = {}) {
     sourceNotes: normalizeMultilineText(payload && payload.sourceNotes ? payload.sourceNotes : '', { maxLength: 4000 }),
   };
 
+  const modelName = getModelName(profile.key);
   const body = {
-    model: getModelName(profile.key),
+    model: modelName,
     input: [
       {
         role: 'system',
@@ -937,7 +947,7 @@ async function generateProductSheet(payload, options = {}) {
   }
 
   const reasoningEffort = getReasoningEffort(profile.key);
-  if (reasoningEffort) {
+  if (reasoningEffort && modelSupportsReasoningEffort(modelName)) {
     body.reasoning = {
       effort: reasoningEffort,
     };
