@@ -483,6 +483,8 @@ const PRODUCT_SHEET_SCHEMA = {
   ],
 };
 
+const PRODUCT_SHEET_TOP_LEVEL_KEYS = new Set(PRODUCT_SHEET_SCHEMA.required);
+
 function getModelName(profileKey = DEFAULT_SINGLE_AI_PROFILE_KEY) {
   const profile = getAiGenerationProfileConfig(profileKey);
   return getEnvValueFromKeys(profile.modelEnvKeys)
@@ -737,9 +739,55 @@ function tryParseJson(text) {
   return null;
 }
 
+function isStructuredProductSheetCandidate(node) {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return false;
+  const keys = Object.keys(node);
+  if (!keys.length) return false;
+
+  let matchingKeys = 0;
+  for (const key of keys) {
+    if (PRODUCT_SHEET_TOP_LEVEL_KEYS.has(key)) matchingKeys += 1;
+  }
+
+  if (matchingKeys >= 5) return true;
+
+  return matchingKeys >= 3
+    && ('description' in node || 'compatibility' in node || 'faqs' in node || 'warnings' in node);
+}
+
+function extractStructuredObjectCandidates(node, out = [], seen = new Set()) {
+  if (!node || typeof node !== 'object') return out;
+  if (seen.has(node)) return out;
+  seen.add(node);
+
+  if (!Array.isArray(node) && isStructuredProductSheetCandidate(node)) {
+    out.push(node);
+  }
+
+  if (Array.isArray(node)) {
+    node.forEach((item) => extractStructuredObjectCandidates(item, out, seen));
+    return out;
+  }
+
+  Object.values(node).forEach((value) => {
+    if (value && typeof value === 'object') {
+      extractStructuredObjectCandidates(value, out, seen);
+    }
+  });
+
+  return out;
+}
+
 function extractStructuredOutput(data) {
   if (data && data.output_parsed && typeof data.output_parsed === 'object') {
     return data.output_parsed;
+  }
+
+  const objectCandidates = extractStructuredObjectCandidates(data, []);
+  for (const candidate of objectCandidates) {
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      return candidate;
+    }
   }
 
   const candidates = extractJsonCandidateStrings(data, []);
