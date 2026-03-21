@@ -20,5 +20,7 @@ coverage/
 *.pem
 *.key
 
+public/css/
+
 public/uploads/
 !public/uploads/**/.gitkeep

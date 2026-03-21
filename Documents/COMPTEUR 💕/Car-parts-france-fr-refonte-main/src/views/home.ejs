@@ -3,20 +3,6 @@
 
 <%- include('partials/header') %>
 
-<style type="text/tailwindcss">
-  .material-symbols-rounded {
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    vertical-align: middle;
-  }
-  .hero-gradient {
-    background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 100%);
-  }
-  .home-display { font-family: 'Outfit', sans-serif; }
-  .product-card {
-    @apply bg-white dark:bg-surface-dark rounded-2xl overflow-hidden border border-slate-100/50 dark:border-slate-800 transition-all duration-500 shadow-premium hover:shadow-premium-hover;
-  }
-</style>
-
 <main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
   <% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((Number(cents) || 0) / 100); %>
   <% const productsForGrid = Array.isArray(featuredProducts) ? featuredProducts.slice(0, 4) : []; %>

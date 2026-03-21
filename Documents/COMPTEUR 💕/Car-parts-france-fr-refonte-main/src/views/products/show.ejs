@@ -1,59 +1,6 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header') %>
 
-<style type="text/tailwindcss">
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  .compatibility-table tr:nth-child(even) {
-    background-color: rgba(248, 250, 252, 0.45);
-  }
-  .product-html p { margin: 0.75rem 0; }
-  .product-html ul, .product-html ol { margin: 0.75rem 0; padding-left: 1.25rem; }
-  .product-html ul { list-style: disc; }
-  .product-html ol { list-style: decimal; }
-  .product-html li { margin: 0.25rem 0; }
-  .product-html a { color: #dc2626; text-decoration: underline; }
-  #tab-description:checked ~ .tabs-nav label[for="tab-description"],
-  #tab-tech:checked ~ .tabs-nav label[for="tab-tech"],
-  #tab-process:checked ~ .tabs-nav label[for="tab-process"],
-  #tab-faq:checked ~ .tabs-nav label[for="tab-faq"] {
-    color: #dc2626;
-    border-color: #dc2626;
-  }
-  .tab-content { display: none; }
-  #tab-description:checked ~ .tab-content-container #content-description,
-  #tab-tech:checked ~ .tab-content-container #content-tech,
-  #tab-process:checked ~ .tab-content-container #content-process,
-  #tab-faq:checked ~ .tab-content-container #content-faq {
-    display: block;
-  }
-  .refined-shadow {
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
-  }
-  .choice-toggle input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .choice-toggle input:checked + span {
-    background: #ffffff;
-    color: #dc2626;
-    border-color: #e2e8f0;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
-    font-weight: 900;
-  }
-  .fill-1 {
-    font-variation-settings: 'FILL' 1;
-  }
-  .cart-submit-success {
-    background: #38A169 !important;
-    box-shadow: 0 14px 28px rgba(56, 161, 105, 0.28) !important;
-  }
-  .cart-submit-success:hover {
-    background: #38A169 !important;
-  }
-</style>
-
 <main class="flex-1 bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200 transition-colors duration-200">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
     <% if (!dbConnected) { %>

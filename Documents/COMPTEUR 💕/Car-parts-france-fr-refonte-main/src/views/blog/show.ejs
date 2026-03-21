@@ -3,35 +3,6 @@
 
 <%- include('../partials/header') %>
 
-<style type="text/tailwindcss">
-  .font-display { font-family: 'Outfit', sans-serif; }
-  .article-content { max-width: 72ch; margin-left: auto; margin-right: auto; }
-  .prose h2 { font-family: 'Outfit', sans-serif; font-weight: 700; color: #111827; margin-top: 1.5rem; margin-bottom: 0.75rem; font-size: 1.5rem; }
-  .prose h3 { font-family: 'Outfit', sans-serif; font-weight: 600; color: #111827; margin-top: 1.25rem; margin-bottom: 0.5rem; font-size: 1.25rem; }
-  .prose h4 { font-family: 'Outfit', sans-serif; font-weight: 700; color: #111827; margin-top: 1.1rem; margin-bottom: 0.4rem; font-size: 1.1rem; }
-  .prose h2, .prose h3, .prose h4 { scroll-margin-top: 7rem; }
-  .prose p { margin-bottom: 1rem; line-height: 1.6; color: #374151; font-size: 0.9375rem; }
-  .prose ul { margin-bottom: 1rem; list-style-type: disc; padding-left: 1.25rem; }
-  .prose ol { margin-bottom: 1rem; list-style-type: decimal; padding-left: 1.25rem; }
-  .prose li { margin-bottom: 0.25rem; color: #374151; font-size: 0.9375rem; }
-  .prose a { color: #ef4444; text-decoration: underline; text-underline-offset: 2px; }
-  .prose strong { color: inherit; font-weight: 800; }
-  .prose blockquote { margin: 1rem 0; padding: 0.75rem 1rem; border-left: 4px solid #ef4444; background: #f8fafc; color: #111827; border-radius: 0.75rem; }
-  .prose hr { margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb; }
-  .prose pre { margin: 1rem 0; padding: 1rem; background: #0b1220; color: #e5e7eb; border-radius: 0.75rem; overflow: auto; font-size: 0.875rem; }
-  .prose code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 0.4rem; font-size: 0.875em; }
-  .prose pre code { background: transparent; padding: 0; }
-
-  .dark .prose h2,
-  .dark .prose h3,
-  .dark .prose h4 { color: #f8fafc; }
-  .dark .prose p,
-  .dark .prose li { color: #e2e8f0; }
-  .dark .prose blockquote { background: rgba(15, 23, 42, 0.6); color: #f8fafc; }
-  .dark .prose hr { border-top-color: rgba(148, 163, 184, 0.35); }
-  .dark .prose code { background: rgba(148, 163, 184, 0.18); }
-</style>
-
 <main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
   <div class="container mx-auto px-4 lg:px-8 py-4">
 

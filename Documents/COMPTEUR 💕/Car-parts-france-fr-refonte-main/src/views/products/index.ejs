@@ -3,74 +3,54 @@
 
 <%- include('../partials/header') %>
 
-<style type="text/tailwindcss">
-  .product-card {
-    @apply bg-white/70 dark:bg-surface-dark/60 backdrop-blur-xl rounded-3xl overflow-hidden border border-white/40 dark:border-slate-700/70 transition-all duration-500 shadow-premium hover:shadow-premium-hover flex flex-col;
-  }
-  .filter-section {
-    @apply border-b border-slate-100 dark:border-slate-800 pb-6 mb-6 last:border-0;
-  }
-  .cart-btn-premium {
-    @apply bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:bg-primary hover:border-primary hover:text-white hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300;
-  }
-  .product-card:hover {
-    background-color: rgba(255, 255, 255, 0.82);
-  }
-  .dark .product-card:hover {
-    background-color: rgba(30, 41, 59, 0.72);
-  }
-  details > summary { list-style: none; }
-  details > summary::-webkit-details-marker { display: none; }
-</style>
+<% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round((Number(cents) || 0) / 100)); %>
+<% const buildUrl = (overrides = {}) => {
+  const params = new URLSearchParams();
+  const qVal = overrides.q !== undefined ? overrides.q : (typeof searchQuery !== 'undefined' ? searchQuery : '');
+  const vehicleMakeVal = overrides.vehicleMake !== undefined ? overrides.vehicleMake : (typeof selectedVehicleMake !== 'undefined' ? selectedVehicleMake : '');
+  const vehicleModelVal = overrides.vehicleModel !== undefined ? overrides.vehicleModel : (typeof selectedVehicleModel !== 'undefined' ? selectedVehicleModel : '');
+  const mainCatVal = overrides.mainCategory !== undefined ? overrides.mainCategory : (typeof selectedMainCategory !== 'undefined' ? selectedMainCategory : '');
+  const subCatVal = overrides.subCategory !== undefined ? overrides.subCategory : (typeof selectedSubCategory !== 'undefined' ? selectedSubCategory : '');
+  const stockVal = overrides.stock !== undefined ? overrides.stock : (typeof selectedStock !== 'undefined' ? selectedStock : '');
+  const minVal = overrides.minPrice !== undefined ? overrides.minPrice : (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' ? String(minPriceEuros) : '');
+  const maxVal = overrides.maxPrice !== undefined ? overrides.maxPrice : (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' ? String(maxPriceEuros) : '');
+  const sortVal = overrides.sort !== undefined ? overrides.sort : (typeof sort !== 'undefined' ? sort : '');
+  const pageVal = overrides.page !== undefined ? overrides.page : (typeof page !== 'undefined' ? page : 1);
 
-<main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
-  <% const formatMoney = (cents) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.round((Number(cents) || 0) / 100)); %>
-  <% const buildUrl = (overrides = {}) => {
-    const params = new URLSearchParams();
-    const qVal = overrides.q !== undefined ? overrides.q : (typeof searchQuery !== 'undefined' ? searchQuery : '');
-    const vehicleMakeVal = overrides.vehicleMake !== undefined ? overrides.vehicleMake : (typeof selectedVehicleMake !== 'undefined' ? selectedVehicleMake : '');
-    const vehicleModelVal = overrides.vehicleModel !== undefined ? overrides.vehicleModel : (typeof selectedVehicleModel !== 'undefined' ? selectedVehicleModel : '');
-    const mainCatVal = overrides.mainCategory !== undefined ? overrides.mainCategory : (typeof selectedMainCategory !== 'undefined' ? selectedMainCategory : '');
-    const subCatVal = overrides.subCategory !== undefined ? overrides.subCategory : (typeof selectedSubCategory !== 'undefined' ? selectedSubCategory : '');
-    const stockVal = overrides.stock !== undefined ? overrides.stock : (typeof selectedStock !== 'undefined' ? selectedStock : '');
-    const minVal = overrides.minPrice !== undefined ? overrides.minPrice : (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' ? String(minPriceEuros) : '');
-    const maxVal = overrides.maxPrice !== undefined ? overrides.maxPrice : (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' ? String(maxPriceEuros) : '');
-    const sortVal = overrides.sort !== undefined ? overrides.sort : (typeof sort !== 'undefined' ? sort : '');
-    const pageVal = overrides.page !== undefined ? overrides.page : (typeof page !== 'undefined' ? page : 1);
+  if (qVal) params.set('q', qVal);
+  if (vehicleMakeVal) params.set('vehicleMake', vehicleMakeVal);
+  if (vehicleModelVal) params.set('vehicleModel', vehicleModelVal);
+  if (mainCatVal) params.set('mainCategory', mainCatVal);
+  if (mainCatVal && subCatVal) params.set('subCategory', subCatVal);
+  if (stockVal) params.set('stock', stockVal);
+  if (minVal) params.set('minPrice', minVal);
+  if (maxVal) params.set('maxPrice', maxVal);
+  if (sortVal) params.set('sort', sortVal);
+  if (pageVal && Number(pageVal) > 1) params.set('page', String(pageVal));
 
-    if (qVal) params.set('q', qVal);
-    if (vehicleMakeVal) params.set('vehicleMake', vehicleMakeVal);
-    if (vehicleModelVal) params.set('vehicleModel', vehicleModelVal);
-    if (mainCatVal) params.set('mainCategory', mainCatVal);
-    if (mainCatVal && subCatVal) params.set('subCategory', subCatVal);
-    if (stockVal) params.set('stock', stockVal);
-    if (minVal) params.set('minPrice', minVal);
-    if (maxVal) params.set('maxPrice', maxVal);
-    if (sortVal) params.set('sort', sortVal);
-    if (pageVal && Number(pageVal) > 1) params.set('page', String(pageVal));
+  const qs = params.toString();
+  return qs ? `/produits?${qs}` : '/produits';
+}; %>
 
-    const qs = params.toString();
-    return qs ? `/produits?${qs}` : '/produits';
-  }; %>
+<% const activeFilterCount = [
+  (typeof searchQuery !== 'undefined' && searchQuery) ? 1 : 0,
+  (typeof selectedVehicleMake !== 'undefined' && selectedVehicleMake) ? 1 : 0,
+  (typeof selectedVehicleModel !== 'undefined' && selectedVehicleModel) ? 1 : 0,
+  selectedStock === 'in' ? 1 : 0,
+  selectedMainCategory ? 1 : 0,
+  selectedSubCategory ? 1 : 0,
+  (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' && String(minPriceEuros)) ? 1 : 0,
+  (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' && String(maxPriceEuros)) ? 1 : 0,
+].reduce((sum, v) => sum + v, 0); %>
 
-  <% const activeFilterCount = [
-    (typeof searchQuery !== 'undefined' && searchQuery) ? 1 : 0,
-    (typeof selectedVehicleMake !== 'undefined' && selectedVehicleMake) ? 1 : 0,
-    (typeof selectedVehicleModel !== 'undefined' && selectedVehicleModel) ? 1 : 0,
-    selectedStock === 'in' ? 1 : 0,
-    selectedMainCategory ? 1 : 0,
-    selectedSubCategory ? 1 : 0,
-    (minPriceEuros !== null && typeof minPriceEuros !== 'undefined' && String(minPriceEuros)) ? 1 : 0,
-    (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined' && String(maxPriceEuros)) ? 1 : 0,
-  ].reduce((sum, v) => sum + v, 0); %>
-
-  <div class="container mx-auto px-4 lg:px-8 py-6 sm:py-8">
+<main class="products-listing flex-1 bg-gray-50">
+  <div class="max-w-7xl mx-auto px-4 lg:px-8 py-6 sm:py-8">
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
       <aside aria-hidden="true" class="lg:col-span-3 hidden fixed inset-0 z-50 lg:static lg:z-auto lg:block" data-filters-drawer id="filtersDrawer" role="dialog">
         <div class="absolute inset-0 bg-black/40 lg:hidden" data-filters-close></div>
-        <div class="absolute inset-y-0 left-0 w-full max-w-sm overflow-y-auto bg-white dark:bg-surface-dark p-4 lg:static lg:w-auto lg:max-w-none lg:overflow-visible lg:bg-transparent lg:p-0">
-          <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 lg:sticky lg:top-28">
-            <div class="flex items-center justify-between mb-6 lg:mb-8">
+        <div class="absolute inset-y-0 left-0 w-full max-w-sm overflow-y-auto bg-white p-4 lg:static lg:w-auto lg:max-w-none lg:overflow-visible lg:bg-transparent lg:p-0">
+          <div class="bg-white rounded-2xl p-6 border border-gray-200 lg:sticky lg:top-20">
+            <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-3">
                 <h2 class="font-bold text-lg">Filtres</h2>
                 <% if (activeFilterCount > 0) { %>
@@ -79,7 +59,7 @@
               </div>
               <div class="flex items-center gap-3">
                 <a class="text-primary text-xs font-bold uppercase tracking-widest hover:underline" href="/produits">Effacer</a>
-                <button class="lg:hidden h-9 px-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs" data-filters-close type="button">Fermer</button>
+                <button class="lg:hidden h-9 px-3 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs" data-filters-close type="button">Fermer</button>
               </div>
             </div>
 
@@ -89,15 +69,12 @@
             <input name="page" type="hidden" value="1" />
 
             <div class="filter-section">
-              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
-                Véhicule
-                <span class="material-symbols-outlined text-slate-400">expand_less</span>
-              </button>
+              <p class="font-semibold text-sm mb-4">Véhicule</p>
               <div class="grid grid-cols-1 gap-3">
                 <div>
-                  <div class="text-xs font-semibold text-slate-500 mb-2">Marque véhicule</div>
+                  <div class="text-xs font-semibold text-gray-500 mb-2">Marque véhicule</div>
                   <% const vehicleMakeOptions = Array.isArray(vehicleMakes) ? vehicleMakes : []; %>
-                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="vehicleMake" data-vehicle-make>
+                  <select class="w-full bg-gray-50 border-gray-200 rounded-lg py-2 px-3 text-xs" name="vehicleMake" data-vehicle-make>
                     <option value="" <%= !selectedVehicleMake ? 'selected' : '' %>>Toutes</option>
                     <% vehicleMakeOptions.forEach((mk) => { %>
                       <option value="<%= mk %>" <%= selectedVehicleMake === mk ? 'selected' : '' %>><%= mk %></option>
@@ -105,9 +82,9 @@
                   </select>
                 </div>
                 <div>
-                  <div class="text-xs font-semibold text-slate-500 mb-2">Modèle véhicule</div>
+                  <div class="text-xs font-semibold text-gray-500 mb-2">Modèle véhicule</div>
                   <% const modelsForSelectedMake = (selectedVehicleMake && vehicleModelsByMake && vehicleModelsByMake[selectedVehicleMake]) ? vehicleModelsByMake[selectedVehicleMake] : []; %>
-                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="vehicleModel" data-vehicle-model <%= selectedVehicleMake ? '' : 'disabled' %>>
+                  <select class="w-full bg-gray-50 border-gray-200 rounded-lg py-2 px-3 text-xs" name="vehicleModel" data-vehicle-model <%= selectedVehicleMake ? '' : 'disabled' %>>
                     <option value="" <%= selectedVehicleMake && !selectedVehicleModel ? 'selected' : '' %>><%= selectedVehicleMake ? 'Tous' : 'Choisissez une marque' %></option>
                     <% (modelsForSelectedMake || []).forEach((md) => { %>
                       <option value="<%= md %>" <%= selectedVehicleModel === md ? 'selected' : '' %>><%= md %></option>
@@ -118,36 +95,29 @@
             </div>
 
             <div class="filter-section">
-              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
-                Prix
-                <span class="material-symbols-outlined text-slate-400">expand_less</span>
-              </button>
+              <p class="font-semibold text-sm mb-4">Prix</p>
               <div class="grid grid-cols-2 gap-3">
-                <input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="minPrice" placeholder="Min" type="number" value="<%= (minPriceEuros !== null && typeof minPriceEuros !== 'undefined') ? minPriceEuros : '' %>" />
-                <input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="maxPrice" placeholder="Max" type="number" value="<%= (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined') ? maxPriceEuros : '' %>" />
+                <input class="w-full bg-gray-50 border-gray-200 rounded-lg py-2 px-3 text-xs" name="minPrice" placeholder="Min" type="number" value="<%= (minPriceEuros !== null && typeof minPriceEuros !== 'undefined') ? minPriceEuros : '' %>" />
+                <input class="w-full bg-gray-50 border-gray-200 rounded-lg py-2 px-3 text-xs" name="maxPrice" placeholder="Max" type="number" value="<%= (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined') ? maxPriceEuros : '' %>" />
               </div>
             </div>
 
             <div class="filter-section">
-              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
-                Catégorie
-                <span class="material-symbols-outlined text-slate-400">expand_less</span>
-              </button>
+              <p class="font-semibold text-sm mb-4">Catégorie</p>
               <% const subOptions = (selectedMainCategory && subCategoriesByMain && subCategoriesByMain[selectedMainCategory]) ? subCategoriesByMain[selectedMainCategory] : []; %>
               <div class="space-y-3">
                 <div>
-                  <div class="text-xs font-semibold text-slate-500 mb-2">Catégorie principale</div>
-                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="mainCategory" onchange="this.form.subCategory.value=''; this.form.submit();">
+                  <div class="text-xs font-semibold text-gray-500 mb-2">Catégorie principale</div>
+                  <select class="w-full bg-gray-50 border-gray-200 rounded-lg py-2 px-3 text-xs" name="mainCategory" onchange="this.form.subCategory.value=''; this.form.submit();">
                     <option value="" <%= !selectedMainCategory ? 'selected' : '' %>>Toutes</option>
                     <% (mainCategories || []).forEach((c) => { %>
                       <option value="<%= c %>" <%= selectedMainCategory === c ? 'selected' : '' %>><%= c %></option>
                     <% }) %>
                   </select>
                 </div>
-
                 <div>
-                  <div class="text-xs font-semibold text-slate-500 mb-2">Sous-catégorie</div>
-                  <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="subCategory" <%= selectedMainCategory ? '' : 'disabled' %>>
+                  <div class="text-xs font-semibold text-gray-500 mb-2">Sous-catégorie</div>
+                  <select class="w-full bg-gray-50 border-gray-200 rounded-lg py-2 px-3 text-xs" name="subCategory" <%= selectedMainCategory ? '' : 'disabled' %>>
                     <option value="" <%= selectedMainCategory && !selectedSubCategory ? 'selected' : '' %>><%= selectedMainCategory ? 'Toutes' : 'Choisissez une catégorie' %></option>
                     <% (subOptions || []).forEach((s) => { %>
                       <option value="<%= s %>" <%= selectedSubCategory === s ? 'selected' : '' %>><%= s %></option>
@@ -158,36 +128,16 @@
             </div>
 
             <div class="filter-section">
-              <button class="flex items-center justify-between w-full font-semibold text-sm mb-4" type="button">
-                Disponibilité
-                <span class="material-symbols-outlined text-slate-400">expand_less</span>
-              </button>
-              <div class="space-y-3">
-                <label class="flex items-center gap-3 text-sm cursor-pointer group">
-                  <input <%= selectedStock === 'in' ? 'checked' : '' %> class="rounded text-primary focus:ring-primary border-slate-300" name="stock" type="checkbox" value="in" />
-                  <span class="group-hover:text-primary transition-colors">En stock (Expédition 24h)</span>
-                </label>
-              </div>
+              <p class="font-semibold text-sm mb-4">Disponibilité</p>
+              <label class="flex items-center gap-3 text-sm cursor-pointer">
+                <input <%= selectedStock === 'in' ? 'checked' : '' %> class="rounded text-primary focus:ring-primary border-gray-300" name="stock" type="checkbox" value="in" />
+                <span>En stock (Expédition 24h)</span>
+              </label>
             </div>
 
-            <div class="filter-section !border-b-0 !mb-0 !pb-0">
-              <details class="group">
-                <summary class="flex items-center justify-between w-full font-semibold text-sm cursor-pointer hover:text-primary transition-colors">
-                  Plus de filtres
-                  <span class="material-symbols-outlined text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
-                </summary>
-                <div class="pt-6 space-y-8">
-                  <div>
-                    <p class="font-semibold text-xs text-slate-500 uppercase tracking-wider mb-4">Marque de la pièce</p>
-                    <input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs mb-3" placeholder="Rechercher une marque..." type="text" />
-                  </div>
-                </div>
-              </details>
-            </div>
-
-            <div class="mt-8 grid grid-cols-1 gap-3">
-              <button class="bg-primary hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md shadow-red-500/20" type="submit">Appliquer</button>
-              <a class="text-center bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-3 px-6 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" href="/produits">Réinitialiser</a>
+            <div class="mt-6 grid grid-cols-1 gap-3">
+              <button class="bg-primary hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl" type="submit">Appliquer</button>
+              <a class="text-center bg-gray-100 text-gray-700 font-bold py-3 px-6 rounded-xl hover:bg-gray-200" href="/produits">Réinitialiser</a>
             </div>
           </form>
           </div>
@@ -195,16 +145,16 @@
       </aside>
 
       <div class="lg:col-span-9">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <nav class="flex items-center gap-2 text-xs text-slate-400 mb-2">
+            <nav class="flex items-center gap-2 text-xs text-gray-400 mb-2">
               <a class="hover:text-primary" href="/">Accueil</a>
               <span class="material-symbols-outlined text-[10px]">chevron_right</span>
-              <span class="text-slate-600 dark:text-slate-300 font-medium"><%= selectedCategoryLabel ? selectedCategoryLabel : 'Catalogue' %></span>
+              <span class="text-gray-600 font-medium"><%= selectedCategoryLabel ? selectedCategoryLabel : 'Catalogue' %></span>
             </nav>
-            <h1 class="text-xl sm:text-2xl font-display font-bold"><%= typeof totalCount !== 'undefined' ? totalCount.toLocaleString('fr-FR') : products.length %> pièces trouvées</h1>
+            <h1 class="text-xl sm:text-2xl font-bold"><%= typeof totalCount !== 'undefined' ? totalCount.toLocaleString('fr-FR') : products.length %> pièces trouvées</h1>
             <% if (!dbConnected) { %>
-              <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
+              <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
                 <span class="font-bold">Mode démo activé</span> — le catalogue fonctionne avec des produits d'exemple.
               </div>
             <% } %>
@@ -221,15 +171,15 @@
             <input name="maxPrice" type="hidden" value="<%= (maxPriceEuros !== null && typeof maxPriceEuros !== 'undefined') ? maxPriceEuros : '' %>" />
             <input name="page" type="hidden" value="1" />
             <div class="flex items-center gap-3 w-full md:w-auto">
-              <button aria-controls="filtersDrawer" aria-expanded="false" class="lg:hidden inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700" data-filters-open type="button">
-                <span class="material-symbols-outlined text-base text-slate-400">tune</span>
+              <button aria-controls="filtersDrawer" aria-expanded="false" class="lg:hidden inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700" data-filters-open type="button">
+                <span class="material-symbols-outlined text-base text-gray-400">tune</span>
                 Filtres
                 <% if (activeFilterCount > 0) { %>
                   <span class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-white"><%= activeFilterCount > 99 ? '99+' : activeFilterCount %></span>
                 <% } %>
               </button>
-              <span class="hidden sm:block text-sm text-slate-500 whitespace-nowrap">Trier :</span>
-              <select class="bg-white dark:bg-surface-dark border-slate-200 dark:border-slate-700 rounded-xl text-sm py-2 pl-4 pr-10 focus:ring-primary focus:border-primary min-w-[160px] flex-1" name="sort" onchange="this.form.submit()">
+              <span class="hidden sm:block text-sm text-gray-500 whitespace-nowrap">Trier :</span>
+              <select class="bg-white border-gray-200 rounded-xl text-sm py-2 pl-4 pr-10 focus:ring-primary focus:border-primary min-w-[160px] flex-1" name="sort" onchange="this.form.submit()">
                 <option <%= !sort || sort === 'newest' ? 'selected' : '' %> value="newest">Nouveautés</option>
                 <option <%= sort === 'price_asc' ? 'selected' : '' %> value="price_asc">Prix croissant</option>
                 <option <%= sort === 'price_desc' ? 'selected' : '' %> value="price_desc">Prix décroissant</option>
@@ -284,49 +234,35 @@
         </div>
 
         <% if (!products || products.length === 0) { %>
-          <div class="rounded-3xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 p-10 shadow-sm">
+          <div class="rounded-2xl bg-white border border-gray-200 p-10">
             <div class="font-bold text-lg">Aucune pièce trouvée</div>
-            <div class="mt-2 text-sm text-slate-500">Essayez de retirer un filtre ou de modifier votre recherche.</div>
+            <div class="mt-2 text-sm text-gray-500">Essayez de retirer un filtre ou de modifier votre recherche.</div>
           </div>
         <% } else { %>
-          <div class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 mb-10 sm:mb-12">
+          <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <% products.forEach((p) => { %>
               <% const imgUrl = (p && typeof p.imageUrl === 'string' && p.imageUrl.trim()) ? p.imageUrl.trim() : (Array.isArray(p.galleryUrls) && p.galleryUrls[0] ? p.galleryUrls[0] : ''); %>
-              <% const badge = (p && p.badges && p.badges.topLeft) ? p.badges.topLeft : 'GARANTIE'; %>
               <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
-              <% const quoteMessage = encodeURIComponent(`Bonjour, je souhaite un devis pour la pièce ${p.name || 'sélectionnée'}.`); %>
-              <% const quoteRef = encodeURIComponent(p && p.sku ? p.sku : ''); %>
-              <div class="product-card group">
-                <div class="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-800">
-                  <a href="<%= productUrl %>">
-                    <% if (imgUrl) { %>
-                      <img alt="<%= p.name %>" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" decoding="async" loading="lazy" src="<%= imgUrl %>"/>
-                    <% } else { %>
-                      <div class="w-full h-full flex items-center justify-center text-slate-400">
-                        <span class="material-symbols-outlined text-5xl">inventory_2</span>
-                      </div>
-                    <% } %>
-                  </a>
-                  <span class="absolute top-2 left-2 sm:top-3 sm:left-3 bg-primary text-[8px] sm:text-[9px] text-white font-bold px-2 py-1 sm:px-2.5 sm:py-1 rounded-full shadow-lg"><%= badge %></span>
-                  <a class="absolute top-2 right-2 sm:top-3 sm:right-3 w-7 h-7 sm:w-8 sm:h-8 bg-white/90 dark:bg-slate-900/70 backdrop-blur-md rounded-full flex items-center justify-center text-slate-400 hover:text-primary transition-colors" href="/devis?partRef=<%= quoteRef %>&message=<%= quoteMessage %>" aria-label="Demander un devis pour <%= p.name %>">
-                    <span class="material-symbols-outlined text-base sm:text-lg">request_quote</span>
-                  </a>
-                </div>
-                <div class="p-3 sm:p-4 flex flex-col flex-grow">
-                  <a class="block font-bold text-slate-800 dark:text-slate-100 leading-snug mb-3 sm:mb-4 group-hover:text-primary transition-colors text-[12px] sm:text-sm line-clamp-2 min-h-[2.6rem] sm:min-h-[3.2rem]" href="<%= productUrl %>">
-                    <%= p.name %>
-                  </a>
-                  <div class="mt-auto pt-3 sm:pt-4 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between gap-3">
+              <% const badge = (p && p.badges && p.badges.topLeft) ? p.badges.topLeft : 'GARANTIE'; %>
+              <div class="bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col">
+                <a href="<%= productUrl %>" class="block relative aspect-[4/3] overflow-hidden bg-gray-100">
+                  <% if (imgUrl) { %>
+                    <img src="<%= imgUrl %>" alt="<%= p.name %>" width="400" height="300" loading="lazy" decoding="async" class="w-full h-full object-cover"/>
+                  <% } %>
+                  <span class="absolute top-2 left-2 bg-primary text-[9px] text-white font-bold px-2 py-1 rounded-full"><%= badge %></span>
+                </a>
+                <div class="p-3 flex flex-col flex-grow">
+                  <a class="block font-semibold text-gray-800 leading-snug mb-3 hover:text-primary text-xs sm:text-sm line-clamp-2" href="<%= productUrl %>"><%= p.name %></a>
+                  <div class="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between">
                     <div>
-                      <div class="text-[10px] sm:text-xs text-slate-400">À partir de</div>
-                      <p class="text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider mb-0.5">Prix TTC</p>
-                      <p class="text-base sm:text-lg font-display font-bold text-slate-900 dark:text-white"><%= formatMoney(p.priceCents) %> €</p>
+                      <p class="text-[10px] text-gray-400 uppercase tracking-wider">Prix TTC</p>
+                      <p class="text-base sm:text-lg font-bold text-gray-900"><%= formatMoney(p.priceCents) %> €</p>
                     </div>
                     <form action="/panier/ajouter/<%= p._id %>" method="POST">
                       <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/produits' %>" />
                       <input name="qty" type="hidden" value="1" />
-                      <button class="cart-btn-premium p-2 sm:p-2.5 disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">
-                        <span class="material-symbols-outlined text-lg sm:text-xl">shopping_cart</span>
+                      <button class="bg-gray-100 p-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-primary hover:border-primary hover:text-white transition-colors duration-150 disabled:opacity-60" <%= p.inStock ? '' : 'disabled' %> type="submit">
+                        <span class="material-symbols-outlined text-lg">shopping_cart</span>
                       </button>
                     </form>
                   </div>
@@ -335,8 +271,8 @@
             <% }) %>
           </div>
 
-          <div class="flex flex-col sm:flex-row items-center justify-between gap-6 py-8 sm:py-12 border-t border-slate-100 dark:border-slate-800">
-            <a class="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors <%= page <= 1 ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.max(1, (page || 1) - 1) }) %>">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-6 py-8 border-t border-gray-200 mt-8">
+            <a class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary <%= page <= 1 ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.max(1, (page || 1) - 1) }) %>">
               <span class="material-symbols-outlined">chevron_left</span>
               Précédent
             </a>
@@ -358,13 +294,13 @@
               <% uniq.forEach((pNum, idx) => { %>
                 <% const prev = idx > 0 ? uniq[idx - 1] : null; %>
                 <% if (prev !== null && pNum - prev > 1) { %>
-                  <span class="px-2 text-slate-400">...</span>
+                  <span class="px-2 text-gray-400">...</span>
                 <% } %>
-                <a class="w-10 h-10 rounded-full font-bold text-sm transition-colors flex items-center justify-center <%= pNum === current ? 'bg-primary text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800' %>" href="<%= buildUrl({ page: pNum }) %>"><%= pNum %></a>
+                <a class="w-10 h-10 rounded-full font-bold text-sm flex items-center justify-center <%= pNum === current ? 'bg-primary text-white' : 'hover:bg-gray-100' %>" href="<%= buildUrl({ page: pNum }) %>"><%= pNum %></a>
               <% }) %>
             </div>
 
-            <a class="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-primary transition-colors <%= (page || 1) >= (totalPages || 1) ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.min((totalPages || 1), (page || 1) + 1) }) %>">
+            <a class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary <%= (page || 1) >= (totalPages || 1) ? 'pointer-events-none opacity-40' : '' %>" href="<%= buildUrl({ page: Math.min((totalPages || 1), (page || 1) + 1) }) %>">
               Suivant
               <span class="material-symbols-outlined">chevron_right</span>
             </a>
@@ -376,12 +312,6 @@
 </main>
 
 <%- include('../partials/footer') %>
-
-<div class="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-50">
-  <a class="bg-primary text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all" href="/contact?subject=question" aria-label="Contacter CarParts France">
-    <span class="material-symbols-outlined text-3xl">support_agent</span>
-  </a>
-</div>
 
 <script id="vehicleModelsByMakeJson" type="application/json"><%- JSON.stringify(vehicleModelsByMake || {}) %></script>
 

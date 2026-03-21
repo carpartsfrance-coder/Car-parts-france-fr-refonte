@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/server.js"],
+      "port": 3000,
+      "autoPort": true,
+      "cwd": "Documents/COMPTEUR 💕/Car-parts-france-fr-refonte-main"
+    }
+  ]
+}
