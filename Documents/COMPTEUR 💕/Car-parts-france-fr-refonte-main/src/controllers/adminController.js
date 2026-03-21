@@ -94,6 +94,10 @@ function normalizeEnvString(value) {
   return v;
 }
 
+function isChecked(value) {
+  return value === true || value === 'true' || value === 'on' || value === '1';
+}
+
 function readAdminCredentialsFile() {
   try {
     if (!fs.existsSync(ADMIN_CREDENTIALS_FILE)) return null;
@@ -124,7 +128,7 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
     const aiProfileMeta = openaiProductGenerator.getAiGenerationProfileMeta(aiProfile, { scope: 'batch' });
 
     if (!dbConnected) {
-      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
+      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessayez dans quelques instants.';
       return res.redirect(safeReturnTo);
     }
 
@@ -135,7 +139,7 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
     }
 
     if (uniqueIds.length > PRODUCT_DRAFT_BATCH_MAX) {
-      req.session.adminCatalogError = `Tu peux lancer jusqu’à ${PRODUCT_DRAFT_BATCH_MAX} produits à la fois pour garder une génération stable.`;
+      req.session.adminCatalogError = `Vous pouvez lancer jusqu’à ${PRODUCT_DRAFT_BATCH_MAX} produits à la fois pour garder une génération stable.`;
       return res.redirect(safeReturnTo);
     }
 
@@ -208,7 +212,7 @@ async function postAdminBulkGenerateProductDrafts(req, res, next) {
     });
 
     if (rate.limited) {
-      req.session.adminCatalogError = 'Trop de demandes IA en peu de temps. Attends quelques minutes puis réessaie.';
+      req.session.adminCatalogError = 'Trop de demandes IA en peu de temps. Merci de patienter quelques minutes puis de réessayer.';
       return res.redirect(safeReturnTo);
     }
 
@@ -238,10 +242,10 @@ async function postAdminCancelAllProductDrafts(req, res, next) {
       if (wantsJson) {
         return res.status(503).json({
           ok: false,
-          error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+          error: 'La base de données n’est pas disponible. Réessayez dans quelques instants.',
         });
       }
-      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
+      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessayez dans quelques instants.';
       return res.redirect(safeReturnTo);
     }
 
@@ -445,7 +449,7 @@ async function getAdminGenerateProductDraftStatus(req, res, next) {
     if (!dbConnected) {
       return res.status(503).json({
         ok: false,
-        error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+        error: 'La base de données n’est pas disponible. Réessayez dans quelques instants.',
       });
     }
 
@@ -496,10 +500,10 @@ async function postAdminCancelProductDraft(req, res, next) {
       if (wantsJson) {
         return res.status(503).json({
           ok: false,
-          error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+          error: 'La base de données n’est pas disponible. Réessayez dans quelques instants.',
         });
       }
-      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessaie dans quelques instants.';
+      req.session.adminCatalogError = 'La base de données n’est pas disponible. Réessayez dans quelques instants.';
       return res.redirect(safeReturnTo);
     }
 
@@ -821,6 +825,7 @@ async function getAdminCategoriesPage(req, res, next) {
         isSub: !!parts.sub,
         slug: c.slug,
         isActive: c.isActive !== false,
+        isHomeFeatured: c.isHomeFeatured === true,
         sortOrder: Number.isFinite(c.sortOrder) ? c.sortOrder : 0,
         shippingClassId: c.shippingClassId ? String(c.shippingClassId) : '',
         createdAt: formatDateTimeFR(c.createdAt),
@@ -871,6 +876,7 @@ async function getAdminCategoriesPage(req, res, next) {
               isSub: false,
               slug: '',
               isActive: true,
+              isHomeFeatured: false,
               sortOrder: 0,
               shippingClassId: '',
               createdAt: '—',
@@ -961,6 +967,7 @@ async function postAdminCreateCategory(req, res, next) {
     const shippingClassId = shippingClassIdRaw && mongoose.Types.ObjectId.isValid(shippingClassIdRaw)
       ? new mongoose.Types.ObjectId(shippingClassIdRaw)
       : null;
+    const isHomeFeatured = isChecked(req.body && req.body.isHomeFeatured);
 
     if (!name) {
       req.session.adminCategoryError = 'Merci de renseigner un nom de catégorie.';
@@ -977,6 +984,7 @@ async function postAdminCreateCategory(req, res, next) {
       name,
       slug,
       isActive: true,
+      isHomeFeatured,
       sortOrder,
       shippingClassId,
     });
@@ -1006,7 +1014,7 @@ async function postAdminUpdateCategory(req, res, next) {
       return res.redirect('/admin/categories');
     }
 
-    const existing = await Category.findById(categoryId).select('_id name sortOrder shippingClassId').lean();
+    const existing = await Category.findById(categoryId).select('_id name sortOrder shippingClassId isHomeFeatured').lean();
     if (!existing || typeof existing.name !== 'string' || !existing.name.trim()) {
       return res.redirect('/admin/categories');
     }
@@ -1027,6 +1035,7 @@ async function postAdminUpdateCategory(req, res, next) {
     const shippingClassId = shippingClassIdRaw && mongoose.Types.ObjectId.isValid(shippingClassIdRaw)
       ? new mongoose.Types.ObjectId(shippingClassIdRaw)
       : null;
+    const isHomeFeatured = isChecked(req.body && req.body.isHomeFeatured);
 
     if (!nextName) {
       req.session.adminCategoryError = 'Merci de renseigner un nom de catégorie.';
@@ -1059,7 +1068,7 @@ async function postAdminUpdateCategory(req, res, next) {
       const newMain = nextParts.main;
 
       const catRx = new RegExp(`^${escapeRegExp(oldMain)}(\\s*>|$)`);
-      const affectedCats = await Category.find({ name: { $regex: catRx } }).select('_id name sortOrder').lean();
+      const affectedCats = await Category.find({ name: { $regex: catRx } }).select('_id name sortOrder isHomeFeatured').lean();
 
       for (const cat of affectedCats) {
         const current = typeof cat.name === 'string' ? cat.name.trim() : '';
@@ -1084,7 +1093,7 @@ async function postAdminUpdateCategory(req, res, next) {
             name: updatedName,
             slug: updatedSlug,
             sortOrder: updatedSortOrder,
-            ...(String(cat._id) === String(existing._id) ? { shippingClassId } : {}),
+            ...(String(cat._id) === String(existing._id) ? { shippingClassId, isHomeFeatured } : {}),
           },
         });
       }
@@ -1110,10 +1119,11 @@ async function postAdminUpdateCategory(req, res, next) {
       if (
         nextName !== oldName ||
         sortOrder !== (Number.isFinite(existing.sortOrder) ? existing.sortOrder : 0) ||
-        String(existing.shippingClassId || '') !== String(shippingClassId || '')
+        String(existing.shippingClassId || '') !== String(shippingClassId || '') ||
+        existing.isHomeFeatured === true !== isHomeFeatured
       ) {
         await Category.findByIdAndUpdate(categoryId, {
-          $set: { name: nextName, slug: nextSlug, sortOrder, shippingClassId },
+          $set: { name: nextName, slug: nextSlug, sortOrder, shippingClassId, isHomeFeatured },
         });
       }
 
@@ -1502,7 +1512,7 @@ async function postAdminLogin(req, res) {
     return renderAdminLoginPage(res, {
       status: 429,
       dbConnected,
-      errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+      errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
       email,
       returnTo,
       legacyCreds: creds,
@@ -1513,7 +1523,7 @@ async function postAdminLogin(req, res) {
     return renderAdminLoginPage(res, {
       status: 400,
       dbConnected,
-      errorMessage: 'Merci de renseigner ton email et ton mot de passe.',
+      errorMessage: 'Merci de renseigner votre email et votre mot de passe.',
       email,
       returnTo,
       legacyCreds: creds,
@@ -1631,13 +1641,13 @@ async function postAdminResetPassword(req, res) {
   const ip = getClientIp(req);
   const honeypot = getTrimmedString(req.body && req.body.website);
   if (honeypot) {
-    req.session.adminResetSuccess = 'Mot de passe admin mis à jour. Tu peux te connecter.';
+    req.session.adminResetSuccess = 'Mot de passe admin mis à jour. Vous pouvez vous connecter.';
     return res.redirect('/admin/reinitialiser');
   }
 
   const limit = consumeRateLimit(ADMIN_RESET_BUCKETS, ip, { limit: 12, windowMs: 10 * 60 * 1000 });
   if (limit.limited) {
-    req.session.adminResetError = 'Trop de tentatives. Attends quelques minutes puis réessaie.';
+    req.session.adminResetError = 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.';
     return res.redirect('/admin/reinitialiser');
   }
 
@@ -1670,7 +1680,7 @@ async function postAdminResetPassword(req, res) {
         return res.redirect('/admin/reinitialiser');
       }
 
-      req.session.adminAuthSuccess = 'Mot de passe admin mis à jour. Tu peux te connecter.';
+      req.session.adminAuthSuccess = 'Mot de passe admin mis à jour. Vous pouvez vous connecter.';
       return res.redirect('/admin/connexion');
     } catch (err) {
       req.session.adminResetError = 'Impossible de mettre à jour le mot de passe (erreur interne).';
@@ -1691,7 +1701,7 @@ async function postAdminResetPassword(req, res) {
     return res.redirect('/admin/reinitialiser');
   }
 
-  req.session.adminAuthSuccess = 'Mot de passe admin mis à jour. Tu peux te connecter.';
+  req.session.adminAuthSuccess = 'Mot de passe admin mis à jour. Vous pouvez vous connecter.';
   return res.redirect('/admin/connexion');
 }
 
@@ -2776,7 +2786,7 @@ function parseProductOptionTemplatePayload(body) {
   }
 
   if (type === 'choice' && !parsedChoices.choices.length) {
-    return { ok: false, error: 'Ajoute au moins un choix pour une option de type liste.' };
+    return { ok: false, error: 'Ajoutez au moins un choix pour une option de type liste.' };
   }
 
   const normalized = productOptions.normalizeProductOptions([
@@ -3009,49 +3019,49 @@ function buildProductSeoAssistant({ form, mode, productId } = {}) {
     key: 'name',
     label: 'Nom du produit',
     ok: Boolean(name),
-    detail: name ? '' : 'Ajoute un nom clair (idéalement avec la référence OEM).',
+    detail: name ? '' : 'Ajoutez un nom clair (idéalement avec la référence OEM).',
     weight: 20,
   });
   checks.push({
     key: 'brand',
     label: 'Marque',
     ok: Boolean(brand),
-    detail: brand ? '' : 'Ajoute la marque (Volkswagen, Audi…).',
+    detail: brand ? '' : 'Ajoutez la marque (Volkswagen, Audi…).',
     weight: 5,
   });
   checks.push({
     key: 'category',
     label: 'Catégorie',
     ok: Boolean(category),
-    detail: category ? '' : 'Choisis une catégorie.',
+    detail: category ? '' : 'Choisissez une catégorie.',
     weight: 5,
   });
   checks.push({
     key: 'ref',
     label: 'Référence (SKU / OEM) présente',
     ok: hasRef,
-    detail: hasRef ? '' : 'Ajoute un SKU ou une référence OEM dans le nom.',
+    detail: hasRef ? '' : 'Ajoutez un SKU ou une référence OEM dans le nom.',
     weight: 8,
   });
   checks.push({
     key: 'metaTitle',
     label: 'Meta title (50–60 caractères)',
     ok: metaTitleLen >= 45 && metaTitleLen <= 65,
-    detail: metaTitle ? `Longueur actuelle : ${metaTitleLen}` : `Auto : ${metaTitleLen} (tu peux optimiser)`,
+    detail: metaTitle ? `Longueur actuelle : ${metaTitleLen}` : `Auto : ${metaTitleLen} (vous pouvez optimiser)`,
     weight: 10,
   });
   checks.push({
     key: 'metaDescription',
     label: 'Meta description (120–160 caractères)',
     ok: metaDescLen >= 110 && metaDescLen <= 170,
-    detail: metaDescription ? `Longueur actuelle : ${metaDescLen}` : `Auto : ${metaDescLen} (tu peux optimiser)`,
+    detail: metaDescription ? `Longueur actuelle : ${metaDescLen}` : `Auto : ${metaDescLen} (vous pouvez optimiser)`,
     weight: 10,
   });
   checks.push({
     key: 'image',
     label: 'Image principale',
     ok: Boolean(imageUrl),
-    detail: imageUrl ? '' : 'Ajoute une image principale (important pour le clic).',
+    detail: imageUrl ? '' : 'Ajoutez une image principale (important pour le clic).',
     weight: 10,
   });
   checks.push({
@@ -3315,7 +3325,7 @@ async function postAdminGenerateProductDraft(req, res, next) {
     if (!dbConnected) {
       return res.status(503).json({
         ok: false,
-        error: 'La base de données n’est pas disponible. Réessaie dans quelques instants.',
+        error: 'La base de données n’est pas disponible. Réessayez dans quelques instants.',
       });
     }
 
@@ -3328,7 +3338,7 @@ async function postAdminGenerateProductDraft(req, res, next) {
     if (rate.limited) {
       return res.status(429).json({
         ok: false,
-        error: 'Trop de demandes IA en peu de temps. Attends quelques minutes puis réessaie.',
+        error: 'Trop de demandes IA en peu de temps. Merci de patienter quelques minutes puis de réessayer.',
       });
     }
 
@@ -3352,7 +3362,7 @@ async function postAdminGenerateProductDraft(req, res, next) {
     if (!payload.name && !payload.sku && !payload.compatibleReferences.length && !payload.sourceNotes) {
       return res.status(400).json({
         ok: false,
-        error: 'Renseigne au moins un nom de produit, une référence ou quelques notes avant de lancer l’IA.',
+        error: 'Renseignez au moins un nom de produit, une référence ou quelques notes avant de lancer l’IA.',
       });
     }
 
@@ -3376,7 +3386,7 @@ async function postAdminGenerateProductDraft(req, res, next) {
           const existingProfileMeta = openaiProductGenerator.getAiGenerationProfileMeta(existingProfile, { scope: 'single' });
           return res.status(409).json({
             ok: false,
-            error: `Une génération IA est déjà en cours pour cette fiche en mode ${existingProfileMeta.label}. Attends sa fin avant d’en lancer une autre avec un mode différent.`,
+            error: `Une génération IA est déjà en cours pour cette fiche en mode ${existingProfileMeta.label}. Merci d’attendre sa fin avant d’en lancer une autre avec un mode différent.`,
           });
         }
 

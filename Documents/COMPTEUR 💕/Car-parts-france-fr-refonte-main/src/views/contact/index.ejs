@@ -20,8 +20,8 @@
 
           <p class="mt-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             <%= mode === 'devis'
-              ? "Dis-nous ce qu’il te faut (référence, VIN, véhicule) et on te répond rapidement avec la bonne pièce et le bon prix."
-              : "Une question ? Besoin d’aide pour une référence ou une compatibilité ? Écris-nous, on te répond rapidement." %>
+              ? "Indiquez-nous ce qu’il vous faut (référence, VIN, véhicule) et nous vous répondons rapidement avec la bonne pièce et le bon prix."
+              : "Une question ? Besoin d’aide pour une référence ou une compatibilité ? Écrivez-nous, nous vous répondons rapidement." %>
           </p>
 
           <div class="mt-6 flex flex-col sm:flex-row flex-wrap gap-3">
@@ -95,19 +95,21 @@
               </div>
             </div>
 
+            <% const subjectValue = form && form.subject ? form.subject : ''; %>
             <% const showQuoteFields = mode === 'devis'; %>
+            <% const showCompatibilityFields = showQuoteFields || subjectValue === 'compatibilite'; %>
 
-            <% if (showQuoteFields) { %>
+            <% if (showCompatibilityFields) { %>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-sm font-semibold text-slate-900 dark:text-slate-200 mb-2" for="vin">VIN (optionnel)</label>
                   <input class="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium placeholder:text-slate-400" id="vin" name="vin" placeholder="17 caractères" type="text" value="<%= form && form.vin ? form.vin : '' %>" />
-                  <div class="mt-1 text-[11px] text-slate-500">Tu le trouves sur la carte grise (E) ou sur le véhicule.</div>
+                  <div class="mt-1 text-[11px] text-slate-500">Vous le trouverez sur la carte grise (case E) ou sur le véhicule.</div>
                 </div>
                 <div>
                   <label class="block text-sm font-semibold text-slate-900 dark:text-slate-200 mb-2" for="plate">Plaque d’immatriculation (optionnel)</label>
                   <input class="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium placeholder:text-slate-400" id="plate" name="plate" placeholder="Ex : AB-123-CD" type="text" value="<%= form && form.plate ? form.plate : '' %>" />
-                  <div class="mt-1 text-[11px] text-slate-500">Si tu n’as pas le VIN, l’immatriculation peut aider.</div>
+                  <div class="mt-1 text-[11px] text-slate-500">Si vous n’avez pas le VIN, l’immatriculation peut aider.</div>
                 </div>
               </div>
 
@@ -121,8 +123,12 @@
                 <input class="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium placeholder:text-slate-400" id="vehicle" name="vehicle" placeholder="Ex : Golf 7 1.6 TDI 2015" type="text" value="<%= form && form.vehicle ? form.vehicle : '' %>" />
               </div>
 
-              <input name="subject" type="hidden" value="devis" />
-            <% } else { %>
+              <% if (showQuoteFields) { %>
+                <input name="subject" type="hidden" value="devis" />
+              <% } %>
+            <% } %>
+
+            <% if (!showQuoteFields) { %>
               <div>
                 <label class="block text-sm font-semibold text-slate-900 dark:text-slate-200 mb-2" for="subject">Sujet</label>
                 <select id="subject" name="subject" class="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium">
@@ -136,8 +142,8 @@
 
             <div>
               <label class="block text-sm font-semibold text-slate-900 dark:text-slate-200 mb-2" for="message">Message</label>
-              <textarea class="w-full min-h-[160px] px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium placeholder:text-slate-400" id="message" name="message" placeholder="Explique ton besoin : véhicule, référence, symptôme, numéro OEM…" required><%= form && form.message ? form.message : '' %></textarea>
-              <div class="mt-2 text-[11px] text-slate-500">On ne partage jamais ton email. Réponse sous 24h ouvrées en général.</div>
+              <textarea class="w-full min-h-[160px] px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-primary focus:border-primary outline-none text-sm font-medium placeholder:text-slate-400" id="message" name="message" placeholder="Décrivez votre besoin : véhicule, référence, symptôme, numéro OEM…" required><%= form && form.message ? form.message : '' %></textarea>
+              <div class="mt-2 text-[11px] text-slate-500">Nous ne partageons jamais votre email. Réponse sous 24h ouvrées en général.</div>
             </div>
 
             <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">

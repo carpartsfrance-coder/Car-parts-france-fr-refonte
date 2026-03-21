@@ -33,9 +33,8 @@
             <% const categoriesForHome = Array.isArray(homeCategories) ? homeCategories : []; %>
             <% categoriesForHome.forEach((category) => { %>
               <a class="flex items-center justify-between group p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all" href="<%= category.publicPath %>">
-                <div class="flex items-center gap-3 min-w-0">
-                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-black text-slate-600 group-hover:bg-primary/10 group-hover:text-primary"><%= category.initials %></span>
-                  <span class="text-sm font-medium truncate"><%= category.label %></span>
+                <div class="min-w-0 pr-3">
+                  <span class="text-sm font-medium truncate block"><%= category.label %></span>
                 </div>
                 <span class="material-symbols-rounded text-slate-300 text-sm">chevron_right</span>
               </a>

@@ -151,12 +151,12 @@ async function getHome(req, res, next) {
     let homeCategories = [];
     let homeVehicleMakes = [];
     if (dbConnected) {
-      const [products, categoryDocs, vehicleMakeDocs] = await Promise.all([
+      const [products, featuredCategoryDocs, vehicleMakeDocs] = await Promise.all([
         Product.find({})
           .sort({ updatedAt: -1 })
           .limit(8)
           .lean(),
-        Category.find({ isActive: true })
+        Category.find({ isActive: true, isHomeFeatured: true })
           .sort({ sortOrder: 1, name: 1 })
           .select('_id name slug')
           .limit(6)
@@ -169,8 +169,18 @@ async function getHome(req, res, next) {
       ]);
 
       featuredProducts = products;
-      homeCategories = buildHomeCategoriesFromDocs(categoryDocs);
+      homeCategories = buildHomeCategoriesFromDocs(featuredCategoryDocs);
       homeVehicleMakes = buildHomeVehicleMakesFromNames((vehicleMakeDocs || []).map((row) => row && row.name));
+
+      if (!homeCategories.length) {
+        const fallbackCategoryDocs = await Category.find({ isActive: true })
+          .sort({ sortOrder: 1, name: 1 })
+          .select('_id name slug')
+          .limit(6)
+          .lean();
+
+        homeCategories = buildHomeCategoriesFromDocs(fallbackCategoryDocs);
+      }
 
       if (!homeCategories.length) {
         homeCategories = buildHomeCategoriesFromDemo(featuredProducts);

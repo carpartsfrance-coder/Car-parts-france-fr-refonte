@@ -46,6 +46,14 @@
                 <div class="mt-1 text-xs text-slate-500">Plus le nombre est petit, plus la catégorie remonte dans la liste.</div>
               </div>
 
+              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" />
+                <span>
+                  <span class="block font-black text-slate-900">Mettre en avant sur l’accueil</span>
+                  <span class="mt-1 block text-xs font-medium text-slate-500">Cette catégorie pourra apparaître dans la sidebar Catégories de la page d’accueil.</span>
+                </span>
+              </label>
+
               <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">
                 <span class="material-symbols-outlined mr-2 text-base">add</span>
                 Ajouter
@@ -87,6 +95,14 @@
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="subSortOrder" name="sortOrder" placeholder="0" type="number" />
               </div>
 
+              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" />
+                <span>
+                  <span class="block font-black text-slate-900">Mettre en avant sur l’accueil</span>
+                  <span class="mt-1 block text-xs font-medium text-slate-500">Cette sous-catégorie pourra apparaître dans la sidebar Catégories de la page d’accueil.</span>
+                </span>
+              </label>
+
               <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= (dbConnected && mainCategoryOptions && mainCategoryOptions.length) ? '' : 'disabled' %> type="submit">
                 <span class="material-symbols-outlined mr-2 text-base">add</span>
                 Ajouter
@@ -97,7 +113,7 @@
           <% if (!dbConnected) { %>
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
               <div class="font-bold">Mode démo</div>
-              <div class="mt-1 text-sm">La base de données est indisponible : tu ne peux pas ajouter / modifier / supprimer de catégories.</div>
+              <div class="mt-1 text-sm">La base de données est indisponible : vous ne pouvez pas ajouter / modifier / supprimer de catégories.</div>
             </div>
           <% } %>
         </div>
@@ -213,6 +229,13 @@
                                   </div>
                                 </div>
                               </div>
+                              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                                <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= g.mainDoc.isHomeFeatured ? 'checked' : '' %> />
+                                <span>
+                                  <span class="block font-black text-slate-900">Mise en avant accueil</span>
+                                  <span class="mt-1 block text-xs font-medium text-slate-500">Active cette catégorie dans la sidebar Catégories de la page d’accueil.</span>
+                                </span>
+                              </label>
                               <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
                             </form>
                           <% } %>
@@ -285,6 +308,13 @@
                                         <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Ordre</label>
                                         <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="sortOrder" type="number" value="<%= typeof s.sortOrder !== 'undefined' ? s.sortOrder : 0 %>" />
                                       </div>
+                                      <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                                        <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= s.isHomeFeatured ? 'checked' : '' %> />
+                                        <span>
+                                          <span class="block font-black text-slate-900">Mise en avant accueil</span>
+                                          <span class="mt-1 block text-xs font-medium text-slate-500">Active cette sous-catégorie dans la sidebar Catégories de la page d’accueil.</span>
+                                        </span>
+                                      </label>
                                       <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
                                     </form>
                                   </div>

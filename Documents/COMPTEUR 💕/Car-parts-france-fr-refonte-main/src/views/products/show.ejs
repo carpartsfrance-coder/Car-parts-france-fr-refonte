@@ -45,6 +45,13 @@
   .fill-1 {
     font-variation-settings: 'FILL' 1;
   }
+  .cart-submit-success {
+    background: #38A169 !important;
+    box-shadow: 0 14px 28px rgba(56, 161, 105, 0.28) !important;
+  }
+  .cart-submit-success:hover {
+    background: #38A169 !important;
+  }
 </style>
 
 <main class="flex-1 bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200 transition-colors duration-200">
@@ -150,11 +157,21 @@
       <% const heroBadge = keyEtat || conditionBadge || topLeftBadge || 'Reconditionnement Professionnel'; %>
       <% const visibleThumbImages = thumbImages.slice(0, 4); %>
       <% const hiddenThumbImages = thumbImages.slice(4); %>
+      <% const compatibilityPrefillMessage = [
+        'Bonjour,',
+        '',
+        'Je souhaite vérifier la compatibilité de la pièce "' + product.name + '"' + (ref ? ' (référence ' + ref + ')' : '') + ' avec mon véhicule.',
+        '',
+        'Nos experts vérifient la compatibilité et vous répondent sous 24h.',
+        '',
+        'Merci.',
+      ].join('\n'); %>
+      <% const compatibilityContactUrl = '/contact?subject=compatibilite&partRef=' + encodeURIComponent(ref) + '&message=' + encodeURIComponent(compatibilityPrefillMessage); %>
       <% const qualityHighlights = [
         { icon: 'verified', label: keyGarantie || 'Garantie 24 Mois' },
         { icon: 'terminal', label: keyProgrammation || 'Programmation Incluse' },
         { icon: 'analytics', label: 'Testé sur banc' },
-        { icon: 'euro_off', label: 'Aucune caution' },
+        { icon: 'lock_open', label: 'Sans caution' },
       ]; %>
       <% const faqCount = Array.isArray(product.faqs) ? product.faqs.length : 0; %>
       <% const faqPreviewCards = Array.isArray(product.faqs)
@@ -273,7 +290,7 @@
             <p class="text-right text-xs italic <%= hasConsigne ? 'text-emerald-600 font-semibold' : 'text-slate-400' %>"><%= hasConsigne ? 'Échange standard sans caution • Retour ancien organe sous 30 jours' : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
           </div>
 
-          <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4 lg:flex-1" method="POST">
+          <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4 lg:flex-1" data-add-to-cart-form data-product-image="<%= mainImage %>" data-product-name="<%= product.name %>" method="POST">
             <input name="returnTo" type="hidden" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/panier' %>" />
             <input data-qty-input name="qty" type="hidden" value="1" />
 
@@ -424,9 +441,9 @@
                   <span class="w-10 text-center font-bold text-sm" data-qty-display>1</span>
                   <button class="w-10 h-12 flex items-center justify-center hover:text-primary transition-colors" data-qty-plus type="button">+</button>
                 </div>
-                <button class="w-full sm:w-auto sm:flex-1 lg:flex-none lg:min-w-[320px] lg:max-w-[420px] bg-primary hover:bg-primary/90 text-white py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-primary/20 disabled:opacity-60" <%= product.inStock ? '' : 'disabled' %> type="submit">
-                  <span class="material-symbols-outlined">add_shopping_cart</span>
-                  Ajouter au panier
+                <button class="w-full sm:w-auto sm:flex-1 lg:flex-none lg:min-w-[320px] lg:max-w-[420px] bg-primary hover:bg-primary/90 text-white py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-primary/20 disabled:opacity-60" data-add-to-cart-submit <%= product.inStock ? '' : 'disabled' %> type="submit">
+                  <span class="material-symbols-outlined" data-add-to-cart-icon>add_shopping_cart</span>
+                  <span data-add-to-cart-label>Ajouter au panier</span>
                 </button>
               </div>
               <div class="flex items-center justify-center gap-6 text-xs text-slate-500 font-medium">
@@ -435,6 +452,19 @@
               </div>
             </div>
           </form>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5 refined-shadow">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="text-sm font-black text-slate-900">Besoin d’une confirmation avant achat ?</div>
+                <p class="mt-1 text-sm text-slate-600">Demandez la compatibilité de cette pièce avec votre véhicule. Le nom du produit est déjà prérempli dans le formulaire de contact.</p>
+              </div>
+              <a class="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 transition hover:border-primary hover:text-primary" href="<%= compatibilityContactUrl %>">
+                Demander la compatibilité
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -526,7 +556,7 @@
                       </div>
                       <div>
                         <h4 class="text-base font-bold text-slate-900 dark:text-white">Besoin d'une validation avant achat ?</h4>
-                        <p class="mt-2 text-sm text-slate-500">Nos techniciens peuvent confirmer la bonne référence avec ton VIN ou les infos de ta pièce d'origine.</p>
+                        <p class="mt-2 text-sm text-slate-500">Nos techniciens peuvent confirmer la bonne référence avec votre VIN ou les informations de votre pièce d'origine.</p>
                         <div class="mt-4 flex flex-wrap gap-3">
                           <a class="inline-flex items-center justify-center rounded-lg bg-primary text-white px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-colors" href="/devis">Contacter un technicien</a>
                           <a class="inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-xs font-black uppercase tracking-wider hover:border-primary hover:text-primary transition-colors" href="/compte">Demander une vérification</a>
@@ -542,7 +572,7 @@
                   <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 refined-shadow">
                     <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70">
                       <h4 class="text-lg font-bold uppercase text-slate-900 dark:text-white">Compatibilité véhicule</h4>
-                      <p class="mt-1 text-sm text-slate-500">Compare toujours la référence de ta pièce et ton VIN avant validation finale.</p>
+                      <p class="mt-1 text-sm text-slate-500">Comparez toujours la référence de votre pièce et votre VIN avant validation finale.</p>
                     </div>
                     <table class="w-full text-left border-collapse compatibility-table">
                       <thead class="bg-white dark:bg-slate-950 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -746,6 +776,15 @@
           var qtyDisplay = document.querySelector('[data-qty-display]');
           var minus = document.querySelector('[data-qty-minus]');
           var plus = document.querySelector('[data-qty-plus]');
+          var addToCartForm = document.querySelector('[data-add-to-cart-form]');
+          var addToCartSubmit = addToCartForm ? addToCartForm.querySelector('[data-add-to-cart-submit]') : null;
+          var addToCartIcon = addToCartForm ? addToCartForm.querySelector('[data-add-to-cart-icon]') : null;
+          var addToCartLabel = addToCartForm ? addToCartForm.querySelector('[data-add-to-cart-label]') : null;
+          var addToCartPending = false;
+          var addToCartResetTimer = null;
+          var originalSubmitIcon = addToCartIcon ? addToCartIcon.textContent : 'add_shopping_cart';
+          var originalSubmitLabel = addToCartLabel ? addToCartLabel.textContent : 'Ajouter au panier';
+          var originalSubmitDisabled = !!(addToCartSubmit && addToCartSubmit.disabled);
 
           var priceEl = document.querySelector('[data-price-display]');
           var installmentWrapper = document.querySelector('[data-installment-wrapper]');
@@ -842,6 +881,36 @@
             if (qtyDisplay) qtyDisplay.textContent = String(v);
           }
 
+          function resetAddToCartButton() {
+            if (addToCartResetTimer) {
+              window.clearTimeout(addToCartResetTimer);
+              addToCartResetTimer = null;
+            }
+            if (!addToCartSubmit) return;
+            addToCartSubmit.classList.remove('cart-submit-success');
+            addToCartSubmit.disabled = originalSubmitDisabled;
+            if (addToCartIcon) addToCartIcon.textContent = originalSubmitIcon;
+            if (addToCartLabel) addToCartLabel.textContent = originalSubmitLabel;
+          }
+
+          function setAddToCartSuccessState() {
+            if (!addToCartSubmit) return;
+            addToCartSubmit.classList.add('cart-submit-success');
+            addToCartSubmit.disabled = true;
+            if (addToCartIcon) addToCartIcon.textContent = 'check';
+            if (addToCartLabel) addToCartLabel.textContent = 'Ajouté';
+          }
+
+          function scheduleAddToCartReset(delayMs) {
+            if (addToCartResetTimer) {
+              window.clearTimeout(addToCartResetTimer);
+            }
+            addToCartResetTimer = window.setTimeout(function () {
+              resetAddToCartButton();
+              addToCartPending = false;
+            }, delayMs);
+          }
+
           function setActiveThumb(index) {
             if (!thumbs || !thumbs.length) return;
 
@@ -934,6 +1003,66 @@
               el.addEventListener('input', syncDisplayedPrice);
               el.addEventListener('change', syncExchangeStandardPanel);
               el.addEventListener('input', syncExchangeStandardPanel);
+            });
+          }
+
+          if (addToCartForm && addToCartSubmit && window.fetch && window.FormData && window.CPFCartFeedback) {
+            addToCartForm.addEventListener('submit', function (event) {
+              if (addToCartPending) {
+                event.preventDefault();
+                return;
+              }
+
+              event.preventDefault();
+              addToCartPending = true;
+              addToCartSubmit.disabled = true;
+
+              var startedAt = Date.now();
+              var formData = new FormData(addToCartForm);
+
+              fetch(addToCartForm.getAttribute('action'), {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest'
+                }
+              })
+                .then(function (response) {
+                  return response.json().catch(function () {
+                    return null;
+                  }).then(function (data) {
+                    if (!response.ok || !data || data.ok !== true) {
+                      throw new Error(data && data.error ? data.error : 'Impossible d’ajouter le produit au panier pour le moment.');
+                    }
+                    return data;
+                  });
+                })
+                .then(function (data) {
+                  var payload = data && typeof data === 'object' ? data : {};
+                  var productData = payload.product && typeof payload.product === 'object' ? payload.product : {};
+                  window.CPFCartFeedback.notifyAdded({
+                    cartItemCount: payload.cartItemCount,
+                    productName: productData.name || addToCartForm.getAttribute('data-product-name') || 'Produit',
+                    imageUrl: productData.imageUrl || addToCartForm.getAttribute('data-product-image') || ''
+                  });
+
+                  setAddToCartSuccessState();
+
+                  var minDisableRemaining = Math.max(0, 1000 - (Date.now() - startedAt));
+                  window.setTimeout(function () {
+                    scheduleAddToCartReset(2000);
+                  }, minDisableRemaining);
+                })
+                .catch(function (err) {
+                  var minDisableRemaining = Math.max(0, 1000 - (Date.now() - startedAt));
+                  window.CPFCartFeedback.notifyError(err && err.message ? err.message : 'Impossible d’ajouter le produit au panier pour le moment.');
+                  window.setTimeout(function () {
+                    resetAddToCartButton();
+                    addToCartPending = false;
+                  }, minDisableRemaining);
+                });
             });
           }
 
