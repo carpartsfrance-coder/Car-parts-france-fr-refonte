@@ -1,0 +1,85 @@
+<% const activeKey = typeof active !== 'undefined' ? active : ''; %>
+
+<aside class="w-full lg:w-72 bg-slate-900 text-white flex flex-col">
+  <div class="px-6 py-6 border-b border-white/10">
+    <a class="flex items-center gap-3" href="/admin">
+      <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+        <span class="material-symbols-outlined text-white">settings</span>
+      </div>
+      <div class="leading-tight">
+        <div class="font-black tracking-tight text-lg">CARPARTS<span class="text-primary">ADMIN</span></div>
+        <div class="text-xs text-white/60">Back office</div>
+      </div>
+    </a>
+  </div>
+
+  <nav class="flex-1 px-4 py-5">
+    <div class="space-y-1">
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'dashboard' ? 'bg-primary text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin">
+        <span class="material-symbols-outlined">grid_view</span>
+        Tableau de bord
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'orders' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/commandes">
+        <span class="material-symbols-outlined">shopping_cart</span>
+        Commandes
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'catalog' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/catalogue">
+        <span class="material-symbols-outlined">inventory_2</span>
+        Catalogue
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'categories' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/categories">
+        <span class="material-symbols-outlined">category</span>
+        Catégories
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'vehicle-makes' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/vehicules">
+        <span class="material-symbols-outlined">directions_car</span>
+        Véhicules
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'shipping-classes' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/expedition">
+        <span class="material-symbols-outlined">local_shipping</span>
+        Expédition
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'clients' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/clients">
+        <span class="material-symbols-outlined">group</span>
+        Clients
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'promo-codes' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/codes-promo">
+        <span class="material-symbols-outlined">sell</span>
+        Codes promo
+      </a>
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'returns' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/retours">
+        <span class="material-symbols-outlined">assignment_return</span>
+        Consignes & retours
+      </a>
+
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'blog' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/blog">
+        <span class="material-symbols-outlined">article</span>
+        Blog
+      </a>
+
+      <div class="h-px bg-white/10 my-4"></div>
+
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'legal-pages' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/pages-legales">
+        <span class="material-symbols-outlined">gavel</span>
+        Pages légales
+      </a>
+
+      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'settings' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/parametres">
+        <span class="material-symbols-outlined">settings</span>
+        Paramètres
+      </a>
+    </div>
+  </nav>
+
+  <div class="px-4 pb-5">
+    <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+      <div class="text-xs text-white/60 font-black uppercase tracking-widest">Connecté</div>
+      <div class="mt-2 text-sm font-bold"><%= currentAdmin && currentAdmin.email ? currentAdmin.email : 'Admin' %></div>
+      <form action="/admin/deconnexion" class="mt-3" method="POST">
+        <button class="w-full inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-white/15 transition" type="submit">
+          Déconnexion
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>

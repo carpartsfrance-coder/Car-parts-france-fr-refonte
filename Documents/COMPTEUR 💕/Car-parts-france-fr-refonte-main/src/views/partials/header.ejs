@@ -1,0 +1,333 @@
+<header class="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/90 backdrop-blur px-4 md:px-10 py-3">
+<div class="mx-auto flex max-w-[1440px] items-center gap-6">
+<a class="flex items-center gap-2 text-primary shrink-0" href="/">
+<img src="/images/logo-v2.png" alt="Car Parts France" class="h-10 md:h-11 w-auto" loading="eager" />
+</a>
+
+<% const _hp = typeof currentPath === 'string' ? currentPath : ''; %>
+<% const _hpPathOnly = _hp.split('?')[0].split('#')[0]; %>
+<% const _navActive = (href) => {
+  if (!href) return false;
+  if (href === '/') return _hpPathOnly === '/';
+  return _hpPathOnly === href || _hpPathOnly.startsWith(href + '/');
+}; %>
+
+<nav class="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/" <%= _navActive('/') ? 'aria-current=\"page\"' : '' %>>Accueil</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/produits') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/produits" <%= _navActive('/produits') ? 'aria-current=\"page\"' : '' %>>Catalogue</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/blog" <%= _navActive('/blog') ? 'aria-current=\"page\"' : '' %>>Blog</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/contact') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/contact" <%= _navActive('/contact') ? 'aria-current=\"page\"' : '' %>>Contact</a>
+<a class="px-3 py-2 rounded-xl transition-colors <%= _navActive('/devis') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:text-primary hover:bg-slate-50' %>" href="/devis" <%= _navActive('/devis') ? 'aria-current=\"page\"' : '' %>>Devis</a>
+</nav>
+
+<div class="hidden md:flex flex-1 max-w-2xl">
+<form action="/produits" class="relative w-full" method="GET" data-header-search>
+<div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+<span class="material-symbols-outlined text-xl">search</span>
+ </div>
+<input class="block w-full px-3 py-2.5 pl-10 text-sm text-slate-900 border border-slate-200 rounded-lg bg-slate-50 focus:ring-primary focus:border-primary" name="q" placeholder="Rechercher une pièce, une référence ou une marque..." type="text" value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>" autocomplete="off" data-header-search-input />
+
+<div class="absolute left-0 right-0 top-full mt-2 hidden" data-header-search-suggest>
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+    <div class="px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Produits</div>
+    <div class="divide-y divide-slate-100" data-header-search-results></div>
+    <a class="block px-4 py-3 text-xs font-black text-primary hover:bg-slate-50" href="/produits" data-header-search-all>
+      Voir le catalogue
+    </a>
+  </div>
+</div>
+</form>
+</div>
+
+<div class="ml-auto flex items-center gap-3">
+<% if (currentUser) { %>
+<% const userAccountType = currentUser.accountType === 'pro' ? 'pro' : 'particulier'; %>
+<% const userDiscountPercent = typeof currentUser.discountPercent === 'number' ? currentUser.discountPercent : 0; %>
+<% const userDisplayName = userAccountType === 'pro' && currentUser.companyName ? currentUser.companyName : `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim(); %>
+<div class="hidden xl:flex items-center bg-slate-100 rounded-full px-4 py-2">
+<div class="flex flex-col leading-tight text-right">
+<div class="text-xs font-bold text-slate-900"><%= userDisplayName || 'Mon compte' %></div>
+<div class="text-[10px] font-black uppercase tracking-widest <%= userAccountType === 'pro' ? 'text-primary' : 'text-slate-600' %>">
+<%= userAccountType === 'pro' ? 'Professionnel' : 'Particulier' %>
+<% if (userDiscountPercent > 0) { %>
+ • Remise <%= userDiscountPercent %>%
+<% } %>
+</div>
+</div>
+</div>
+<% } %>
+
+<button aria-controls="mobileNavDrawer" aria-expanded="false" aria-label="Menu" class="flex lg:hidden items-center justify-center rounded-lg h-9 w-9 text-slate-700 hover:bg-slate-100 transition-colors" data-mobile-nav-open type="button">
+<span class="material-symbols-outlined">menu</span>
+</button>
+
+<a aria-label="Rechercher" class="flex md:hidden items-center justify-center rounded-lg h-9 w-9 text-slate-700 hover:bg-slate-100 transition-colors" href="/rechercher">
+<span class="material-symbols-outlined">search</span>
+</a>
+
+<a class="relative flex items-center justify-center rounded-lg h-9 w-9 text-slate-700 hover:bg-slate-100 transition-colors" href="/panier">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-white font-semibold"><%= typeof cartItemCount !== 'undefined' ? cartItemCount : 0 %></span>
+</a>
+
+<a class="hidden sm:flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors" href="/compte">
+<span class="material-symbols-outlined text-xl">account_circle</span>
+<span>Mon Compte</span>
+</a>
+</div>
+</div>
+</header>
+
+<nav aria-hidden="true" class="hidden fixed inset-0 z-50 lg:hidden" data-mobile-nav-drawer id="mobileNavDrawer" role="dialog">
+  <div class="absolute inset-0 bg-black/40" data-mobile-nav-close></div>
+  <div class="absolute inset-y-0 left-0 w-full max-w-sm overflow-y-auto bg-white p-4">
+    <div class="rounded-3xl border border-slate-200 bg-white p-4">
+      <div class="flex items-center justify-between">
+        <div class="font-black text-slate-900">Menu</div>
+        <button class="h-9 px-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs" data-mobile-nav-close type="button">Fermer</button>
+      </div>
+
+      <div class="mt-4 grid gap-2">
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">home</span>Accueil</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/produits') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/produits">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">storefront</span>Catalogue</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/blog') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/blog">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">article</span>Blog</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/contact') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/contact">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">mail</span>Contact</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/devis') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/devis">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">request_quote</span>Devis</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+        <a class="flex items-center justify-between rounded-2xl px-4 py-3 font-bold text-sm transition-colors <%= _navActive('/compte') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-50 text-slate-800' %>" href="/compte">
+          <span class="flex items-center gap-3"><span class="material-symbols-outlined text-base">account_circle</span>Mon compte</span>
+          <span class="material-symbols-outlined text-slate-300">chevron_right</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<script>
+  (function () {
+    var drawer = document.querySelector('[data-mobile-nav-drawer]');
+    var openBtn = document.querySelector('[data-mobile-nav-open]');
+    var closeEls = Array.from(document.querySelectorAll('[data-mobile-nav-close]'));
+    if (!window.__cpOverlayLockCount) window.__cpOverlayLockCount = 0;
+    if (window.__cpPrevOverflow === undefined) window.__cpPrevOverflow = '';
+
+    function lockScroll() {
+      if (window.__cpOverlayLockCount === 0) {
+        window.__cpPrevOverflow = document.documentElement.style.overflow;
+        document.documentElement.style.overflow = 'hidden';
+      }
+      window.__cpOverlayLockCount += 1;
+    }
+
+    function unlockScroll() {
+      window.__cpOverlayLockCount = Math.max(0, (window.__cpOverlayLockCount || 0) - 1);
+      if (window.__cpOverlayLockCount === 0) {
+        document.documentElement.style.overflow = window.__cpPrevOverflow || '';
+      }
+    }
+
+    function openDrawer() {
+      if (!drawer) return;
+      drawer.classList.remove('hidden');
+      drawer.setAttribute('aria-hidden', 'false');
+      drawer.setAttribute('aria-modal', 'true');
+      if (openBtn) openBtn.setAttribute('aria-expanded', 'true');
+      lockScroll();
+    }
+
+    function closeDrawer() {
+      if (!drawer) return;
+      drawer.classList.add('hidden');
+      drawer.setAttribute('aria-hidden', 'true');
+      drawer.removeAttribute('aria-modal');
+      if (openBtn) openBtn.setAttribute('aria-expanded', 'false');
+      unlockScroll();
+    }
+
+    if (openBtn) {
+      openBtn.addEventListener('click', openDrawer);
+    }
+
+    closeEls.forEach(function (el) {
+      el.addEventListener('click', closeDrawer);
+    });
+
+    if (drawer) {
+      drawer.addEventListener('keydown', function (e) {
+        if (e && e.key === 'Escape') closeDrawer();
+      });
+    }
+  })();
+</script>
+
+<script>
+  (function () {
+    var form = document.querySelector('[data-header-search]');
+    if (!form) return;
+
+    var input = form.querySelector('[data-header-search-input]');
+    var suggestBox = form.querySelector('[data-header-search-suggest]');
+    var resultsEl = form.querySelector('[data-header-search-results]');
+    var allLink = form.querySelector('[data-header-search-all]');
+
+    if (!input || !suggestBox || !resultsEl || !allLink) return;
+
+    var lastQuery = '';
+    var timer = null;
+    var abort = null;
+
+    function closeSuggest() {
+      suggestBox.classList.add('hidden');
+      resultsEl.innerHTML = '';
+    }
+
+    function openSuggest() {
+      suggestBox.classList.remove('hidden');
+    }
+
+    function setAllLink(q) {
+      var safe = (q || '').trim();
+      allLink.href = safe ? ('/produits?q=' + encodeURIComponent(safe)) : '/produits';
+      allLink.textContent = safe ? ('Voir tous les résultats pour "' + safe + '"') : 'Voir le catalogue';
+    }
+
+    function renderResults(results, q) {
+      resultsEl.innerHTML = '';
+      setAllLink(q);
+
+      if (!Array.isArray(results) || results.length === 0) {
+        closeSuggest();
+        return;
+      }
+
+      results.forEach(function (r) {
+        if (!r || !r.publicPath) return;
+
+        var a = document.createElement('a');
+        a.href = r.publicPath;
+        a.className = 'flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition';
+
+        var imgWrap = document.createElement('div');
+        imgWrap.className = 'h-10 w-10 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0';
+
+        if (r.imageUrl) {
+          var img = document.createElement('img');
+          img.src = r.imageUrl;
+          img.alt = '';
+          img.className = 'h-full w-full object-cover';
+          img.loading = 'lazy';
+          imgWrap.appendChild(img);
+        } else {
+          var placeholder = document.createElement('span');
+          placeholder.className = 'material-symbols-outlined text-slate-400';
+          placeholder.textContent = 'inventory_2';
+          imgWrap.appendChild(placeholder);
+        }
+
+        var meta = document.createElement('div');
+        meta.className = 'min-w-0 flex-1';
+
+        var title = document.createElement('div');
+        title.className = 'text-sm font-black text-slate-900 truncate';
+        title.textContent = r.name || 'Produit';
+
+        var sub = document.createElement('div');
+        sub.className = 'mt-0.5 text-[11px] text-slate-500 flex items-center gap-2';
+
+        var sku = document.createElement('span');
+        sku.className = 'font-semibold';
+        sku.textContent = r.sku ? ('Ref: ' + r.sku) : '';
+
+        var price = document.createElement('span');
+        price.className = 'ml-auto font-black text-slate-700';
+        price.textContent = r.price || '';
+
+        sub.appendChild(sku);
+        sub.appendChild(price);
+
+        meta.appendChild(title);
+        meta.appendChild(sub);
+
+        a.appendChild(imgWrap);
+        a.appendChild(meta);
+
+        resultsEl.appendChild(a);
+      });
+
+      openSuggest();
+    }
+
+    function fetchSuggest(q) {
+      if (abort) {
+        try { abort.abort(); } catch (e) {}
+      }
+      abort = new AbortController();
+
+      return fetch('/rechercher/suggest?q=' + encodeURIComponent(q), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: abort.signal,
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var results = data && Array.isArray(data.results) ? data.results : [];
+          return results;
+        })
+        .catch(function () {
+          return [];
+        });
+    }
+
+    function schedule() {
+      var q = (input.value || '').trim();
+      lastQuery = q;
+
+      if (timer) window.clearTimeout(timer);
+
+      if (!q || q.length < 2) {
+        closeSuggest();
+        setAllLink(q);
+        return;
+      }
+
+      timer = window.setTimeout(function () {
+        fetchSuggest(q).then(function (results) {
+          if (q !== lastQuery) return;
+          renderResults(results, q);
+        });
+      }, 180);
+    }
+
+    input.addEventListener('input', schedule);
+    input.addEventListener('focus', function () {
+      var q = (input.value || '').trim();
+      if (q && q.length >= 2 && resultsEl.children.length) openSuggest();
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!e || !e.target) return;
+      if (form.contains(e.target)) return;
+      closeSuggest();
+    });
+
+    form.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Escape') closeSuggest();
+    });
+
+    setAllLink((input.value || '').trim());
+  })();
+</script>
