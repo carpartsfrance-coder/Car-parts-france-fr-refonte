@@ -7,8 +7,11 @@
     "node": "20.x"
   },
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "css:build": "node node_modules/.bin/tailwindcss -i src/styles/main.css -o public/css/styles.css --minify",
+    "css:watch": "node node_modules/.bin/tailwindcss -i src/styles/main.css -o public/css/styles.css --watch",
+    "dev": "concurrently \"npm run css:watch\" \"nodemon src/server.js\"",
     "start": "node src/server.js",
+    "heroku-postbuild": "npm run css:build",
     "emails:consigne:reminders": "node src/jobs/sendConsigneReminders.js",
     "seed": "node src/seed/seedProducts.js",
     "import:woo:dry": "node src/seed/importWooProductsFromCsv.js",
@@ -31,12 +34,19 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "multer": "^1.4.5-lts.1",
     "mongoose": "^8.10.0",
+    "multer": "^1.4.5-lts.1",
     "pdfkit": "^0.15.2",
     "sanitize-html": "^2.13.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "@tailwindcss/container-queries": "^0.1.1",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/typography": "^0.5.19",
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.9",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19"
   }
 }
