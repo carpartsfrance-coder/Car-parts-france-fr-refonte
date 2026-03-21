@@ -21,7 +21,7 @@
     <% if (!dbConnected) { %>
       <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
         <div class="font-bold">Mode démo</div>
-        <div class="mt-1 text-sm">La base de données est indisponible : tu ne peux pas modifier les marques/modèles.</div>
+        <div class="mt-1 text-sm">La base de données est indisponible : vous ne pouvez pas modifier les marques/modèles.</div>
       </div>
     <% } %>
 
@@ -41,7 +41,7 @@
           <div class="p-6 space-y-4">
             <div>
               <label class="block text-sm font-bold text-slate-700" for="makeSearch">Recherche</label>
-              <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="makeSearch" placeholder="Tape une marque…" type="text" autocomplete="off" />
+              <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="makeSearch" placeholder="Tapez une marque…" type="text" autocomplete="off" />
             </div>
 
             <div class="rounded-2xl border border-slate-200 overflow-hidden">
@@ -96,7 +96,7 @@
               <% if (selectedMake) { %>
                 <%= selectedMake.models && selectedMake.models.length ? selectedMake.models.length : 0 %> modèles
               <% } else { %>
-                Sélectionne une marque
+                Sélectionnez une marque
               <% } %>
             </div>
           </div>
@@ -105,7 +105,7 @@
             <% if (!selectedMake) { %>
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-6">
                 <div class="text-sm font-black text-slate-900">Aucune marque sélectionnée</div>
-                <div class="mt-1 text-sm text-slate-600">Clique sur une marque à gauche pour gérer ses modèles.</div>
+                <div class="mt-1 text-sm text-slate-600">Cliquez sur une marque à gauche pour gérer ses modèles.</div>
               </div>
             <% } else { %>
               <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -153,7 +153,7 @@
                   <div class="rounded-2xl border border-slate-200 overflow-hidden">
                     <div class="p-4 bg-slate-50">
                       <label class="block text-sm font-bold text-slate-700" for="modelSearch">Recherche modèle</label>
-                      <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="modelSearch" placeholder="Tape un modèle…" type="text" autocomplete="off" />
+                      <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:ring-primary" id="modelSearch" placeholder="Tapez un modèle…" type="text" autocomplete="off" />
                     </div>
 
                     <div class="max-h-[55vh] overflow-auto" id="modelsList">

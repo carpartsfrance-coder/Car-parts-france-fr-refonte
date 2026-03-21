@@ -297,7 +297,7 @@ ${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
 ${cgvUrl ? `<div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64748b;">CGV : <a href="${escapeHtml(cgvUrl)}" style="color:#ec1313;text-decoration:none;font-weight:800;">${escapeHtml(cgvUrl)}</a></div>` : ''}
 
 <div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
-  Si tu as une question, réponds directement à cet email.
+  Si vous avez une question, répondez directement à cet email.
 </div>`;
 
   const subject = number ? `Confirmation de commande #${number}` : 'Confirmation de commande';
@@ -358,8 +358,8 @@ function buildConsigneStartEmail({ order, user, baseUrl } = {}) {
   const bodyHtml = `
 <div style="font-size:16px;font-weight:900;">Information consigne</div>
 <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Ta commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''} est indiquée comme <strong>livrée</strong>.
-  À partir de maintenant, tu as un délai pour nous retourner ton ancienne pièce.
+  Votre commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''} est indiquée comme <strong>livrée</strong>.
+  À partir de maintenant, vous disposez d’un délai pour nous retourner votre ancienne pièce.
 </div>
 
 <div style="margin-top:12px;padding:12px 14px;border:1px solid #fee2e2;background:#fff1f2;border-radius:14px;color:#881337;font-size:13px;line-height:1.6;">
@@ -378,18 +378,18 @@ function buildConsigneStartEmail({ order, user, baseUrl } = {}) {
 ${renderPrimaryButton({ href: orderUrl, label: 'Voir le détail de ma consigne' })}
 
 <div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
-  Si tu as déjà renvoyé la pièce, tu peux ignorer ce message.
+  Si vous avez déjà renvoyé la pièce, vous pouvez ignorer ce message.
 </div>`;
 
   return {
     subject,
     html: renderEmailLayout({
       title: subject,
-      preheader: 'Consigne : pense à retourner ton ancienne pièce',
+      preheader: 'Consigne : pensez à retourner votre ancienne pièce',
       bodyHtml,
       baseUrl,
     }),
-    text: `Consigne : pense à retourner ton ancienne pièce. Total consigne (si non retournée à temps) : ${formatEuro(totalDueCents)}.`,
+    text: `Consigne : pensez à retourner votre ancienne pièce. Total consigne (si non retournée à temps) : ${formatEuro(totalDueCents)}.`,
   };
 }
 
@@ -403,11 +403,11 @@ function buildConsigneReceivedEmail({ order, user, baseUrl } = {}) {
   const bodyHtml = `
 <div style="font-size:16px;font-weight:900;">Merci !</div>
 <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Nous confirmons avoir reçu ton ancienne pièce (consigne) pour la commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''}.
+  Nous confirmons avoir reçu votre ancienne pièce (consigne) pour la commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''}.
 </div>
 
 <div style="margin-top:12px;padding:12px 14px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;color:#14532d;font-size:13px;line-height:1.6;">
-  Ta consigne est maintenant considérée comme <strong>régularisée</strong>.
+  Votre consigne est maintenant considérée comme <strong>régularisée</strong>.
 </div>
 
 ${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}`;
@@ -420,7 +420,7 @@ ${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}`;
       bodyHtml,
       baseUrl,
     }),
-    text: `Nous confirmons avoir reçu ta consigne pour la commande${number ? ` #${number}` : ''}.`,
+    text: `Nous confirmons avoir reçu votre consigne pour la commande${number ? ` #${number}` : ''}.`,
   };
 }
 
@@ -478,9 +478,9 @@ function buildShipmentTrackingEmail({ order, user, shipment, baseUrl, meta } = {
     : '';
 
   const bodyHtml = `
-<div style="font-size:16px;font-weight:900;">${firstName ? `${escapeHtml(firstName)}, ` : ''}ta commande est expédiée</div>
+<div style="font-size:16px;font-weight:900;">${firstName ? `${escapeHtml(firstName)}, ` : ''}votre commande est expédiée</div>
 <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  ${number ? `Commande <strong>#${escapeHtml(number)}</strong>. ` : ''}Tu peux suivre l’acheminement avec le numéro ci-dessous.
+  ${number ? `Commande <strong>#${escapeHtml(number)}</strong>. ` : ''}Vous pouvez suivre l’acheminement avec le numéro ci-dessous.
 </div>
 
 <div style="margin-top:14px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
@@ -518,7 +518,7 @@ ${cgvUrl ? `<div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64
     subject,
     html: renderEmailLayout({
       title: subject,
-      preheader: 'Ton colis est en route',
+      preheader: 'Votre colis est en route',
       bodyHtml,
       baseUrl,
     }),
@@ -557,7 +557,7 @@ function buildConsigneReminderSoonEmail({ order, user, baseUrl } = {}) {
   const bodyHtml = `
 <div style="font-size:16px;font-weight:900;">${firstName ? `${escapeHtml(firstName)}, ` : ''}rappel consigne</div>
 <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Il te reste peu de temps pour nous retourner ton ancienne pièce.
+  Il vous reste peu de temps pour nous retourner votre ancienne pièce.
 </div>
 
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:16px;">
@@ -578,7 +578,7 @@ ${renderPrimaryButton({ href: orderUrl, label: 'Voir le détail de ma consigne' 
       bodyHtml,
       baseUrl,
     }),
-    text: 'Rappel consigne : pense à retourner ton ancienne pièce avant la date limite.',
+    text: 'Rappel consigne : pensez à retourner votre ancienne pièce avant la date limite.',
   };
 }
 
@@ -637,7 +637,7 @@ function buildConsigneOverdueEmail({ order, user, baseUrl } = {}) {
 ${renderPrimaryButton({ href: orderUrl, label: 'Voir le détail de ma commande' })}
 
 <div style="margin-top:12px;font-size:12px;line-height:1.6;color:#64748b;">
-  Si tu as déjà renvoyé la pièce, ce message peut se croiser avec l’acheminement.
+  Si vous avez déjà renvoyé la pièce, ce message peut se croiser avec l’acheminement.
 </div>`;
 
   return {
@@ -663,24 +663,24 @@ function buildWelcomeEmail({ user, baseUrl } = {}) {
   const bodyHtml = `
 <div style="font-size:16px;font-weight:900;">${greeting},</div>
 <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Ton compte est prêt. Tu peux maintenant commander plus rapidement et suivre tes commandes.
+  Votre compte est prêt. Vous pouvez maintenant commander plus rapidement et suivre vos commandes.
 </div>
 
 ${renderPrimaryButton({ href: accountUrl, label: 'Accéder à mon compte' })}
 
 <div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64748b;">
-  Si tu n’es pas à l’origine de cette inscription, tu peux ignorer cet email.
+  Si vous n’êtes pas à l’origine de cette inscription, vous pouvez ignorer cet email.
 </div>`;
 
   return {
     subject,
     html: renderEmailLayout({
       title: subject,
-      preheader: 'Ton compte est prêt',
+      preheader: 'Votre compte est prêt',
       bodyHtml,
       baseUrl,
     }),
-    text: 'Bienvenue sur CarPartsFrance. Ton compte est prêt.',
+    text: 'Bienvenue sur CarPartsFrance. Votre compte est prêt.',
   };
 }
 
@@ -719,19 +719,19 @@ function buildResetPasswordEmail({ user, resetUrl, baseUrl } = {}) {
   const firstName = user && user.firstName ? String(user.firstName).trim() : '';
   const greeting = firstName ? escapeHtml(firstName) : 'Bonjour';
 
-  const subject = 'Réinitialisation de ton mot de passe';
+  const subject = 'Réinitialisation de votre mot de passe';
 
   const bodyHtml = `
 <div style="font-size:16px;font-weight:900;">${greeting},</div>
 <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Tu as demandé à réinitialiser ton mot de passe.
-  Clique sur le bouton ci-dessous pour en choisir un nouveau.
+  Vous avez demandé à réinitialiser votre mot de passe.
+  Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
 </div>
 
 ${renderPrimaryButton({ href: resetUrl, label: 'Créer un nouveau mot de passe' })}
 
 <div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64748b;">
-  Si tu n’as rien demandé, ignore cet email.
+  Si vous n’avez rien demandé, ignorez cet email.
 </div>`;
 
   return {
@@ -742,7 +742,7 @@ ${renderPrimaryButton({ href: resetUrl, label: 'Créer un nouveau mot de passe' 
       bodyHtml,
       baseUrl,
     }),
-    text: `Réinitialise ton mot de passe : ${resetUrl}`,
+    text: `Réinitialisez votre mot de passe : ${resetUrl}`,
   };
 }
 

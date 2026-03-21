@@ -113,8 +113,8 @@ async function getContactPage(req, res, next) {
       : 'Contact - CarParts France';
 
     const metaDescription = mode === 'devis'
-      ? 'Demande de devis : envoie ta référence, ton VIN et tes besoins. Réponse rapide par email ou téléphone.'
-      : 'Contacte CarParts France : question, assistance, compatibilité. Réponse rapide par email ou téléphone.';
+      ? 'Demande de devis : envoyez votre référence, votre VIN et vos besoins. Réponse rapide par email ou téléphone.'
+      : 'Contactez CarParts France : question, assistance, compatibilité. Réponse rapide par email ou téléphone.';
 
     const canonicalPath = mode === 'devis' ? '/devis' : '/contact';
     const canonicalUrl = baseUrl ? `${baseUrl}${canonicalPath}` : canonicalPath;
@@ -166,8 +166,8 @@ async function postContact(req, res, next) {
       : 'Contact - CarParts France';
 
     const metaDescription = mode === 'devis'
-      ? 'Demande de devis : envoie ta référence, ton VIN et tes besoins. Réponse rapide par email ou téléphone.'
-      : 'Contacte CarParts France : question, assistance, compatibilité. Réponse rapide par email ou téléphone.';
+      ? 'Demande de devis : envoyez votre référence, votre VIN et vos besoins. Réponse rapide par email ou téléphone.'
+      : 'Contactez CarParts France : question, assistance, compatibilité. Réponse rapide par email ou téléphone.';
 
     const canonicalPath = mode === 'devis' ? '/devis' : '/contact';
     const canonicalUrl = baseUrl ? `${baseUrl}${canonicalPath}` : canonicalPath;
@@ -185,7 +185,7 @@ async function postContact(req, res, next) {
         dbConnected,
         mode,
         errorMessage: null,
-        successMessage: 'Merci ! Ton message a bien été envoyé. On revient vers toi rapidement.',
+        successMessage: 'Merci ! Votre message a bien été envoyé. Nous revenons vers vous rapidement.',
         form: buildInitialForm({ req: { query: {} }, mode }),
       });
     }
@@ -258,7 +258,7 @@ async function postContact(req, res, next) {
         jsonLd: buildContactJsonLd({ baseUrl, mode }),
         dbConnected,
         mode,
-        errorMessage: 'Ton message est trop court. Merci de préciser un peu plus ta demande.',
+        errorMessage: 'Votre message est trop court. Merci de préciser un peu plus votre demande.',
         successMessage: null,
         form,
       });
@@ -326,8 +326,8 @@ async function postContact(req, res, next) {
     if (!sendResult || !sendResult.ok) {
       const isProd = process.env.NODE_ENV === 'production';
       const message = isProd
-        ? "Ton message n'a pas pu être envoyé. Réessaie plus tard ou contacte-nous par téléphone."
-        : "Ton message n'a pas pu être envoyé (email pas configuré). Configure MAILERSEND_API_KEY et MAIL_FROM_EMAIL dans Render.";
+        ? "Votre message n'a pas pu être envoyé. Réessayez plus tard ou contactez-nous par téléphone."
+        : "Votre message n'a pas pu être envoyé (email pas configuré). Configurez MAILERSEND_API_KEY et MAIL_FROM_EMAIL dans Render.";
 
       return res.status(503).render('contact/index', {
         title,
@@ -347,16 +347,16 @@ async function postContact(req, res, next) {
     }
 
     try {
-      const ackSubject = 'Nous avons bien reçu ton message - CarParts France';
+      const ackSubject = 'Nous avons bien reçu votre message - CarParts France';
       const ackHtml = `
         <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
           <p style="margin:0 0 8px 0;"><strong>Bonjour${firstName ? ` ${escapeHtml(firstName)}` : ''},</strong></p>
-          <p style="margin:0 0 12px 0;">Merci pour ton message. Notre équipe te répond généralement sous 24h ouvrées.</p>
-          <p style="margin:0 0 12px 0;">Si ta demande est urgente, tu peux aussi appeler le <strong>04 65 84 54 88</strong>.</p>
+          <p style="margin:0 0 12px 0;">Merci pour votre message. Notre équipe vous répond généralement sous 24h ouvrées.</p>
+          <p style="margin:0 0 12px 0;">Si votre demande est urgente, vous pouvez aussi appeler le <strong>04 65 84 54 88</strong>.</p>
           <p style="margin:0;">CarParts France</p>
         </div>
       `.trim();
-      await emailService.sendEmail({ toEmail: email, subject: ackSubject, html: ackHtml, text: 'Merci pour ton message. Nous te répondons rapidement. CarParts France.' });
+      await emailService.sendEmail({ toEmail: email, subject: ackSubject, html: ackHtml, text: 'Merci pour votre message. Nous vous répondons rapidement. CarParts France.' });
     } catch (err) {}
 
     if (req.session && typeof req.session === 'object') {
@@ -375,7 +375,7 @@ async function postContact(req, res, next) {
       dbConnected,
       mode,
       errorMessage: null,
-      successMessage: 'Merci ! Ton message a bien été envoyé. On revient vers toi rapidement.',
+      successMessage: 'Merci ! Votre message a bien été envoyé. Nous revenons vers vous rapidement.',
       form: buildInitialForm({ req: { query: {} }, mode }),
     });
   } catch (err) {

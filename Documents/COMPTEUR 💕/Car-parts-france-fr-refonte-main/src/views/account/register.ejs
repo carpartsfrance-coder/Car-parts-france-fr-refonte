@@ -7,7 +7,7 @@
   <div class="container mx-auto px-4 py-12 max-w-6xl">
     <div class="text-center mb-10">
       <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-2" id="registerTitle"><%= initialIsPro ? 'Créez votre compte professionnel' : 'Créez votre compte' %></h1>
-      <p class="text-gray-600 dark:text-gray-400" id="registerSubtitle"><%= initialIsPro ? 'Accédez à des tarifs HT et un support technique dédié.' : 'Choisis Particulier ou Pro, puis remplis tes informations.' %></p>
+      <p class="text-gray-600 dark:text-gray-400" id="registerSubtitle"><%= initialIsPro ? 'Accédez à des tarifs HT et un support technique dédié.' : 'Choisissez Particulier ou Pro, puis remplissez vos informations.' %></p>
     </div>
 
     <% if (errorMessage) { %>
@@ -73,7 +73,7 @@
               <hr class="border-border-light dark:border-border-dark <%= initialIsPro ? '' : 'hidden' %>" data-pro-only />
 
               <div class="space-y-4">
-                <h3 class="text-sm font-bold text-primary uppercase tracking-wider">Tes informations</h3>
+                <h3 class="text-sm font-bold text-primary uppercase tracking-wider">Vos informations</h3>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div class="space-y-1.5">
@@ -89,7 +89,7 @@
 
                 <div class="space-y-1.5">
                   <label class="text-sm font-semibold text-gray-700 dark:text-gray-300 ml-1" for="email">Email</label>
-                  <input class="w-full rounded-lg border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-800/50 focus:border-primary focus:ring-primary/20 text-sm" id="email" name="email" placeholder="ton@email.com" required type="email" value="<%= form ? form.email : '' %>" />
+                  <input class="w-full rounded-lg border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-800/50 focus:border-primary focus:ring-primary/20 text-sm" id="email" name="email" placeholder="votre@email.com" required type="email" value="<%= form ? form.email : '' %>" />
                 </div>
 
                 <div class="space-y-1.5">

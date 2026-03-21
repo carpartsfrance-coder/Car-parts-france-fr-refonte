@@ -328,7 +328,7 @@ function getBlogIndex(req, res) {
 
     const title = 'CarParts France | Blog Expertise Automobile';
     const metaDescription =
-      "Guides techniques, conseils d'entretien et expertise automobile : retrouve nos articles pour mieux choisir, diagnostiquer et entretenir tes pièces.";
+      "Guides techniques, conseils d'entretien et expertise automobile : retrouvez nos articles pour mieux choisir, diagnostiquer et entretenir vos pièces.";
 
     const shouldNoIndex = Boolean(q) || Boolean(category) || page > 1;
     const metaRobots = shouldNoIndex ? 'noindex, follow' : '';

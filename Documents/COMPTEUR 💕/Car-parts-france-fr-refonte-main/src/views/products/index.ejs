@@ -108,7 +108,7 @@
                   <div class="text-xs font-semibold text-slate-500 mb-2">Modèle véhicule</div>
                   <% const modelsForSelectedMake = (selectedVehicleMake && vehicleModelsByMake && vehicleModelsByMake[selectedVehicleMake]) ? vehicleModelsByMake[selectedVehicleMake] : []; %>
                   <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="vehicleModel" data-vehicle-model <%= selectedVehicleMake ? '' : 'disabled' %>>
-                    <option value="" <%= selectedVehicleMake && !selectedVehicleModel ? 'selected' : '' %>><%= selectedVehicleMake ? 'Tous' : 'Choisis une marque' %></option>
+                    <option value="" <%= selectedVehicleMake && !selectedVehicleModel ? 'selected' : '' %>><%= selectedVehicleMake ? 'Tous' : 'Choisissez une marque' %></option>
                     <% (modelsForSelectedMake || []).forEach((md) => { %>
                       <option value="<%= md %>" <%= selectedVehicleModel === md ? 'selected' : '' %>><%= md %></option>
                     <% }) %>
@@ -148,7 +148,7 @@
                 <div>
                   <div class="text-xs font-semibold text-slate-500 mb-2">Sous-catégorie</div>
                   <select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-xs" name="subCategory" <%= selectedMainCategory ? '' : 'disabled' %>>
-                    <option value="" <%= selectedMainCategory && !selectedSubCategory ? 'selected' : '' %>><%= selectedMainCategory ? 'Toutes' : 'Choisis une catégorie' %></option>
+                    <option value="" <%= selectedMainCategory && !selectedSubCategory ? 'selected' : '' %>><%= selectedMainCategory ? 'Toutes' : 'Choisissez une catégorie' %></option>
                     <% (subOptions || []).forEach((s) => { %>
                       <option value="<%= s %>" <%= selectedSubCategory === s ? 'selected' : '' %>><%= s %></option>
                     <% }) %>
@@ -286,7 +286,7 @@
         <% if (!products || products.length === 0) { %>
           <div class="rounded-3xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 p-10 shadow-sm">
             <div class="font-bold text-lg">Aucune pièce trouvée</div>
-            <div class="mt-2 text-sm text-slate-500">Essaie d’enlever un filtre ou de modifier ta recherche.</div>
+            <div class="mt-2 text-sm text-slate-500">Essayez de retirer un filtre ou de modifier votre recherche.</div>
           </div>
         <% } else { %>
           <div class="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 mb-10 sm:mb-12">
@@ -461,7 +461,7 @@
       var first = document.createElement('option');
       first.value = '';
       if (!make) {
-        first.textContent = 'Choisis une marque';
+        first.textContent = 'Choisissez une marque';
         modelSelect.appendChild(first);
         modelSelect.disabled = true;
         return;

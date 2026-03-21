@@ -80,13 +80,13 @@
 
           <% if (localMolliePaymentSimulation || localScalapayPaymentSimulation) { %>
             <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-              Mode test local activé : en l’absence de clé de paiement, la commande sera validée automatiquement pour te permettre de tester le tunnel jusqu’au bout.
+              Mode test local activé : en l’absence de clé de paiement, la commande sera validée automatiquement pour vous permettre de tester le tunnel jusqu’au bout.
             </div>
           <% } %>
 
           <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div class="text-sm font-black text-slate-900">Paiement</div>
-            <div class="mt-1 text-sm text-slate-600">Choisis ton moyen de paiement.</div>
+            <div class="mt-1 text-sm text-slate-600">Choisissez votre moyen de paiement.</div>
 
             <form action="/commande/paiement" method="POST" class="mt-4 space-y-3">
               <label class="block">
@@ -115,7 +115,7 @@
                         <div class="h-7 w-11 rounded-lg border border-slate-200 bg-white flex items-center justify-center">
                           <div class="text-[10px] font-black text-slate-700">VISA</div>
                         </div>
-                        <div class="text-xs font-black text-slate-500">+ d’autres moyens selon ta banque</div>
+                        <div class="text-xs font-black text-slate-500">+ d’autres moyens selon votre banque</div>
                       </div>
                     </div>
                   </div>
@@ -176,7 +176,7 @@
                 <div class="flex items-start justify-between gap-4">
                   <div>
                     <div class="font-black text-slate-900">VIN du véhicule / plaque</div>
-                    <div class="mt-1 text-xs text-slate-600">Facultatif mais recommandé pour un contrôle de compatibilité avant expédition. Tu peux renseigner soit la plaque FR, soit le VIN.</div>
+                    <div class="mt-1 text-xs text-slate-600">Facultatif mais recommandé pour un contrôle de compatibilité avant expédition. Vous pouvez renseigner soit la plaque FR, soit le VIN.</div>
                   </div>
                   <div class="w-10 h-10 rounded-xl bg-slate-900/5 text-slate-700 flex items-center justify-center flex-shrink-0">
                     <span class="material-symbols-outlined">directions_car</span>
@@ -202,7 +202,7 @@
                     <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="vehicleConsent" type="checkbox" value="true" <%= _vehConsentChecked ? 'checked' : '' %> />
                     <span class="text-xs text-slate-600 leading-normal">
                       J’accepte que la plaque/VIN soit utilisée uniquement pour vérifier la compatibilité et/ou programmer la pièce si nécessaire.
-                      <span class="block mt-1 text-[11px] text-slate-500">Si tu ne veux pas, laisse le champ vide.</span>
+                      <span class="block mt-1 text-[11px] text-slate-500">Si vous ne le souhaitez pas, laissez le champ vide.</span>
                     </span>
                   </label>
                 </div>

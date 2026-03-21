@@ -13,7 +13,7 @@
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-3xl font-bold text-slate-900">Mon garage</h2>
-              <p class="mt-2 text-slate-600">Ajoute tes véhicules pour filtrer les pièces compatibles.</p>
+              <p class="mt-2 text-slate-600">Ajoutez vos véhicules pour filtrer les pièces compatibles.</p>
             </div>
           </div>
 
@@ -25,11 +25,6 @@
               <div class="mt-1 text-sm text-slate-600"><%= v.details || '' %></div>
             </div>
           <% }) %>
-        </div>
-      <% } else { %>
-        <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
-          <div class="font-black text-slate-900">Aucun véhicule</div>
-          <div class="mt-1 text-sm text-slate-600">Le garage est prêt : on ajoutera la sauvegarde des véhicules dans la prochaine étape.</div>
         </div>
       <% } %>
 

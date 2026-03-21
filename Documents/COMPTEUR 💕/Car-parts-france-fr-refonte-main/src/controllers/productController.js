@@ -8,6 +8,7 @@ const sanitizeHtml = require('sanitize-html');
 const { markdownToHtml } = require('../services/blogContent');
 const { buildCategoryPublicUrl } = require('../services/categoryPublic');
 const productOptions = require('../services/productOptions');
+const { rankProducts, sortRankedProducts } = require('../services/search');
 const {
   buildProductPublicPath,
   buildProductPublicUrl,
@@ -625,9 +626,6 @@ async function listProducts(req, res, next) {
     let totalCount = 0;
 
     const filter = {};
-    if (searchQuery) {
-      filter.name = { $regex: escapeRegex(searchQuery), $options: 'i' };
-    }
 
     if (selectedVehicleMake || selectedVehicleModel) {
       const elem = {};
@@ -744,18 +742,35 @@ async function listProducts(req, res, next) {
     if (sort === 'newest') sortSpec = { createdAt: -1 };
 
     if (dbConnected) {
-      totalCount = await Product.countDocuments(filter);
+      if (searchQuery) {
+        const matchedProducts = await Product.find(filter)
+          .lean();
 
-      const totalPagesRaw = Math.max(1, Math.ceil(totalCount / perPage));
-      if (page > totalPagesRaw) page = totalPagesRaw;
+        const rankedProducts = sortRankedProducts(rankProducts(matchedProducts, searchQuery), sort);
 
-      products = await Product.find(filter)
-        .sort(sortSpec)
-        .skip((page - 1) * perPage)
-        .limit(perPage)
-        .lean();
+        totalCount = rankedProducts.length;
 
-      products = products.map(normalizeProduct);
+        const totalPagesRaw = Math.max(1, Math.ceil(totalCount / perPage));
+        if (page > totalPagesRaw) page = totalPagesRaw;
+
+        products = rankedProducts
+          .slice((page - 1) * perPage, page * perPage)
+          .map((entry) => entry.product)
+          .map(normalizeProduct);
+      } else {
+        totalCount = await Product.countDocuments(filter);
+
+        const totalPagesRaw = Math.max(1, Math.ceil(totalCount / perPage));
+        if (page > totalPagesRaw) page = totalPagesRaw;
+
+        products = await Product.find(filter)
+          .sort(sortSpec)
+          .skip((page - 1) * perPage)
+          .limit(perPage)
+          .lean();
+
+        products = products.map(normalizeProduct);
+      }
 
       const noFilters =
         !searchQuery &&
@@ -774,15 +789,8 @@ async function listProducts(req, res, next) {
           .map(normalizeProduct);
       }
     } else {
-      const q = searchQuery.toLowerCase();
-
-      products = demoProducts
+      const filteredProducts = demoProducts
         .filter((p) => {
-          if (searchQuery) {
-            const haystack = `${p.name} ${p.brand || ''} ${p.sku || ''}`.toLowerCase();
-            if (!haystack.includes(q)) return false;
-          }
-
           if (selectedVehicleMake || selectedVehicleModel) {
             const compat = Array.isArray(p.compatibility) ? p.compatibility : [];
             const mk = String(selectedVehicleMake || '').toLowerCase();
@@ -810,28 +818,41 @@ async function listProducts(req, res, next) {
           }
           if (selectedStock === 'in' && !p.inStock) return false;
 
-          if (minPriceEuros !== null && p.priceCents < minPriceEuros) return false;
-          if (maxPriceEuros !== null && p.priceCents > maxPriceEuros) return false;
+          if (minPriceCents !== null && p.priceCents < minPriceCents) return false;
+          if (maxPriceCents !== null && p.priceCents > maxPriceCents) return false;
 
           return true;
         })
-        .slice()
-        .map(normalizeProduct);
+        .slice();
 
-      totalCount = products.length;
+      if (searchQuery) {
+        const rankedProducts = sortRankedProducts(rankProducts(filteredProducts, searchQuery), sort);
+        totalCount = rankedProducts.length;
 
-      const totalPagesRaw = Math.max(1, Math.ceil(totalCount / perPage));
-      if (page > totalPagesRaw) page = totalPagesRaw;
+        const totalPagesRaw = Math.max(1, Math.ceil(totalCount / perPage));
+        if (page > totalPagesRaw) page = totalPagesRaw;
 
-      if (sort === 'price_asc') {
-        products.sort((a, b) => a.priceCents - b.priceCents);
+        products = rankedProducts
+          .slice((page - 1) * perPage, page * perPage)
+          .map((entry) => normalizeProduct(entry.product));
+      } else {
+        products = filteredProducts.map(normalizeProduct);
+
+        totalCount = products.length;
+
+        const totalPagesRaw = Math.max(1, Math.ceil(totalCount / perPage));
+        if (page > totalPagesRaw) page = totalPagesRaw;
+
+        if (sort === 'price_asc') {
+          products.sort((a, b) => a.priceCents - b.priceCents);
+        }
+
+        if (sort === 'price_desc') {
+          products.sort((a, b) => b.priceCents - a.priceCents);
+        }
+
+        products = products.slice((page - 1) * perPage, page * perPage);
       }
-
-      if (sort === 'price_desc') {
-        products.sort((a, b) => b.priceCents - a.priceCents);
-      }
-
-      products = products.slice((page - 1) * perPage, page * perPage);
     }
 
     const totalPages = Math.max(1, Math.ceil(totalCount / perPage));

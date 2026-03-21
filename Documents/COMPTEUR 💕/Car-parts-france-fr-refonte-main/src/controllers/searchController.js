@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const Product = require('../models/Product');
 const demoProducts = require('../demoProducts');
-const { buildProductPublicPath, getPublicBaseUrlFromReq } = require('../services/productPublic');
+const { getPublicBaseUrlFromReq } = require('../services/productPublic');
+const { buildSuggestPayload } = require('../services/search');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -10,31 +11,6 @@ function getTrimmedString(value) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function toSuggestItem(p) {
-  if (!p) return null;
-  const id = p && p._id ? String(p._id) : '';
-  const name = getTrimmedString(p.name);
-  const sku = getTrimmedString(p.sku);
-  const brand = getTrimmedString(p.brand);
-  const imageUrl = getTrimmedString(p.imageUrl) || (Array.isArray(p.galleryUrls) && p.galleryUrls[0] ? getTrimmedString(p.galleryUrls[0]) : '');
-  const publicPath = buildProductPublicPath(p);
-  const priceCents = Number.isFinite(p.priceCents) ? p.priceCents : 0;
-
-  return {
-    id,
-    name,
-    sku,
-    brand,
-    imageUrl,
-    publicPath,
-    priceCents,
-  };
-}
-
-function formatMoney(cents) {
-  return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.round((Number(cents) || 0)) / 100);
 }
 
 async function getSearchPage(req, res, next) {
@@ -66,41 +42,31 @@ async function getSuggest(req, res, next) {
     const q = getTrimmedString(req.query.q);
 
     if (!q || q.length < 2) {
-      return res.json({ results: [] });
+      return res.json({ results: [], sections: [], total: 0 });
     }
 
-    const safe = escapeRegExp(q);
-    const rx = new RegExp(safe, 'i');
-
-    let results = [];
+    let products = [];
 
     if (dbConnected) {
-      const products = await Product.find({
-        $or: [{ name: rx }, { sku: rx }, { brand: rx }],
-      })
-        .select('_id name sku brand priceCents imageUrl galleryUrls slug')
-        .limit(8)
+      products = await Product.find({})
+        .select('_id name sku brand priceCents imageUrl galleryUrls slug category shortDescription description compatibleReferences compatibility specs keyPoints tags')
         .lean();
-
-      results = (products || []).map(toSuggestItem).filter(Boolean);
     } else {
-      const filtered = (demoProducts || []).filter((p) => {
-        if (!p) return false;
-        const name = getTrimmedString(p.name);
-        const sku = getTrimmedString(p.sku);
-        const brand = getTrimmedString(p.brand);
-        return rx.test(name) || rx.test(sku) || rx.test(brand);
-      });
-
-      results = filtered.slice(0, 8).map((p) => toSuggestItem({ ...p, _id: p._id || p.id || p.sku || p.name }));
+      products = Array.isArray(demoProducts)
+        ? demoProducts.map((product) => ({
+            ...product,
+            _id: product && product._id ? product._id : (product && product.id ? product.id : product && product.sku ? product.sku : product && product.name ? product.name : ''),
+          }))
+        : [];
     }
 
-    const formatted = results.map((r) => ({
-      ...r,
-      price: `${formatMoney(r.priceCents)} €`,
-    }));
+    const payload = buildSuggestPayload(products, q, {
+      productLimit: 4,
+      categoryLimit: 2,
+      brandLimit: 2,
+    });
 
-    return res.json({ results: formatted });
+    return res.json(payload);
   } catch (err) {
     return next(err);
   }

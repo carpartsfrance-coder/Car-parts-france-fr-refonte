@@ -73,7 +73,7 @@ function buildSeoAssistant({ form, mode }) {
     key: 'title',
     label: 'Titre renseigné',
     ok: Boolean(title),
-    detail: title ? '' : 'Ajoute un titre clair et descriptif.',
+    detail: title ? '' : 'Ajoutez un titre clair et descriptif.',
   });
 
   checks.push({
@@ -87,21 +87,21 @@ function buildSeoAssistant({ form, mode }) {
     key: 'metaTitle',
     label: 'Meta title (50–60 caractères)',
     ok: metaTitleLen >= 45 && metaTitleLen <= 65,
-    detail: metaTitle ? `Longueur actuelle : ${metaTitleLen}` : `Auto : ${metaTitleLen} (tu peux optimiser)` ,
+    detail: metaTitle ? `Longueur actuelle : ${metaTitleLen}` : `Auto : ${metaTitleLen} (vous pouvez optimiser)` ,
   });
 
   checks.push({
     key: 'metaDescription',
     label: 'Meta description (120–160 caractères)',
     ok: metaDescLen >= 110 && metaDescLen <= 170,
-    detail: metaDescription ? `Longueur actuelle : ${metaDescLen}` : `Auto : ${metaDescLen} (tu peux optimiser)`,
+    detail: metaDescription ? `Longueur actuelle : ${metaDescLen}` : `Auto : ${metaDescLen} (vous pouvez optimiser)`,
   });
 
   checks.push({
     key: 'cover',
     label: 'Image de couverture',
     ok: Boolean(coverImageUrl),
-    detail: coverImageUrl ? '' : "Ajoute une image pour améliorer le clic (et l'aperçu social).",
+    detail: coverImageUrl ? '' : "Ajoutez une image pour améliorer le clic (et l'aperçu social).",
   });
 
   checks.push({
@@ -133,13 +133,13 @@ function buildSeoAssistant({ form, mode }) {
       key: 'keywordTitle',
       label: 'Mot-clé dans le title',
       ok: titleOk,
-      detail: titleOk ? '' : `Ajoute "${primaryKeyword}" dans le title.`,
+      detail: titleOk ? '' : `Ajoutez "${primaryKeyword}" dans le title.`,
     });
     checks.push({
       key: 'keywordDesc',
       label: 'Mot-clé dans la meta description',
       ok: descOk,
-      detail: descOk ? '' : `Ajoute "${primaryKeyword}" dans la description.`,
+      detail: descOk ? '' : `Ajoutez "${primaryKeyword}" dans la description.`,
     });
   }
 

@@ -79,7 +79,7 @@ async function postForgotPassword(req, res, next) {
         title: 'Mot de passe oublié - CarParts France',
         dbConnected,
         errorMessage: null,
-        successMessage: "Si un compte existe avec cet email, tu vas recevoir un lien de réinitialisation.",
+        successMessage: "Si un compte existe avec cet email, vous allez recevoir un lien de réinitialisation.",
         email: '',
       });
     }
@@ -89,7 +89,7 @@ async function postForgotPassword(req, res, next) {
       return res.status(429).render('account/forgot-password', {
         title: 'Mot de passe oublié - CarParts France',
         dbConnected,
-        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
         successMessage: null,
         email,
       });
@@ -99,7 +99,7 @@ async function postForgotPassword(req, res, next) {
       return res.status(400).render('account/forgot-password', {
         title: 'Mot de passe oublié - CarParts France',
         dbConnected,
-        errorMessage: 'Merci de renseigner ton email.',
+        errorMessage: 'Merci de renseigner votre email.',
         successMessage: null,
         email,
       });
@@ -109,7 +109,7 @@ async function postForgotPassword(req, res, next) {
       return res.status(503).render('account/forgot-password', {
         title: 'Mot de passe oublié - CarParts France',
         dbConnected,
-        errorMessage: "La base de données n'est pas disponible. Réessaie plus tard.",
+        errorMessage: "La base de données n'est pas disponible. Réessayez plus tard.",
         successMessage: null,
         email,
       });
@@ -146,7 +146,7 @@ async function postForgotPassword(req, res, next) {
       title: 'Mot de passe oublié - CarParts France',
       dbConnected,
       errorMessage: null,
-      successMessage: "Si un compte existe avec cet email, tu vas recevoir un lien de réinitialisation.",
+      successMessage: "Si un compte existe avec cet email, vous allez recevoir un lien de réinitialisation.",
       email: '',
     });
   } catch (err) {
@@ -164,7 +164,7 @@ async function getResetPassword(req, res, next) {
       return res.status(503).render('account/reset-password', {
         title: 'Réinitialiser le mot de passe - CarParts France',
         dbConnected,
-        errorMessage: "La base de données n'est pas disponible. Réessaie plus tard.",
+        errorMessage: "La base de données n'est pas disponible. Réessayez plus tard.",
         successMessage: null,
         token,
       });
@@ -231,7 +231,7 @@ async function postResetPassword(req, res, next) {
       return res.status(429).render('account/reset-password', {
         title: 'Réinitialiser le mot de passe - CarParts France',
         dbConnected,
-        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
         successMessage: null,
         token,
       });
@@ -241,7 +241,7 @@ async function postResetPassword(req, res, next) {
       return res.status(503).render('account/reset-password', {
         title: 'Réinitialiser le mot de passe - CarParts France',
         dbConnected,
-        errorMessage: "La base de données n'est pas disponible. Réessaie plus tard.",
+        errorMessage: "La base de données n'est pas disponible. Réessayez plus tard.",
         successMessage: null,
         token,
       });
@@ -317,7 +317,7 @@ async function postResetPassword(req, res, next) {
     }
 
     if (req.session) {
-      req.session.accountSuccess = 'Mot de passe réinitialisé. Tu peux te connecter.';
+      req.session.accountSuccess = 'Mot de passe réinitialisé. Vous pouvez vous connecter.';
     }
     return res.redirect('/compte/connexion');
   } catch (err) {
@@ -461,8 +461,6 @@ async function getInvoicesPage(req, res, next) {
 
     for (let i = 0; i < orders.length; i += 1) {
       const o = orders[i];
-      const hasNumber = o && o.invoice && typeof o.invoice.number === 'string' && o.invoice.number.trim();
-      if (hasNumber) continue;
       try {
         const refreshed = await ensureInvoiceIssuedForPaidOrder(o._id);
         if (refreshed && refreshed.invoice) {
@@ -476,8 +474,8 @@ async function getInvoicesPage(req, res, next) {
     const invoices = orders.map((o) => ({
       id: String(o._id),
       number: o && o.invoice && o.invoice.number ? String(o.invoice.number) : o.number,
-      date: o && o.invoice && o.invoice.issuedAt ? formatDateFR(o.invoice.issuedAt) : formatDateFR(o.createdAt),
-      total: formatEuro(o.totalCents),
+      date: formatDateFR(getInvoiceDisplayDate(o)),
+      total: formatEuro(getOrderTotalCents(o)),
     }));
 
     return res.render('account/invoices', {
@@ -1339,8 +1337,62 @@ function hashPassword(password, salt) {
   return crypto.pbkdf2Sync(password, salt, 120000, 32, 'sha256').toString('hex');
 }
 
+function toFiniteNumber(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const normalized = trimmed
+      .replace(/\s+/g, '')
+      .replace(/€/g, '')
+      .replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function getOrderTotalCents(order) {
+  const shippingCostCents = toFiniteNumber(order && order.shippingCostCents) ?? 0;
+
+  const fallbackItemsSubtotalCents = Array.isArray(order && order.items)
+    ? order.items.reduce((sum, it) => {
+        const lineTotalCents = toFiniteNumber(it && it.lineTotalCents);
+        return sum + (lineTotalCents ?? 0);
+      }, 0)
+    : 0;
+
+  const itemsSubtotalCents = toFiniteNumber(order && order.itemsSubtotalCents) ?? fallbackItemsSubtotalCents;
+  const clientDiscountCents = toFiniteNumber(order && order.clientDiscountCents) ?? 0;
+  const promoDiscountCents = toFiniteNumber(order && order.promoDiscountCents) ?? 0;
+  const itemsTotalAfterDiscountCents = toFiniteNumber(order && order.itemsTotalAfterDiscountCents)
+    ?? Math.max(0, itemsSubtotalCents - clientDiscountCents - promoDiscountCents);
+
+  return toFiniteNumber(order && order.totalCents) ?? (itemsTotalAfterDiscountCents + shippingCostCents);
+}
+
+function getInvoiceDisplayDate(order) {
+  const createdAt = order && order.createdAt ? new Date(order.createdAt) : null;
+  if (createdAt && !Number.isNaN(createdAt.getTime())) return createdAt;
+
+  const issuedAt = order && order.invoice && order.invoice.issuedAt ? new Date(order.invoice.issuedAt) : null;
+  if (issuedAt && !Number.isNaN(issuedAt.getTime())) return issuedAt;
+
+  return null;
+}
+
 function formatEuro(totalCents) {
-  return `${(totalCents / 100).toFixed(2).replace('.', ',')} €`;
+  const n = toFiniteNumber(totalCents);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(n / 100);
 }
 
 function formatDateFR(value) {
@@ -1431,12 +1483,12 @@ function getOrderStatusBanner(status) {
     case 'validee':
       return {
         title: 'Votre commande est validée',
-        subtitle: 'Nous préparons ton colis.',
+        subtitle: 'Nous préparons votre colis.',
       };
     case 'livree':
       return {
         title: 'Votre commande a été livrée',
-        subtitle: 'Merci pour ta commande.',
+        subtitle: 'Merci pour votre commande.',
       };
     case 'annulee':
       return {
@@ -1519,7 +1571,7 @@ async function getAccount(req, res, next) {
         number: o.number,
         date: formatDateFR(o.createdAt),
         status: formatOrderStatus(o.status),
-        total: formatEuro(o.totalCents),
+        total: formatEuro(getOrderTotalCents(o)),
       }));
     }
 
@@ -1586,7 +1638,7 @@ async function getOrdersPage(req, res, next) {
         status: formatOrderStatus(o.status),
         statusKey: o.status,
         statusBadge,
-        total: formatEuro(o.totalCents),
+        total: formatEuro(getOrderTotalCents(o)),
         consigne,
         invoiceUrl,
       };
@@ -1669,7 +1721,7 @@ async function postLogin(req, res, next) {
       return res.status(429).render('account/login', {
         title: 'Connexion - CarParts France',
         dbConnected,
-        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
         email: normalizeEmail(req.body.email),
         returnTo: getSafeReturnTo(req.body.returnTo) || '/compte',
       });
@@ -1692,7 +1744,7 @@ async function postLogin(req, res, next) {
       return res.status(400).render('account/login', {
         title: 'Connexion - CarParts France',
         dbConnected,
-        errorMessage: 'Merci de renseigner ton email et ton mot de passe.',
+        errorMessage: 'Merci de renseigner votre email et votre mot de passe.',
         email,
         returnTo: getSafeReturnTo(req.body.returnTo) || '/compte',
       });
@@ -1832,7 +1884,7 @@ async function postSecurity(req, res, next) {
       return res.status(401).render('account/security', {
         title: 'Sécurité - CarParts France',
         dbConnected,
-        errorMessage: 'Ton mot de passe actuel est incorrect.',
+        errorMessage: 'Votre mot de passe actuel est incorrect.',
         successMessage: null,
       });
     }
@@ -1868,7 +1920,7 @@ async function getAddresses(req, res, next) {
       return res.status(503).render('account/addresses', {
         title: 'Mes adresses - CarParts France',
         dbConnected,
-        errorMessage: "La base de données n'est pas disponible. Impossible d'afficher tes adresses.",
+        errorMessage: "La base de données n'est pas disponible. Impossible d'afficher vos adresses.",
         addresses: [],
         form: {
           label: '',
@@ -2141,7 +2193,7 @@ async function postRegister(req, res, next) {
       return res.status(429).render('account/register', {
         title: 'Créer un compte - CarParts France',
         dbConnected,
-        errorMessage: 'Trop de tentatives. Attends quelques minutes puis réessaie.',
+        errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
         form: {
           accountType: req.body.accountType === 'pro' ? 'pro' : 'particulier',
           firstName: typeof req.body.firstName === 'string' ? req.body.firstName.trim() : '',
@@ -2397,7 +2449,7 @@ async function postProfile(req, res, next) {
       return res.status(400).render('account/profile', {
         title: 'Mon profil - CarParts France',
         dbConnected,
-        errorMessage: 'Merci de renseigner ton prénom et ton nom.',
+        errorMessage: 'Merci de renseigner votre prénom et votre nom.',
         form,
       });
     }

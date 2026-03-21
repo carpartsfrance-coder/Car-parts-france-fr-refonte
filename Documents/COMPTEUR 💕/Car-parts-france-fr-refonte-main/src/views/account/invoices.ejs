@@ -18,7 +18,8 @@
           </div>
 
       <% if (invoices && invoices.length) { %>
-        <div class="mt-8 overflow-x-auto">
+        <div class="mt-8" data-invoices-pagination-root>
+          <div class="overflow-x-auto">
           <table class="w-full text-left">
             <thead>
               <tr class="text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-50">
@@ -28,9 +29,9 @@
                 <th class="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-slate-100" data-invoices-pagination-body>
               <% invoices.forEach((inv) => { %>
-                <tr>
+                <tr data-invoice-row>
                   <td class="px-6 py-4 font-black text-slate-900"><%= inv.number || '—' %></td>
                   <td class="px-6 py-4 text-sm text-slate-500"><%= inv.date || '—' %></td>
                   <td class="px-6 py-4 font-black"><%= inv.total || '—' %></td>
@@ -48,11 +49,21 @@
               <% }) %>
             </tbody>
           </table>
+          </div>
+          <div class="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100 pt-4" data-invoices-pagination-controls>
+            <button class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:text-slate-300 disabled:hover:bg-white" data-invoices-prev type="button">
+              Précédent
+            </button>
+            <div class="text-xs font-bold text-slate-500" data-invoices-page-label>Page 1 sur 1</div>
+            <button class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:text-slate-300 disabled:hover:bg-white" data-invoices-next type="button">
+              Suivant
+            </button>
+          </div>
         </div>
       <% } else { %>
         <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6">
           <div class="font-black text-slate-900">Aucune facture</div>
-          <div class="mt-1 text-sm text-slate-600">Tu n’as pas encore de facture disponible.</div>
+          <div class="mt-1 text-sm text-slate-600">Vous n’avez pas encore de facture disponible.</div>
           <a class="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-4 py-2 text-xs font-black uppercase tracking-wider" href="/produits">
             <span class="material-symbols-outlined text-base">search</span>
             Parcourir le catalogue
@@ -71,5 +82,61 @@
     </div>
   </div>
 </main>
+
+<script>
+  (function () {
+    var root = document.querySelector('[data-invoices-pagination-root]');
+    if (!root) return;
+
+    var rows = Array.prototype.slice.call(root.querySelectorAll('[data-invoice-row]'));
+    var prevButton = root.querySelector('[data-invoices-prev]');
+    var nextButton = root.querySelector('[data-invoices-next]');
+    var pageLabel = root.querySelector('[data-invoices-page-label]');
+    var controls = root.querySelector('[data-invoices-pagination-controls]');
+    var perPage = 10;
+    var totalPages = Math.max(1, Math.ceil(rows.length / perPage));
+    var currentPage = 1;
+
+    function renderPage(page) {
+      currentPage = Math.min(totalPages, Math.max(1, page));
+
+      rows.forEach(function (row, index) {
+        var start = (currentPage - 1) * perPage;
+        var end = start + perPage;
+        row.style.display = index >= start && index < end ? '' : 'none';
+      });
+
+      if (pageLabel) {
+        pageLabel.textContent = 'Page ' + currentPage + ' sur ' + totalPages;
+      }
+
+      if (prevButton) {
+        prevButton.disabled = currentPage <= 1;
+      }
+
+      if (nextButton) {
+        nextButton.disabled = currentPage >= totalPages;
+      }
+
+      if (controls) {
+        controls.style.display = totalPages > 1 ? '' : 'none';
+      }
+    }
+
+    if (prevButton) {
+      prevButton.addEventListener('click', function () {
+        renderPage(currentPage - 1);
+      });
+    }
+
+    if (nextButton) {
+      nextButton.addEventListener('click', function () {
+        renderPage(currentPage + 1);
+      });
+    }
+
+    renderPage(1);
+  })();
+</script>
 
 <%- include('../partials/footer') %>

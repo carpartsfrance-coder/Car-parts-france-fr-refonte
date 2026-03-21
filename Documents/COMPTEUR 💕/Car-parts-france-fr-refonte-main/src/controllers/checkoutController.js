@@ -969,7 +969,7 @@ async function ensureGuestCheckoutUser({ req, checkout } = {}) {
         return { ok: true, user: synced };
       } catch (err) {
         if (err && err.code === 11000) {
-          return { ok: false, reason: 'Un compte existe déjà avec cet email. Connecte-toi pour finaliser la commande.' };
+          return { ok: false, reason: 'Un compte existe déjà avec cet email. Connectez-vous pour finaliser la commande.' };
         }
         throw err;
       }
@@ -978,7 +978,7 @@ async function ensureGuestCheckoutUser({ req, checkout } = {}) {
 
   const existing = await User.findOne({ email: guest.email }).select('_id').lean();
   if (existing) {
-    return { ok: false, reason: 'Un compte existe déjà avec cet email. Connecte-toi pour finaliser la commande.' };
+    return { ok: false, reason: 'Un compte existe déjà avec cet email. Connectez-vous pour finaliser la commande.' };
   }
 
   const salt = crypto.randomBytes(16).toString('hex');
@@ -1267,8 +1267,8 @@ async function getPayment(req, res, next) {
       const shippingCity = getTrimmedString(address.city);
       if (!shippingLine1 || !shippingPostal || !shippingCity) {
         req.session.checkoutError =
-          "Ton adresse de livraison est incomplète (adresse / code postal / ville). " +
-          "Merci de la corriger dans \"Gérer mes adresses\" puis réessaie.";
+          "Votre adresse de livraison est incomplète (adresse / code postal / ville). " +
+          "Merci de la corriger dans \"Gérer mes adresses\" puis de réessayer.";
         return res.redirect('/commande/livraison');
       }
 
@@ -1277,8 +1277,8 @@ async function getPayment(req, res, next) {
       const billingCity = getTrimmedString(billingAddress.city);
       if (!billingLine1 || !billingPostal || !billingCity) {
         req.session.checkoutError =
-          "Ton adresse de facturation est incomplète (adresse / code postal / ville). " +
-          "Merci de la corriger dans \"Gérer mes adresses\" puis réessaie.";
+          "Votre adresse de facturation est incomplète (adresse / code postal / ville). " +
+          "Merci de la corriger dans \"Gérer mes adresses\" puis de réessayer.";
         return res.redirect('/commande/livraison');
       }
 
@@ -1423,7 +1423,7 @@ async function postPayment(req, res, next) {
 
     const cgvPage = await getLegalPageBySlug({ slug: 'cgv', dbConnected });
     if (!cgvPage) {
-      req.session.checkoutError = 'Les CGV sont indisponibles pour le moment. Réessaie plus tard.';
+      req.session.checkoutError = 'Les CGV sont indisponibles pour le moment. Réessayez plus tard.';
       return res.redirect('/commande/paiement');
     }
 
@@ -1543,8 +1543,8 @@ async function postPayment(req, res, next) {
 
       if (!shippingLine1 || !shippingPostal || !shippingCity) {
         req.session.checkoutError =
-          "Ton adresse de livraison est incomplète (adresse / code postal / ville). " +
-          "Merci de la corriger dans \"Gérer mes adresses\" puis réessaie.";
+          "Votre adresse de livraison est incomplète (adresse / code postal / ville). " +
+          "Merci de la corriger dans \"Gérer mes adresses\" puis de réessayer.";
         return res.redirect('/commande/livraison');
       }
 
@@ -1554,8 +1554,8 @@ async function postPayment(req, res, next) {
 
       if (!billingLine1 || !billingPostal || !billingCity) {
         req.session.checkoutError =
-          "Ton adresse de facturation est incomplète (adresse / code postal / ville). " +
-          "Merci de la corriger dans \"Gérer mes adresses\" puis réessaie.";
+          "Votre adresse de facturation est incomplète (adresse / code postal / ville). " +
+          "Merci de la corriger dans \"Gérer mes adresses\" puis de réessayer.";
         return res.redirect('/commande/livraison');
       }
     }
@@ -1580,7 +1580,7 @@ async function postPayment(req, res, next) {
       if (!product) continue;
 
       if (Number.isFinite(product.stockQty) && item.quantity > product.stockQty) {
-        req.session.checkoutError = 'Stock insuffisant pour un ou plusieurs articles. Merci de mettre à jour ton panier.';
+        req.session.checkoutError = 'Stock insuffisant pour un ou plusieurs articles. Merci de mettre à jour votre panier.';
         return res.redirect('/panier');
       }
     }
@@ -1633,7 +1633,7 @@ async function postPayment(req, res, next) {
     }
 
     if (orderItems.length === 0) {
-      req.session.checkoutError = 'Ton panier ne contient aucun article commandable.';
+      req.session.checkoutError = 'Votre panier ne contient aucun article commandable.';
       return res.redirect('/panier');
     }
 
@@ -1757,7 +1757,7 @@ async function postPayment(req, res, next) {
     }
 
     if (!created) {
-      req.session.checkoutError = 'Une erreur est survenue lors de la création de ta commande.';
+      req.session.checkoutError = 'Une erreur est survenue lors de la création de votre commande.';
       return res.redirect('/commande/livraison');
     }
 

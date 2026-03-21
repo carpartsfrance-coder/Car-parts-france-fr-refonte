@@ -169,7 +169,7 @@ async function getShippingMethods(dbConnected, products) {
     {
       id: 'domicile',
       title: 'Livraison à domicile',
-      description: 'Livré chez toi en 2-3 jours ouvrés',
+      description: 'Livré chez vous en 2-3 jours ouvrés',
       priceCents: prices.domicile,
     },
     {

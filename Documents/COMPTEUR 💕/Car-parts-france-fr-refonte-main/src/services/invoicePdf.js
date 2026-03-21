@@ -109,7 +109,9 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
 
   const createdAt = order.createdAt ? new Date(order.createdAt) : null;
   const issuedAt = order && order.invoice && order.invoice.issuedAt ? new Date(order.invoice.issuedAt) : null;
-  const invoiceDate = issuedAt && !Number.isNaN(issuedAt.getTime()) ? issuedAt : createdAt;
+  const validCreatedAt = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null;
+  const validIssuedAt = issuedAt && !Number.isNaN(issuedAt.getTime()) ? issuedAt : null;
+  const invoiceDate = validCreatedAt || validIssuedAt;
 
   const customerName = safeText(user && user.firstName ? `${user.firstName}` : '') + (user && user.lastName ? ` ${safeText(user.lastName)}` : '');
   const customerEmail = safeText(user && user.email);

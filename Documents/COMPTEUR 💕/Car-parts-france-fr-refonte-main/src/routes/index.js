@@ -1,5 +1,6 @@
 const express = require('express');
 
+const aboutController = require('../controllers/aboutController');
 const homeController = require('../controllers/homeController');
 const productController = require('../controllers/productController');
 const contactController = require('../controllers/contactController');
@@ -22,6 +23,8 @@ router.post('/devis', (req, res, next) => {
   req.body = { ...(req.body || {}), mode: 'devis', subject: 'devis' };
   return contactController.postContact(req, res, next);
 });
+
+router.get('/notre-histoire', aboutController.getAboutPage);
 
 router.get('/:slug', homeController.redirectLegacyBlogSlug);
 

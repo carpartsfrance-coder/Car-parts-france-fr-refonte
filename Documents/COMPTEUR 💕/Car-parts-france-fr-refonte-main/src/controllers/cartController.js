@@ -25,6 +25,32 @@ function getSafeReturnTo(value) {
   return value;
 }
 
+function wantsJsonResponse(req) {
+  const acceptHeader = req && req.headers && typeof req.headers.accept === 'string'
+    ? req.headers.accept
+    : '';
+  const requestedWith = req && req.headers && typeof req.headers['x-requested-with'] === 'string'
+    ? req.headers['x-requested-with']
+    : '';
+  return acceptHeader.includes('application/json') || requestedWith.toLowerCase() === 'xmlhttprequest';
+}
+
+function buildCartProductPreview(product) {
+  if (!product || typeof product !== 'object') return null;
+
+  const gallery = Array.isArray(product.galleryUrls) ? product.galleryUrls.filter(Boolean) : [];
+  return {
+    id: product._id ? String(product._id) : '',
+    name: product.name ? String(product.name) : 'Produit',
+    imageUrl: product.imageUrl || gallery[0] || '',
+  };
+}
+
+function storeCartFeedback(req, payload) {
+  if (!req || !req.session) return;
+  req.session.cartFeedback = payload && typeof payload === 'object' ? payload : null;
+}
+
 function computeCartItemCount(cart) {
   return Object.values(cart.items).reduce((sum, item) => sum + (Number(item && item.quantity) || 0), 0);
 }
@@ -382,6 +408,7 @@ async function addToCart(req, res, next) {
     const dbConnected = mongoose.connection.readyState === 1;
     const { id } = req.params;
     const returnTo = getSafeReturnTo(req.body.returnTo);
+    const jsonResponse = wantsJsonResponse(req);
 
     const qtyRaw = req.body.qty;
     let qty = 1;
@@ -393,6 +420,9 @@ async function addToCart(req, res, next) {
     }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      if (jsonResponse) {
+        return res.status(404).json({ ok: false, error: 'Produit introuvable.' });
+      }
       return res.status(404).render('errors/404', {
         title: 'Page introuvable - CarParts France',
       });
@@ -400,7 +430,7 @@ async function addToCart(req, res, next) {
 
     let product = null;
     if (dbConnected) {
-      product = await Product.findById(id).select('_id inStock stockQty options').lean();
+      product = await Product.findById(id).select('_id name imageUrl galleryUrls inStock stockQty options').lean();
     }
 
     if (!product) {
@@ -410,18 +440,36 @@ async function addToCart(req, res, next) {
     product = normalizeProduct(product);
 
     if (!product) {
+      if (jsonResponse) {
+        return res.status(404).json({ ok: false, error: 'Produit introuvable.' });
+      }
       return res.status(404).render('errors/404', {
         title: 'Page introuvable - CarParts France',
       });
     }
 
     if (product.inStock === false) {
+      if (jsonResponse) {
+        return res.status(400).json({ ok: false, error: 'Ce produit est actuellement indisponible.' });
+      }
+      storeCartFeedback(req, {
+        type: 'error',
+        message: 'Ce produit est actuellement indisponible.',
+      });
       return res.redirect(returnTo || `/produits/${id}`);
     }
 
     const selectionResult = productOptions.buildSelectionFromBody(req.body, product.options);
     if (!selectionResult.ok) {
-      req.session.cartError = selectionResult.errors[0] || 'Merci de vérifier les options sélectionnées.';
+      const selectionError = selectionResult.errors[0] || 'Merci de vérifier les options sélectionnées.';
+      if (jsonResponse) {
+        return res.status(400).json({ ok: false, error: selectionError });
+      }
+      req.session.cartError = selectionError;
+      storeCartFeedback(req, {
+        type: 'error',
+        message: selectionError,
+      });
       return res.redirect(`/produits/${id}`);
     }
 
@@ -439,7 +487,14 @@ async function addToCart(req, res, next) {
       }, 0);
 
       if (existingQty + qty > product.stockQty) {
+        if (jsonResponse) {
+          return res.status(400).json({ ok: false, error: 'Stock insuffisant pour la quantité demandée.' });
+        }
         req.session.cartError = 'Stock insuffisant pour la quantité demandée.';
+        storeCartFeedback(req, {
+          type: 'error',
+          message: 'Stock insuffisant pour la quantité demandée.',
+        });
         return res.redirect(returnTo || `/produits/${id}`);
       }
     }
@@ -456,8 +511,25 @@ async function addToCart(req, res, next) {
 
     cart.items[lineId].quantity = Math.min(cart.items[lineId].quantity + qty, 99);
 
+    if (jsonResponse) {
+      return res.status(200).json({
+        ok: true,
+        cartItemCount: computeCartItemCount(cart),
+        product: buildCartProductPreview(product),
+      });
+    }
+
+    storeCartFeedback(req, {
+      type: 'success',
+      cartItemCount: computeCartItemCount(cart),
+      product: buildCartProductPreview(product),
+    });
+
     return res.redirect(returnTo || '/panier');
   } catch (err) {
+    if (wantsJsonResponse(req)) {
+      return res.status(500).json({ ok: false, error: 'Impossible d’ajouter le produit au panier pour le moment.' });
+    }
     return next(err);
   }
 }

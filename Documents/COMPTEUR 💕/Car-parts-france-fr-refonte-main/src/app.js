@@ -216,10 +216,14 @@ app.use((req, res, next) => {
   res.locals.currentAdmin = currentAdmin;
   res.locals.newsletterSuccess = req.session && req.session.newsletterSuccess ? String(req.session.newsletterSuccess) : null;
   res.locals.newsletterError = req.session && req.session.newsletterError ? String(req.session.newsletterError) : null;
+  res.locals.cartFeedback = req.session && req.session.cartFeedback && typeof req.session.cartFeedback === 'object'
+    ? req.session.cartFeedback
+    : null;
 
   if (req.session) {
     delete req.session.newsletterSuccess;
     delete req.session.newsletterError;
+    delete req.session.cartFeedback;
   }
 
   const pathOnly = typeof req.path === 'string' ? req.path : '';

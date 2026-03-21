@@ -33,7 +33,7 @@
           <div class="flex items-center justify-between gap-4">
             <div>
               <div class="text-lg font-black text-slate-900">Choisir le mode de livraison</div>
-              <div class="mt-1 text-sm text-slate-600">Sélectionne une option pour continuer.</div>
+              <div class="mt-1 text-sm text-slate-600">Sélectionnez une option pour continuer.</div>
             </div>
           </div>
 
@@ -62,7 +62,7 @@
             <% if (guestCheckout) { %>
               <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <div class="font-black text-slate-900">Commander en invité</div>
-                <div class="mt-1 text-sm text-slate-600">Renseigne uniquement l’essentiel. Un compte sera créé automatiquement après ta commande pour retrouver tes achats.</div>
+                <div class="mt-1 text-sm text-slate-600">Renseignez uniquement l’essentiel. Un compte sera créé automatiquement après votre commande pour retrouver vos achats.</div>
               </div>
 
               <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -120,7 +120,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <div class="text-lg font-black text-slate-900">Adresse de livraison</div>
-                    <div class="mt-1 text-sm text-slate-600">Choisis une adresse ou ajoute-en une nouvelle.</div>
+                    <div class="mt-1 text-sm text-slate-600">Choisissez une adresse ou ajoutez-en une nouvelle.</div>
                   </div>
 
                   <div class="flex items-center gap-2">
@@ -137,7 +137,7 @@
               <% if (!addresses || addresses.length === 0) { %>
                 <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <div class="font-black text-slate-900">Aucune adresse enregistrée</div>
-                  <div class="mt-1 text-sm text-slate-600">Ajoute une adresse juste en dessous.</div>
+                  <div class="mt-1 text-sm text-slate-600">Ajoutez une adresse juste en dessous.</div>
                 </div>
               <% } else { %>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,7 +171,7 @@
                 <div class="flex items-center justify-between gap-4">
                   <div>
                     <div class="font-black text-slate-900">Adresse de facturation</div>
-                    <div class="mt-1 text-sm text-slate-600">Choisis l’adresse pour la facture.</div>
+                    <div class="mt-1 text-sm text-slate-600">Choisissez l’adresse pour la facture.</div>
                   </div>
                   <div class="flex items-center gap-2">
                     <input class="rounded border-slate-300 text-primary focus:ring-primary" id="billingSameAsShipping" name="billingSameAsShipping" type="checkbox" <%= billingSameAsShipping ? 'checked' : '' %> />
@@ -230,7 +230,7 @@
             <div class="flex items-center justify-between gap-4">
               <div>
                 <div class="text-lg font-black text-slate-900">Ajouter une nouvelle adresse</div>
-                <div class="mt-1 text-sm text-slate-600">Tu peux l’ajouter ici sans quitter le checkout.</div>
+                <div class="mt-1 text-sm text-slate-600">Vous pouvez l’ajouter ici sans quitter le checkout.</div>
               </div>
               <span class="material-symbols-outlined text-slate-400">add</span>
             </div>
@@ -289,7 +289,7 @@
             <% if (!dbConnected) { %>
               <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
                 <div class="font-bold">Mode démo</div>
-                <div class="mt-1 text-sm">La base de données est indisponible : tu ne peux pas enregistrer d'adresse.</div>
+                <div class="mt-1 text-sm">La base de données est indisponible : vous ne pouvez pas enregistrer d'adresse.</div>
               </div>
             <% } %>
           </form>

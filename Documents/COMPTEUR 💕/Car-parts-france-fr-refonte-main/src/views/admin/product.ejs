@@ -97,7 +97,7 @@
     <% if (!dbConnected) { %>
       <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
         <div class="font-bold">Mode démo</div>
-        <div class="mt-1 text-sm">La base de données est indisponible : tu ne peux pas enregistrer de produit.</div>
+        <div class="mt-1 text-sm">La base de données est indisponible : vous ne pouvez pas enregistrer de produit.</div>
       </div>
     <% } %>
 
@@ -109,7 +109,7 @@
         <div><span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700">Recommandé</span> = fortement conseillé pour une fiche produit complète.</div>
         <div><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span> = utile selon le produit, mais non bloquant.</div>
         <div>Minimum demandé aujourd’hui : <span class="font-semibold">Nom du produit</span> et <span class="font-semibold">Prix</span>.</div>
-        <div>Si tu laisses le <span class="font-semibold">slug</span> vide, il sera créé automatiquement à partir du nom du produit.</div>
+        <div>Si vous laissez le <span class="font-semibold">slug</span> vide, il sera créé automatiquement à partir du nom du produit.</div>
         <div>Les autres champs peuvent être remplis maintenant ou plus tard pour améliorer la fiche produit.</div>
       </div>
     </div>
@@ -119,9 +119,9 @@
         <div>
           <div class="font-bold">Assistant IA pour pré-remplir la fiche</div>
           <div class="mt-2 text-sm space-y-1">
-            <div>1. Renseigne au minimum le nom du produit ou la référence.</div>
-            <div>2. Ajoute des notes si tu veux orienter la recherche.</div>
-            <div>3. Clique sur <span class="font-semibold">Générer avec l’IA</span> : la page se remplit, mais rien n’est enregistré automatiquement.</div>
+            <div>1. Renseignez au minimum le nom du produit ou la référence.</div>
+            <div>2. Ajoutez des notes si vous voulez orienter la recherche.</div>
+            <div>3. Cliquez sur <span class="font-semibold">Générer avec l’IA</span> : la page se remplit, mais rien n’est enregistré automatiquement.</div>
           </div>
         </div>
 
@@ -150,7 +150,7 @@
 
         <div>
           <label class="block text-xs font-bold uppercase tracking-widest text-violet-900" for="aiSourceNotes">Notes complémentaires pour l’IA</label>
-          <textarea class="mt-2 w-full rounded-lg border border-violet-200 bg-white/90 px-4 py-3 text-sm text-gray-900 focus:border-violet-400 focus:ring-violet-400" id="aiSourceNotes" rows="4" placeholder="Ex: calculateur moteur Bosch pour Audi A3 2.0 TDI, priorité SEO, ton rassurant, éviter les affirmations non vérifiées."></textarea>
+          <textarea class="mt-2 w-full rounded-lg border border-violet-200 bg-white/90 px-4 py-3 text-sm text-gray-900 focus:border-violet-400 focus:ring-violet-400" id="aiSourceNotes" rows="4" placeholder="Ex : calculateur moteur Bosch pour Audi A3 2.0 TDI, priorité SEO, style rassurant, éviter les affirmations non vérifiées."></textarea>
         </div>
       </div>
 
@@ -219,7 +219,7 @@
           <div class="mt-2 text-sm space-y-1">
             <div>Les champs encore vides ressortent en rouge.</div>
             <div>Les champs remplis par l’IA reçoivent un badge <span class="font-semibold">IA</span>.</div>
-            <div>Tu peux cocher <span class="font-semibold">Validé</span> après relecture pour te repérer facilement.</div>
+            <div>Vous pouvez cocher <span class="font-semibold">Validé</span> après relecture pour vous repérer facilement.</div>
           </div>
         </div>
 
@@ -304,13 +304,13 @@
           <div class="md:col-span-2 md:order-5">
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="slug">Slug (URL)</label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="slug" name="slug" placeholder="Ex: moteur-complet-porsche-cayenne" type="text" value="<%= form && typeof form.slug !== 'undefined' ? (form.slug || '') : '' %>" />
-            <div class="mt-2 text-xs text-gray-500">Optionnel. Si tu ne le remplis pas, il sera généré automatiquement.</div>
+            <div class="mt-2 text-xs text-gray-500">Optionnel. Si vous ne le remplissez pas, il sera généré automatiquement.</div>
           </div>
 
           <div class="md:order-6">
             <label class="block text-xs font-bold text-gray-500 uppercase mb-2" for="sku">SKU</label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="sku" name="sku" type="text" value="<%= form && form.sku ? form.sku : '' %>" />
-            <div class="mt-2 text-xs text-gray-500">Recommandé si tu gères beaucoup de produits.</div>
+            <div class="mt-2 text-xs text-gray-500">Recommandé si vous gérez beaucoup de produits.</div>
           </div>
 
           <div class="md:order-7">
@@ -422,7 +422,7 @@
             </button>
           </div>
 
-          <div class="mt-4 text-xs text-gray-500">Champ obligatoire : ajoute au moins une image principale. Tu peux aussi réagencer les autres images avec les flèches gauche/droite.</div>
+          <div class="mt-4 text-xs text-gray-500">Champ obligatoire : ajoutez au moins une image principale. Vous pouvez aussi réagencer les autres images avec les flèches gauche/droite.</div>
 
           <input id="image" name="image" accept="image/*" type="file" multiple class="hidden" />
           <input id="imageUrl" name="imageUrl" type="hidden" value="<%= form && form.imageUrl ? form.imageUrl : '' %>" />
@@ -535,7 +535,7 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div class="text-sm font-bold text-gray-900 dark:text-white">Options réutilisables</div>
-                <div class="mt-1 text-xs text-gray-500">Crée tes options une fois dans la bibliothèque, puis applique-les ici en un clic.</div>
+                <div class="mt-1 text-xs text-gray-500">Créez vos options une fois dans la bibliothèque, puis appliquez-les ici en un clic.</div>
               </div>
               <a class="inline-flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 border border-border-light dark:border-border-dark px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition" href="/admin/catalogue/options">
                 <span class="material-symbols-outlined mr-2 text-sm">settings</span>
@@ -547,7 +547,7 @@
               <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3" id="templateLibrary"></div>
             <% } else { %>
               <div class="mt-4 rounded-xl border border-dashed border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-4 text-sm text-gray-500">
-                Aucune option réutilisable pour le moment. Crée-les depuis la bibliothèque, puis reviens ici.
+                Aucune option réutilisable pour le moment. Créez-les depuis la bibliothèque, puis revenez ici.
               </div>
             <% } %>
           </div>
@@ -556,7 +556,7 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div class="text-sm font-bold text-gray-900 dark:text-white">Options de ce produit</div>
-                <div class="mt-1 text-xs text-gray-500">Tu peux ajouter une option manuelle ou partir d’une option réutilisable.</div>
+                <div class="mt-1 text-xs text-gray-500">Vous pouvez ajouter une option manuelle ou partir d’une option réutilisable.</div>
               </div>
 
               <button class="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-primary-hover transition" id="addCustomOptionBtn" type="button">
@@ -574,7 +574,7 @@
           <details class="rounded-2xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 overflow-hidden">
             <summary class="cursor-pointer px-5 py-4 text-sm font-bold text-gray-900 dark:text-white">Mode expert (JSON)</summary>
             <div class="border-t border-border-light dark:border-border-dark p-5 space-y-4">
-              <div class="text-xs text-gray-500">Si besoin, tu peux toujours modifier le JSON brut puis recharger l’éditeur visuel.</div>
+              <div class="text-xs text-gray-500">Si besoin, vous pouvez toujours modifier le JSON brut puis recharger l’éditeur visuel.</div>
               <label class="block text-xs font-bold text-gray-500 uppercase" for="optionsJson">Options (JSON)</label>
               <textarea class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary font-mono min-h-[220px]" id="optionsJson" name="optionsJson" placeholder='[{"key":"programmation","label":"Programmation","type":"choice","required":true,"choices":[{"key":"avec","label":"Avec programmation","priceDeltaCents":5000},{"key":"sans","label":"Sans programmation","priceDeltaCents":0}]}]'><%= form && typeof form.optionsJson !== 'undefined' ? form.optionsJson : '' %></textarea>
               <div class="flex justify-end">
@@ -595,7 +595,7 @@
               Étape 7 · Étapes de reconditionnement
               <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span>
             </h2>
-            <div class="mt-2 text-xs text-gray-500">Utile si tu veux détailler le processus de reconditionnement ou de contrôle qualité.</div>
+            <div class="mt-2 text-xs text-gray-500">Utile si vous voulez détailler le processus de reconditionnement ou de contrôle qualité.</div>
           </div>
 
           <button class="px-4 py-2 text-xs font-bold bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-lg flex items-center gap-1 hover:bg-black transition-colors" id="stepsPrefillBtn" type="button">
@@ -746,7 +746,7 @@
               Étape 9 · Articles de blog liés
               <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-700">Optionnel</span>
             </h2>
-            <div class="mt-2 text-xs text-gray-500">Utile si tu veux enrichir la fiche avec un article d’explication ou de conseil.</div>
+            <div class="mt-2 text-xs text-gray-500">Utile si vous voulez enrichir la fiche avec un article d’explication ou de conseil.</div>
           </div>
           <div class="text-[11px] text-gray-500">Ces articles apparaîtront sur la fiche produit.</div>
         </div>
@@ -758,7 +758,7 @@
               id="relatedBlogSearch"
               class="mt-2 w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm"
               type="text"
-              placeholder="Tape au moins 2 lettres (titre, slug, extrait...)"
+              placeholder="Tapez au moins 2 lettres (titre, slug, extrait...)"
               autocomplete="off"
             />
             <div id="relatedBlogResults" class="mt-2 max-h-56 overflow-auto rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900"></div>
@@ -770,7 +770,7 @@
           </div>
 
           <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4"><%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %></textarea>
-          <div class="text-xs text-gray-500">Astuce : si tu ne sélectionnes rien ici, tu peux quand même lier un produit depuis l’article (admin blog).</div>
+          <div class="text-xs text-gray-500">Astuce : si vous ne sélectionnez rien ici, vous pouvez quand même lier un produit depuis l’article (admin blog).</div>
         </div>
       </section>
 
@@ -782,7 +782,7 @@
               Étape 5 · SEO &amp; Meta Tags
               <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700">Recommandé</span>
             </h2>
-            <div class="mt-2 text-xs text-gray-500">Cette section aide ton produit à être mieux compris par Google et mieux présenté dans les résultats de recherche.</div>
+            <div class="mt-2 text-xs text-gray-500">Cette section aide votre produit à être mieux compris par Google et mieux présenté dans les résultats de recherche.</div>
           </div>
         </div>
         <div class="p-6 space-y-6">
@@ -1672,7 +1672,7 @@
             placeholderInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
             placeholderInput.type = 'text';
             placeholderInput.value = option && option.placeholder ? option.placeholder : '';
-            placeholderInput.placeholder = 'Ex: Tape la référence';
+            placeholderInput.placeholder = 'Ex : Tapez la référence';
             placeholderField.wrap.appendChild(placeholderInput);
 
             const helpField = createField('Texte d’aide', true);
@@ -1680,7 +1680,7 @@
             helpInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
             helpInput.type = 'text';
             helpInput.value = option && option.helpText ? option.helpText : '';
-            helpInput.placeholder = 'Ex: Choisis si la pièce doit être programmée';
+            helpInput.placeholder = 'Ex : Choisissez si la pièce doit être programmée';
             helpField.wrap.appendChild(helpInput);
 
             const priceField = createField('Supplément prix (€)');
@@ -2293,13 +2293,13 @@
             const engine = String((compatEngine || {}).value || '').trim();
 
             if (!make) {
-              window.alert('Choisis une marque (ou ajoute une nouvelle marque).');
+              window.alert('Choisissez une marque (ou ajoutez une nouvelle marque).');
               if (compatMakeSelect) compatMakeSelect.focus();
               return;
             }
 
             if (!model) {
-              window.alert('Choisis un modèle (ou ajoute un nouveau modèle).');
+              window.alert('Choisissez un modèle (ou ajoutez un nouveau modèle).');
               if (compatModelSelect && compatModelSelect.value !== '__custom__') compatModelSelect.focus();
               else if (compatModelCustom) compatModelCustom.focus();
               return;
@@ -2634,7 +2634,7 @@
           renderAiWarnings(Array.isArray(draft.warnings) ? draft.warnings : []);
           if (latestAiDraftJob) latestAiDraftJob.status = 'completed';
           updateAiCancelButton();
-          setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relis puis clique sur “Save Changes” si tout te convient.`, 'success');
+          setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relisez puis cliquez sur “Save Changes” si tout vous convient.`, 'success');
         }
 
         async function waitForDraftJob(jobId) {
@@ -2675,7 +2675,7 @@
             setAiStatus(`Recherche web et génération approfondie en cours… ${attempt > 1 ? 'Toujours en cours, merci de patienter.' : 'La page attend le résultat en arrière-plan.'}`, 'loading');
           }
 
-          throw new Error('La génération IA prend vraiment trop de temps. Réessaie dans quelques instants.');
+          throw new Error('La génération IA prend vraiment trop de temps. Réessayez dans quelques instants.');
         }
 
         if (applyLatestAiDraftBtn) {
@@ -2686,7 +2686,7 @@
             }
 
             if (hasMeaningfulAiTargetContent()) {
-              const shouldReplace = window.confirm('Des contenus sont déjà remplis dans la fiche. Veux-tu les remplacer par le dernier brouillon IA enregistré ?');
+              const shouldReplace = window.confirm('Des contenus sont déjà remplis dans la fiche. Souhaitez-vous les remplacer par le dernier brouillon IA enregistré ?');
               if (!shouldReplace) return;
             }
 
@@ -2757,13 +2757,13 @@
             };
 
             if (!payload.name && !payload.sku && !payload.compatibleReferences && !payload.sourceNotes) {
-              setAiStatus('Renseigne au moins un nom, une référence ou une note avant de lancer l’IA.', 'error');
+              setAiStatus('Renseignez au moins un nom, une référence ou une note avant de lancer l’IA.', 'error');
               window.alert('Merci de renseigner au moins un nom de produit, une référence ou quelques notes.');
               return;
             }
 
             if (hasMeaningfulAiTargetContent()) {
-              const shouldReplace = window.confirm('Des contenus sont déjà remplis dans la fiche. Veux-tu les remplacer par la proposition IA ?');
+              const shouldReplace = window.confirm('Des contenus sont déjà remplis dans la fiche. Souhaitez-vous les remplacer par la proposition IA ?');
               if (!shouldReplace) return;
             }
 
@@ -2916,30 +2916,29 @@
           var finalDesc = metaDescription || fallbackDesc;
 
           var checks = [];
-          checks.push({ key: 'name', label: 'Nom du produit', ok: !!name, detail: name ? '' : 'Ajoute un nom clair (idéalement avec la référence OEM).', weight: 20 });
-          checks.push({ key: 'brand', label: 'Marque', ok: !!brand, detail: brand ? '' : 'Ajoute la marque (Volkswagen, Audi…).', weight: 5 });
-          checks.push({ key: 'category', label: 'Catégorie', ok: !!category, detail: category ? '' : 'Choisis une catégorie.', weight: 5 });
-          checks.push({ key: 'ref', label: 'Référence (SKU / OEM) présente', ok: hasRef, detail: hasRef ? '' : 'Ajoute un SKU ou une référence OEM dans le nom.', weight: 8 });
+          checks.push({ key: 'name', label: 'Nom du produit', ok: !!name, detail: name ? '' : 'Ajoutez un nom clair (idéalement avec la référence OEM).', weight: 20 });
+          checks.push({ key: 'brand', label: 'Marque', ok: !!brand, detail: brand ? '' : 'Ajoutez la marque (Volkswagen, Audi…).', weight: 5 });
+          checks.push({ key: 'category', label: 'Catégorie', ok: !!category, detail: category ? '' : 'Choisissez une catégorie.', weight: 5 });
+          checks.push({ key: 'ref', label: 'Référence (SKU / OEM) présente', ok: hasRef, detail: hasRef ? '' : 'Ajoutez un SKU ou une référence OEM dans le nom.', weight: 8 });
           checks.push({
             key: 'metaTitle',
             label: 'Meta title (50–60 caractères)',
             ok: finalTitle.length >= 45 && finalTitle.length <= 65,
-            detail: metaTitle ? ('Longueur actuelle : ' + finalTitle.length) : ('Auto : ' + finalTitle.length + ' (tu peux optimiser)'),
+            detail: metaTitle ? ('Longueur actuelle : ' + finalTitle.length) : ('Auto : ' + finalTitle.length + ' (vous pouvez optimiser)'),
             weight: 10,
           });
           checks.push({
             key: 'metaDescription',
-            label: 'Meta description (120–160 caractères)',
             ok: finalDesc.length >= 110 && finalDesc.length <= 170,
-            detail: metaDescription ? ('Longueur actuelle : ' + finalDesc.length) : ('Auto : ' + finalDesc.length + ' (tu peux optimiser)'),
+            detail: metaDescription ? ('Longueur actuelle : ' + finalDesc.length) : ('Auto : ' + finalDesc.length + ' (vous pouvez l\'optimiser)'),
             weight: 10,
           });
-          checks.push({ key: 'image', label: 'Image principale', ok: !!imageUrl, detail: imageUrl ? '' : 'Ajoute une image principale (important pour le clic).', weight: 10 });
+          checks.push({
+            key: 'image', label: 'Image principale', ok: !!imageUrl, detail: imageUrl ? '' : 'Ajoutez une image principale (importante pour le clic).', weight: 10 });
           checks.push({ key: 'gallery', label: 'Plusieurs images (2+)', ok: galleryCount >= 2, detail: 'Images détectées : ' + galleryCount, weight: 4 });
           checks.push({ key: 'content', label: 'Description suffisante (200+ mots)', ok: words >= 200, detail: 'Mots : ' + words, weight: 12 });
           checks.push({ key: 'faq', label: 'FAQ (4+ questions)', ok: faqCount >= 4, detail: 'FAQ : ' + faqCount, weight: 10 });
           checks.push({ key: 'compat', label: 'Compatibilité (3+ lignes)', ok: compatCount >= 3, detail: 'Compatibilités : ' + compatCount, weight: 8 });
-
           var score = 100;
           checks.forEach(function (c) { if (!c.ok) score -= (Number.isFinite(c.weight) ? c.weight : 10); });
           if (score < 0) score = 0;
@@ -3101,7 +3100,7 @@
           function runSearch() {
             var query = String(searchInput.value || '').trim();
             if (query.length < 2) {
-              setResults('<div class="px-3 py-3 text-xs text-gray-500">Tape au moins 2 lettres.</div>');
+              setResults('<div class="px-3 py-3 text-xs text-gray-500">Tapez au moins 2 lettres.</div>');
               return;
             }
 
@@ -3177,7 +3176,7 @@
           });
 
           hydrateSelected();
-          setResults('<div class="px-3 py-3 text-xs text-gray-500">Tape au moins 2 lettres.</div>');
+          setResults('<div class="px-3 py-3 text-xs text-gray-500">Tapez au moins 2 lettres.</div>');
         }
 
         setupRelatedBlogPostsPicker();

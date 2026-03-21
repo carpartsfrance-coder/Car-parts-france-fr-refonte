@@ -61,7 +61,7 @@ async function postSubscribe(req, res, next) {
         }
       );
 
-      req.session.newsletterSuccess = 'Ton inscription à la newsletter a bien été réactivée.';
+      req.session.newsletterSuccess = 'Votre inscription à la newsletter a bien été réactivée.';
       return res.redirect(returnTo);
     }
 
@@ -73,7 +73,7 @@ async function postSubscribe(req, res, next) {
       unsubscribedAt: null,
     });
 
-    req.session.newsletterSuccess = 'Merci ! Ton email est bien inscrit à la newsletter.';
+    req.session.newsletterSuccess = 'Merci ! Votre email est bien inscrit à la newsletter.';
     return res.redirect(returnTo);
   } catch (err) {
     return next(err);
