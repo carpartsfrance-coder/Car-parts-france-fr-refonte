@@ -7,11 +7,11 @@
     "node": "20.x"
   },
   "scripts": {
-    "css:build": "node node_modules/.bin/tailwindcss -i src/styles/main.css -o public/css/styles.css --minify",
-    "css:watch": "node node_modules/.bin/tailwindcss -i src/styles/main.css -o public/css/styles.css --watch",
+    "css:build": "npx tailwindcss -i src/styles/main.css -o public/css/styles.css --minify",
+    "css:watch": "npx tailwindcss -i src/styles/main.css -o public/css/styles.css --watch",
     "dev": "concurrently \"npm run css:watch\" \"npm run css:watch:admin\" \"nodemon src/server.js\"",
     "start": "node src/server.js",
-    "build": "npm run css:build",
+    "build": "npm run css:build:all",
     "heroku-postbuild": "npm run css:build:all",
     "emails:consigne:reminders": "node src/jobs/sendConsigneReminders.js",
     "seed": "node src/seed/seedProducts.js",
@@ -27,9 +27,9 @@
     "import:ovoko:urls": "node src/seed/importOvokoVehicleMakesFromUrlsFile.js --input=src/seed/ovoko-make-model-urls.json --apply",
     "cleanup:vehicle-models:dry": "node src/seed/cleanupVehicleMakeModelNames.js",
     "cleanup:vehicle-models": "node src/seed/cleanupVehicleMakeModelNames.js --apply",
-    "css:build:admin": "node node_modules/.bin/tailwindcss -c tailwind.config.admin.js -i src/styles/admin.css -o public/admin/style.css --minify",
+    "css:build:admin": "npx tailwindcss -c tailwind.config.admin.js -i src/styles/admin.css -o public/admin/style.css --minify",
     "css:build:all": "npm run css:build && npm run css:build:admin",
-    "css:watch:admin": "node node_modules/.bin/tailwindcss -c tailwind.config.admin.js -i src/styles/admin.css -o public/admin/style.css --watch"
+    "css:watch:admin": "npx tailwindcss -c tailwind.config.admin.js -i src/styles/admin.css -o public/admin/style.css --watch"
   },
   "dependencies": {
     "@tailwindcss/container-queries": "^0.1.1",
@@ -53,12 +53,6 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "nodemon": "^3.1.9",
-    "@tailwindcss/container-queries": "^0.1.1",
-    "@tailwindcss/forms": "^0.5.11",
-    "@tailwindcss/typography": "^0.5.19",
-    "autoprefixer": "^10.4.27",
-    "postcss": "^8.5.8",
-    "tailwindcss": "^3.4.19"
+    "nodemon": "^3.1.9"
   }
 }
