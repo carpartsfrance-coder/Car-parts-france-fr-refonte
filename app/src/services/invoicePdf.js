@@ -267,9 +267,11 @@ async function buildOrderInvoicePdfBuffer({ order, user } = {}) {
 
         const y = doc.y;
         doc.fontSize(10).text(name, leftX, y, { width: colName });
+        const afterNameY = doc.y;
         doc.text(String(qty), leftX + colName, y, { width: colQty, align: 'right' });
         doc.text(unit, leftX + colName + colQty, y, { width: colPU, align: 'right' });
         doc.text(line, leftX + colName + colQty + colPU, y, { width: colTotal, align: 'right' });
+        doc.y = Math.max(doc.y, afterNameY);
         doc.moveDown(0.3);
       }
 

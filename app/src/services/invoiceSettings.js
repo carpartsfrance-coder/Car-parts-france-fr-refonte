@@ -15,7 +15,7 @@ function buildEnvFallback() {
     legalForm: getTrimmedString(process.env.COMPANY_LEGAL_FORM) || 'SAS',
     capital: getTrimmedString(process.env.COMPANY_CAPITAL) || '',
     rcs: getTrimmedString(process.env.COMPANY_RCS) || '',
-    website: getSiteUrlFromEnv() || '',
+    website: getTrimmedString(process.env.COMPANY_WEBSITE_URL) || '',
     logoUrl: getTrimmedString(process.env.COMPANY_LOGO_URL) || '/images/logo-v2.png',
 
     paymentTermsText: getTrimmedString(process.env.INVOICE_PAYMENT_TERMS_TEXT) || 'Conditions de paiement : paiement comptant. Aucun escompte pour paiement anticipé.',

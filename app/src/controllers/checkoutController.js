@@ -914,8 +914,22 @@ async function issueGuestAccountSetup(req, user) {
   );
 
   const resetUrl = buildGuestAccountResetUrl(req, token);
-  if (!resetUrl) return;
-  await emailService.sendGuestAccountCreatedEmail({ user, resetUrl });
+  if (!resetUrl) {
+    console.error('[GuestAccount] Impossible de construire l\'URL de réinitialisation — email non envoyé', {
+      userId: String(user._id),
+      email: user.email,
+    });
+    return { ok: false, reason: 'missing_reset_url' };
+  }
+  const emailResult = await emailService.sendGuestAccountCreatedEmail({ user, resetUrl });
+  if (!emailResult || !emailResult.ok) {
+    console.error('[GuestAccount] Échec envoi email création compte', {
+      userId: String(user._id),
+      email: user.email,
+      reason: emailResult && emailResult.reason ? emailResult.reason : 'unknown',
+    });
+  }
+  return emailResult || { ok: false, reason: 'no_result' };
 }
 
 async function syncGuestCheckoutUser(user, guest) {
@@ -1003,9 +1017,13 @@ async function ensureGuestCheckoutUser({ req, checkout } = {}) {
   req.session.accountType = created.accountType;
 
   try {
-    await issueGuestAccountSetup(req, created);
+    const setupResult = await issueGuestAccountSetup(req, created);
+    if (!setupResult || !setupResult.ok) {
+      console.error('[GuestAccount] Email de bienvenue non envoyé pour', created.email,
+        '— raison :', setupResult && setupResult.reason ? setupResult.reason : 'unknown');
+    }
   } catch (err) {
-    console.error('Erreur email création compte invité :', err && err.message ? err.message : err);
+    console.error('[GuestAccount] Erreur email création compte invité :', err && err.message ? err.message : err);
   }
 
   return { ok: true, user: created };
