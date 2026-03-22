@@ -7,6 +7,7 @@ const VehicleMake = require('../models/VehicleMake');
 const demoProducts = require('../demoProducts');
 const { buildProductPublicPath, slugify, getPublicBaseUrlFromReq } = require('../services/productPublic');
 const { buildCategoryPublicPath } = require('../services/categoryPublic');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -272,7 +273,10 @@ async function getHome(req, res, next) {
     }
 
     const siteSettings = res && res.locals && res.locals.siteSettings ? res.locals.siteSettings : null;
-    const canonicalUrl = baseUrl ? `${baseUrl}/` : '/';
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}/` : `${langPrefix}/`;
     const title = 'Pièces auto reconditionnées, d’occasion et testées | CarParts France';
     const aboutText = getTrimmedString(siteSettings && siteSettings.aboutText);
     const metaDescription = truncateText(
@@ -318,6 +322,7 @@ async function getHome(req, res, next) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle,
       ogDescription,
       ogUrl,

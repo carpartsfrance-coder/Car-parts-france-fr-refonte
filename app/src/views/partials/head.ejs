@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="light" lang="fr"><head>
+<html class="light" lang="<%= typeof lang !== 'undefined' ? lang : 'fr' %>"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title><%= typeof title !== 'undefined' ? title : 'CarParts France' %></title>
@@ -23,6 +23,15 @@
 <% } %>
 <% if (typeof canonicalUrl !== 'undefined' && canonicalUrl) { %>
 <link rel="canonical" href="<%= canonicalUrl %>"/>
+<% } %>
+<% if (typeof hreflangFr !== 'undefined' && hreflangFr) { %>
+<link rel="alternate" hreflang="fr" href="<%= hreflangFr %>"/>
+<% } %>
+<% if (typeof hreflangEn !== 'undefined' && hreflangEn) { %>
+<link rel="alternate" hreflang="en" href="<%= hreflangEn %>"/>
+<% } %>
+<% if (typeof hreflangDefault !== 'undefined' && hreflangDefault) { %>
+<link rel="alternate" hreflang="x-default" href="<%= hreflangDefault %>"/>
 <% } %>
 <% if (typeof ogTitle !== 'undefined' && ogTitle) { %>
 <meta property="og:title" content="<%= ogTitle %>"/>

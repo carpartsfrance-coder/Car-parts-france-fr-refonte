@@ -6,6 +6,12 @@
 <main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
   <div class="container mx-auto px-4 lg:px-8 py-8">
 
+    <nav class="flex items-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-6" aria-label="Fil d'Ariane">
+      <a class="hover:text-primary transition-colors" href="/">Accueil</a>
+      <span class="material-symbols-outlined text-[12px]">chevron_right</span>
+      <span class="text-slate-600 dark:text-slate-200">Blog</span>
+    </nav>
+
     <% if (featured) { %>
       <section class="mb-10 group">
         <a class="block cursor-pointer" href="<%= featured.url %>">

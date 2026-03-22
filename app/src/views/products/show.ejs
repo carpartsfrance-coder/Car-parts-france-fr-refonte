@@ -144,13 +144,17 @@
       <% if (technicalSpecs.length < 6) pushTechnicalSpec('Garantie', keyGarantie || 'Incluse'); %>
       <% if (technicalSpecs.length < 6) pushTechnicalSpec('Expédition', shippingDelayText || 'Sous 24/48h'); %>
 
-      <div class="flex flex-wrap items-center gap-2 mb-6 text-sm overflow-x-auto no-scrollbar whitespace-nowrap">
+      <nav class="flex flex-wrap items-center gap-2 mb-6 text-sm overflow-x-auto no-scrollbar whitespace-nowrap" aria-label="Fil d'Ariane">
         <a class="text-slate-500 hover:text-primary transition-colors" href="/">Accueil</a>
         <span class="text-slate-300">/</span>
-        <a class="text-slate-500 hover:text-primary transition-colors" href="/produits"><%= product.category || 'Catalogue' %></a>
+        <a class="text-slate-500 hover:text-primary transition-colors" href="/produits">Catalogue</a>
+        <% if (typeof categoryUrl !== 'undefined' && categoryUrl && typeof categoryName !== 'undefined' && categoryName) { %>
+          <span class="text-slate-300">/</span>
+          <a class="text-slate-500 hover:text-primary transition-colors" href="<%= categoryUrl %>"><%= categoryName %></a>
+        <% } %>
         <span class="text-slate-300">/</span>
         <span class="text-slate-900 dark:text-white font-medium"><%= product.name %></span>
-      </div>
+      </nav>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start lg:items-stretch">
         <div class="lg:col-span-7 flex flex-col gap-4 h-full">

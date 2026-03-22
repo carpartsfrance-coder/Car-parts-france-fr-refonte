@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
   
 const { getPublicBaseUrlFromReq } = require('../services/categoryPublic');
 const { listLegalPages, getLegalPageBySlug } = require('../services/legalPages');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -38,10 +39,13 @@ async function getLegalIndex(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const baseUrl = getPublicBaseUrlFromReq(req);
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
     const pages = await listLegalPages({ dbConnected });
     const title = 'Informations légales, CGV, CGU et confidentialité | CarParts France';
     const metaDescription = 'Consulte les informations légales de CarParts France : CGV, CGU, mentions légales, confidentialité et cookies.';
-    const canonicalUrl = baseUrl ? `${baseUrl}/legal` : '/legal';
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}/legal` : `${langPrefix}/legal`;
     const jsonLd = toSafeJsonLd({
       '@context': 'https://schema.org',
       '@graph': [
@@ -75,6 +79,7 @@ async function getLegalIndex(req, res, next) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,
@@ -93,6 +98,9 @@ async function getLegalPage(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const baseUrl = getPublicBaseUrlFromReq(req);
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
     const slug = req.params && req.params.slug ? String(req.params.slug) : '';
 
     const page = await getLegalPageBySlug({ slug, dbConnected });
@@ -102,7 +110,7 @@ async function getLegalPage(req, res, next) {
       });
     }
 
-    const canonicalUrl = baseUrl ? `${baseUrl}/legal/${encodeURIComponent(page.slug)}` : `/legal/${encodeURIComponent(page.slug)}`;
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}/legal/${encodeURIComponent(page.slug)}` : `${langPrefix}/legal/${encodeURIComponent(page.slug)}`;
     const contentText = stripHtml(page && page.contentHtml ? page.contentHtml : '');
     const metaDescription = truncateText(
       normalizeMetaText(contentText || `${page.title} sur CarParts France.`),
@@ -149,6 +157,7 @@ async function getLegalPage(req, res, next) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,

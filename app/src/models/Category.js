@@ -9,6 +9,8 @@ const categorySchema = new mongoose.Schema(
     sortOrder: { type: Number, default: 0 },
 
     shippingClassId: { type: mongoose.Schema.Types.ObjectId, ref: 'ShippingClass', default: null },
+
+    seoText: { type: String, default: '' },
   },
   {
     timestamps: true,

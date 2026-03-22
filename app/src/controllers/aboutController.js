@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const { getPublicBaseUrlFromReq } = require('../services/productPublic');
 const siteSettings = require('../services/siteSettings');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -39,7 +40,10 @@ async function getAboutPage(req, res, next) {
         ? await siteSettings.getSiteSettingsMergedWithFallback()
         : siteSettings.buildEnvFallback());
 
-    const canonicalUrl = baseUrl ? `${baseUrl}/notre-histoire` : '/notre-histoire';
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}/notre-histoire` : `${langPrefix}/notre-histoire`;
     const title = 'Notre Histoire — Car Parts France | Spécialiste pièces auto reconditionnées';
     const aboutSummary = getTrimmedString(settings && settings.aboutText)
       || 'Car Parts France accompagne particuliers et professionnels avec des pièces auto reconditionnées et d’occasion contrôlées, un diagnostic précis et un suivi humain pour trouver la bonne référence rapidement.';
@@ -92,6 +96,7 @@ async function getAboutPage(req, res, next) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,

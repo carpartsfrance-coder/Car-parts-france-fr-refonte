@@ -4,6 +4,7 @@ const BlogPost = require('../models/BlogPost');
 const Product = require('../models/Product');
 const { buildProductPublicPath, getPublicBaseUrlFromReq } = require('../services/productPublic');
 const { markdownToHtml } = require('../services/blogContent');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -321,6 +322,9 @@ function getBlogIndex(req, res) {
   (async () => {
     const dbConnected = mongoose.connection.readyState === 1;
     const baseUrl = getPublicBaseUrlFromReq(req);
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
 
     const q = getTrimmedString(req.query.q);
     const category = getTrimmedString(req.query.category);
@@ -344,6 +348,7 @@ function getBlogIndex(req, res) {
         title,
         metaDescription: normalizeMetaText(metaDescription),
         canonicalUrl,
+        ...hreflang,
         ogTitle,
         ogDescription,
         ogUrl,
@@ -441,6 +446,15 @@ function getBlogIndex(req, res) {
 
     const ogImage = featured && featured.imageUrl ? resolveAbsoluteUrl(baseUrl, featured.imageUrl) : '';
 
+    const blogBreadcrumbJsonLd = toSafeJsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Accueil', item: baseUrl ? `${baseUrl}/` : '/' },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: canonicalUrl },
+      ],
+    });
+
     const popularArticles = await BlogPost.find({ isPublished: true })
       .sort({ publishedAt: -1, createdAt: -1 })
       .limit(5)
@@ -458,6 +472,7 @@ function getBlogIndex(req, res) {
       title,
       metaDescription: normalizeMetaText(metaDescription),
       canonicalUrl,
+      ...hreflang,
       ogTitle,
       ogDescription,
       ogUrl,
@@ -465,6 +480,7 @@ function getBlogIndex(req, res) {
       ogType,
       ogImage,
       metaRobots,
+      jsonLd: blogBreadcrumbJsonLd,
       featured,
       categories,
       currentCategory: category,
@@ -489,6 +505,9 @@ async function getBlogPost(req, res) {
   return (async () => {
     const dbConnected = mongoose.connection.readyState === 1;
     const baseUrl = getPublicBaseUrlFromReq(req);
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
 
     const slugParam = typeof req.params.slug === 'string' ? req.params.slug.trim().toLowerCase() : '';
     if (!slugParam) {
@@ -650,6 +669,7 @@ async function getBlogPost(req, res) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle,
       ogDescription,
       ogUrl,
