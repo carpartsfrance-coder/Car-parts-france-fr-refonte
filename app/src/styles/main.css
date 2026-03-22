@@ -53,6 +53,9 @@ details > summary::-webkit-details-marker {
   details[open] {
     @apply border-primary ring-1 ring-primary/20;
   }
+  details[open] > summary .details-chevron {
+    transform: rotate(180deg);
+  }
 }
 
 .hero-workshop {
