@@ -424,7 +424,7 @@
           <div class="tab-content" id="content-description">
             <div class="py-10 grid grid-cols-1 md:grid-cols-2 gap-12">
               <div class="flex flex-col gap-6">
-                <h3 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h3>
+                <h2 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h3>
                 <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
                 <% if (hasSafeHtml) { %>
                   <div class="text-slate-700 dark:text-slate-300 leading-relaxed product-html"><%- product.descriptionHtmlSafe %></div>
@@ -478,7 +478,7 @@
 
                 <% if (compatibleReferences.length) { %>
                   <div>
-                    <h4 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-4">Références compatibles</h4>
+                    <h2 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-4">Références OEM compatibles</h2>
                     <div class="flex flex-wrap gap-2">
                       <% compatibleReferences.forEach((r) => { %>
                         <span class="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200"><%= r %></span>
@@ -507,10 +507,10 @@
               </div>
 
               <div>
-                <% if (product.sections && product.sections.showCompatibility && compMakes.length) { %>
+                <% if (compMakes.length) { %>
                   <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 refined-shadow">
                     <div class="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/70">
-                      <h4 class="text-lg font-bold uppercase text-slate-900 dark:text-white">Compatibilité véhicule</h4>
+                      <h2 class="text-lg font-bold uppercase text-slate-900 dark:text-white">Compatibilité véhicules</h2>
                       <p class="mt-1 text-sm text-slate-500">Comparez toujours la référence de votre pièce et votre VIN avant validation finale.</p>
                     </div>
                     <table class="w-full text-left border-collapse compatibility-table">
@@ -540,13 +540,30 @@
                 <% } %>
               </div>
             </div>
+
+            <div class="mt-10 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 refined-shadow">
+              <h2 class="text-lg font-bold uppercase text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">build_circle</span>
+                Montage et garantie
+              </h2>
+              <p class="text-slate-700 dark:text-slate-300 leading-relaxed mb-4">
+                Toutes nos pièces sont reconditionnées en atelier spécialisé, testées sur banc d'essai et expédiées avec une <strong>garantie de <%= typeof keyGarantie !== 'undefined' && keyGarantie ? keyGarantie : '24 mois' %></strong>.
+                Nous recommandons un montage par un professionnel qualifié pour garantir un fonctionnement optimal.
+              </p>
+              <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <li class="flex items-start gap-2"><span class="material-symbols-outlined text-primary text-base mt-0.5">check</span> Vérifier la référence OEM avant montage</li>
+                <li class="flex items-start gap-2"><span class="material-symbols-outlined text-primary text-base mt-0.5">check</span> Effectuer un réglage de base / adaptation après installation (si applicable)</li>
+                <li class="flex items-start gap-2"><span class="material-symbols-outlined text-primary text-base mt-0.5">check</span> Vidanger et remplacer l'huile selon les préconisations constructeur</li>
+                <li class="flex items-start gap-2"><span class="material-symbols-outlined text-primary text-base mt-0.5">check</span> Conserver la facture pour faire valoir la garantie</li>
+              </ul>
+            </div>
           </div>
 
           <div class="tab-content" id="content-process">
             <% if (product.sections && product.sections.showReconditioning && Array.isArray(product.reconditioningSteps) && product.reconditioningSteps.length) { %>
               <div class="py-10">
                 <div class="mb-8">
-                  <h3 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Notre processus qualité</h3>
+                  <h2 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Notre processus qualité</h3>
                   <p class="mt-2 text-sm text-slate-500">Chaque étape vise à garantir une pièce contrôlée, durable et prête à être montée.</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -588,7 +605,7 @@
 
       <% if (product.sections && product.sections.showRelatedProducts && Array.isArray(relatedProducts) && relatedProducts.length) { %>
         <section class="mt-16">
-          <h3 class="text-xl font-black uppercase mb-8 tracking-wider text-slate-900 dark:text-white border-b-2 border-slate-200 dark:border-slate-800 pb-4">Souvent achetés ensemble</h3>
+          <h2 class="text-xl font-black uppercase mb-8 tracking-wider text-slate-900 dark:text-white border-b-2 border-slate-200 dark:border-slate-800 pb-4">Souvent achetés ensemble</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <% relatedProducts.slice(0, 3).forEach((p) => { %>
               <% const productUrl = (p && p.publicPath) ? p.publicPath : ('/produits/' + p._id); %>
@@ -629,7 +646,7 @@
         <section class="mt-20">
           <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 border-b-2 border-slate-200 dark:border-slate-800 pb-4 gap-4">
             <div class="flex items-center gap-4">
-              <h3 class="text-xl font-black uppercase tracking-wider text-slate-900 dark:text-white">Questions fréquentes</h3>
+              <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 dark:text-white">Questions fréquentes</h3>
               <div class="flex items-center gap-1.5 bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20">
                 <span class="font-black text-[10px] text-primary tracking-tighter uppercase italic">Produit</span>
                 <div class="w-4 h-4 bg-primary rounded-full flex items-center justify-center">
@@ -678,7 +695,7 @@
       <% if (Array.isArray(relatedBlogPosts) && relatedBlogPosts.length) { %>
         <section class="mt-24 border-t-2 border-slate-200 dark:border-slate-800 pt-16">
           <div class="flex items-center justify-between mb-8 gap-4">
-            <h3 class="text-xl font-black uppercase tracking-wider text-slate-900 dark:text-white">Articles de blog</h3>
+            <h2 class="text-xl font-black uppercase tracking-wider text-slate-900 dark:text-white">Articles de blog</h3>
             <a class="text-xs font-black uppercase text-primary hover:underline flex items-center gap-1" href="/blog">Voir tous les articles <span class="material-symbols-outlined text-sm">chevron_right</span></a>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">

@@ -1284,12 +1284,18 @@ async function getProduct(req, res, next) {
       displayOptions: productOptions.getProductPageOptions(product.options),
     };
 
+    const hreflangTags = [
+      { lang: 'fr', href: canonicalUrl },
+      { lang: 'x-default', href: canonicalUrl },
+    ];
+
     if (req.session) delete req.session.cartError;
     return res.render('products/show', {
       title: seoTitle,
       metaDescription,
       canonicalUrl,
       ...hreflang,
+      hreflangTags,
       ogTitle: seoTitle,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,

@@ -15,15 +15,18 @@
     visibility: hidden;
   }
 </style>
-<% if (typeof metaRobots !== 'undefined' && metaRobots) { %>
-<meta name="robots" content="<%= metaRobots %>"/>
-<% } %>
+<meta name="robots" content="<%= (typeof metaRobots !== 'undefined' && metaRobots) ? metaRobots : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' %>"/>
 <% if (typeof metaDescription !== 'undefined' && metaDescription) { %>
 <meta name="description" content="<%= metaDescription %>"/>
 <% } %>
 <% if (typeof canonicalUrl !== 'undefined' && canonicalUrl) { %>
 <link rel="canonical" href="<%= canonicalUrl %>"/>
 <% } %>
+<% if (typeof hreflangTags !== 'undefined' && Array.isArray(hreflangTags) && hreflangTags.length > 0) { %>
+<% hreflangTags.forEach(function(tag) { %>
+<link rel="alternate" hreflang="<%= tag.lang %>" href="<%= tag.href %>"/>
+<% }); %>
+<% } else { %>
 <% if (typeof hreflangFr !== 'undefined' && hreflangFr) { %>
 <link rel="alternate" hreflang="fr" href="<%= hreflangFr %>"/>
 <% } %>
@@ -32,6 +35,7 @@
 <% } %>
 <% if (typeof hreflangDefault !== 'undefined' && hreflangDefault) { %>
 <link rel="alternate" hreflang="x-default" href="<%= hreflangDefault %>"/>
+<% } %>
 <% } %>
 <% if (typeof ogTitle !== 'undefined' && ogTitle) { %>
 <meta property="og:title" content="<%= ogTitle %>"/>
