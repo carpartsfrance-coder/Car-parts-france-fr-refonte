@@ -886,6 +886,10 @@
 
     <script>
       (function () {
+        /* Local aliases — btn-loading.js is loaded in footer */
+        const btnSetLoading   = function (b, t) { if (window.btnSetLoading)   window.btnSetLoading(b, t);   else if (b) b.disabled = true; };
+        const btnResetLoading = function (b)    { if (window.btnResetLoading) window.btnResetLoading(b);    else if (b) b.disabled = false; };
+
         const fileInput = document.getElementById('image');
         const addNewBtn = document.getElementById('mediaAddNew');
         const uploadBtn = document.getElementById('mediaUploadBtn');
@@ -2669,6 +2673,7 @@
           if (latestAiDraftJob) latestAiDraftJob.status = 'completed';
           updateAiCancelButton();
           setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relisez puis cliquez sur “Enregistrer” si tout vous convient.`, 'success');
+          toast.success('Génération terminée !');
         }
 
         async function waitForDraftJob(jobId) {
@@ -2729,8 +2734,6 @@
         }
 
         if (aiCancelBtn) {
-          const defaultAiCancelBtnHtml = aiCancelBtn.innerHTML;
-
           aiCancelBtn.addEventListener('click', async function () {
             if (!isCancelableAiJob(latestAiDraftJob)) {
               setAiStatus('Aucune génération IA en cours à arrêter.', 'error');
@@ -2741,43 +2744,39 @@
             const shouldCancel = window.confirm('Arrêter la génération IA en cours ?');
             if (!shouldCancel) return;
 
-            aiCancelBtn.disabled = true;
-            aiCancelBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-lg">hourglass_top</span>Arrêt…';
+            btnSetLoading(aiCancelBtn, ‘Arrêt\u2026’);
 
             try {
               const response = await fetch(`/admin/api/products/generate-draft/${encodeURIComponent(latestAiDraftJob.jobId)}/cancel`, {
-                method: 'POST',
+                method: ‘POST’,
                 headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json',
+                  ‘Accept’: ‘application/json’,
+                  ‘Content-Type’: ‘application/json’,
                 },
                 body: JSON.stringify({}),
               });
 
               const data = await response.json().catch(() => ({}));
               if (!response.ok || !data || data.ok !== true) {
-                throw new Error(data && data.error ? data.error : 'Impossible d’arrêter la génération IA.');
+                throw new Error(data && data.error ? data.error : ‘Impossible d\’arrêter la génération IA.’);
               }
 
               if (!latestAiDraftJob) latestAiDraftJob = {};
-              latestAiDraftJob.status = 'canceled';
-              latestAiDraftJob.errorMessage = data && data.message ? String(data.message) : 'Génération IA arrêtée à la demande.';
+              latestAiDraftJob.status = ‘canceled’;
+              latestAiDraftJob.errorMessage = data && data.message ? String(data.message) : ‘Génération IA arrêtée à la demande.’;
               updateAiCancelButton();
-              setAiStatus(latestAiDraftJob.errorMessage, 'success');
+              setAiStatus(latestAiDraftJob.errorMessage, ‘success’);
             } catch (err) {
-              aiCancelBtn.disabled = false;
-              aiCancelBtn.innerHTML = defaultAiCancelBtnHtml;
-              setAiStatus(err && err.message ? err.message : 'Impossible d’arrêter la génération IA.', 'error');
+              btnResetLoading(aiCancelBtn);
+              setAiStatus(err && err.message ? err.message : ‘Impossible d\’arrêter la génération IA.’, ‘error’);
               return;
             }
 
-            aiCancelBtn.innerHTML = defaultAiCancelBtnHtml;
+            btnResetLoading(aiCancelBtn);
           });
         }
 
         if (aiGenerateBtn) {
-          const defaultAiGenerateBtnHtml = aiGenerateBtn.innerHTML;
-
           aiGenerateBtn.addEventListener('click', async () => {
             const payload = {
               productId: String(currentProductId || '').trim(),
@@ -2801,11 +2800,10 @@
               if (!shouldReplace) return;
             }
 
-            aiGenerateBtn.disabled = true;
-            aiGenerateBtn.innerHTML = '<span class="material-symbols-outlined mr-2 text-lg">hourglass_top</span>Recherche…';
+            btnSetLoading(aiGenerateBtn, 'Génération en cours\u2026');
             setAiStatus(`Mode ${getSelectedAiProfileLabel()} : génération en cours… La page va attendre le résultat en arrière-plan.`, 'loading');
             renderAiWarnings([]);
-            toast.info('Génération IA en cours…');
+            toast.info('Génération IA en cours\u2026');
 
             try {
               const response = await fetch('/admin/api/products/generate-draft', {
@@ -2839,9 +2837,9 @@
             } catch (err) {
               updateAiCancelButton();
               setAiStatus(err && err.message ? err.message : 'Erreur pendant la génération IA.', 'error');
+              toast.error(err && err.message ? err.message : 'Erreur pendant la génération IA.');
             } finally {
-              aiGenerateBtn.disabled = false;
-              aiGenerateBtn.innerHTML = defaultAiGenerateBtnHtml;
+              btnResetLoading(aiGenerateBtn);
             }
           });
         }

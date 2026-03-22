@@ -144,8 +144,12 @@
         /* Disable submit button */
         var btn = submitter || form.querySelector('button[type="submit"]');
         if (btn) {
-          btn.disabled = true;
-          btn.classList.add('opacity-50', 'cursor-not-allowed');
+          if (window.btnSetLoading) {
+            window.btnSetLoading(btn);
+          } else {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+          }
         }
 
         var body;
@@ -213,8 +217,12 @@
           /* Error already handled by adminFetch */
         } finally {
           if (btn) {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            if (window.btnResetLoading) {
+              window.btnResetLoading(btn);
+            } else {
+              btn.disabled = false;
+              btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
           }
         }
       });
