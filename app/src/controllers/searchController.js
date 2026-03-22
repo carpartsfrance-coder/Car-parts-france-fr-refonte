@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const demoProducts = require('../demoProducts');
 const { getPublicBaseUrlFromReq } = require('../services/productPublic');
 const { buildSuggestPayload } = require('../services/search');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -18,12 +19,16 @@ async function getSearchPage(req, res, next) {
     const title = 'Rechercher - CarParts France';
     const metaDescription = 'Recherche rapide de pièces auto par nom, référence (SKU) ou marque.';
     const baseUrl = getPublicBaseUrlFromReq(req);
-    const canonicalUrl = baseUrl ? `${baseUrl}/rechercher` : '/rechercher';
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}/rechercher` : `${langPrefix}/rechercher`;
 
     return res.render('search/index', {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,

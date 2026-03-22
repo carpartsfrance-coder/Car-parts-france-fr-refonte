@@ -4,9 +4,10 @@
 <div class="flex flex-col gap-6">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-4xl">precision_manufacturing</span>
-<h2 class="text-2xl font-black uppercase tracking-tight">CarParts<span class="text-white/80">France</span></h2>
+<span class="text-2xl font-black uppercase tracking-tight">CarParts<span class="text-white/80">France</span></span>
 </div>
-<p class="text-white/70 text-sm leading-relaxed">Car Parts France – Spécialiste des pièces automobiles de qualité. Nous offrons une large gamme de pièces testées pour toutes les marques et modèles.</p>
+<% const _flp = typeof langPrefix !== 'undefined' ? langPrefix : ''; %>
+<p class="text-white/70 text-sm leading-relaxed"><%= t('footer.description') %></p>
 <% const _socialSettings = siteSettings && typeof siteSettings === 'object' ? siteSettings : {}; %>
 <div class="flex gap-4">
 <% if (_socialSettings.facebookUrl) { %>
@@ -21,28 +22,28 @@
 </div>
 </div>
 <div>
-<h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white">Navigation</h4>
+<h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white"><%= t('footer.navigation') %></h4>
 <ul class="text-sm text-white/70 space-y-4">
-<li><a class="hover:text-white transition-colors" href="/notre-histoire">Notre Histoire</a></li>
-<li><a class="hover:text-white transition-colors" href="/compte">Mon Compte</a></li>
-<li><a class="hover:text-white transition-colors" href="/compte/garage">Mon Garage</a></li>
-<li><a class="hover:text-white transition-colors" href="/compte/commandes">Suivre Votre Commande</a></li>
-<li><a class="hover:text-white transition-colors" href="/contact">Contact</a></li>
-<li><a class="hover:text-white transition-colors" href="/devis">Demande de devis</a></li>
+<li><a class="hover:text-white transition-colors" href="<%= _flp %>/notre-histoire"><%= t('footer.ourHistory') %></a></li>
+<li><a class="hover:text-white transition-colors" href="<%= _flp %>/compte"><%= t('nav.account') %></a></li>
+<li><a class="hover:text-white transition-colors" href="<%= _flp %>/compte/garage"><%= t('nav.myGarage') %></a></li>
+<li><a class="hover:text-white transition-colors" href="<%= _flp %>/compte/commandes"><%= t('nav.trackOrder') %></a></li>
+<li><a class="hover:text-white transition-colors" href="<%= _flp %>/contact"><%= t('nav.contact') %></a></li>
+<li><a class="hover:text-white transition-colors" href="<%= _flp %>/devis"><%= t('footer.quoteRequest') %></a></li>
 </ul>
 </div>
 <div>
-<h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white">Informations</h4>
+<h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white"><%= t('footer.info') %></h4>
 <ul class="text-sm text-white/70 space-y-4">
-<li><span class="block">Lundi – Vendredi : 08:00 – 18:00</span></li>
-<li><span class="block">Siège social : 50 Boulevard Stalingrad, 06300 Nice</span></li>
+<li><span class="block"><%= t('footer.hours') %></span></li>
+<li><span class="block"><%= t('footer.address') %></span></li>
 <li><a class="hover:text-white transition-colors flex items-center gap-2" href="mailto:contact@carpartsfrance.fr"><span class="material-symbols-outlined text-sm">mail</span> contact@carpartsfrance.fr</a></li>
 <li><a class="hover:text-white transition-colors flex items-center gap-2" href="tel:0465845488"><span class="material-symbols-outlined text-sm">call</span> 04 65 84 54 88</a></li>
 </ul>
 </div>
 <div>
-<h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white">Newsletter</h4>
-<p class="text-xs text-white/70 mb-6">Recevez nos dernières offres techniques et promotions directement dans votre boîte mail.</p>
+<h4 class="font-bold mb-6 uppercase tracking-widest text-sm text-white"><%= t('footer.newsletter') %></h4>
+<p class="text-xs text-white/70 mb-6"><%= t('footer.newsletterDesc') %></p>
 <% if (newsletterError) { %>
 <div class="mb-4 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-xs text-red-100"><%= newsletterError %></div>
 <% } %>
@@ -61,19 +62,19 @@
 <div class="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
 <% const _currentYear = new Date().getFullYear(); %>
 <div class="text-xs text-white/50">
-                    Copyright <%= _currentYear %> © CAR PARTS FRANCE. Tous droits réservés.
+                    <%= t('footer.copyright', { year: String(_currentYear) }) %>
                 </div>
 <div class="flex gap-6 text-xs text-white/50">
-<a class="hover:text-white" href="/legal/confidentialite">Politique de confidentialité</a>
-<a class="hover:text-white" href="/legal/mentions-legales">Mentions légales</a>
-<a class="hover:text-white" href="/legal/cgu">CGU</a>
-<a class="hover:text-white" href="/legal/cgv">CGV</a>
+<a class="hover:text-white" href="<%= _flp %>/legal/confidentialite"><%= t('footer.privacy') %></a>
+<a class="hover:text-white" href="<%= _flp %>/legal/mentions-legales"><%= t('footer.legal') %></a>
+<a class="hover:text-white" href="<%= _flp %>/legal/cgu"><%= t('footer.cgu') %></a>
+<a class="hover:text-white" href="<%= _flp %>/legal/cgv"><%= t('footer.cgv') %></a>
 </div>
 </div>
 </div>
 </footer>
 
-<% const _cp = typeof currentPath === 'string' ? currentPath : ''; %>
+<% const _cp = typeof currentPathWithoutLang !== 'undefined' ? currentPathWithoutLang : (typeof currentPath === 'string' ? currentPath : ''); %>
 <% const _pathOnly = _cp.split('?')[0].split('#')[0]; %>
 <% const _isActive = (href) => {
   if (!href) return false;
@@ -81,7 +82,7 @@
   return _pathOnly === href || _pathOnly.startsWith(href + '/');
 }; %>
 <% const _showWhatsAppButton = !/^\/(admin|panier|commande)(\/|$)/.test(_pathOnly); %>
-<% const _whatsAppMessage = encodeURIComponent("Bonjour, j'ai une question sur une pièce..."); %>
+<% const _whatsAppMessage = encodeURIComponent(t('whatsapp.message')); %>
 <% const _whatsAppHref = `https://wa.me/33756875025?text=${_whatsAppMessage}`; %>
 
 <% const _showMobileNav = !/^\/(admin|commande)(\/|$)/.test(_cp); %>
@@ -91,16 +92,16 @@
   <div class="fixed bottom-20 right-6 z-40 md:bottom-6">
     <div class="group relative flex items-center justify-end">
       <span class="pointer-events-none absolute right-[calc(100%+12px)] hidden whitespace-nowrap rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg transition-all duration-200 group-hover:opacity-100 md:block">
-        Besoin d'aide ? Contactez-nous sur WhatsApp
+        <%= t('whatsapp.tooltip') %>
       </span>
       <a
-        aria-label="Contacter Car Parts France sur WhatsApp"
+        aria-label="<%= t('whatsapp.aria') %>"
         class="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl transition-transform duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#25D366]/30"
         href="<%= _whatsAppHref %>"
         rel="noopener noreferrer"
         style="background-color:#25D366"
         target="_blank"
-        title="Besoin d'aide ? Contactez-nous sur WhatsApp"
+        title="<%= t('whatsapp.tooltip') %>"
       >
         <svg aria-hidden="true" class="h-7 w-7 fill-current" viewBox="0 0 32 32">
           <path d="M19.11 17.21c-.29-.14-1.71-.84-1.98-.94-.27-.1-.47-.14-.67.15-.19.29-.77.94-.94 1.13-.17.19-.34.22-.63.07-.29-.14-1.2-.44-2.29-1.39-.85-.76-1.42-1.69-1.59-1.98-.17-.29-.02-.45.12-.6.12-.12.29-.31.43-.46.14-.15.19-.26.29-.43.1-.17.05-.31-.02-.46-.07-.14-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.19 0-.49.07-.75.36-.26.29-.98.96-.98 2.34s1 2.72 1.14 2.91c.14.19 1.96 3 4.75 4.2.66.29 1.18.46 1.58.58.66.21 1.25.18 1.72.11.53-.08 1.71-.7 1.95-1.37.24-.67.24-1.25.17-1.37-.07-.12-.26-.19-.55-.33Z" />
@@ -115,31 +116,31 @@
   <nav aria-label="Navigation rapide" class="fixed bottom-0 left-0 right-0 z-50 md:hidden">
     <div class="mx-auto max-w-[1440px] px-3 pb-[env(safe-area-inset-bottom)]">
       <div class="grid grid-cols-5 rounded-2xl border border-slate-200 bg-white shadow-lg">
-        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/') ? 'text-primary' : 'text-slate-600' %>" href="/" <% if (_isActive('/')) { %>aria-current="page"<% } %>>
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/') ? 'text-primary' : 'text-slate-600' %>" href="<%= _flp %>/" <% if (_isActive('/')) { %>aria-current="page"<% } %>>
           <span class="material-symbols-rounded text-[22px]">home</span>
-          <span>Accueil</span>
+          <span><%= t('mobile.home') %></span>
         </a>
 
-        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/rechercher') ? 'text-primary' : 'text-slate-600' %>" href="/rechercher" <% if (_isActive('/rechercher')) { %>aria-current="page"<% } %>>
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/rechercher') ? 'text-primary' : 'text-slate-600' %>" href="<%= _flp %>/rechercher" <% if (_isActive('/rechercher')) { %>aria-current="page"<% } %>>
           <span class="material-symbols-rounded text-[22px]">search</span>
-          <span>Rechercher</span>
+          <span><%= t('mobile.search') %></span>
         </a>
 
-        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/produits') ? 'text-primary' : 'text-slate-600' %>" href="/produits" <% if (_isActive('/produits')) { %>aria-current="page"<% } %>>
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/produits') ? 'text-primary' : 'text-slate-600' %>" href="<%= _flp %>/produits" <% if (_isActive('/produits')) { %>aria-current="page"<% } %>>
           <span class="material-symbols-rounded text-[22px]">storefront</span>
-          <span>Catalogue</span>
+          <span><%= t('mobile.catalog') %></span>
         </a>
 
-        <a class="relative flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/panier') ? 'text-primary' : 'text-slate-600' %>" href="/panier" <% if (_isActive('/panier')) { %>aria-current="page"<% } %>>
+        <a class="relative flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/panier') ? 'text-primary' : 'text-slate-600' %>" href="<%= _flp %>/panier" <% if (_isActive('/panier')) { %>aria-current="page"<% } %>>
           <span class="material-symbols-rounded text-[22px]" data-cart-icon>shopping_cart</span>
           <% const _cartCount = typeof cartItemCount !== 'undefined' ? Number(cartItemCount) : 0; %>
           <span class="absolute top-2 right-3 <%= _cartCount > 0 ? 'flex' : 'hidden' %> h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white" data-cart-count data-cart-count-zero-hidden="true"><%= _cartCount > 99 ? '99+' : _cartCount %></span>
-          <span>Panier</span>
+          <span><%= t('mobile.cart') %></span>
         </a>
 
-        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/compte') ? 'text-primary' : 'text-slate-600' %>" href="/compte" <% if (_isActive('/compte')) { %>aria-current="page"<% } %>>
+        <a class="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold transition-colors <%= _isActive('/compte') ? 'text-primary' : 'text-slate-600' %>" href="<%= _flp %>/compte" <% if (_isActive('/compte')) { %>aria-current="page"<% } %>>
           <span class="material-symbols-rounded text-[22px]">account_circle</span>
-          <span>Compte</span>
+          <span><%= t('mobile.account') %></span>
         </a>
       </div>
     </div>
@@ -151,11 +152,11 @@
     <div class="mx-auto max-w-[1440px]">
       <div class="rounded-2xl border border-slate-200 bg-white shadow-xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3">
         <div class="text-xs md:text-sm text-slate-700 font-semibold">
-          Ce site utilise des cookies nécessaires au fonctionnement (ex: panier, connexion). Vous pouvez accepter ou refuser les cookies non essentiels.
+          <%= t('cookie.message') %>
         </div>
         <div class="flex gap-2 md:ml-auto">
-          <button id="cookieRefuse" type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition">Refuser</button>
-          <button id="cookieAccept" type="button" class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition">Accepter</button>
+          <button id="cookieRefuse" type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition"><%= t('cookie.refuse') %></button>
+          <button id="cookieAccept" type="button" class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition"><%= t('cookie.accept') %></button>
         </div>
       </div>
     </div>

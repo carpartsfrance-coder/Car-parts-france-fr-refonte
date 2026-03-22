@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const emailService = require('../services/emailService');
 const { getPublicBaseUrlFromReq } = require('../services/productPublic');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : value ? String(value).trim() : '';
@@ -100,6 +101,9 @@ async function getContactPage(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const baseUrl = getPublicBaseUrlFromReq(req);
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
 
     const rawMode = getTrimmedString(req.query && req.query.type);
     const mode = rawMode === 'devis' ? 'devis' : 'contact';
@@ -117,12 +121,13 @@ async function getContactPage(req, res, next) {
       : 'Contactez CarParts France : question, assistance, compatibilité. Réponse rapide par email ou téléphone.';
 
     const canonicalPath = mode === 'devis' ? '/devis' : '/contact';
-    const canonicalUrl = baseUrl ? `${baseUrl}${canonicalPath}` : canonicalPath;
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}${canonicalPath}` : `${langPrefix}${canonicalPath}`;
 
     return res.render('contact/index', {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,
@@ -143,6 +148,9 @@ async function postContact(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
     const baseUrl = getPublicBaseUrlFromReq(req);
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
 
     const rawMode = getTrimmedString(req.body && req.body.mode);
     const mode = rawMode === 'devis' ? 'devis' : 'contact';
@@ -170,13 +178,14 @@ async function postContact(req, res, next) {
       : 'Contactez CarParts France : question, assistance, compatibilité. Réponse rapide par email ou téléphone.';
 
     const canonicalPath = mode === 'devis' ? '/devis' : '/contact';
-    const canonicalUrl = baseUrl ? `${baseUrl}${canonicalPath}` : canonicalPath;
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}${canonicalPath}` : `${langPrefix}${canonicalPath}`;
 
     if (form.website) {
       return res.render('contact/index', {
         title,
         metaDescription,
         canonicalUrl,
+        ...hreflang,
         ogTitle: title,
         ogDescription: metaDescription,
         ogUrl: canonicalUrl,
@@ -195,6 +204,7 @@ async function postContact(req, res, next) {
         title,
         metaDescription,
         canonicalUrl,
+        ...hreflang,
         ogTitle: title,
         ogDescription: metaDescription,
         ogUrl: canonicalUrl,
@@ -214,6 +224,7 @@ async function postContact(req, res, next) {
         title,
         metaDescription,
         canonicalUrl,
+        ...hreflang,
         ogTitle: title,
         ogDescription: metaDescription,
         ogUrl: canonicalUrl,
@@ -233,6 +244,7 @@ async function postContact(req, res, next) {
         title,
         metaDescription,
         canonicalUrl,
+        ...hreflang,
         ogTitle: title,
         ogDescription: metaDescription,
         ogUrl: canonicalUrl,
@@ -251,6 +263,7 @@ async function postContact(req, res, next) {
         title,
         metaDescription,
         canonicalUrl,
+        ...hreflang,
         ogTitle: title,
         ogDescription: metaDescription,
         ogUrl: canonicalUrl,
@@ -333,6 +346,7 @@ async function postContact(req, res, next) {
         title,
         metaDescription,
         canonicalUrl,
+        ...hreflang,
         ogTitle: title,
         ogDescription: metaDescription,
         ogUrl: canonicalUrl,
@@ -367,6 +381,7 @@ async function postContact(req, res, next) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,

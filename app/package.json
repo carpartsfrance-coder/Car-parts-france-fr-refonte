@@ -21,6 +21,8 @@
     "categories:setup": "node src/seed/setupPartCategories.js --apply",
     "categories:reclassify:dry": "node src/seed/reclassifyProductCategories.js",
     "categories:reclassify": "node src/seed/reclassifyProductCategories.js --apply",
+    "migrate:wp-images": "node scripts/migrate-wp-images.js",
+    "migrate:wp-images:dry": "node scripts/migrate-wp-images.js --dry-run",
     "import:ovoko:dry": "node src/seed/importOvokoVehicleMakes.js --limitMakes=25",
     "import:ovoko": "node src/seed/importOvokoVehicleMakes.js --apply",
     "import:ovoko:urls:dry": "node src/seed/importOvokoVehicleMakesFromUrlsFile.js --input=src/seed/ovoko-make-model-urls.json --limitMakes=25",

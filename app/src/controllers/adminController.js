@@ -830,6 +830,7 @@ async function getAdminCategoriesPage(req, res, next) {
         isHomeFeatured: c.isHomeFeatured === true,
         sortOrder: Number.isFinite(c.sortOrder) ? c.sortOrder : 0,
         shippingClassId: c.shippingClassId ? String(c.shippingClassId) : '',
+        seoText: typeof c.seoText === 'string' ? c.seoText : '',
         createdAt: formatDateTimeFR(c.createdAt),
         usedCountExact,
       };
@@ -1017,7 +1018,7 @@ async function postAdminUpdateCategory(req, res, next) {
       return res.redirect('/admin/categories');
     }
 
-    const existing = await Category.findById(categoryId).select('_id name sortOrder shippingClassId isHomeFeatured').lean();
+    const existing = await Category.findById(categoryId).select('_id name sortOrder shippingClassId isHomeFeatured seoText').lean();
     if (!existing || typeof existing.name !== 'string' || !existing.name.trim()) {
       return res.redirect('/admin/categories');
     }
@@ -1039,6 +1040,7 @@ async function postAdminUpdateCategory(req, res, next) {
       ? new mongoose.Types.ObjectId(shippingClassIdRaw)
       : null;
     const isHomeFeatured = isChecked(req.body && req.body.isHomeFeatured);
+    const seoText = typeof req.body.seoText === 'string' ? req.body.seoText.trim() : '';
 
     if (!nextName) {
       req.session.adminCategoryError = 'Merci de renseigner un nom de catégorie.';
@@ -1096,7 +1098,7 @@ async function postAdminUpdateCategory(req, res, next) {
             name: updatedName,
             slug: updatedSlug,
             sortOrder: updatedSortOrder,
-            ...(String(cat._id) === String(existing._id) ? { shippingClassId, isHomeFeatured } : {}),
+            ...(String(cat._id) === String(existing._id) ? { shippingClassId, isHomeFeatured, seoText } : {}),
           },
         });
       }
@@ -1126,7 +1128,7 @@ async function postAdminUpdateCategory(req, res, next) {
         existing.isHomeFeatured === true !== isHomeFeatured
       ) {
         await Category.findByIdAndUpdate(categoryId, {
-          $set: { name: nextName, slug: nextSlug, sortOrder, shippingClassId, isHomeFeatured },
+          $set: { name: nextName, slug: nextSlug, sortOrder, shippingClassId, isHomeFeatured, seoText },
         });
       }
 

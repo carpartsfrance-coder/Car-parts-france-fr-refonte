@@ -4,6 +4,8 @@ const path = require('path');
 const mongoose = require('mongoose');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const wpRedirects = require('./middlewares/wpRedirects');
+const i18nMiddleware = require('./middlewares/i18n');
 
 const app = express();
 
@@ -262,10 +264,16 @@ app.use((req, res, next) => {
 
   const pathOnly = typeof req.path === 'string' ? req.path : '';
   const noIndex = /^\/(admin|panier|commande|compte)(\/|$)/.test(pathOnly);
-  res.locals.metaRobots = noIndex ? 'noindex, nofollow' : '';
+  const siteUrl = (process.env.SITE_URL || '').toLowerCase();
+  const isProduction = process.env.NODE_ENV === 'production' && siteUrl.includes('carpartsfrance.fr');
+  res.locals.metaRobots = noIndex ? 'noindex, nofollow' : (isProduction ? 'index, follow' : 'noindex, nofollow');
 
   if (process.env.FORCE_NOINDEX === 'true') {
     res.locals.metaRobots = 'noindex, nofollow';
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+
+  if (!isProduction) {
     res.set('X-Robots-Tag', 'noindex, nofollow');
   }
 
@@ -300,6 +308,13 @@ const staticOptions = isProd
 
 app.use(express.static(path.join(__dirname, '..', 'public'), staticOptions));
 
+// WordPress -> Node.js 301 redirects (SEO migration)
+app.use(wpRedirects);
+
+// i18n: language detection from URL prefix (/en/)
+app.use(i18nMiddleware);
+
+// French routes (default)
 app.use('/', indexRouter);
 app.use('/blog', blogRouter);
 app.use('/categorie', categoriesRouter);
@@ -311,6 +326,18 @@ app.use('/commande', checkoutRouter);
 app.use('/legal', legalRouter);
 app.use('/compte', accountRouter);
 app.use('/admin', adminRouter);
+
+// English routes (same routers, /en/ prefix — Express strips the mount path)
+app.use('/en', indexRouter);
+app.use('/en/blog', blogRouter);
+app.use('/en/categorie', categoriesRouter);
+app.use('/en/rechercher', searchRouter);
+app.use('/en/produits', productsRouter);
+app.use('/en/panier', cartRouter);
+app.use('/en/newsletter', newsletterRouter);
+app.use('/en/commande', checkoutRouter);
+app.use('/en/legal', legalRouter);
+app.use('/en/compte', accountRouter);
 
 app.use((req, res) => {
   res.status(404).render('errors/404', {

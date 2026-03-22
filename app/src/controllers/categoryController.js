@@ -9,6 +9,7 @@ const {
   buildCategoryPublicUrl,
   getPublicBaseUrlFromReq,
 } = require('../services/categoryPublic');
+const { buildHreflangSet } = require('../services/i18n');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -111,7 +112,10 @@ async function listCategories(req, res, next) {
     const title = 'Catégories - CarParts France';
     const metaDescription = 'Découvre toutes nos catégories de pièces auto : moteur, freinage, carrosserie, électricité, entretien et plus.';
     const baseUrl = getPublicBaseUrlFromReq(req);
-    const canonicalUrl = baseUrl ? `${baseUrl}/categorie` : '/categorie';
+    const langPrefix = req.lang === 'en' ? '/en' : '';
+    const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+    const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
+    const canonicalUrl = baseUrl ? `${baseUrl}${langPrefix}/categorie` : `${langPrefix}/categorie`;
     const jsonLd = toSafeJsonLd({
       '@context': 'https://schema.org',
       '@graph': [
@@ -145,6 +149,7 @@ async function listCategories(req, res, next) {
       title,
       metaDescription,
       canonicalUrl,
+      ...hreflang,
       ogTitle: title,
       ogDescription: metaDescription,
       ogUrl: canonicalUrl,
@@ -171,7 +176,7 @@ async function getCategory(req, res, next) {
 
     if (dbConnected) {
       category = await Category.findOne({ slug, isActive: { $ne: false } })
-        .select('_id name slug updatedAt')
+        .select('_id name slug updatedAt seoText')
         .lean();
     } else {
       const all = new Map();
@@ -238,16 +243,48 @@ async function getCategory(req, res, next) {
   }
 }
 
+function buildCategoryMetaDescription(name, totalCount) {
+  const n = name.toLowerCase();
+  const count = totalCount > 0 ? totalCount : '';
+  const countText = count ? `${count} références` : 'Large choix';
+
+  const templates = [
+    `${name} reconditionnées et testées sur banc. Garantie 2 ans, expédition 24/48h. ${countText} à prix compétitifs. Paiement en 3x/4x sans frais.`,
+    `${countText} de ${n} reconditionnées avec garantie 2 ans. Testées sur banc, expédiées sous 24/48h. Commandez en 3x/4x sans frais.`,
+    `${name} d'occasion et reconditionnées. ${countText} testées et garanties 2 ans. Livraison express 24/48h. Paiement en 3x/4x disponible.`,
+  ];
+
+  for (const t of templates) {
+    const clean = normalizeMetaText(t);
+    if (clean.length >= 140 && clean.length <= 160) return clean;
+  }
+
+  const fallback = `${name} reconditionnées, testées sur banc et garanties 2 ans. ${countText} disponibles, expédition 24/48h. Paiement en 3x/4x.`;
+  return truncateText(normalizeMetaText(fallback), 160);
+}
+
 function renderCategoryPage({ req, res, category, products, totalCount, page, perPage, totalPages, dbConnected }) {
   const name = getTrimmedString(category && category.name ? category.name : 'Catégorie');
   const title = `${name} - Pièces auto | CarParts France`;
-  const descBase = `Découvre nos pièces auto catégorie ${name}. Trouve la bonne pièce par référence ou par véhicule. Livraison rapide.`;
-  const metaDescription = truncateText(normalizeMetaText(descBase), 160);
+  const metaDescription = buildCategoryMetaDescription(name, totalCount);
 
   const canonicalBase = buildCategoryPublicUrl(category, { req });
   const canonicalUrl = page > 1 ? `${canonicalBase}?page=${encodeURIComponent(String(page))}` : canonicalBase;
   const baseUrl = getPublicBaseUrlFromReq(req);
+  const langPrefix = req.lang === 'en' ? '/en' : '';
+  const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
+  const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
   const metaRobots = page > 1 ? 'noindex, follow' : '';
+
+  const itemListElements = (products || []).map((p, idx) => {
+    const productUrl = baseUrl ? `${baseUrl}${p.publicPath || buildProductPublicPath(p)}` : (p.publicPath || buildProductPublicPath(p));
+    return {
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: getTrimmedString(p.name),
+      url: productUrl,
+    };
+  });
 
   const jsonLd = toSafeJsonLd({
     '@context': 'https://schema.org',
@@ -257,6 +294,11 @@ function renderCategoryPage({ req, res, category, products, totalCount, page, pe
         name,
         url: canonicalUrl,
         description: metaDescription,
+        mainEntity: {
+          '@type': 'ItemList',
+          numberOfItems: totalCount,
+          itemListElement: itemListElements,
+        },
       },
       {
         '@type': 'BreadcrumbList',
@@ -288,6 +330,7 @@ function renderCategoryPage({ req, res, category, products, totalCount, page, pe
     title,
     metaDescription,
     canonicalUrl,
+    ...hreflang,
     ogTitle: title,
     ogDescription: metaDescription,
     ogUrl: canonicalUrl,
@@ -300,6 +343,7 @@ function renderCategoryPage({ req, res, category, products, totalCount, page, pe
       name,
       slug: category.slug,
       publicPath: buildCategoryPublicPath(category),
+      seoText: typeof category.seoText === 'string' ? category.seoText : '',
     },
     products,
     page,
