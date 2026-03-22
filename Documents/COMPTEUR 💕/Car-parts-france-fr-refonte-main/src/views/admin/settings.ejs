@@ -23,27 +23,30 @@
       </div>
     <% } %>
 
-    <div class="mt-8 bg-white rounded-2xl border border-slate-200 p-6">
-      <div class="text-sm font-black uppercase tracking-widest text-slate-400">Sécurité & accès</div>
-      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <details class="mt-8 bg-white rounded-2xl border border-slate-200">
+      <summary class="p-6 cursor-pointer select-none flex items-center justify-between">
+        <div class="text-sm font-black uppercase tracking-widest text-slate-400">Informations techniques (avancées)</div>
+        <span class="material-symbols-outlined text-slate-400 transition-transform">expand_more</span>
+      </summary>
+      <div class="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div class="text-xs font-black uppercase tracking-widest text-slate-400">MongoDB</div>
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">Base de données</div>
           <div class="mt-2 text-sm font-bold text-slate-900">Les comptes back-office sont stockés en base de données.</div>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div class="text-xs font-black uppercase tracking-widest text-slate-400">SESSION_SECRET</div>
-          <div class="mt-2 text-sm font-bold text-slate-900">Clé de session du serveur</div>
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">Session</div>
+          <div class="mt-2 text-sm font-bold text-slate-900">Clé de session configurée côté serveur.</div>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div class="text-xs font-black uppercase tracking-widest text-slate-400">ADMIN_RESET_TOKEN</div>
-          <div class="mt-2 text-sm font-bold text-slate-900">Code secret de récupération d'urgence</div>
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">Récupération d'urgence</div>
+          <div class="mt-2 text-sm font-bold text-slate-900">Code de récupération configuré côté serveur.</div>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div class="text-xs font-black uppercase tracking-widest text-slate-400">MONGODB_URI</div>
-          <div class="mt-2 text-sm font-bold text-slate-900">Connexion à la base MongoDB</div>
+          <div class="text-xs font-black uppercase tracking-widest text-slate-400">Connexion BDD</div>
+          <div class="mt-2 text-sm font-bold text-slate-900"><%= dbConnected ? 'Connectée' : 'Déconnectée' %></div>
         </div>
       </div>
-    </div>
+    </details>
 
     <% if (typeof teamSuccessMessage !== 'undefined' && teamSuccessMessage) { %>
       <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">

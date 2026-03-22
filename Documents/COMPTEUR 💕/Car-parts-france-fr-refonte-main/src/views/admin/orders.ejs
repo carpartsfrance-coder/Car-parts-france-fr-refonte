@@ -53,7 +53,12 @@
 
     <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
-        <div class="font-black text-slate-900">Dernières commandes</div>
+        <div class="font-black text-slate-900">Commandes</div>
+        <% if (typeof pagination !== 'undefined' && pagination && pagination.totalItems) { %>
+          <div class="text-xs font-bold text-slate-500">
+            <%= pagination.from %>–<%= pagination.to %> sur <%= pagination.totalItems %>
+          </div>
+        <% } %>
       </div>
 
       <% if (orders && orders.length) { %>
@@ -108,8 +113,55 @@
             </tbody>
           </table>
         </div>
+
+        <%
+          const qVal = filters && filters.q ? String(filters.q) : '';
+          const statusVal = filters && filters.status ? String(filters.status) : '';
+          const typeVal = filters && filters.type ? String(filters.type) : '';
+          const periodVal = filters && filters.period ? String(filters.period) : '';
+          const extraQuery = [
+            qVal ? `q=${encodeURIComponent(qVal)}` : '',
+            statusVal ? `status=${encodeURIComponent(statusVal)}` : '',
+            typeVal ? `type=${encodeURIComponent(typeVal)}` : '',
+            periodVal ? `period=${encodeURIComponent(periodVal)}` : '',
+          ].filter(Boolean).join('&');
+          const withExtra = extraQuery ? `&${extraQuery}` : '';
+        %>
+
+        <% if (typeof pagination !== 'undefined' && pagination && pagination.totalPages > 1) { %>
+          <div class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="text-xs font-black uppercase tracking-widest text-slate-400">
+              Affichage <%= pagination.from %>–<%= pagination.to %> sur <%= pagination.totalItems %>
+            </div>
+            <div class="flex items-center justify-end gap-2">
+              <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition <%= pagination.hasPrev ? '' : 'opacity-40 pointer-events-none' %>" href="?page=<%= pagination.prevPage %><%= withExtra %>" aria-label="Page précédente">
+                <span class="material-symbols-outlined text-slate-500">chevron_left</span>
+              </a>
+
+              <% const startPage = Math.max(1, pagination.page - 2); %>
+              <% const endPage = Math.min(pagination.totalPages, pagination.page + 2); %>
+              <% for (let p = startPage; p <= endPage; p += 1) { %>
+                <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border text-xs font-black <%= p === pagination.page ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50' %>" href="?page=<%= p %><%= withExtra %>"><%= p %></a>
+              <% } %>
+
+              <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition <%= pagination.hasNext ? '' : 'opacity-40 pointer-events-none' %>" href="?page=<%= pagination.nextPage %><%= withExtra %>" aria-label="Page suivante">
+                <span class="material-symbols-outlined text-slate-500">chevron_right</span>
+              </a>
+            </div>
+          </div>
+        <% } %>
+      <% } else if (!dbConnected) { %>
+        <div class="px-6 py-4 space-y-3">
+          <% for (let i = 0; i < 5; i++) { %>
+            <div class="animate-pulse bg-gray-200 h-12 rounded-xl"></div>
+          <% } %>
+        </div>
       <% } else { %>
-        <div class="p-6 text-slate-600">Aucune commande.</div>
+        <div class="text-center py-12">
+          <span class="material-symbols-outlined text-6xl text-gray-300">inbox</span>
+          <p class="text-lg font-semibold text-gray-500 mt-4">Aucune commande</p>
+          <p class="text-gray-400">Les commandes apparaitront ici.</p>
+        </div>
       <% } %>
     </div>
 

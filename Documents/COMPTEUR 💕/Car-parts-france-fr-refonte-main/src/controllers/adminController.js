@@ -1722,7 +1722,8 @@ async function getAdminDashboard(req, res, next) {
         title: 'Admin - Dashboard',
         dbConnected,
         kpis: {},
-        sales: { values: [35, 48, 42, 55, 70, 82, 65], labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] },
+        weeklyChart: { labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'], values: [0, 0, 0, 0, 0, 0, 0], prevValues: [0, 0, 0, 0, 0, 0, 0] },
+        monthlyChart: { labels: [], values: [] },
         activities: [],
       });
     }
@@ -1748,6 +1749,95 @@ async function getAdminDashboard(req, res, next) {
 
     const pendingOrdersCount = await Order.countDocuments({ status: 'en_attente' });
     const stockAlertsCount = await Product.countDocuments({ stockQty: { $ne: null, $lte: 2 } });
+
+    /* ── Weekly bar chart data (last 7 days + previous 7 days) ── */
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - 6);
+    weekStart.setHours(0, 0, 0, 0);
+    const prevWeekStart = new Date(weekStart);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+
+    const dailyRevenueAgg = await Order.aggregate([
+      { $match: { createdAt: { $gte: prevWeekStart } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Europe/Paris' } },
+          total: { $sum: '$totalCents' },
+        },
+      },
+    ]);
+    const dailyMap = new Map(dailyRevenueAgg.map((d) => [d._id, d.total]));
+
+    const weekLabels = [];
+    const weekValues = [];
+    const prevWeekValues = [];
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      weekLabels.push(dayNames[d.getDay()] + ' ' + d.getDate());
+      weekValues.push(Math.round((dailyMap.get(key) || 0) / 100));
+
+      const pd = new Date(prevWeekStart);
+      pd.setDate(pd.getDate() + i);
+      const pkey = pd.toISOString().slice(0, 10);
+      prevWeekValues.push(Math.round((dailyMap.get(pkey) || 0) / 100));
+    }
+
+    /* ── Monthly line chart data (last 6 months) ── */
+    const sixMonthsAgo = new Date(now);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const monthlyRevenueAgg = await Order.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone: 'Europe/Paris' } },
+          total: { $sum: '$totalCents' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+    const monthlyMap = new Map(monthlyRevenueAgg.map((m) => [m._id, m]));
+
+    const monthLabels = [];
+    const monthValues = [];
+    const monthNamesFR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+    for (let i = 0; i < 6; i++) {
+      const md = new Date(sixMonthsAgo);
+      md.setMonth(md.getMonth() + i);
+      const key = md.toISOString().slice(0, 7);
+      monthLabels.push(monthNamesFR[md.getMonth()] + ' ' + md.getFullYear());
+      const entry = monthlyMap.get(key);
+      monthValues.push(Math.round((entry ? entry.total : 0) / 100));
+    }
+
+    /* ── New KPIs: average basket + top products ── */
+    const ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth } });
+    const averageBasketCents = ordersThisMonth > 0 ? Math.round(revenueMonthCents / ordersThisMonth) : 0;
+
+    const topProductsAgg = await Order.aggregate([
+      { $match: { createdAt: { $gte: startMonth } } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.name',
+          totalQty: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: '$items.lineTotalCents' },
+        },
+      },
+      { $sort: { totalQty: -1 } },
+      { $limit: 3 },
+    ]);
+    const topProducts = topProductsAgg.map((p) => ({
+      name: p._id || 'Sans nom',
+      qty: p.totalQty,
+      revenue: formatEuro(p.totalRevenue),
+    }));
 
     const latestOrders = await Order.find({})
       .sort({ createdAt: -1 })
@@ -1790,8 +1880,12 @@ async function getAdminDashboard(req, res, next) {
         revenueMonth: formatEuro(revenueMonthCents),
         pendingOrdersCount,
         stockAlertsCount,
+        averageBasket: formatEuro(averageBasketCents),
+        ordersThisMonth,
+        topProducts,
       },
-      sales: { values: [35, 48, 42, 55, 70, 82, 65], labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] },
+      weeklyChart: { labels: weekLabels, values: weekValues, prevValues: prevWeekValues },
+      monthlyChart: { labels: monthLabels, values: monthValues },
       activities,
     });
   } catch (err) {
@@ -1807,6 +1901,9 @@ async function getAdminOrdersPage(req, res, next) {
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : '';
     const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
     const period = typeof req.query.period === 'string' ? req.query.period.trim() : '';
+    const perPage = 20;
+    const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
+    const requestedPage = Math.max(1, Number.parseInt(rawPage, 10) || 1);
 
     if (!dbConnected) {
       return res.render('admin/orders', {
@@ -1814,6 +1911,7 @@ async function getAdminOrdersPage(req, res, next) {
         dbConnected,
         orders: [],
         filters: { q, status, type, period },
+        pagination: { page: 1, perPage, totalItems: 0, totalPages: 1, from: 0, to: 0, hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1 },
       });
     }
 
@@ -1859,9 +1957,15 @@ async function getAdminOrdersPage(req, res, next) {
       }
     }
 
+    const totalItems = await Order.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const page = Math.min(requestedPage, totalPages);
+    const skip = (page - 1) * perPage;
+
     const orders = await Order.find(query)
       .sort({ createdAt: -1 })
-      .limit(200)
+      .skip(skip)
+      .limit(perPage)
       .lean();
 
     const userIds = orders
@@ -1902,11 +2006,25 @@ async function getAdminOrdersPage(req, res, next) {
       };
     });
 
+    const pagination = {
+      page,
+      perPage,
+      totalItems,
+      totalPages,
+      from: totalItems ? skip + 1 : 0,
+      to: totalItems ? skip + orders.length : 0,
+      hasPrev: page > 1,
+      hasNext: page < totalPages,
+      prevPage: Math.max(1, page - 1),
+      nextPage: Math.min(totalPages, page + 1),
+    };
+
     return res.render('admin/orders', {
       title: 'Admin - Commandes',
       dbConnected,
       orders: viewOrders,
       filters: { q, status, type, period },
+      pagination,
     });
   } catch (err) {
     return next(err);

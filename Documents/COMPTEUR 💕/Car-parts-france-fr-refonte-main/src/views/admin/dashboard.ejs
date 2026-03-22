@@ -7,7 +7,7 @@
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
       <div>
         <div class="text-2xl md:text-3xl font-black text-slate-900">Tableau de Bord Global</div>
-        <div class="mt-1 text-sm text-slate-600">Aperçu des performances de CarParts France • Aujourd’hui</div>
+        <div class="mt-1 text-sm text-slate-600">Aperçu des performances de CarParts France</div>
       </div>
 
       <div class="flex items-center gap-3">
@@ -22,16 +22,18 @@
       </div>
     </div>
 
+    <!-- KPI Cards Row 1 -->
     <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
       <div class="bg-white rounded-2xl border border-slate-200 p-5">
         <div class="flex items-center justify-between">
           <div class="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
             <span class="material-symbols-outlined">payments</span>
           </div>
-          <span class="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">+12%</span>
+          <span class="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest" title="vs jour précédent">+12%</span>
         </div>
-        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Chiffre d’affaires (jour)</div>
+        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Chiffre d'affaires (jour)</div>
         <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && kpis.revenueToday ? kpis.revenueToday : '—' %></div>
+        <div class="mt-1 text-[10px] text-slate-400">vs jour précédent</div>
       </div>
 
       <div class="bg-white rounded-2xl border border-slate-200 p-5">
@@ -39,10 +41,22 @@
           <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
             <span class="material-symbols-outlined">monitoring</span>
           </div>
-          <span class="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">+5.2%</span>
+          <span class="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest" title="vs mois précédent">+5.2%</span>
         </div>
         <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">C.A. (mois en cours)</div>
         <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && kpis.revenueMonth ? kpis.revenueMonth : '—' %></div>
+        <div class="mt-1 text-[10px] text-slate-400">vs mois précédent</div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between">
+          <div class="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+            <span class="material-symbols-outlined">shopping_basket</span>
+          </div>
+        </div>
+        <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Panier moyen</div>
+        <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && kpis.averageBasket ? kpis.averageBasket : '—' %></div>
+        <div class="mt-1 text-[10px] text-slate-400"><%= kpis && kpis.ordersThisMonth ? kpis.ordersThisMonth : 0 %> commandes ce mois</div>
       </div>
 
       <div class="bg-white rounded-2xl border border-slate-200 p-5">
@@ -50,12 +64,17 @@
           <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
             <span class="material-symbols-outlined">inventory</span>
           </div>
-          <div class="w-2 h-2 rounded-full bg-orange-500"></div>
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-orange-500"></div>
+          </div>
         </div>
         <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Commandes en attente</div>
         <div class="mt-2 text-2xl font-black text-slate-900"><%= kpis && typeof kpis.pendingOrdersCount !== 'undefined' ? kpis.pendingOrdersCount : 0 %></div>
       </div>
+    </div>
 
+    <!-- KPI Cards Row 2 -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
       <div class="bg-white rounded-2xl border border-slate-200 p-5">
         <div class="flex items-center justify-between">
           <div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
@@ -66,29 +85,48 @@
         <div class="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Alertes stock</div>
         <div class="mt-2 text-2xl font-black text-primary"><%= kpis && typeof kpis.stockAlertsCount !== 'undefined' ? kpis.stockAlertsCount : 0 %> articles</div>
       </div>
-    </div>
 
-    <div class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
-        <div class="flex items-center justify-between">
-          <div class="font-black text-slate-900">Évolution des ventes</div>
-          <div class="text-xs font-black uppercase tracking-widest text-slate-400">Ce mois</div>
-        </div>
-
-        <div class="mt-6">
-          <div class="grid grid-cols-7 gap-3 items-end h-44">
-            <% (sales && Array.isArray(sales.values) ? sales.values : [35,48,42,55,70,82,65]).forEach((v, idx) => { %>
-              <div class="flex flex-col items-center gap-2">
-                <div class="w-full h-32 rounded-xl bg-slate-100 overflow-hidden flex items-end">
-                  <div class="w-full rounded-xl <%= idx >= 4 ? 'bg-primary' : 'bg-slate-300' %>" data-bar-height="<%= Math.max(10, Math.min(100, v)) %>"></div>
+      <!-- Top 3 Products -->
+      <div class="xl:col-span-3 bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Top 3 produits vendus (ce mois)</div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <% const topProducts = kpis && Array.isArray(kpis.topProducts) ? kpis.topProducts : []; %>
+          <% if (topProducts.length) { %>
+            <% topProducts.forEach((p, idx) => { %>
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm <%= idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : 'bg-orange-100 text-orange-600' %>">
+                  #<%= idx + 1 %>
                 </div>
-                <div class="text-[10px] font-black uppercase tracking-widest text-slate-400"><%= sales && sales.labels ? sales.labels[idx] : ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'][idx] %></div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-bold text-slate-900 truncate"><%= p.name %></div>
+                  <div class="text-xs text-slate-500"><%= p.qty %> vendus &middot; <%= p.revenue %></div>
+                </div>
               </div>
             <% }) %>
+          <% } else { %>
+            <div class="text-sm text-slate-500 col-span-3">Aucune vente ce mois.</div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <!-- Weekly Bar Chart -->
+      <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="font-black text-slate-900">Ventes hebdomadaires</div>
+          <div class="flex items-center gap-4 text-xs">
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-primary inline-block"></span> Cette semaine</span>
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-300 inline-block"></span> Semaine précédente</span>
           </div>
+        </div>
+        <div class="h-64">
+          <canvas id="weeklyChart"></canvas>
         </div>
       </div>
 
+      <!-- Activities -->
       <div class="bg-white rounded-2xl border border-slate-200 p-6">
         <div class="flex items-center justify-between">
           <div class="font-black text-slate-900">Activités Récentes</div>
@@ -124,6 +162,17 @@
       </div>
     </div>
 
+    <!-- Monthly Line Chart -->
+    <div class="mt-6 bg-white rounded-2xl border border-slate-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="font-black text-slate-900">Évolution du C.A. (6 derniers mois)</div>
+        <div class="text-xs font-black uppercase tracking-widest text-slate-400">Mensuel</div>
+      </div>
+      <div class="h-64">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
     <div class="mt-8 rounded-2xl border border-slate-200 bg-rose-50 p-6 flex items-start justify-between gap-6">
       <div class="flex items-start gap-4">
         <div class="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center">
@@ -141,16 +190,121 @@
   </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
   (function () {
-    var bars = document.querySelectorAll('[data-bar-height]');
-    for (var i = 0; i < bars.length; i += 1) {
-      var el = bars[i];
-      var value = Number(el.getAttribute('data-bar-height') || '0');
-      if (!Number.isFinite(value)) value = 0;
-      if (value < 0) value = 0;
-      if (value > 100) value = 100;
-      el.style.height = value + '%';
+    var weeklyData = <%- JSON.stringify(typeof weeklyChart !== 'undefined' ? weeklyChart : { labels: [], values: [], prevValues: [] }) %>;
+    var monthlyData = <%- JSON.stringify(typeof monthlyChart !== 'undefined' ? monthlyChart : { labels: [], values: [] }) %>;
+
+    var primaryColor = '#D32F2F';
+    var slateColor = '#CBD5E1';
+
+    /* Weekly Bar Chart */
+    var weeklyCtx = document.getElementById('weeklyChart');
+    if (weeklyCtx) {
+      new Chart(weeklyCtx, {
+        type: 'bar',
+        data: {
+          labels: weeklyData.labels,
+          datasets: [
+            {
+              label: 'Cette semaine',
+              data: weeklyData.values,
+              backgroundColor: primaryColor,
+              borderRadius: 6,
+              barPercentage: 0.6,
+            },
+            {
+              label: 'Semaine précédente',
+              data: weeklyData.prevValues,
+              backgroundColor: slateColor,
+              borderRadius: 6,
+              barPercentage: 0.6,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 800, easing: 'easeOutQuart' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR') + ' €'; },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#F1F5F9' },
+              ticks: {
+                callback: function (v) { return v.toLocaleString('fr-FR') + ' €'; },
+                font: { size: 11, weight: 'bold' },
+                color: '#94A3B8',
+              },
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11, weight: 'bold' }, color: '#94A3B8' },
+            },
+          },
+        },
+      });
+    }
+
+    /* Monthly Line Chart */
+    var monthlyCtx = document.getElementById('monthlyChart');
+    if (monthlyCtx) {
+      new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+          labels: monthlyData.labels,
+          datasets: [
+            {
+              label: 'Chiffre d\'affaires',
+              data: monthlyData.values,
+              borderColor: primaryColor,
+              backgroundColor: 'rgba(211, 47, 47, 0.08)',
+              fill: true,
+              tension: 0.4,
+              pointBackgroundColor: primaryColor,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              borderWidth: 3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 1000, easing: 'easeOutQuart' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) { return ctx.parsed.y.toLocaleString('fr-FR') + ' €'; },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#F1F5F9' },
+              ticks: {
+                callback: function (v) { return v.toLocaleString('fr-FR') + ' €'; },
+                font: { size: 11, weight: 'bold' },
+                color: '#94A3B8',
+              },
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11, weight: 'bold' }, color: '#94A3B8' },
+            },
+          },
+        },
+      });
     }
   })();
 </script>
