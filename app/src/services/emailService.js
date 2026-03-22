@@ -8,6 +8,7 @@ const {
   buildWelcomeEmail,
   buildGuestAccountCreatedEmail,
   buildResetPasswordEmail,
+  buildNewBlogPostEmail,
 } = require('./emailTemplates');
 
 const mongoose = require('mongoose');
@@ -380,6 +381,52 @@ async function sendResetPasswordEmail({ user, resetUrl } = {}) {
   return sendEmail({ toEmail: user.email, subject: built.subject, html: built.html, text: built.text });
 }
 
+async function sendNewBlogPostToSubscribers({ post, baseUrl } = {}) {
+  const NewsletterSubscriber = require('../models/NewsletterSubscriber');
+  const resolvedBaseUrl = getTrimmedString(baseUrl) || getSiteUrlFromEnv() || '';
+  const email = buildNewBlogPostEmail({ post, baseUrl: resolvedBaseUrl });
+  if (!email || !email.subject) return { sent: 0, errors: 0 };
+
+  let subscribers = [];
+  try {
+    subscribers = await NewsletterSubscriber.find({ status: 'active' }).select('email').limit(500).lean();
+  } catch (err) {
+    console.error('[Newsletter] Erreur lecture abonnés :', err.message);
+    return { sent: 0, errors: 1 };
+  }
+
+  if (!subscribers.length) {
+    console.log('[Newsletter] Aucun abonné actif — email non envoyé');
+    return { sent: 0, errors: 0 };
+  }
+
+  let sent = 0;
+  let errors = 0;
+
+  for (const sub of subscribers) {
+    try {
+      const result = await sendEmail({ toEmail: sub.email, subject: email.subject, html: email.html, text: email.text });
+      if (result && result.ok) {
+        sent++;
+      } else {
+        errors++;
+        console.error('[Newsletter] Échec envoi à', sub.email, result && result.reason ? result.reason : '');
+      }
+    } catch (err) {
+      errors++;
+      console.error('[Newsletter] Erreur envoi à', sub.email, err.message);
+    }
+
+    // Rate limiting — 100ms entre chaque envoi
+    if (subscribers.indexOf(sub) < subscribers.length - 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  console.log(`[Newsletter] Envoi terminé : ${sent} envoyés, ${errors} erreurs sur ${subscribers.length} abonnés`);
+  return { sent, errors };
+}
+
 module.exports = {
   sendEmail,
   sendOrderConfirmationEmail,
@@ -391,4 +438,5 @@ module.exports = {
   sendWelcomeEmail,
   sendGuestAccountCreatedEmail,
   sendResetPasswordEmail,
+  sendNewBlogPostToSubscribers,
 };

@@ -746,6 +746,39 @@ ${renderPrimaryButton({ href: resetUrl, label: 'Créer un nouveau mot de passe' 
   };
 }
 
+function buildNewBlogPostEmail({ post, baseUrl } = {}) {
+  const title = getTrimmedString(post && post.title) || 'Nouvel article';
+  const excerpt = getTrimmedString(post && post.excerpt) || '';
+  const slug = getTrimmedString(post && post.slug);
+  const coverImageUrl = getTrimmedString(post && post.coverImageUrl);
+  const safeBaseUrl = getTrimmedString(baseUrl);
+  const articleUrl = slug ? `${safeBaseUrl}/blog/${slug}` : `${safeBaseUrl}/blog`;
+  const unsubscribeUrl = `${safeBaseUrl}/newsletter/desinscription`;
+
+  const coverHtml = coverImageUrl
+    ? `<div style="margin-bottom:16px;border-radius:12px;overflow:hidden;">
+        <a href="${escapeHtml(articleUrl)}"><img src="${escapeHtml(coverImageUrl.startsWith('http') ? coverImageUrl : safeBaseUrl + coverImageUrl)}" alt="${escapeHtml(title)}" style="width:100%;max-width:552px;height:auto;display:block;border-radius:12px;" /></a>
+      </div>`
+    : '';
+
+  const bodyHtml = `
+    ${coverHtml}
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#0f172a;line-height:1.3;">${escapeHtml(title)}</h1>
+    ${excerpt ? `<p style="margin:0 0 16px;font-size:14px;color:#64748b;line-height:1.6;">${escapeHtml(excerpt.length > 200 ? excerpt.slice(0, 200) + '...' : excerpt)}</p>` : ''}
+    ${renderPrimaryButton({ href: articleUrl, label: 'Lire l\'article' })}
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
+      Vous recevez cet email car vous êtes inscrit à la newsletter CarParts France.<br />
+      <a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se désinscrire</a>
+    </div>
+  `;
+
+  return {
+    subject: `Nouvel article : ${title}`,
+    html: renderEmailLayout({ title: `Nouvel article : ${title}`, preheader: excerpt.slice(0, 100), bodyHtml, baseUrl: safeBaseUrl }),
+    text: `Nouvel article sur CarParts France : ${title}\n\n${excerpt}\n\nLire l'article : ${articleUrl}\n\nSe désinscrire : ${unsubscribeUrl}`,
+  };
+}
+
 module.exports = {
   buildOrderConfirmationEmail,
   buildConsigneStartEmail,
@@ -756,4 +789,5 @@ module.exports = {
   buildWelcomeEmail,
   buildGuestAccountCreatedEmail,
   buildResetPasswordEmail,
+  buildNewBlogPostEmail,
 };

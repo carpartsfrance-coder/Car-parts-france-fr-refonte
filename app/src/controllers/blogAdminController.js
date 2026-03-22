@@ -6,6 +6,7 @@ const { slugify } = require('../services/productPublic');
 const { markdownToHtml, stripHtml: stripHtmlFromService } = require('../services/blogContent');
 const mediaStorage = require('../services/mediaStorage');
 const { getSiteUrlFromEnv } = require('../services/siteUrl');
+const emailService = require('../services/emailService');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -621,6 +622,14 @@ async function postAdminCreateBlogPost(req, res, next) {
       );
     }
 
+    if (created.isPublished && !created.newsletterSentAt) {
+      const baseUrl = getSiteUrlFromEnv() || '';
+      BlogPost.updateOne({ _id: created._id }, { $set: { newsletterSentAt: new Date() } }).catch(() => {});
+      emailService.sendNewBlogPostToSubscribers({ post: created, baseUrl }).catch((err) => {
+        console.error('[Newsletter] Erreur envoi newsletter blog :', err.message);
+      });
+    }
+
     req.session.adminBlogSuccess = 'Article créé.';
     return res.redirect(`/admin/blog/${encodeURIComponent(String(created._id))}`);
   } catch (err) {
@@ -822,6 +831,14 @@ async function postAdminUpdateBlogPost(req, res, next) {
         { _id: { $ne: updated._id } },
         { $set: { isFeatured: false } }
       );
+    }
+
+    if (updated && updated.isPublished && !existing.newsletterSentAt) {
+      const baseUrl = getSiteUrlFromEnv() || '';
+      BlogPost.updateOne({ _id: updated._id }, { $set: { newsletterSentAt: new Date() } }).catch(() => {});
+      emailService.sendNewBlogPostToSubscribers({ post: updated, baseUrl }).catch((err) => {
+        console.error('[Newsletter] Erreur envoi newsletter blog :', err.message);
+      });
     }
 
     req.session.adminBlogSuccess = 'Article enregistré.';

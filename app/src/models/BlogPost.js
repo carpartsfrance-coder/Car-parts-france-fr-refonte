@@ -34,6 +34,7 @@ const blogPostSchema = new mongoose.Schema(
     isHomeFeatured: { type: Boolean, default: false },
     isPublished: { type: Boolean, default: false },
     publishedAt: { type: Date, default: null },
+    newsletterSentAt: { type: Date, default: null },
 
     seo: {
       primaryKeyword: { type: String, default: '', trim: true },

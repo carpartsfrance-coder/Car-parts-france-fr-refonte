@@ -54,7 +54,7 @@ async function postSubscribe(req, res, next) {
         {
           $set: {
             status: 'active',
-            source: 'footer',
+            source: getTrimmedString(req.body && req.body.source) || 'footer',
             subscribedAt: new Date(),
             unsubscribedAt: null,
           },
@@ -68,7 +68,7 @@ async function postSubscribe(req, res, next) {
     await NewsletterSubscriber.create({
       email,
       status: 'active',
-      source: 'footer',
+      source: getTrimmedString(req.body && req.body.source) || 'footer',
       subscribedAt: new Date(),
       unsubscribedAt: null,
     });
