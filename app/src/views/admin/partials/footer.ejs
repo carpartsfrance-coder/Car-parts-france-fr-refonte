@@ -1,3 +1,69 @@
     </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none"></div>
+
+    <script>
+      (function () {
+        /* Sidebar toggle */
+        var toggle = document.getElementById('sidebar-toggle');
+        var sidebar = document.getElementById('admin-sidebar');
+        var overlay = document.getElementById('sidebar-overlay');
+        if (toggle && sidebar && overlay) {
+          toggle.onclick = function () {
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+          };
+          overlay.onclick = function () {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+          };
+        }
+
+        /* Toast notification system */
+        window.showToast = function (message, type) {
+          type = type || 'success';
+          var container = document.getElementById('toast-container');
+          if (!container) return;
+          var icons = { success: 'check_circle', error: 'error', info: 'info' };
+          var colors = {
+            success: 'bg-green-600',
+            error: 'bg-red-600',
+            info: 'bg-slate-800',
+          };
+          var toast = document.createElement('div');
+          toast.className = 'pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl text-white text-sm font-semibold translate-x-[120%] transition-transform duration-300 ' + (colors[type] || colors.success);
+          toast.innerHTML =
+            '<span class="material-symbols-outlined text-xl">' + (icons[type] || icons.success) + '</span>' +
+            '<span>' + message + '</span>';
+          container.appendChild(toast);
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              toast.classList.remove('translate-x-[120%]');
+              toast.classList.add('translate-x-0');
+            });
+          });
+          setTimeout(function () {
+            toast.classList.remove('translate-x-0');
+            toast.classList.add('translate-x-[120%]');
+            setTimeout(function () { toast.remove(); }, 300);
+          }, 3000);
+        };
+
+        /* Save button spinner */
+        document.querySelectorAll('form').forEach(function (form) {
+          form.addEventListener('submit', function () {
+            var btn = form.querySelector('button[type="submit"]');
+            if (!btn || btn.disabled) return;
+            var icon = btn.querySelector('.material-symbols-outlined');
+            if (icon && icon.textContent.trim() === 'save') {
+              btn.disabled = true;
+              btn.classList.add('opacity-50', 'cursor-not-allowed');
+              icon.outerHTML = '<svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
+            }
+          });
+        });
+      })();
+    </script>
   </body>
 </html>

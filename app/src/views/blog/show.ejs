@@ -124,11 +124,8 @@
           <div class="relative z-10">
             <h3 class="text-lg font-display font-bold mb-2">Restez informé</h3>
             <p class="text-[11px] text-slate-400 mb-4">Recevez nos guides techniques et offres exclusives chaque mois.</p>
-            <form action="/newsletter" class="space-y-2" method="POST">
-              <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>" />
-              <input type="hidden" name="returnTo" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/blog' %>" />
-              <input type="hidden" name="source" value="blog-article" />
-              <input class="w-full bg-white/10 border-white/20 rounded-lg py-1.5 px-3 text-xs focus:ring-primary focus:border-primary" name="email" placeholder="Votre email" required type="email"/>
+            <form class="space-y-2" onsubmit="return false;">
+              <input class="w-full bg-white/10 border-white/20 rounded-lg py-1.5 px-3 text-xs focus:ring-primary focus:border-primary" placeholder="Votre email" type="email"/>
               <button class="w-full bg-primary hover:bg-red-700 text-white font-bold py-2 rounded-lg text-xs transition-all uppercase" type="submit">S'abonner</button>
             </form>
           </div>

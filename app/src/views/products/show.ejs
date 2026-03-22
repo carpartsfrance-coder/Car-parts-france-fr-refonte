@@ -152,8 +152,8 @@
         <span class="text-slate-900 dark:text-white font-medium"><%= product.name %></span>
       </div>
 
-      <div class="flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-10 items-start lg:items-stretch">
-        <div class="lg:col-span-7 order-1 lg:order-none flex flex-col gap-4 h-full w-full">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start lg:items-stretch">
+        <div class="lg:col-span-7 flex flex-col gap-4 h-full">
           <div class="relative w-full aspect-video rounded-xl bg-slate-100 dark:bg-slate-900 overflow-hidden border border-slate-200 dark:border-slate-800 refined-shadow">
             <% if (mainImage) { %>
               <img alt="<%= product.name %>" class="w-full h-full object-cover" data-main-image decoding="async" loading="eager" src="<%= mainImage %>" />
@@ -171,22 +171,10 @@
                 <span class="material-symbols-outlined">chevron_right</span>
               </button>
             <% } %>
-
-            <% if (images.length > 1) { %>
-              <span class="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full lg:hidden" data-gallery-counter>1/<%= images.length %></span>
-            <% } %>
           </div>
 
-          <% if (images.length > 1) { %>
-            <div class="flex justify-center gap-2 mt-3 lg:hidden" data-gallery-dots>
-              <% images.forEach(function(img, idx) { %>
-                <button aria-label="Image <%= idx + 1 %>" class="w-2 h-2 rounded-full transition-colors <%= idx === 0 ? 'bg-primary' : 'bg-slate-300' %>" data-dot-index="<%= idx %>" type="button"></button>
-              <% }) %>
-            </div>
-          <% } %>
-
           <% if (visibleThumbImages.length) { %>
-            <div class="hidden lg:grid grid-cols-4 gap-4">
+            <div class="grid grid-cols-4 gap-4">
               <% visibleThumbImages.forEach((img, idx) => { %>
                 <% const remainingImages = thumbImages.length - 4; %>
                 <button aria-label="Voir l'image <%= idx + 1 %>" class="relative aspect-square rounded-lg overflow-hidden cursor-pointer border bg-white dark:bg-slate-900 refined-shadow transition-all <%= idx === 0 ? 'border-primary/20 ring-2 ring-primary' : 'border-slate-200 dark:border-slate-700 hover:border-primary' %>" data-thumb data-index="<%= idx %>" data-src="<%= img %>" type="button">
@@ -203,7 +191,7 @@
             <button class="hidden" data-thumb data-index="<%= idx + 4 %>" data-src="<%= img %>" type="button"></button>
           <% }) %>
 
-          <div class="hidden lg:grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-1">
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-1">
             <% qualityHighlights.forEach((item) => { %>
               <div class="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center refined-shadow">
                 <span class="material-symbols-outlined text-primary text-3xl mb-2"><%= item.icon %></span>
@@ -222,49 +210,31 @@
           <% } %>
         </div>
 
-        <div class="lg:col-span-5 order-2 lg:order-none flex flex-col gap-6 h-full">
+        <div class="lg:col-span-5 flex flex-col gap-6 h-full">
           <div>
             <span class="inline-block px-2 py-1 rounded bg-primary text-white text-[10px] font-black uppercase mb-3 tracking-widest"><%= heroBadge %></span>
-            <h1 class="text-xl sm:text-2xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight mb-2 normal-case sm:uppercase tracking-tighter"><%= product.name %></h1>
+            <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight mb-2 uppercase tracking-tighter"><%= product.name %></h1>
             <p class="text-slate-500 dark:text-slate-300 text-lg"><%= productSubtitle || ('Série ' + ref) %></p>
           </div>
 
           <div class="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 border-l-4 border-l-primary refined-shadow">
-            <!-- Mobile: tout aligné à gauche, scan vertical -->
-            <div class="flex flex-col gap-1 md:hidden">
-              <div class="flex items-baseline gap-3">
-                <span class="text-3xl font-black text-primary" data-price-display data-base-price-cents="<%= basePriceCents %>" data-installment-count="<%= installmentCount %>" data-installment-min-cents="<%= installmentMinPriceCents %>" data-installment-max-cents="<%= installmentMaxPriceCents %>"><%= formatMoney(product.priceCents) %> €</span>
-                <span class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">TTC</span>
+            <div class="flex justify-between items-end gap-4 mb-1">
+              <div>
+                <span class="text-slate-500 text-sm font-medium">Prix public</span>
                 <% if (compareAt && compareAt > product.priceCents) { %>
-                  <span class="text-sm text-slate-400 line-through"><%= formatMoney(compareAt) %> €</span>
+                  <div class="mt-1 text-sm text-slate-400 line-through"><%= formatMoney(compareAt) %> €</div>
                 <% } %>
               </div>
-              <div class="flex items-center gap-1 text-xs text-slate-500 <%= installmentEligible ? '' : 'hidden' %>" data-installment-wrapper>
-                <span class="material-symbols-outlined text-sm text-slate-400">credit_card</span>
-                <span>ou 3 × <span data-installment-amount><%= formatMoney(installmentAmountCents) %> €</span> sans frais</span>
-              </div>
-              <p class="text-xs italic mt-1 <%= hasConsigne ? 'text-emerald-600 font-semibold' : 'text-slate-400' %>"><%= hasConsigne ? 'Échange standard sans caution • Retour ancien organe sous 30 jours' : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
-            </div>
-            <!-- Desktop: layout original -->
-            <div class="hidden md:block">
-              <div class="flex justify-between items-end gap-4 mb-1">
-                <div>
-                  <span class="text-slate-500 text-sm font-medium">Prix public</span>
-                  <% if (compareAt && compareAt > product.priceCents) { %>
-                    <div class="mt-1 text-sm text-slate-400 line-through"><%= formatMoney(compareAt) %> €</div>
-                  <% } %>
-                </div>
-                <div class="text-right">
-                  <span class="text-4xl font-black text-primary" data-price-display data-base-price-cents="<%= basePriceCents %>" data-installment-count="<%= installmentCount %>" data-installment-min-cents="<%= installmentMinPriceCents %>" data-installment-max-cents="<%= installmentMaxPriceCents %>"><%= formatMoney(product.priceCents) %> €</span>
-                  <div class="text-[11px] uppercase tracking-wide text-slate-400">TTC</div>
-                  <div class="mt-1 flex items-center justify-end gap-1 text-xs text-slate-500 <%= installmentEligible ? '' : 'hidden' %>" data-installment-wrapper>
-                    <span class="material-symbols-outlined text-sm text-slate-400">credit_card</span>
-                    <span>ou 3 × <span data-installment-amount><%= formatMoney(installmentAmountCents) %> €</span> sans frais</span>
-                  </div>
+              <div class="text-right">
+                <span class="text-4xl font-black text-primary" data-price-display data-base-price-cents="<%= basePriceCents %>" data-installment-count="<%= installmentCount %>" data-installment-min-cents="<%= installmentMinPriceCents %>" data-installment-max-cents="<%= installmentMaxPriceCents %>"><%= formatMoney(product.priceCents) %> €</span>
+                <div class="text-[11px] uppercase tracking-wide text-slate-400">TTC</div>
+                <div class="mt-1 flex items-center justify-end gap-1 text-xs text-slate-500 <%= installmentEligible ? '' : 'hidden' %>" data-installment-wrapper>
+                  <span class="material-symbols-outlined text-sm text-slate-400">credit_card</span>
+                  <span>ou 3 × <span data-installment-amount><%= formatMoney(installmentAmountCents) %> €</span> sans frais</span>
                 </div>
               </div>
-              <p class="text-right text-xs italic <%= hasConsigne ? 'text-emerald-600 font-semibold' : 'text-slate-400' %>"><%= hasConsigne ? 'Échange standard sans caution • Retour ancien organe sous 30 jours' : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
             </div>
+            <p class="text-right text-xs italic <%= hasConsigne ? 'text-emerald-600 font-semibold' : 'text-slate-400' %>"><%= hasConsigne ? 'Échange standard sans caution • Retour ancien organe sous 30 jours' : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
           </div>
 
           <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4 lg:flex-1" data-add-to-cart-form data-product-image="<%= mainImage %>" data-product-name="<%= product.name %>" method="POST">
@@ -399,23 +369,15 @@
                 <% }) %>
               </div>
             <% } else { %>
-              <!-- Mobile: badge compact -->
-              <div class="flex items-center gap-2 md:hidden">
-                <span class="inline-flex items-center gap-1.5 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 text-sm font-medium px-3 py-1.5 rounded-full border border-green-200 dark:border-green-800">
-                  <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                  Prête à commander — Version standard
-                </span>
-              </div>
-              <!-- Desktop: bloc configuration original -->
-              <div class="hidden md:block p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
+              <div class="p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
                 <div class="flex items-center justify-between gap-4">
                   <div class="flex flex-col">
-                    <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight">Configuration Produit</span>
+                    <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight">Configuration produit</span>
                     <span class="text-slate-500 text-[11px] uppercase tracking-wider font-semibold mt-0.5">Version standard</span>
                   </div>
-                  <span class="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 text-primary text-xs font-black uppercase tracking-widest px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700">Prête à commander</span>
+                  <span class="px-4 py-2 rounded-md text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-950 text-primary shadow-sm border border-slate-200 dark:border-slate-700">Prête à commander</span>
                 </div>
-                <p class="mt-3 text-sm text-slate-500">Cette référence ne nécessite pas de configuration supplémentaire avant l'ajout au panier.</p>
+                <p class="mt-3 text-[11px] text-slate-400 leading-tight">Cette référence ne nécessite pas de configuration supplémentaire avant l'ajout au panier.</p>
               </div>
             <% } %>
 
@@ -439,110 +401,9 @@
             </div>
           </form>
         </div>
-
-        <% if (visibleThumbImages.length) { %>
-          <div class="order-3 lg:hidden grid grid-cols-4 gap-4 w-full">
-            <% visibleThumbImages.forEach((img, idx) => { %>
-              <% const remainingImages = thumbImages.length - 4; %>
-              <button aria-label="Voir l'image <%= idx + 1 %>" class="relative aspect-square rounded-lg overflow-hidden cursor-pointer border bg-white dark:bg-slate-900 refined-shadow transition-all <%= idx === 0 ? 'border-primary/20 ring-2 ring-primary' : 'border-slate-200 dark:border-slate-700 hover:border-primary' %>" data-thumb data-index="<%= idx %>" data-src="<%= img %>" type="button">
-                <img alt="Thumbnail" class="w-full h-full object-cover" decoding="async" loading="lazy" src="<%= img %>" />
-                <% if (idx === 3 && remainingImages > 0) { %>
-                  <span class="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white text-xs font-bold uppercase tracking-wider">+<%= remainingImages %> de plus</span>
-                <% } %>
-              </button>
-            <% }) %>
-          </div>
-        <% } %>
-
-        <div class="order-4 lg:hidden grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
-          <% qualityHighlights.forEach((item) => { %>
-            <div class="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center refined-shadow">
-              <span class="material-symbols-outlined text-primary text-3xl mb-2"><%= item.icon %></span>
-              <span class="text-xs font-bold uppercase tracking-tight text-slate-900 dark:text-white"><%= item.label %></span>
-            </div>
-          <% }) %>
-        </div>
       </div>
 
-      <!-- Mobile: Accordéon -->
-      <div class="mt-10 md:hidden space-y-3">
-        <details class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden" open>
-          <summary class="px-4 py-3 font-semibold text-sm bg-slate-50 dark:bg-slate-900 cursor-pointer flex items-center justify-between">
-            Description
-            <span class="material-symbols-outlined text-slate-400 transition-transform details-chevron">expand_more</span>
-          </summary>
-          <div class="px-4 py-4">
-            <div class="flex flex-col gap-4">
-              <h3 class="text-lg font-black tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h3>
-              <% if (product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim()) { %>
-                <div class="text-slate-700 dark:text-slate-300 leading-relaxed product-html text-sm"><%- product.descriptionHtmlSafe %></div>
-              <% } else { %>
-                <p class="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line text-sm"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
-              <% } %>
-            </div>
-          </div>
-        </details>
-
-        <details class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <summary class="px-4 py-3 font-semibold text-sm bg-slate-50 dark:bg-slate-900 cursor-pointer flex items-center justify-between">
-            Fiche technique
-            <span class="material-symbols-outlined text-slate-400 transition-transform details-chevron">expand_more</span>
-          </summary>
-          <div class="px-4 py-4 space-y-4">
-            <% technicalSpecs.forEach((entry) => { %>
-              <div class="flex justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <span class="text-slate-500 text-sm"><%= entry.label %></span>
-                <span class="font-bold text-sm text-right text-slate-900 dark:text-white"><%= entry.value %></span>
-              </div>
-            <% }) %>
-          </div>
-        </details>
-
-        <% if (product.sections && product.sections.showReconditioning && Array.isArray(product.reconditioningSteps) && product.reconditioningSteps.length) { %>
-          <details class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <summary class="px-4 py-3 font-semibold text-sm bg-slate-50 dark:bg-slate-900 cursor-pointer flex items-center justify-between">
-              Processus qualité
-              <span class="material-symbols-outlined text-slate-400 transition-transform details-chevron">expand_more</span>
-            </summary>
-            <div class="px-4 py-4 space-y-4">
-              <% product.reconditioningSteps.slice(0, 4).forEach((st, idx) => { %>
-                <div class="flex items-start gap-3">
-                  <div class="text-lg font-black text-slate-300 dark:text-slate-600 shrink-0 w-8"><%= String(idx + 1).padStart(2, '0') %></div>
-                  <div>
-                    <h4 class="text-sm font-bold text-slate-900 dark:text-white"><%= st.title %></h4>
-                    <p class="text-sm text-slate-500 leading-relaxed mt-1"><%= st.description %></p>
-                  </div>
-                </div>
-              <% }) %>
-            </div>
-          </details>
-        <% } %>
-
-        <% if (product.sections && product.sections.showFaq && Array.isArray(product.faqs) && product.faqs.length) { %>
-          <details class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <summary class="px-4 py-3 font-semibold text-sm bg-slate-50 dark:bg-slate-900 cursor-pointer flex items-center justify-between">
-              FAQ (<%= faqCount %>)
-              <span class="material-symbols-outlined text-slate-400 transition-transform details-chevron">expand_more</span>
-            </summary>
-            <div class="px-4 py-4 space-y-3">
-              <% product.faqs.forEach((f) => { %>
-                <details class="border border-slate-100 dark:border-slate-700 rounded-lg group">
-                  <summary class="p-3 flex justify-between items-center cursor-pointer text-sm">
-                    <span class="font-bold text-slate-900 dark:text-white"><%= f.question %></span>
-                    <span class="material-symbols-outlined text-sm text-slate-300">add</span>
-                  </summary>
-                  <div class="px-3 pb-3">
-                    <p class="text-sm text-slate-500 leading-relaxed whitespace-pre-line"><%= f.answer %></p>
-                  </div>
-                </details>
-              <% }) %>
-            </div>
-          </details>
-        <% } %>
-      </div>
-
-      <!-- Desktop: Tabs -->
-      <div class="mt-16 hidden md:block">
+      <div class="mt-16">
         <input checked class="hidden" id="tab-description" name="product-tabs" type="radio" />
         <input class="hidden" id="tab-tech" name="product-tabs" type="radio" />
         <input class="hidden" id="tab-process" name="product-tabs" type="radio" />
@@ -557,8 +418,8 @@
 
         <div class="tab-content-container">
           <div class="tab-content" id="content-description">
-            <div class="py-10">
-              <div class="flex flex-col gap-6 max-w-3xl">
+            <div class="py-10 grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div class="flex flex-col gap-6">
                 <h3 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h3>
                 <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
                 <% if (hasSafeHtml) { %>
@@ -567,6 +428,31 @@
                   <p class="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
                 <% } %>
 
+                <% if (summaryPoints.length) { %>
+                  <ul class="space-y-3">
+                    <% summaryPoints.forEach((point) => { %>
+                      <li class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-primary">check_circle</span>
+                        <span class="text-slate-700 dark:text-slate-300"><%= point %></span>
+                      </li>
+                    <% }) %>
+                  </ul>
+                <% } %>
+              </div>
+
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-8 border border-slate-300 dark:border-slate-700 refined-shadow">
+                <h4 class="text-lg font-bold uppercase text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary">build</span>
+                  Points techniques
+                </h4>
+                <div class="space-y-4">
+                  <% technicalSpecs.slice(0, 6).forEach((entry) => { %>
+                    <div class="flex justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                      <span class="text-slate-500 text-sm"><%= entry.label %></span>
+                      <span class="font-bold text-sm text-right text-slate-900 dark:text-white"><%= entry.value %></span>
+                    </div>
+                  <% }) %>
+                </div>
               </div>
             </div>
           </div>
@@ -836,11 +722,8 @@
           var originalSubmitDisabled = !!(addToCartSubmit && addToCartSubmit.disabled);
 
           var priceEl = document.querySelector('[data-price-display]');
-          var allPriceEls = Array.prototype.slice.call(document.querySelectorAll('[data-price-display]') || []);
           var installmentWrapper = document.querySelector('[data-installment-wrapper]');
-          var allInstallmentWrappers = Array.prototype.slice.call(document.querySelectorAll('[data-installment-wrapper]') || []);
           var installmentAmountEl = document.querySelector('[data-installment-amount]');
-          var allInstallmentAmounts = Array.prototype.slice.call(document.querySelectorAll('[data-installment-amount]') || []);
           var optionInputs = Array.prototype.slice.call(document.querySelectorAll('[data-option-input]') || []);
           var exchangeStandardPanel = document.querySelector('[data-exchange-standard-panel]');
           var supplyModeInputs = Array.prototype.slice.call(document.querySelectorAll('[data-supply-mode-choice]') || []);
@@ -883,8 +766,7 @@
             if (!Number.isFinite(base)) base = 0;
             var pricing = computeOptionPricing();
             var next = (pricing.absolute !== null ? pricing.absolute : base) + pricing.delta;
-            var priceText = formatMoney(next) + ' €';
-            allPriceEls.forEach(function (el) { el.textContent = priceText; });
+            priceEl.textContent = formatMoney(next) + ' €';
             syncInstallmentDisplay(next);
           }
 
@@ -897,10 +779,9 @@
             if (!Number.isFinite(min) || min < 0) min = 0;
             if (!Number.isFinite(max) || max < min) max = Number.MAX_SAFE_INTEGER;
             var eligible = Number.isFinite(totalCents) && totalCents >= min && totalCents <= max;
-            allInstallmentWrappers.forEach(function (w) { w.classList.toggle('hidden', !eligible); });
-            if (eligible) {
-              var instText = formatMoney(Math.round(totalCents / count)) + ' €';
-              allInstallmentAmounts.forEach(function (el) { el.textContent = instText; });
+            installmentWrapper.classList.toggle('hidden', !eligible);
+            if (eligible && installmentAmountEl) {
+              installmentAmountEl.textContent = formatMoney(Math.round(totalCents / count)) + ' €';
             }
           }
 
@@ -987,25 +868,6 @@
             }
           }
 
-          var galleryDots = Array.prototype.slice.call(document.querySelectorAll('[data-dot-index]') || []);
-          var galleryCounter = document.querySelector('[data-gallery-counter]');
-          var totalImages = thumbs ? thumbs.length : 0;
-
-          function syncDotsAndCounter(index) {
-            galleryDots.forEach(function (dot, i) {
-              if (i === index) {
-                dot.classList.remove('bg-slate-300');
-                dot.classList.add('bg-primary');
-              } else {
-                dot.classList.remove('bg-primary');
-                dot.classList.add('bg-slate-300');
-              }
-            });
-            if (galleryCounter && totalImages > 0) {
-              galleryCounter.textContent = (index + 1) + '/' + totalImages;
-            }
-          }
-
           function setIndex(nextIndex) {
             if (!mainImg || !thumbs || !thumbs.length) return;
             var max = thumbs.length;
@@ -1018,7 +880,6 @@
             if (src) mainImg.setAttribute('src', src);
             currentIndex = idx;
             setActiveThumb(currentIndex);
-            syncDotsAndCounter(currentIndex);
           }
 
           if (minus) {
@@ -1069,35 +930,6 @@
             });
 
             setIndex(0);
-          }
-
-          galleryDots.forEach(function (dot) {
-            dot.addEventListener('click', function () {
-              var idx = parseInt(dot.getAttribute('data-dot-index'), 10);
-              if (Number.isFinite(idx)) setIndex(idx);
-            });
-          });
-
-          var imageContainer = mainImg ? mainImg.parentElement : null;
-          if (imageContainer) {
-            var touchStartX = 0;
-            var touchStartY = 0;
-            imageContainer.addEventListener('touchstart', function (e) {
-              if (e.touches && e.touches.length === 1) {
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-              }
-            }, { passive: true });
-            imageContainer.addEventListener('touchend', function (e) {
-              if (e.changedTouches && e.changedTouches.length === 1) {
-                var deltaX = e.changedTouches[0].clientX - touchStartX;
-                var deltaY = e.changedTouches[0].clientY - touchStartY;
-                if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-                  if (deltaX < 0) setIndex(currentIndex + 1);
-                  else setIndex(currentIndex - 1);
-                }
-              }
-            }, { passive: true });
           }
 
           if (optionInputs && optionInputs.length) {
@@ -1169,36 +1001,11 @@
             });
           }
 
-          var stickyBtn = document.querySelector('[data-sticky-add-to-cart]');
-          var stickyPriceEl = document.querySelector('[data-sticky-price]');
-          if (stickyBtn && addToCartSubmit) {
-            stickyBtn.addEventListener('click', function () {
-              if (!addToCartSubmit.disabled) addToCartForm.requestSubmit ? addToCartForm.requestSubmit(addToCartSubmit) : addToCartSubmit.click();
-            });
-          }
-
-          var origSyncPrice = syncDisplayedPrice;
-          syncDisplayedPrice = function () {
-            origSyncPrice();
-            if (stickyPriceEl && priceEl) stickyPriceEl.textContent = priceEl.textContent;
-          };
-
           setQty(getQty());
           syncDisplayedPrice();
           syncExchangeStandardPanel();
         })();
       </script>
-      <% if (product.inStock !== false) { %>
-        <div class="fixed bottom-16 left-0 right-0 z-[70] md:hidden px-4 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-t border-slate-200 dark:border-slate-800 shadow-lg">
-          <div class="flex items-center justify-between gap-4">
-            <div class="text-lg font-bold text-primary whitespace-nowrap" data-sticky-price><%= formatMoney(product.priceCents) %> €</div>
-            <button class="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all" data-sticky-add-to-cart type="button">
-              <span class="material-symbols-outlined text-sm">add_shopping_cart</span>
-              Ajouter au panier
-            </button>
-          </div>
-        </div>
-      <% } %>
     <% } %>
   </div>
 </main>

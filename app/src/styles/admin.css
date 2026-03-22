@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html.js:not(.icons-ready) .material-symbols-outlined {
+  visibility: hidden;
+}
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+.chip-active {
+  @apply bg-primary text-white border-primary;
+}
+html {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body, body * {
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+/* 44px minimum touch target for all interactive elements */
+aside nav a {
+  min-height: 2.75rem;
+}
+main button,
+main select,
+main a[class*="rounded-xl"],
+main summary[class*="rounded-xl"] {
+  min-height: 2.75rem;
+}
+/* Table row hover */
+main tbody tr {
+  @apply transition-colors duration-150;
+}
+main tbody tr:hover {
+  @apply bg-gray-50;
+}
+/* Button micro-interactions */
+main button,
+main a[class*="rounded-xl"],
+main summary[class*="rounded-xl"] {
+  @apply transition-all duration-200;
+}
+main button:hover,
+main a[class*="rounded-xl"]:hover,
+main summary[class*="rounded-xl"]:hover {
+  @apply shadow-md;
+}
+main button:active,
+main a[class*="rounded-xl"]:active,
+main summary[class*="rounded-xl"]:active {
+  @apply scale-95;
+}
+/* Sidebar link transitions */
+aside nav a {
+  @apply transition-colors duration-200;
+}
