@@ -6,8 +6,9 @@
   <div class="px-6 lg:px-10 py-8">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
       <div>
-        <div class="text-2xl md:text-3xl font-black text-slate-900">Catégories</div>
-        <div class="mt-1 text-sm text-slate-600">Gère les catégories affichées sur le site et dans le catalogue.</div>
+        <%- include('./partials/breadcrumb', { breadcrumbs: [{label: 'Catégories'}] }) %>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">Catégories</div>
+        <div class="mt-1 text-sm text-slate-500">Gère les catégories affichées sur le site et dans le catalogue.</div>
       </div>
     </div>
 
@@ -22,16 +23,16 @@
       <section class="xl:col-span-5">
         <div class="space-y-6">
           <div class="bg-white rounded-2xl border border-slate-200 p-6">
-            <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Ajouter une catégorie principale</div>
+            <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Ajouter une catégorie principale</div>
 
             <form action="/admin/categories" class="mt-4 space-y-4" method="POST">
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="mainNameNew">Nom</label>
+                <label class="block text-sm font-medium text-slate-500" for="mainNameNew">Nom</label>
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="mainNameNew" name="name" placeholder="Ex: Transmission" required type="text" />
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="mainShippingClass">Classe de livraison</label>
+                <label class="block text-sm font-medium text-slate-500" for="mainShippingClass">Classe de livraison</label>
                 <select class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="mainShippingClass" name="shippingClassId">
                   <option value="">Défaut / aucune</option>
                   <% (shippingClassOptions || []).forEach((opt) => { %>
@@ -41,20 +42,20 @@
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="mainSortOrder">Ordre (optionnel)</label>
+                <label class="block text-sm font-medium text-slate-500" for="mainSortOrder">Ordre (optionnel)</label>
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="mainSortOrder" name="sortOrder" placeholder="0" type="number" />
                 <div class="mt-1 text-xs text-slate-500">Plus le nombre est petit, plus la catégorie remonte dans la liste.</div>
               </div>
 
-              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
                 <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" />
                 <span>
-                  <span class="block font-black text-slate-900">Mettre en avant sur l’accueil</span>
+                  <span class="block font-semibold text-slate-900">Mettre en avant sur l’accueil</span>
                   <span class="mt-1 block text-xs font-medium text-slate-500">Cette catégorie pourra apparaître dans la sidebar Catégories de la page d’accueil.</span>
                 </span>
               </label>
 
-              <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">
+              <button class="btn btn-primary" <%= dbConnected ? '' : 'disabled' %> type="submit">
                 <span class="material-symbols-outlined mr-2 text-base">add</span>
                 Ajouter
               </button>
@@ -62,11 +63,11 @@
           </div>
 
           <div class="bg-white rounded-2xl border border-slate-200 p-6">
-            <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Ajouter une sous-catégorie</div>
+            <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Ajouter une sous-catégorie</div>
 
             <form action="/admin/categories" class="mt-4 space-y-4" method="POST">
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="mainNameSelect">Catégorie principale</label>
+                <label class="block text-sm font-medium text-slate-500" for="mainNameSelect">Catégorie principale</label>
                 <select class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="mainNameSelect" name="mainName" required>
                   <option value="">Choisir...</option>
                   <% (mainCategoryOptions || []).forEach((opt) => { %>
@@ -76,12 +77,12 @@
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="subNameNew">Sous-catégorie</label>
+                <label class="block text-sm font-medium text-slate-500" for="subNameNew">Sous-catégorie</label>
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="subNameNew" name="subName" placeholder="Ex: Boîte de vitesses" required type="text" />
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="subShippingClass">Classe de livraison</label>
+                <label class="block text-sm font-medium text-slate-500" for="subShippingClass">Classe de livraison</label>
                 <select class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="subShippingClass" name="shippingClassId">
                   <option value="">Défaut / aucune</option>
                   <% (shippingClassOptions || []).forEach((opt) => { %>
@@ -91,19 +92,19 @@
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-slate-700" for="subSortOrder">Ordre (optionnel)</label>
+                <label class="block text-sm font-medium text-slate-500" for="subSortOrder">Ordre (optionnel)</label>
                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" id="subSortOrder" name="sortOrder" placeholder="0" type="number" />
               </div>
 
-              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
                 <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" />
                 <span>
-                  <span class="block font-black text-slate-900">Mettre en avant sur l’accueil</span>
+                  <span class="block font-semibold text-slate-900">Mettre en avant sur l’accueil</span>
                   <span class="mt-1 block text-xs font-medium text-slate-500">Cette sous-catégorie pourra apparaître dans la sidebar Catégories de la page d’accueil.</span>
                 </span>
               </label>
 
-              <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= (dbConnected && mainCategoryOptions && mainCategoryOptions.length) ? '' : 'disabled' %> type="submit">
+              <button class="btn btn-primary" <%= (dbConnected && mainCategoryOptions && mainCategoryOptions.length) ? '' : 'disabled' %> type="submit">
                 <span class="material-symbols-outlined mr-2 text-base">add</span>
                 Ajouter
               </button>
@@ -122,7 +123,7 @@
       <section class="xl:col-span-7">
         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
-            <div class="font-black text-slate-900">Catégories (2 niveaux)</div>
+            <div class="font-semibold text-slate-900">Catégories (2 niveaux)</div>
             <div class="text-xs font-bold text-slate-500"><%= (categories && categories.length) ? categories.length : 0 %> au total</div>
           </div>
 
@@ -132,11 +133,11 @@
                 <input class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:ring-primary" name="q" placeholder="Rechercher une catégorie..." type="text" value="<%= (filters && filters.q) ? filters.q : '' %>" />
               </div>
               <div class="flex items-center gap-2">
-                <button class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-slate-800 transition" type="submit">
+                <button class="btn btn-primary" type="submit">
                   Rechercher
                 </button>
                 <% if (filters && filters.q) { %>
-                  <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/categories">
+                  <a class="btn btn-secondary" href="/admin/categories">
                     Réinitialiser
                   </a>
                 <% } %>
@@ -145,7 +146,7 @@
 
             <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <form action="/admin/categories/supprimer-multi" id="bulkDeleteForm" method="POST" data-ajax="true" data-confirm="Supprimer toutes les cat\u00e9gories s\u00e9lectionn\u00e9es ?">
-                <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" disabled id="bulkDeleteBtn" type="submit">
+                <button class="btn btn-ghost" disabled id="bulkDeleteBtn" type="submit">
                   <span class="material-symbols-outlined mr-2 text-base">delete</span>
                   Supprimer la sélection
                 </button>
@@ -163,9 +164,9 @@
                 <div class="p-6" data-row-id="<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>">
                   <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div>
-                      <div class="text-lg font-black text-slate-900"><%= g.main %></div>
-                      <div class="mt-1 text-sm text-slate-600">
-                        Produits dans ce groupe : <span class="font-black text-slate-900"><%= typeof g.usedCountTotal !== 'undefined' ? g.usedCountTotal : 0 %></span>
+                      <div class="text-lg font-semibold text-slate-900"><%= g.main %></div>
+                      <div class="mt-1 text-sm text-slate-500">
+                        Produits dans ce groupe : <span class="font-semibold text-slate-900"><%= typeof g.usedCountTotal !== 'undefined' ? g.usedCountTotal : 0 %></span>
                       </div>
                     </div>
 
@@ -174,20 +175,20 @@
                       <% const canDeleteMain = !!(g.mainDoc && g.mainDoc.canDelete && g.mainDoc.id); %>
                       <% const canSelectMain = !!(dbConnected && canDeleteMain); %>
 
-                      <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-700 <%= canSelectMain ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50' %>">
+                      <label class="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 <%= canSelectMain ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50' %>">
                         <input class="bulk-category-checkbox rounded border-slate-300 text-primary focus:ring-primary" form="bulkDeleteForm" name="categoryIds" type="checkbox" value="<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>" <%= canSelectMain ? '' : 'disabled' %> />
                         Sélection
                       </label>
 
                       <form action="/admin/categories/<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>/toggle" method="POST" data-ajax="true">
-                        <button class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition disabled:opacity-50" <%= (!dbConnected || mainDisabled) ? 'disabled' : '' %> type="submit">
+                        <button class="btn btn-ghost" <%= (!dbConnected || mainDisabled) ? 'disabled' : '' %> type="submit">
                           <span class="material-symbols-outlined mr-2 text-base">toggle_on</span>
                           <%= (g.mainDoc && g.mainDoc.isActive) ? 'Désactiver' : 'Activer' %>
                         </button>
                       </form>
 
                       <details class="group">
-                        <summary class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition cursor-pointer select-none">
+                        <summary class="btn btn-secondary">
                           <span class="material-symbols-outlined mr-2 text-base">edit</span>
                           Modifier
                         </summary>
@@ -196,18 +197,18 @@
                             <form action="/admin/categories" method="POST" class="space-y-3">
                               <input type="hidden" name="name" value="<%= g.main %>" />
                               <input type="hidden" name="sortOrder" value="0" />
-                              <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">
+                              <button class="btn btn-primary" <%= dbConnected ? '' : 'disabled' %> type="submit">
                                 Créer la catégorie principale
                               </button>
                             </form>
                           <% } else { %>
                             <form action="/admin/categories/<%= g.mainDoc.id %>" method="POST" class="space-y-3">
                               <div>
-                                <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Nom</label>
+                                <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Nom</label>
                                 <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="name" required type="text" value="<%= g.mainDoc.name %>" />
                               </div>
                               <div>
-                                <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Classe de livraison</label>
+                                <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Classe de livraison</label>
                                 <select class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="shippingClassId">
                                   <option value="">Défaut / aucune</option>
                                   <% (shippingClassOptions || []).forEach((opt) => { %>
@@ -217,33 +218,33 @@
                               </div>
                               <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                  <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Ordre</label>
+                                  <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Ordre</label>
                                   <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="sortOrder" type="number" value="<%= typeof g.mainDoc.sortOrder !== 'undefined' ? g.mainDoc.sortOrder : 0 %>" />
                                 </div>
                                 <div>
-                                  <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Statut</label>
+                                  <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Statut</label>
                                   <div class="mt-2">
-                                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= g.mainDoc.isActive ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-700' %>">
+                                    <span class="badge <%= g.mainDoc.isActive ? 'badge-success' : 'badge-neutral' %>">
                                       <%= g.mainDoc.isActive ? 'ACTIVE' : 'INACTIVE' %>
                                     </span>
                                   </div>
                                 </div>
                               </div>
-                              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                              <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
                                 <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= g.mainDoc.isHomeFeatured ? 'checked' : '' %> />
                                 <span>
-                                  <span class="block font-black text-slate-900">Mise en avant accueil</span>
+                                  <span class="block font-semibold text-slate-900">Mise en avant accueil</span>
                                   <span class="mt-1 block text-xs font-medium text-slate-500">Active cette catégorie dans la sidebar Catégories de la page d’accueil.</span>
                                 </span>
                               </label>
-                              <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
+                              <button class="btn btn-primary" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
                             </form>
                           <% } %>
                         </div>
                       </details>
 
                       <form action="/admin/categories/<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>/supprimer" method="POST" data-ajax="true" data-confirm="Supprimer cette cat\u00e9gorie principale ?">
-                        <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" <%= (!dbConnected || !canDeleteMain) ? 'disabled' : '' %> type="submit">
+                        <button class="btn btn-danger" <%= (!dbConnected || !canDeleteMain) ? 'disabled' : '' %> type="submit">
                           <span class="material-symbols-outlined mr-2 text-base">delete</span>
                           Supprimer
                         </button>
@@ -252,39 +253,39 @@
                   </div>
 
                   <div class="mt-6">
-                    <div class="text-xs font-black uppercase tracking-widest text-slate-400">Sous-catégories</div>
+                    <div class="text-xs font-semibold uppercase tracking-widest text-slate-400">Sous-catégories</div>
                     <% if (g.subs && g.subs.length) { %>
                       <div class="mt-3 space-y-3">
                         <% g.subs.forEach((s) => { %>
                           <div class="rounded-2xl border border-slate-200 p-4" data-row-id="<%= s.id %>">
                             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                               <div>
-                                <div class="font-black text-slate-900"><%= s.subName || s.name %></div>
-                                <div class="mt-1 text-sm text-slate-600">Produits : <span class="font-black text-slate-900"><%= typeof s.usedCountExact !== 'undefined' ? s.usedCountExact : 0 %></span></div>
+                                <div class="font-semibold text-slate-900"><%= s.subName || s.name %></div>
+                                <div class="mt-1 text-sm text-slate-500">Produits : <span class="font-semibold text-slate-900"><%= typeof s.usedCountExact !== 'undefined' ? s.usedCountExact : 0 %></span></div>
                               </div>
 
                               <div class="flex flex-wrap items-center gap-2">
-                                <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-700 <%= (dbConnected && s.canDelete) ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50' %>">
+                                <label class="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 <%= (dbConnected && s.canDelete) ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50' %>">
                                   <input class="bulk-category-checkbox rounded border-slate-300 text-primary focus:ring-primary" form="bulkDeleteForm" name="categoryIds" type="checkbox" value="<%= s.id %>" <%= (dbConnected && s.canDelete) ? '' : 'disabled' %> />
                                   Sélection
                                 </label>
 
                                 <form action="/admin/categories/<%= s.id %>/toggle" method="POST" data-ajax="true">
-                                  <button class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">
+                                  <button class="btn btn-ghost" <%= dbConnected ? '' : 'disabled' %> type="submit">
                                     <span class="material-symbols-outlined mr-2 text-base">toggle_on</span>
                                     <%= s.isActive ? 'Désactiver' : 'Activer' %>
                                   </button>
                                 </form>
 
                                 <details class="group">
-                                  <summary class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition cursor-pointer select-none">
+                                  <summary class="btn btn-secondary">
                                     <span class="material-symbols-outlined mr-2 text-base">edit</span>
                                     Modifier
                                   </summary>
                                   <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                                     <form action="/admin/categories/<%= s.id %>" method="POST" class="space-y-3">
                                       <div>
-                                        <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Catégorie principale</label>
+                                        <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Catégorie principale</label>
                                         <select class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="mainName" required>
                                           <% (mainCategoryOptions || []).forEach((opt) => { %>
                                             <option value="<%= opt %>" <%= opt === s.mainName ? 'selected' : '' %>><%= opt %></option>
@@ -292,11 +293,11 @@
                                         </select>
                                       </div>
                                       <div>
-                                        <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Sous-catégorie</label>
+                                        <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Sous-catégorie</label>
                                         <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="subName" required type="text" value="<%= s.subName %>" />
                                       </div>
                                       <div>
-                                        <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Classe de livraison</label>
+                                        <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Classe de livraison</label>
                                         <select class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="shippingClassId">
                                           <option value="">Défaut / aucune</option>
                                           <% (shippingClassOptions || []).forEach((opt) => { %>
@@ -305,23 +306,23 @@
                                         </select>
                                       </div>
                                       <div>
-                                        <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Ordre</label>
+                                        <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Ordre</label>
                                         <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="sortOrder" type="number" value="<%= typeof s.sortOrder !== 'undefined' ? s.sortOrder : 0 %>" />
                                       </div>
-                                      <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                                      <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
                                         <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= s.isHomeFeatured ? 'checked' : '' %> />
                                         <span>
-                                          <span class="block font-black text-slate-900">Mise en avant accueil</span>
+                                          <span class="block font-semibold text-slate-900">Mise en avant accueil</span>
                                           <span class="mt-1 block text-xs font-medium text-slate-500">Active cette sous-catégorie dans la sidebar Catégories de la page d’accueil.</span>
                                         </span>
                                       </label>
-                                      <button class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
+                                      <button class="btn btn-primary" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
                                     </form>
                                   </div>
                                 </details>
 
                                 <form action="/admin/categories/<%= s.id %>/supprimer" method="POST" data-ajax="true" data-confirm="Supprimer cette sous-cat\u00e9gorie ?">
-                                  <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" <%= (!dbConnected || !s.canDelete) ? 'disabled' : '' %> type="submit">
+                                  <button class="btn btn-danger" <%= (!dbConnected || !s.canDelete) ? 'disabled' : '' %> type="submit">
                                     <span class="material-symbols-outlined mr-2 text-base">delete</span>
                                     Supprimer
                                   </button>
@@ -332,7 +333,7 @@
                         <% }) %>
                       </div>
                     <% } else { %>
-                      <div class="mt-3 text-sm text-slate-600">Aucune sous-catégorie.</div>
+                      <div class="mt-3 text-sm text-slate-500">Aucune sous-catégorie.</div>
                     <% } %>
                   </div>
                 </div>
@@ -343,24 +344,24 @@
               <% const qValue = (filters && filters.q) ? filters.q : ''; %>
               <% const qPart = qValue ? `q=${encodeURIComponent(qValue)}&` : ''; %>
               <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div class="text-sm font-bold text-slate-600">Page <%= pagination.page %> / <%= pagination.totalPages %> — <%= pagination.totalItems %> groupe(s)</div>
+                <div class="text-sm font-bold text-slate-500">Page <%= pagination.page %> / <%= pagination.totalPages %> — <%= pagination.totalItems %> groupe(s)</div>
                 <div class="flex items-center gap-2">
                   <% if (pagination.hasPrev) { %>
-                    <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/categories?<%= qPart %>page=<%= pagination.page - 1 %>">
+                    <a class="btn btn-secondary" href="/admin/categories?<%= qPart %>page=<%= pagination.page - 1 %>">
                       Précédent
                     </a>
                   <% } else { %>
-                    <span class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 opacity-50">
+                    <span class="btn btn-secondary">
                       Précédent
                     </span>
                   <% } %>
 
                   <% if (pagination.hasNext) { %>
-                    <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/categories?<%= qPart %>page=<%= pagination.page + 1 %>">
+                    <a class="btn btn-secondary" href="/admin/categories?<%= qPart %>page=<%= pagination.page + 1 %>">
                       Suivant
                     </a>
                   <% } else { %>
-                    <span class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 opacity-50">
+                    <span class="btn btn-secondary">
                       Suivant
                     </span>
                   <% } %>
@@ -368,7 +369,7 @@
               </div>
             <% } %>
           <% } else { %>
-            <div class="p-6 text-slate-600"><%= (filters && filters.q) ? 'Aucun résultat.' : 'Aucune catégorie.' %></div>
+            <div class="p-6 text-slate-500"><%= (filters && filters.q) ? 'Aucun résultat.' : 'Aucune catégorie.' %></div>
           <% } %>
         </div>
       </section>

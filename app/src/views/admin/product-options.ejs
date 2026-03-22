@@ -6,16 +6,17 @@
   <div class="px-6 lg:px-10 py-8 space-y-8">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
       <div>
-        <div class="text-2xl md:text-3xl font-black text-slate-900">Options produit</div>
-        <div class="mt-1 text-sm text-slate-600">Créez des options réutilisables puis appliquez-les facilement sur vos produits.</div>
+        <%- include('./partials/breadcrumb', { breadcrumbs: [{label: 'Produits', url: '/admin/catalogue'}, {label: 'Options produit'}] }) %>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">Options produit</div>
+        <div class="mt-1 text-sm text-slate-500">Créez des options réutilisables puis appliquez-les facilement sur vos produits.</div>
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/catalogue">
+        <a class="btn btn-secondary" href="/admin/catalogue">
           <span class="material-symbols-outlined mr-2 text-base">arrow_back</span>
           Retour catalogue
         </a>
-        <a class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" href="/admin/catalogue/nouveau">
+        <a class="btn btn-primary" href="/admin/catalogue/nouveau">
           <span class="material-symbols-outlined mr-2 text-base">add</span>
           Nouveau produit
         </a>
@@ -36,23 +37,23 @@
 
     <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 border-b border-slate-200">
-        <div class="font-black text-slate-900">Nouvelle option réutilisable</div>
-        <div class="mt-1 text-sm text-slate-600">Exemple : Programmation, Couleur, Caution, Référence véhicule...</div>
+        <div class="font-semibold text-slate-900">Nouvelle option réutilisable</div>
+        <div class="mt-1 text-sm text-slate-500">Exemple : Programmation, Couleur, Caution, Référence véhicule...</div>
       </div>
 
       <form action="/admin/catalogue/options" class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6" method="POST">
         <div>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="name">Nom affiché</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="name">Nom affiché</label>
           <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="name" name="name" placeholder="Ex: Programmation" type="text" />
         </div>
 
         <div>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="key">Clé technique</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="key">Clé technique</label>
           <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="key" name="key" placeholder="Ex: programmation" type="text" />
         </div>
 
         <div>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="type">Type</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="type">Type</label>
           <select class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="type" name="type" data-option-type-toggle>
             <option value="choice">Liste de choix</option>
             <option value="text">Texte libre</option>
@@ -60,35 +61,35 @@
         </div>
 
         <div class="flex items-end">
-          <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
             <input class="rounded border-slate-300 text-primary focus:ring-primary" name="required" type="checkbox" />
             Champ obligatoire
           </label>
         </div>
 
         <div>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="placeholder">Placeholder</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="placeholder">Placeholder</label>
           <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="placeholder" name="placeholder" placeholder="Ex : Tapez la référence" type="text" />
         </div>
 
         <div>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="helpText">Texte d’aide</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="helpText">Texte d’aide</label>
           <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="helpText" name="helpText" placeholder="Ex : Choisissez si la pièce doit être codée" type="text" />
         </div>
 
         <div data-option-text-fields>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="priceDelta">Supplément prix (€)</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="priceDelta">Supplément prix (€)</label>
           <input class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="priceDelta" name="priceDelta" placeholder="Ex: 49,90" type="text" />
         </div>
 
         <div class="lg:col-span-2" data-option-choice-fields>
-          <label class="block text-xs font-black uppercase tracking-widest text-slate-500" for="choicesText">Choix disponibles</label>
+          <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="choicesText">Choix disponibles</label>
           <textarea class="mt-2 w-full min-h-[160px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="choicesText" name="choicesText" placeholder="Un choix par ligne&#10;Exemples :&#10;Avec programmation | 49,90&#10;Sans programmation | 0"></textarea>
-          <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-700">libellé | supplément</span>. Le supplément est facultatif.</div>
+          <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-500">libellé | supplément</span>. Le supplément est facultatif.</div>
         </div>
 
         <div class="lg:col-span-2 flex justify-end">
-          <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">
+          <button class="btn btn-primary" type="submit">
             <span class="material-symbols-outlined mr-2 text-base">save</span>
             Enregistrer l’option
           </button>
@@ -99,8 +100,8 @@
     <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-4">
         <div>
-          <div class="font-black text-slate-900">Bibliothèque</div>
-          <div class="mt-1 text-sm text-slate-600"><%= templates && templates.length ? templates.length : 0 %> option(s) enregistrée(s)</div>
+          <div class="font-semibold text-slate-900">Bibliothèque</div>
+          <div class="mt-1 text-sm text-slate-500"><%= templates && templates.length ? templates.length : 0 %> option(s) enregistrée(s)</div>
         </div>
       </div>
 
@@ -111,24 +112,24 @@
               <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
-                    <div class="text-lg font-black text-slate-900"><%= template.name %></div>
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= template.type === 'text' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700' %>"><%= template.type === 'text' ? 'Texte libre' : 'Liste de choix' %></span>
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= template.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' %>"><%= template.isActive ? 'Active' : 'Inactive' %></span>
+                    <div class="text-lg font-semibold text-slate-900"><%= template.name %></div>
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-widest <%= template.type === 'text' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700' %>"><%= template.type === 'text' ? 'Texte libre' : 'Liste de choix' %></span>
+                    <span class="badge <%= template.isActive ? 'badge-actif' : 'badge-neutral' %>"><%= template.isActive ? 'Active' : 'Inactive' %></span>
                     <% if (template.required) { %>
-                      <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-800">Obligatoire</span>
+                      <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-amber-800">Obligatoire</span>
                     <% } %>
                   </div>
-                  <div class="mt-2 text-sm text-slate-600">Clé : <span class="font-semibold text-slate-800"><%= template.key %></span></div>
+                  <div class="mt-2 text-sm text-slate-500">Clé : <span class="font-semibold text-slate-900"><%= template.key %></span></div>
                   <% if (template.helpText) { %>
-                    <div class="mt-2 text-sm text-slate-600"><%= template.helpText %></div>
+                    <div class="mt-2 text-sm text-slate-500"><%= template.helpText %></div>
                   <% } %>
                   <% if (template.type === 'text' && template.priceDeltaCents > 0) { %>
-                    <div class="mt-2 text-sm text-slate-600">Supplément : <span class="font-semibold text-slate-800"><%= template.priceDeltaLabel %> €</span></div>
+                    <div class="mt-2 text-sm text-slate-500">Supplément : <span class="font-semibold text-slate-900"><%= template.priceDeltaLabel %> €</span></div>
                   <% } %>
                   <% if (template.type === 'choice' && template.choices && template.choices.length) { %>
                     <div class="mt-3 flex flex-wrap gap-2">
                       <% template.choices.forEach((choice) => { %>
-                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
                           <%= choice.label %>
                           <% if (choice.priceDeltaCents > 0) { %>
                             <span class="ml-2 text-slate-500">+ <%= choice.priceDeltaLabel %> €</span>
@@ -137,12 +138,12 @@
                       <% }) %>
                     </div>
                   <% } %>
-                  <div class="mt-3 text-xs text-slate-500">Dernière mise à jour : <span class="font-semibold text-slate-700"><%= template.updatedAtLabel %></span></div>
+                  <div class="mt-3 text-xs text-slate-500">Dernière mise à jour : <span class="font-semibold text-slate-500"><%= template.updatedAtLabel %></span></div>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3">
                   <form action="/admin/catalogue/options/<%= template.id %>/toggle" method="POST" data-ajax="true">
-                    <button class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider transition <%= template.isActive ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' %>" type="submit">
+                    <button class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-wider transition <%= template.isActive ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' %>" type="submit">
                       <%= template.isActive ? 'Désactiver' : 'Réactiver' %>
                     </button>
                   </form>
@@ -150,20 +151,20 @@
               </div>
 
               <details class="rounded-2xl border border-slate-200 bg-slate-50">
-                <summary class="cursor-pointer list-none px-5 py-4 font-black text-slate-900">Modifier cette option</summary>
+                <summary class="cursor-pointer list-none px-5 py-4 font-semibold text-slate-900">Modifier cette option</summary>
                 <form action="/admin/catalogue/options/<%= template.id %>" class="border-t border-slate-200 p-5 grid grid-cols-1 lg:grid-cols-2 gap-5" method="POST">
                   <div>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Nom affiché</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Nom affiché</label>
                     <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="name" type="text" value="<%= template.name %>" />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Clé technique</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Clé technique</label>
                     <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="key" type="text" value="<%= template.key %>" />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Type</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Type</label>
                     <select class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="type" data-option-type-toggle>
                       <option value="choice" <%= template.type === 'choice' ? 'selected' : '' %>>Liste de choix</option>
                       <option value="text" <%= template.type === 'text' ? 'selected' : '' %>>Texte libre</option>
@@ -171,35 +172,35 @@
                   </div>
 
                   <div class="flex items-end">
-                    <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                    <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
                       <input class="rounded border-slate-300 text-primary focus:ring-primary" name="required" type="checkbox" <%= template.required ? 'checked' : '' %> />
                       Champ obligatoire
                     </label>
                   </div>
 
                   <div>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Placeholder</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Placeholder</label>
                     <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="placeholder" type="text" value="<%= template.placeholder %>" />
                   </div>
 
                   <div>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Texte d’aide</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Texte d’aide</label>
                     <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="helpText" type="text" value="<%= template.helpText %>" />
                   </div>
 
                   <div data-option-text-fields>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Supplément prix (€)</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Supplément prix (€)</label>
                     <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="priceDelta" type="text" value="<%= template.priceDeltaLabel %>" />
                   </div>
 
                   <div class="lg:col-span-2" data-option-choice-fields>
-                    <label class="block text-xs font-black uppercase tracking-widest text-slate-500">Choix disponibles</label>
+                    <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Choix disponibles</label>
                     <textarea class="mt-2 w-full min-h-[160px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="choicesText"><%= template.choicesText %></textarea>
-                    <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-700">libellé | supplément</span>.</div>
+                    <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-500">libellé | supplément</span>.</div>
                   </div>
 
                   <div class="lg:col-span-2 flex justify-end">
-                    <button class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-black transition" type="submit">
+                    <button class="btn btn-primary" type="submit">
                       <span class="material-symbols-outlined mr-2 text-base">save</span>
                       Enregistrer les modifications
                     </button>
@@ -210,7 +211,7 @@
           <% }) %>
         </div>
       <% } else { %>
-        <div class="p-6 text-sm text-slate-600">Aucune option réutilisable pour le moment.</div>
+        <div class="p-6 text-sm text-slate-500">Aucune option réutilisable pour le moment.</div>
       <% } %>
     </section>
   </div>

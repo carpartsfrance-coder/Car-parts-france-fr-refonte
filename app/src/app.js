@@ -34,10 +34,17 @@ function isSameOrigin(req) {
   const host = typeof req.headers.host === 'string' ? req.headers.host : '';
   if (!host) return true;
 
+  // En développement, localhost est toujours accepté
+  if (!isProd && /^localhost(:\d+)?$/.test(host)) return true;
+
   const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
   if (origin) {
     try {
-      return new URL(origin).host === host;
+      const originHost = new URL(origin).host;
+      if (originHost === host) return true;
+      // Accepter aussi si l'origin est localhost (même en prod partielle)
+      if (!isProd && /^localhost(:\d+)?$/.test(originHost)) return true;
+      return false;
     } catch (e) {
       return false;
     }

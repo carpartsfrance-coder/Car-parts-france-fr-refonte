@@ -1,9 +1,8 @@
     </div>
 
-    <!-- Toast container -->
-    <div id="toast-container" class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none"></div>
-
+    <script src="/js/toast.js"></script>
     <script src="/js/admin-ajax.js"></script>
+    <script src="/js/form-validation.js"></script>
     <script>
       (function () {
         /* Sidebar toggle */
@@ -20,36 +19,6 @@
             overlay.classList.add('hidden');
           };
         }
-
-        /* Toast notification system */
-        window.showToast = function (message, type) {
-          type = type || 'success';
-          var container = document.getElementById('toast-container');
-          if (!container) return;
-          var icons = { success: 'check_circle', error: 'error', info: 'info' };
-          var colors = {
-            success: 'bg-green-600',
-            error: 'bg-red-600',
-            info: 'bg-slate-800',
-          };
-          var toast = document.createElement('div');
-          toast.className = 'pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl text-white text-sm font-semibold translate-x-[120%] transition-transform duration-300 ' + (colors[type] || colors.success);
-          toast.innerHTML =
-            '<span class="material-symbols-outlined text-xl">' + (icons[type] || icons.success) + '</span>' +
-            '<span>' + message + '</span>';
-          container.appendChild(toast);
-          requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              toast.classList.remove('translate-x-[120%]');
-              toast.classList.add('translate-x-0');
-            });
-          });
-          setTimeout(function () {
-            toast.classList.remove('translate-x-0');
-            toast.classList.add('translate-x-[120%]');
-            setTimeout(function () { toast.remove(); }, 300);
-          }, 3000);
-        };
 
         /* Save button spinner */
         document.querySelectorAll('form').forEach(function (form) {

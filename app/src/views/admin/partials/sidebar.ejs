@@ -1,88 +1,135 @@
 <% const activeKey = typeof active !== 'undefined' ? active : ''; %>
+<% const pendingCount = typeof sidebarPendingCount !== 'undefined' ? sidebarPendingCount : 0; %>
+<% const returnsCount = typeof sidebarReturnsCount !== 'undefined' ? sidebarReturnsCount : 0; %>
 
 <!-- Overlay -->
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden"></div>
 
 <aside id="admin-sidebar" class="fixed top-0 left-0 h-full w-72 bg-slate-900 text-white flex flex-col z-40 -translate-x-full lg:translate-x-0 transition-transform duration-300">
+
+  <!-- Logo -->
   <div class="px-6 py-6 border-b border-white/10">
     <a class="flex items-center gap-3" href="/admin">
       <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
         <span class="material-symbols-outlined text-white">settings</span>
       </div>
       <div class="leading-tight">
-        <div class="font-black tracking-tight text-lg">CARPARTS<span class="text-primary">ADMIN</span></div>
+        <div class="font-semibold tracking-tight text-lg">CARPARTS<span class="text-primary">ADMIN</span></div>
         <div class="text-xs text-white/60">Back office</div>
       </div>
     </a>
   </div>
 
-  <nav class="flex-1 px-4 py-5">
-    <div class="space-y-1">
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'dashboard' ? 'bg-primary text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin">
+  <nav class="flex-1 px-4 py-4 overflow-y-auto">
+
+    <!-- COMMERCE -->
+    <div class="sidebar-group-label">Commerce</div>
+    <div class="space-y-0.5">
+      <a class="sidebar-link <%= activeKey === 'dashboard' ? 'sidebar-link--active' : '' %>" href="/admin">
         <span class="material-symbols-outlined">grid_view</span>
         Tableau de bord
       </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'orders' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/commandes">
+      <a class="sidebar-link <%= activeKey === 'orders' ? 'sidebar-link--active' : '' %>" href="/admin/commandes">
         <span class="material-symbols-outlined">shopping_cart</span>
-        Commandes
+        <span class="flex-1">Commandes</span>
+        <% if (pendingCount > 0) { %>
+          <span class="sidebar-badge"><%= pendingCount %></span>
+        <% } %>
       </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'catalog' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/catalogue">
-        <span class="material-symbols-outlined">inventory_2</span>
-        Catalogue
-      </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'categories' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/categories">
-        <span class="material-symbols-outlined">category</span>
-        Catégories
-      </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'vehicle-makes' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/vehicules">
-        <span class="material-symbols-outlined">directions_car</span>
-        Véhicules
-      </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'shipping-classes' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/expedition">
-        <span class="material-symbols-outlined">local_shipping</span>
-        Expédition
-      </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'clients' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/clients">
+      <a class="sidebar-link <%= activeKey === 'clients' ? 'sidebar-link--active' : '' %>" href="/admin/clients">
         <span class="material-symbols-outlined">group</span>
         Clients
       </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'promo-codes' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/codes-promo">
+      <a class="sidebar-link <%= activeKey === 'promo-codes' ? 'sidebar-link--active' : '' %>" href="/admin/codes-promo">
         <span class="material-symbols-outlined">sell</span>
         Codes promo
       </a>
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'returns' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/retours">
-        <span class="material-symbols-outlined">assignment_return</span>
-        Consignes & retours
-      </a>
+    </div>
 
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'blog' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/blog">
+    <div class="sidebar-separator"></div>
+
+    <!-- CATALOGUE -->
+    <div class="sidebar-group-label">Catalogue</div>
+    <div class="space-y-0.5">
+      <a class="sidebar-link <%= activeKey === 'catalog' ? 'sidebar-link--active' : '' %>" href="/admin/catalogue">
+        <span class="material-symbols-outlined">inventory_2</span>
+        Produits
+      </a>
+      <a class="sidebar-link <%= activeKey === 'categories' ? 'sidebar-link--active' : '' %>" href="/admin/categories">
+        <span class="material-symbols-outlined">category</span>
+        Catégories
+      </a>
+      <a class="sidebar-link <%= activeKey === 'vehicle-makes' ? 'sidebar-link--active' : '' %>" href="/admin/vehicules">
+        <span class="material-symbols-outlined">directions_car</span>
+        Véhicules
+      </a>
+    </div>
+
+    <div class="sidebar-separator"></div>
+
+    <!-- CONTENU -->
+    <div class="sidebar-group-label">Contenu</div>
+    <div class="space-y-0.5">
+      <a class="sidebar-link <%= activeKey === 'blog' ? 'sidebar-link--active' : '' %>" href="/admin/blog">
         <span class="material-symbols-outlined">article</span>
         Blog
       </a>
-
-      <div class="h-px bg-white/10 my-4"></div>
-
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'legal-pages' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/pages-legales">
+      <a class="sidebar-link <%= activeKey === 'legal-pages' ? 'sidebar-link--active' : '' %>" href="/admin/pages-legales">
         <span class="material-symbols-outlined">gavel</span>
         Pages légales
       </a>
+    </div>
 
-      <a class="flex items-center gap-3 px-4 py-3 rounded-xl <%= activeKey === 'settings' ? 'bg-white/10 text-white font-black' : 'text-white/70 hover:bg-white/5 hover:text-white transition' %>" href="/admin/parametres">
+    <div class="sidebar-separator"></div>
+
+    <!-- CONFIGURATION -->
+    <div class="sidebar-group-label">Configuration</div>
+    <div class="space-y-0.5">
+      <a class="sidebar-link <%= activeKey === 'shipping-classes' ? 'sidebar-link--active' : '' %>" href="/admin/expedition">
+        <span class="material-symbols-outlined">local_shipping</span>
+        Expédition
+      </a>
+      <a class="sidebar-link <%= activeKey === 'returns' ? 'sidebar-link--active' : '' %>" href="/admin/retours">
+        <span class="material-symbols-outlined">assignment_return</span>
+        <span class="flex-1">Consignes & retours</span>
+        <% if (returnsCount > 0) { %>
+          <span class="sidebar-badge"><%= returnsCount %></span>
+        <% } %>
+      </a>
+      <a class="sidebar-link <%= activeKey === 'settings' ? 'sidebar-link--active' : '' %>" href="/admin/parametres">
         <span class="material-symbols-outlined">settings</span>
         Paramètres
       </a>
     </div>
+
   </nav>
 
-  <div class="px-4 pb-5">
-    <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
-      <div class="text-xs text-white/60 font-black uppercase tracking-widest">Connecté</div>
-      <div class="mt-2 text-sm font-bold"><%= currentAdmin && currentAdmin.email ? currentAdmin.email : 'Admin' %></div>
-      <form action="/admin/deconnexion" class="mt-3" method="POST">
-        <button class="w-full inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-white/15 transition" type="submit">
-          Déconnexion
+  <!-- Zone utilisateur -->
+  <div class="p-4" style="border-top: 1px solid rgba(255,255,255,0.06)">
+    <%
+      const adminFirstName = currentAdmin && currentAdmin.firstName ? currentAdmin.firstName : '';
+      const adminLastName  = currentAdmin && currentAdmin.lastName  ? currentAdmin.lastName  : '';
+      const adminInitials  = (adminFirstName.charAt(0) + adminLastName.charAt(0)).toUpperCase() || '?';
+      const adminFullName  = (adminFirstName + ' ' + adminLastName).trim() || (currentAdmin && currentAdmin.email) || 'Admin';
+      const adminRole      = currentAdmin && currentAdmin.role === 'owner' ? 'Propriétaire' : (currentAdmin && currentAdmin.role ? currentAdmin.role.charAt(0).toUpperCase() + currentAdmin.role.slice(1) : '');
+    %>
+    <form action="/admin/deconnexion" method="POST">
+      <div class="flex items-center gap-3">
+        <!-- Avatar initiales -->
+        <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style="background: rgba(255,255,255,0.15)">
+          <%= adminInitials %>
+        </div>
+        <!-- Nom + rôle -->
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-white truncate"><%= adminFullName %></div>
+          <div class="text-xs truncate" style="color: rgba(255,255,255,0.5)"><%= adminRole %></div>
+        </div>
+        <!-- Logout -->
+        <button class="sidebar-logout-btn" type="submit" title="Déconnexion">
+          <span class="material-symbols-outlined">logout</span>
         </button>
-      </form>
-    </div>
+      </div>
+    </form>
   </div>
+
 </aside>

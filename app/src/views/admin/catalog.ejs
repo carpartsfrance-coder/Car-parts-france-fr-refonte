@@ -2,7 +2,8 @@
 
 <%- include('./partials/sidebar', { active: 'catalog' }) %>
 
-<main class="flex-1">
+<main class="flex-1 relative">
+  <%- include('./partials/skeleton-table') %>
   <% const batchAiProfiles = typeof aiBatchProfiles !== 'undefined' && Array.isArray(aiBatchProfiles) && aiBatchProfiles.length ? aiBatchProfiles : [
     { key: 'batch_fast', label: 'Rapide', description: 'Priorité à la vitesse et au coût.', defaultModel: 'gpt-4.1' },
     { key: 'batch_balanced', label: 'Avancé', description: 'Qualité renforcée avec gpt-5.4 pour les lots.', defaultModel: 'gpt-5.4' },
@@ -13,16 +14,17 @@
   <div class="px-6 lg:px-10 py-8">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
       <div>
-        <div class="text-2xl md:text-3xl font-black text-slate-900">Catalogue</div>
-        <div class="mt-1 text-sm text-slate-600">Produits, prix et stock.</div>
+        <%- include('./partials/breadcrumb', { breadcrumbs: [{label: 'Produits'}] }) %>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">Catalogue</div>
+        <div class="mt-1 text-sm text-slate-500">Produits, prix et stock.</div>
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/admin/catalogue/options">
+        <a class="btn btn-secondary" href="/admin/catalogue/options">
           <span class="material-symbols-outlined mr-2 text-base">tune</span>
           Options produit
         </a>
-        <a class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" href="/admin/catalogue/nouveau">
+        <a class="btn btn-primary" href="/admin/catalogue/nouveau">
           <span class="material-symbols-outlined mr-2 text-base">add</span>
           Nouveau produit
         </a>
@@ -63,7 +65,7 @@
             <option value="200" <%= perPage === 200 ? 'selected' : '' %>>200 / page</option>
           </select>
 
-          <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">
+          <button class="btn btn-secondary" type="submit">
             Filtrer
           </button>
         </div>
@@ -84,17 +86,16 @@
 
     <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
-        <div class="font-black text-slate-900">Produits</div>
-
-        <% if (pagination && typeof pagination.totalItems !== 'undefined') { %>
+        <div class="font-semibold text-slate-900">Produits</div>
+        <% if (pagination && typeof pagination.totalItems !== 'undefined' && pagination.totalItems > 0) { %>
           <div class="text-xs font-bold text-slate-500">
-            <%= pagination.from %>–<%= pagination.to %> sur <%= pagination.totalItems %>
+            <%= pagination.totalItems %> produit<%= pagination.totalItems > 1 ? 's' : '' %>
           </div>
         <% } %>
       </div>
 
       <% if (products && products.length) { %>
-      <% 
+      <%
         const currentPage = pagination && pagination.page ? pagination.page : 1;
         const currentLimit = pagination && pagination.perPage ? pagination.perPage : 20;
         const currentQ = filters && filters.q ? filters.q : '';
@@ -111,14 +112,41 @@
           parts.push('page=' + encodeURIComponent(String(p)));
           return '/admin/catalogue?' + parts.join('&');
         };
+        function buildCatalogPageItems(currentPage, totalPages) {
+          if (totalPages <= 7) {
+            const r = [];
+            for (let i = 1; i <= totalPages; i++) r.push({ type: 'page', page: i });
+            return r;
+          }
+          const lo = Math.max(2, currentPage - 1);
+          const hi = Math.min(totalPages - 1, currentPage + 1);
+          const r = [{ type: 'page', page: 1 }];
+          if (lo > 2) r.push({ type: 'ellipsis' });
+          for (let pp = lo; pp <= hi; pp++) r.push({ type: 'page', page: pp });
+          if (hi < totalPages - 1) r.push({ type: 'ellipsis' });
+          r.push({ type: 'page', page: totalPages });
+          return r;
+        }
+        const cPageItems = buildCatalogPageItems(pagination.page, pagination.totalPages);
+        const cPageUrls = {};
+        cPageItems.forEach(function(i) { if (i.type === 'page') cPageUrls[i.page] = urlForPage(i.page); });
+        const cTotalLabel = pagination.totalItems + ' produit' + (pagination.totalItems > 1 ? 's' : '');
+        const catalogPb = {
+          pagination: pagination,
+          totalLabel: cTotalLabel,
+          pageItems: cPageItems,
+          pageUrls: cPageUrls,
+          prevUrl: urlForPage(pagination.prevPage),
+          nextUrl: urlForPage(pagination.nextPage),
+        };
         const getDraftBadge = (draft) => {
           if (!draft || !draft.status) return null;
           if (draft.status === 'completed') return { label: 'Brouillon IA prêt', className: 'bg-emerald-50 text-emerald-700' };
           if (draft.status === 'processing') return { label: 'IA en cours', className: 'bg-violet-50 text-violet-700' };
           if (draft.status === 'queued') return { label: 'IA en file', className: 'bg-sky-50 text-sky-700' };
-          if (draft.status === 'canceled') return { label: 'IA arrêtée', className: 'bg-slate-100 text-slate-700' };
+          if (draft.status === 'canceled') return { label: 'IA arrêtée', className: 'bg-slate-100 text-slate-500' };
           if (draft.status === 'failed') return { label: 'IA en erreur', className: 'bg-red-50 text-red-700' };
-          return { label: 'IA', className: 'bg-slate-100 text-slate-700' };
+          return { label: 'IA', className: 'bg-slate-100 text-slate-500' };
         };
       %>
 
@@ -128,16 +156,16 @@
           <div class="px-6 py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div class="flex flex-col gap-3">
               <div class="flex flex-wrap items-center gap-3">
-                <button id="bulkGenerateBtn" class="inline-flex items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-violet-700 transition disabled:opacity-50" type="submit" formaction="/admin/catalogue/generer-ia-multi" formmethod="POST" disabled>
+                <button id="bulkGenerateBtn" class="btn btn-primary" type="submit" formaction="/admin/catalogue/generer-ia-multi" formmethod="POST" disabled>
                   <span class="material-symbols-outlined mr-2 text-base">auto_awesome</span>
                   Générer IA la sélection
                 </button>
                 <% const activeJobsCount = typeof activeAiDraftJobsCount === 'number' ? activeAiDraftJobsCount : 0; %>
-                <button id="cancelAllAiBtn" class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition disabled:opacity-50" type="submit" formaction="/admin/api/products/generate-draft/cancel-all" formmethod="POST" <%= activeJobsCount > 0 ? '' : 'disabled' %>>
+                <button id="cancelAllAiBtn" class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition disabled:opacity-50" type="submit" formaction="/admin/api/products/generate-draft/cancel-all" formmethod="POST" <%= activeJobsCount > 0 ? '' : 'disabled' %>>
                   <span class="material-symbols-outlined mr-2 text-base">stop_circle</span>
                   Arrêter toute l’IA<%= activeJobsCount > 0 ? ' (' + activeJobsCount + ')' : '' %>
                 </button>
-                <button id="bulkDeleteBtn" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" type="submit" disabled>
+                <button id="bulkDeleteBtn" class="btn btn-secondary disabled:opacity-50" type="submit" disabled>
                   <span class="material-symbols-outlined mr-2 text-base">delete</span>
                   Supprimer la sélection
                 </button>
@@ -146,7 +174,7 @@
               <div>
                 <div class="grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
                   <div>
-                    <label class="block text-[11px] font-black uppercase tracking-widest text-violet-700" for="bulkAiProfile">Mode IA du lot</label>
+                    <label class="block text-[11px] font-semibold uppercase tracking-widest text-violet-700" for="bulkAiProfile">Mode IA du lot</label>
                     <select class="mt-2 w-full rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm font-bold text-slate-900" id="bulkAiProfile" name="aiProfile">
                       <% batchAiProfiles.forEach((profile) => { %>
                         <option value="<%= profile.key %>" <%= profile.key === defaultBatchAiProfileKey ? 'selected' : '' %>><%= profile.label %> — <%= profile.defaultModel %></option>
@@ -155,33 +183,69 @@
                     <div class="mt-2 text-[11px] font-bold text-slate-500">Rapide = plus rapide. Avancé = gpt-5.4 avec une qualité proche du mode individuel avancé. Qualité = équilibré pour de gros lots.</div>
                   </div>
                   <div>
-                    <label class="block text-[11px] font-black uppercase tracking-widest text-violet-700" for="bulkAiSourceNotes">Notes pour l’IA (optionnel)</label>
-                    <textarea class="mt-2 min-h-[84px] w-full rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-slate-700" id="bulkAiSourceNotes" name="bulkAiSourceNotes" placeholder="Ex : style rassurant, priorité SEO, éviter les affirmations non vérifiées, viser les références d’origine."></textarea>
+                    <label class="block text-[11px] font-semibold uppercase tracking-widest text-violet-700" for="bulkAiSourceNotes">Notes pour l’IA (optionnel)</label>
+                    <textarea class="mt-2 min-h-[84px] w-full rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-slate-500" id="bulkAiSourceNotes" name="bulkAiSourceNotes" placeholder="Ex : style rassurant, priorité SEO, éviter les affirmations non vérifiées, viser les références d’origine."></textarea>
                   </div>
                 </div>
                 <div class="mt-2 text-[11px] font-bold text-slate-500">Jusqu’à <%= maxBatchDraftSelection %> produits à la fois. La génération part en arrière-plan et vous pourrez relire chaque brouillon dans la fiche produit.</div>
               </div>
             </div>
-            <div class="text-xs font-bold text-slate-500">
-              Page <%= currentPage %> / <%= pagination && pagination.totalPages ? pagination.totalPages : 1 %>
+            <% if (pagination.totalPages > 1) { %>
+            <div>
+              <%- include('./partials/pagination', { pb: catalogPb }) %>
             </div>
+            <% } %>
           </div>
 
+          <%
+            const cSortKey = filters.sort || 'updated_desc';
+            const cSortParts = cSortKey.split('_');
+            const cSortDir = cSortParts[cSortParts.length - 1];
+            const cSortField = cSortParts.slice(0, -1).join('_');
+            function cSortUrl(field) {
+              const nextDir = (cSortField === field && cSortDir === 'asc') ? 'desc' : 'asc';
+              const p = [];
+              if (filters.q) p.push('q=' + encodeURIComponent(filters.q));
+              if (filters.stock) p.push('stock=' + encodeURIComponent(filters.stock));
+              p.push('sort=' + field + '_' + nextDir);
+              return '/admin/catalogue?' + p.join('&');
+            }
+            function cSortIcon(field) {
+              if (cSortField !== field) return 'unfold_more';
+              return cSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward';
+            }
+          %>
           <div class="overflow-x-auto">
-            <table class="w-full text-left">
+            <table class="w-full text-left admin-table">
             <thead>
-              <tr class="text-xs font-black text-slate-400 uppercase tracking-widest bg-white">
+              <tr class="text-xs font-semibold text-slate-400 uppercase tracking-widest bg-white">
                 <th class="px-6 py-4">
                   <input id="selectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
                 </th>
-                <th class="px-6 py-4">Nom</th>
-                <th class="px-6 py-4">SKU</th>
+                <th class="px-6 py-4 th-sortable <%= cSortField === 'name' ? 'sort-active' : '' %>" style="min-width:300px;">
+                  <a href="<%= cSortUrl('name') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Nom<span class="sort-icon material-symbols-outlined"><%= cSortIcon('name') %></span>
+                  </a>
+                </th>
+                <th class="px-6 py-4" style="width:80px;">SKU</th>
                 <th class="px-6 py-4">Marque</th>
                 <th class="px-6 py-4">Catégorie</th>
-                <th class="px-6 py-4">Score SEO</th>
-                <th class="px-6 py-4">Prix</th>
-                <th class="px-6 py-4">Qté</th>
-                <th class="px-6 py-4">Stock</th>
+                <th class="px-6 py-4 th-sortable <%= cSortField === 'seo' ? 'sort-active' : '' %>">
+                  <a href="<%= cSortUrl('seo') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Score SEO<span class="sort-icon material-symbols-outlined"><%= cSortIcon('seo') %></span>
+                  </a>
+                </th>
+                <th class="px-6 py-4 th-sortable <%= cSortField === 'price' ? 'sort-active' : '' %>">
+                  <a href="<%= cSortUrl('price') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Prix<span class="sort-icon material-symbols-outlined"><%= cSortIcon('price') %></span>
+                  </a>
+                </th>
+                <th class="px-6 py-4" style="width:80px;">Qté</th>
+                <th class="px-6 py-4 th-sortable <%= cSortField === 'stock' ? 'sort-active' : '' %>">
+                  <a href="<%= cSortUrl('stock') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Stock<span class="sort-icon material-symbols-outlined"><%= cSortIcon('stock') %></span>
+                  </a>
+                </th>
                 <th class="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -191,18 +255,20 @@
                   <td class="px-6 py-4">
                     <input class="rowSelect h-4 w-4 rounded border-slate-300" type="checkbox" name="productIds" value="<%= p.id %>" />
                   </td>
-                  <td class="px-6 py-4 font-black text-slate-900"><%= p.name %></td>
-                  <td class="px-6 py-4 text-sm text-slate-600"><%= p.sku || '—' %></td>
-                  <td class="px-6 py-4 text-sm text-slate-600"><%= p.brand || '—' %></td>
-                  <td class="px-6 py-4 text-sm text-slate-600"><%= p.category || '—' %></td>
+                  <td class="px-6 py-4 font-semibold text-slate-900" style="min-width:300px;">
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px;" title="<%= p.name %>"><%= p.name %></div>
+                  </td>
+                  <td class="px-6 py-4 text-sm text-slate-500" style="width:80px;"><%= p.sku || '—' %></td>
+                  <td class="px-6 py-4 text-sm text-slate-500"><%= p.brand || '—' %></td>
+                  <td class="px-6 py-4 text-sm text-slate-500"><%= p.category || '—' %></td>
                   <td class="px-6 py-4">
                     <% const score = Number.isFinite(p.seoScore) ? p.seoScore : 0; %>
                     <% const badgeClass = score >= 85 ? 'bg-green-50 text-green-700' : (score >= 65 ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-700'); %>
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= badgeClass %>"><%= score %>/100</span>
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-widest <%= badgeClass %>"><%= score %>/100</span>
                     <% const draftBadge = getDraftBadge(p.aiDraft); %>
                     <% if (draftBadge) { %>
                       <div class="mt-2">
-                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= draftBadge.className %>"><%= draftBadge.label %></span>
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-widest <%= draftBadge.className %>"><%= draftBadge.label %></span>
                       </div>
                     <% } %>
                     <% if (p.aiDraft && p.aiDraft.createdAtLabel) { %>
@@ -212,20 +278,20 @@
                       <div class="mt-2 text-[11px] font-bold text-red-600"><%= p.aiDraft.errorMessage %></div>
                     <% } %>
                   </td>
-                  <td class="px-6 py-4 font-black text-slate-900"><%= p.price %></td>
-                  <td class="px-6 py-4 text-sm font-black text-slate-900"><%= p.stockQty !== null && typeof p.stockQty !== 'undefined' ? p.stockQty : '—' %></td>
+                  <td class="px-6 py-4 font-semibold text-slate-900"><%= p.price %></td>
+                  <td class="px-6 py-4 text-sm font-semibold text-slate-900" style="width:80px;"><%= p.stockQty !== null && typeof p.stockQty !== 'undefined' ? p.stockQty : '—' %></td>
                   <td class="px-6 py-4">
                     <% if (p.inStock === true) { %>
-                      <span class="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-[10px] font-black uppercase tracking-widest">En stock</span>
+                      <span class="badge badge-success">En stock</span>
                     <% } else { %>
-                      <span class="inline-flex items-center rounded-full bg-amber-50 text-amber-800 px-3 py-1 text-[10px] font-black uppercase tracking-widest">Stock limité</span>
+                      <span class="badge badge-warning">Stock limité</span>
                     <% } %>
                   </td>
                   <td class="px-6 py-4 text-right">
                     <div class="inline-flex items-center gap-2">
                       <% if (p.aiDraft && (p.aiDraft.status === 'queued' || p.aiDraft.status === 'processing')) { %>
                         <button
-                          class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition"
+                          class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition"
                           type="submit"
                           formaction="/admin/api/products/generate-draft/<%= p.aiDraft.jobId %>/cancel"
                           formmethod="POST"
@@ -235,14 +301,14 @@
                           Arrêter l’IA
                         </button>
                       <% } %>
-                      <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition" href="/admin/catalogue/<%= p.id %>">
+                      <a class="btn btn-ghost" href="/admin/catalogue/<%= p.id %>">
                         <span class="material-symbols-outlined mr-2 text-base">edit</span>
                         Modifier
                       </a>
                       <form data-ajax="true" data-confirm="Supprimer ce produit ?" action="/admin/catalogue/<%= p.id %>/supprimer" method="POST" class="inline">
                         <input type="hidden" name="returnTo" value="<%= urlForPage(currentPage) %>" />
                         <button
-                          class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition"
+                          class="btn btn-danger"
                           type="submit"
                         >
                           <span class="material-symbols-outlined mr-2 text-base">delete</span>
@@ -257,28 +323,9 @@
             </table>
           </div>
 
-          <% if (pagination && pagination.totalPages && pagination.totalPages > 1) { %>
-            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <% if (pagination.hasPrev) { %>
-                  <a class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= urlForPage(pagination.prevPage) %>">
-                    Précédent
-                  </a>
-                <% } else { %>
-                  <span class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-300">Précédent</span>
-                <% } %>
-
-                <% if (pagination.hasNext) { %>
-                  <a class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="<%= urlForPage(pagination.nextPage) %>">
-                    Suivant
-                  </a>
-                <% } else { %>
-                  <span class="inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-300">Suivant</span>
-                <% } %>
-              </div>
-              <div class="text-xs font-bold text-slate-500">
-                <%= pagination.page %> / <%= pagination.totalPages %>
-              </div>
+          <% if (pagination && pagination.totalPages > 1) { %>
+            <div class="border-t border-slate-100">
+              <%- include('./partials/pagination', { pb: catalogPb }) %>
             </div>
           <% } %>
 
@@ -326,7 +373,7 @@
           })();
         </script>
       <% } else { %>
-        <div class="p-6 text-slate-600">Aucun produit.</div>
+        <div class="p-6 text-slate-500">Aucun produit.</div>
       <% } %>
     </div>
 
@@ -338,5 +385,21 @@
     <% } %>
   </div>
 </main>
+
+<script>
+  (function () {
+    function revealPage() {
+      var sk = document.getElementById('page-skeleton');
+      if (!sk) return;
+      sk.classList.add('is-hidden');
+      setTimeout(function () { sk.remove(); }, 200);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', revealPage);
+    } else {
+      revealPage();
+    }
+  })();
+</script>
 
 <%- include('./partials/footer') %>

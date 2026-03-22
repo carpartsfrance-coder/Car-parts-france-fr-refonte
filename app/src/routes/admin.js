@@ -5,6 +5,8 @@ const adminController = require('../controllers/adminController');
 const blogAdminController = require('../controllers/blogAdminController');
 const legalAdminController = require('../controllers/legalAdminController');
 const AdminUser = require('../models/AdminUser');
+const Order = require('../models/Order');
+const ReturnRequest = require('../models/ReturnRequest');
 const { handleProductImageUpload } = require('../middlewares/adminProductUpload');
 const { handleBlogCoverUpload, handleBlogMediaUpload } = require('../middlewares/adminBlogUpload');
 const { handleInvoiceLogoUpload } = require('../middlewares/adminInvoiceUpload');
@@ -64,6 +66,24 @@ router.post('/deconnexion', adminController.postAdminLogout);
 
 router.get('/reinitialiser', adminController.getAdminResetPassword);
 router.post('/reinitialiser', adminController.postAdminResetPassword);
+
+/* Sidebar global data — badge counts injected into every authenticated page */
+router.use(async (req, res, next) => {
+  if (req.session && req.session.admin) {
+    try {
+      const [pendingOrders, pendingReturns] = await Promise.all([
+        Order.countDocuments({ status: 'en_attente' }),
+        ReturnRequest.countDocuments({ status: 'en_attente' }),
+      ]);
+      res.locals.sidebarPendingCount = pendingOrders;
+      res.locals.sidebarReturnsCount = pendingReturns;
+    } catch (e) {
+      res.locals.sidebarPendingCount = 0;
+      res.locals.sidebarReturnsCount = 0;
+    }
+  }
+  next();
+});
 
 router.get('/', requireAdminAuth, adminController.getAdminDashboard);
 

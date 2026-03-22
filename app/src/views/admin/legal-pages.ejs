@@ -6,11 +6,12 @@
   <div class="px-6 lg:px-10 py-8">
     <div class="flex items-start justify-between gap-6">
       <div>
-        <div class="text-2xl md:text-3xl font-black text-slate-900">Pages légales</div>
-        <div class="mt-1 text-sm text-slate-600">Modifiez CGV, CGU, mentions légales, confidentialité…</div>
+        <%- include('./partials/breadcrumb', { breadcrumbs: [{label: 'Pages légales'}] }) %>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">Pages légales</div>
+        <div class="mt-1 text-sm text-slate-500">Modifiez CGV, CGU, mentions légales, confidentialité…</div>
       </div>
 
-      <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/legal" target="_blank" rel="noreferrer">
+      <a class="btn btn-secondary" href="/legal" target="_blank" rel="noreferrer">
         Voir côté site
       </a>
     </div>
@@ -38,7 +39,7 @@
 
     <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50">
-        <div class="font-black text-slate-900">Liste</div>
+        <div class="font-semibold text-slate-900">Liste</div>
         <div class="mt-1 text-xs text-slate-500"><%= pages && pages.length ? pages.length : 0 %> page(s)</div>
       </div>
 
@@ -47,15 +48,15 @@
           <% pages.forEach((p) => { %>
             <div class="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <div class="font-black text-slate-900"><%= p.title %></div>
+                <div class="font-semibold text-slate-900"><%= p.title %></div>
                 <div class="mt-1 text-xs text-slate-500">Slug : <%= p.slug %></div>
               </div>
 
               <div class="flex items-center gap-2">
-                <a class="inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-4 py-2 text-xs font-black uppercase tracking-wider hover:bg-black transition" href="/admin/pages-legales/<%= p.slug %>">
+                <a class="btn btn-primary" href="/admin/pages-legales/<%= p.slug %>">
                   Éditer
                 </a>
-                <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" href="/legal/<%= p.slug %>" target="_blank" rel="noreferrer">
+                <a class="btn btn-secondary" href="/legal/<%= p.slug %>" target="_blank" rel="noreferrer">
                   Voir
                 </a>
               </div>
@@ -63,7 +64,7 @@
           <% }) %>
         </div>
       <% } else { %>
-        <div class="p-6 text-slate-600">Aucune page.</div>
+        <div class="p-6 text-slate-500">Aucune page.</div>
       <% } %>
     </div>
   </div>

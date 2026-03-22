@@ -1416,16 +1416,18 @@ function getSafeReturnTo(value) {
 function getOrderStatusBadge(status) {
   switch (status) {
     case 'expediee':
-      return { label: 'Expédiée', className: 'bg-blue-50 text-blue-700' };
+      return { label: 'Expédiée', className: 'status-chip status-expediee' };
     case 'livree':
-      return { label: 'Livrée', className: 'bg-green-50 text-green-700' };
+      return { label: 'Livrée', className: 'status-chip status-livree' };
     case 'annulee':
-      return { label: 'Annulée', className: 'bg-red-50 text-red-700' };
+      return { label: 'Annulée', className: 'status-chip status-annulee' };
     case 'validee':
-      return { label: 'En préparation', className: 'bg-amber-50 text-amber-800' };
+      return { label: 'En préparation', className: 'status-chip status-en-preparation' };
+    case 'remboursee':
+      return { label: 'Remboursée', className: 'status-chip status-remboursee' };
     case 'en_attente':
     default:
-      return { label: 'En attente', className: 'bg-amber-50 text-amber-800' };
+      return { label: 'En attente', className: 'status-chip status-en-attente' };
   }
 }
 
@@ -1857,7 +1859,7 @@ async function getAdminDashboard(req, res, next) {
     const latestOrders = await Order.find({})
       .sort({ createdAt: -1 })
       .limit(8)
-      .select('_id number userId accountType totalCents createdAt')
+      .select('_id number userId accountType totalCents createdAt status')
       .lean();
 
     const userIds = latestOrders
@@ -1884,6 +1886,7 @@ async function getAdminDashboard(req, res, next) {
         customer,
         total: formatEuro(o.totalCents),
         when: formatDateTimeFR(o.createdAt),
+        statusBadge: getOrderStatusBadge(o.status),
       };
     });
 
@@ -1916,7 +1919,17 @@ async function getAdminOrdersPage(req, res, next) {
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : '';
     const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
     const period = typeof req.query.period === 'string' ? req.query.period.trim() : '';
-    const perPage = 20;
+    const sortFieldRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
+    const sortOrderRaw = typeof req.query.order === 'string' ? req.query.order.trim() : '';
+    const allowedOrderSortFields = new Set(['date', 'total', 'status']);
+    const activeSortField = allowedOrderSortFields.has(sortFieldRaw) ? sortFieldRaw : 'date';
+    const activeSortDir = sortOrderRaw === 'asc' ? 1 : -1;
+    const orderSortFieldMap = { date: 'createdAt', total: 'totalCents', status: 'status' };
+    const mongoOrderSort = { [orderSortFieldMap[activeSortField]]: activeSortDir };
+    const limitRaw = typeof req.query.limit === 'string' ? req.query.limit.trim() : '';
+    const requestedLimit = Number.parseInt(limitRaw || '20', 10) || 20;
+    const allowedOrderLimits = new Set([20, 50, 100]);
+    const perPage = allowedOrderLimits.has(requestedLimit) ? requestedLimit : 20;
     const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
     const requestedPage = Math.max(1, Number.parseInt(rawPage, 10) || 1);
 
@@ -1978,7 +1991,7 @@ async function getAdminOrdersPage(req, res, next) {
     const skip = (page - 1) * perPage;
 
     const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
+      .sort(mongoOrderSort)
       .skip(skip)
       .limit(perPage)
       .lean();
@@ -2038,7 +2051,7 @@ async function getAdminOrdersPage(req, res, next) {
       title: 'Admin - Commandes',
       dbConnected,
       orders: viewOrders,
-      filters: { q, status, type, period },
+      filters: { q, status, type, period, sort: activeSortField, order: activeSortDir === 1 ? 'asc' : 'desc', limit: perPage },
       pagination,
     });
   } catch (err) {
@@ -2706,6 +2719,18 @@ function resolveAdminCatalogMongoSort(sortKey) {
       return { category: 1, name: 1 };
     case 'category_desc':
       return { category: -1, name: 1 };
+    case 'name_asc':
+      return { name: 1 };
+    case 'name_desc':
+      return { name: -1 };
+    case 'price_asc':
+      return { priceCents: 1 };
+    case 'price_desc':
+      return { priceCents: -1 };
+    case 'stock_asc':
+      return { stockQty: 1, name: 1 };
+    case 'stock_desc':
+      return { stockQty: -1, name: 1 };
     default:
       return { updatedAt: -1 };
   }
@@ -4045,7 +4070,7 @@ async function getAdminCatalogPage(req, res, next) {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const stock = typeof req.query.stock === 'string' ? req.query.stock.trim() : '';
     const sortRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
-    const allowedSortKeys = new Set(['updated_desc', 'updated_asc', 'category_asc', 'category_desc', 'seo_desc', 'seo_asc']);
+    const allowedSortKeys = new Set(['updated_desc', 'updated_asc', 'category_asc', 'category_desc', 'seo_desc', 'seo_asc', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'stock_asc', 'stock_desc']);
     const sortKey = allowedSortKeys.has(sortRaw) ? sortRaw : 'updated_desc';
     const requiresMemorySort = sortKey === 'seo_desc' || sortKey === 'seo_asc';
 
@@ -5786,6 +5811,13 @@ async function getAdminClientsPage(req, res, next) {
     const q = getTrimmedString(req.query.q);
     const type = getTrimmedString(req.query.type);
     const period = getTrimmedString(req.query.period);
+    const clientSortFieldRaw = getTrimmedString(req.query.sort);
+    const clientSortOrderRaw = getTrimmedString(req.query.order);
+    const allowedClientSortFields = new Set(['name', 'type', 'created']);
+    const activeClientSortField = allowedClientSortFields.has(clientSortFieldRaw) ? clientSortFieldRaw : 'created';
+    const activeClientSortDir = clientSortOrderRaw === 'asc' ? 1 : -1;
+    const clientSortFieldMap = { name: 'firstName', type: 'accountType', created: 'createdAt' };
+    const mongoClientSort = { [clientSortFieldMap[activeClientSortField]]: activeClientSortDir };
 
     const perPage = 20;
     const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
@@ -5842,7 +5874,7 @@ async function getAdminClientsPage(req, res, next) {
     const skip = (currentPage - 1) * perPage;
 
     const users = await User.find(userQuery)
-      .sort({ createdAt: -1 })
+      .sort(mongoClientSort)
       .skip(skip)
       .limit(perPage)
       .select('_id firstName lastName email accountType companyName createdAt')
@@ -5873,7 +5905,7 @@ async function getAdminClientsPage(req, res, next) {
       title: 'Admin - Clients',
       dbConnected,
       clients: viewClients,
-      filters: { q, type, period },
+      filters: { q, type, period, sort: activeClientSortField, order: activeClientSortDir === 1 ? 'asc' : 'desc' },
       pagination,
     });
   } catch (err) {

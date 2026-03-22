@@ -6,8 +6,9 @@
   <div class="px-6 lg:px-10 py-8">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
       <div>
-        <div class="text-2xl md:text-3xl font-black text-slate-900">Clients</div>
-        <div class="mt-1 text-sm text-slate-600">Liste des clients (particuliers et professionnels).</div>
+        <%- include('./partials/breadcrumb', { breadcrumbs: [{label: 'Clients'}] }) %>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">Clients</div>
+        <div class="mt-1 text-sm text-slate-500">Liste des clients (particuliers et professionnels).</div>
       </div>
     </div>
 
@@ -35,7 +36,7 @@
             <option value="365d" <%= filters && filters.period === '365d' ? 'selected' : '' %>>12 mois</option>
           </select>
 
-          <button class="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition" type="submit">
+          <button class="btn btn-secondary" type="submit">
             Filtrer
           </button>
         </div>
@@ -44,7 +45,7 @@
 
     <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
-        <div class="font-black text-slate-900">Clients</div>
+        <div class="font-semibold text-slate-900">Clients</div>
         <% if (typeof pagination !== 'undefined' && pagination && pagination.totalItems) { %>
           <div class="text-xs font-bold text-slate-500">
             <%= pagination.from %>–<%= pagination.to %> sur <%= pagination.totalItems %>
@@ -53,31 +54,60 @@
       </div>
 
       <% if (clients && clients.length) { %>
+        <%
+          const clSort = filters.sort || 'created';
+          const clOrder = filters.order || 'desc';
+          function clSortUrl(field) {
+            const nextOrder = (clSort === field && clOrder === 'asc') ? 'desc' : 'asc';
+            const p = [];
+            if (filters.q) p.push('q=' + encodeURIComponent(filters.q));
+            if (filters.type) p.push('type=' + encodeURIComponent(filters.type));
+            if (filters.period) p.push('period=' + encodeURIComponent(filters.period));
+            p.push('sort=' + field, 'order=' + nextOrder);
+            return '/admin/clients?' + p.join('&');
+          }
+          function clSortIcon(field) {
+            if (clSort !== field) return 'unfold_more';
+            return clOrder === 'asc' ? 'arrow_upward' : 'arrow_downward';
+          }
+        %>
         <div class="overflow-x-auto">
-          <table class="w-full text-left">
+          <table class="w-full text-left admin-table">
             <thead>
-              <tr class="text-xs font-black text-slate-400 uppercase tracking-widest bg-white">
-                <th class="px-6 py-4">Client</th>
+              <tr class="text-xs font-semibold text-slate-400 uppercase tracking-widest bg-white">
+                <th class="px-6 py-4 th-sortable <%= clSort === 'name' ? 'sort-active' : '' %>">
+                  <a href="<%= clSortUrl('name') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Client<span class="sort-icon material-symbols-outlined"><%= clSortIcon('name') %></span>
+                  </a>
+                </th>
                 <th class="px-6 py-4">Email</th>
-                <th class="px-6 py-4">Type</th>
-                <th class="px-6 py-4">Créé</th>
+                <th class="px-6 py-4 th-sortable <%= clSort === 'type' ? 'sort-active' : '' %>">
+                  <a href="<%= clSortUrl('type') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Type<span class="sort-icon material-symbols-outlined"><%= clSortIcon('type') %></span>
+                  </a>
+                </th>
+                <th class="px-6 py-4 th-sortable <%= clSort === 'created' ? 'sort-active' : '' %>">
+                  <a href="<%= clSortUrl('created') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    Créé<span class="sort-icon material-symbols-outlined"><%= clSortIcon('created') %></span>
+                  </a>
+                </th>
                 <th class="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <% clients.forEach((c) => { %>
                 <tr>
-                  <td class="px-6 py-4 font-black text-slate-900"><%= c.name %></td>
-                  <td class="px-6 py-4 text-sm text-slate-600"><%= c.email %></td>
+                  <td class="px-6 py-4 font-semibold text-slate-900"><%= c.name %></td>
+                  <td class="px-6 py-4 text-sm text-slate-500"><%= c.email %></td>
                   <td class="px-6 py-4">
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest <%= c.accountType === 'pro' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700' %>">
+                    <span class="badge <%= c.accountType === 'pro' ? 'badge-pro' : 'badge-particulier' %>">
                       <%= c.accountType === 'pro' ? 'PRO' : 'PARTICULIER' %>
                     </span>
                   </td>
-                  <td class="px-6 py-4 text-sm text-slate-600"><%= c.createdAt %></td>
+                  <td class="px-6 py-4 text-sm text-slate-500"><%= c.createdAt %></td>
                   <td class="px-6 py-4 text-right">
                     <% if (c.id) { %>
-                      <a class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition" href="/admin/clients/<%= c.id %>">
+                      <a class="btn btn-ghost" href="/admin/clients/<%= c.id %>">
                         <span class="material-symbols-outlined mr-2 text-base">visibility</span>
                         Détails
                       </a>
@@ -90,7 +120,7 @@
         </div>
 
         <div class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div class="text-xs font-black uppercase tracking-widest text-slate-400">
+          <div class="text-xs font-semibold uppercase tracking-widest text-slate-400">
             <% if (typeof pagination !== 'undefined' && pagination) { %>
               Affichage <%= pagination.from %>-<%= pagination.to %> sur <%= pagination.totalItems %>
             <% } else { %>
@@ -119,7 +149,7 @@
               <% const startPage = Math.max(1, pagination.page - 2); %>
               <% const endPage = Math.min(pagination.totalPages, pagination.page + 2); %>
               <% for (let p = startPage; p <= endPage; p += 1) { %>
-                <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border text-xs font-black <%= p === pagination.page ? 'bg-primary text-white border-primary' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50' %>" href="?page=<%= p %><%= withExtra %>"><%= p %></a>
+                <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border text-xs font-semibold <%= p === pagination.page ? 'bg-primary text-white border-primary' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50' %>" href="?page=<%= p %><%= withExtra %>"><%= p %></a>
               <% } %>
 
               <a class="w-9 h-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition <%= pagination.hasNext ? '' : 'opacity-40 pointer-events-none' %>" href="?page=<%= pagination.nextPage %><%= withExtra %>" aria-label="Page suivante">
@@ -136,9 +166,9 @@
         </div>
       <% } else { %>
         <div class="text-center py-12">
-          <span class="material-symbols-outlined text-6xl text-gray-300">group</span>
-          <p class="text-lg font-semibold text-gray-500 mt-4">Aucun client</p>
-          <p class="text-gray-400">Les clients apparaitront ici.</p>
+          <span class="material-symbols-outlined text-6xl text-slate-400">group</span>
+          <p class="text-lg font-semibold text-slate-500 mt-4">Aucun client</p>
+          <p class="text-slate-400">Les clients apparaitront ici.</p>
         </div>
       <% } %>
     </div>
