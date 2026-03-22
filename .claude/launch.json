@@ -5,8 +5,7 @@
       "name": "dev",
       "runtimeExecutable": "node",
       "runtimeArgs": ["src/server.js"],
-      "port": 3000,
-      "autoPort": true,
+      "port": 60996,
       "cwd": "Documents/COMPTEUR 💕/Car-parts-france-fr-refonte-main"
     }
   ]
