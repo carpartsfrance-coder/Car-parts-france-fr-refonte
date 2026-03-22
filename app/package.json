@@ -11,6 +11,7 @@
     "css:watch": "node node_modules/.bin/tailwindcss -i src/styles/main.css -o public/css/styles.css --watch",
     "dev": "concurrently \"npm run css:watch\" \"nodemon src/server.js\"",
     "start": "node src/server.js",
+    "build": "npm run css:build",
     "heroku-postbuild": "npm run css:build",
     "emails:consigne:reminders": "node src/jobs/sendConsigneReminders.js",
     "seed": "node src/seed/seedProducts.js",
