@@ -437,6 +437,7 @@ async function postAdminMarkOrderConsigneReceived(req, res, next) {
     }
 
     req.session.adminOrderSuccess = 'Consigne marquée comme reçue.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Consigne marquée comme reçue.', data: { orderId } });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -646,6 +647,7 @@ async function postAdminSiteSettings(req, res, next) {
 
     await siteSettings.updateSiteSettingsFromForm(req.body);
     req.session.adminSiteSettingsSuccess = 'Paramètres du site enregistrés.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Paramètres du site enregistrés.' });
     return res.redirect('/admin/parametres/site');
   } catch (err) {
     return next(err);
@@ -989,6 +991,7 @@ async function postAdminCreateCategory(req, res, next) {
       shippingClassId,
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Catégorie créée.' });
     return res.redirect('/admin/categories');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -1132,6 +1135,7 @@ async function postAdminUpdateCategory(req, res, next) {
       }
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Catégorie mise à jour.' });
     return res.redirect('/admin/categories');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -1177,6 +1181,7 @@ async function postAdminToggleCategory(req, res, next) {
       await Category.updateMany({ name: { $regex: childRx } }, { $set: { isActive: nextIsActive } });
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Statut modifié.', data: { id: categoryId, isActive: nextIsActive } });
     return res.redirect('/admin/categories');
   } catch (err) {
     return next(err);
@@ -1211,25 +1216,32 @@ async function postAdminDeleteCategory(req, res, next) {
       const childRx = new RegExp(`^${escapeRegExp(parts.main)}\\s*>`);
       const childrenCount = await Category.countDocuments({ name: { $regex: childRx } });
       if (childrenCount > 0) {
-        req.session.adminCategoryError = 'Impossible de supprimer : cette catégorie principale possède des sous-catégories.';
+        const msg = 'Impossible de supprimer : cette cat\u00e9gorie principale poss\u00e8de des sous-cat\u00e9gories.';
+        if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: msg });
+        req.session.adminCategoryError = msg;
         return res.redirect('/admin/categories');
       }
 
       const usedRx = new RegExp(`^${escapeRegExp(parts.main)}(\\s*>|$)`);
       const usedCount = await Product.countDocuments({ category: { $regex: usedRx } });
       if (usedCount > 0) {
-        req.session.adminCategoryError = 'Impossible de supprimer : cette catégorie est utilisée par des produits.';
+        const msg = 'Impossible de supprimer : cette cat\u00e9gorie est utilis\u00e9e par des produits.';
+        if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: msg });
+        req.session.adminCategoryError = msg;
         return res.redirect('/admin/categories');
       }
     } else {
       const usedCount = await Product.countDocuments({ category: existing.name });
       if (usedCount > 0) {
-        req.session.adminCategoryError = 'Impossible de supprimer : cette catégorie est utilisée par des produits.';
+        const msg = 'Impossible de supprimer : cette cat\u00e9gorie est utilis\u00e9e par des produits.';
+        if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: msg });
+        req.session.adminCategoryError = msg;
         return res.redirect('/admin/categories');
       }
     }
 
     await Category.findByIdAndDelete(categoryId);
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Cat\u00e9gorie supprim\u00e9e.', data: { deletedIds: [categoryId] } });
     return res.redirect('/admin/categories');
   } catch (err) {
     return next(err);
@@ -1373,9 +1385,11 @@ async function postAdminBulkDeleteCategories(req, res, next) {
     }
 
     if (!deletableIds.length) {
-      req.session.adminCategoryError = blocked.length
+      const errMsg = blocked.length
         ? `Aucune suppression possible. Bloqué : ${blocked.slice(0, 5).join(', ')}${blocked.length > 5 ? '…' : ''}`
         : 'Aucune suppression possible.';
+      if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: errMsg });
+      req.session.adminCategoryError = errMsg;
       return res.redirect('/admin/categories');
     }
 
@@ -1385,6 +1399,7 @@ async function postAdminBulkDeleteCategories(req, res, next) {
       req.session.adminCategoryError = `Suppression partielle : ${deletableIds.length} supprimée(s). Bloqué : ${blocked.slice(0, 5).join(', ')}${blocked.length > 5 ? '…' : ''}`;
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: deletableIds.length + ' catégorie(s) supprimée(s).', data: { deletedIds: deletableIds, blockedCount: blocked.length } });
     return res.redirect('/admin/categories');
   } catch (err) {
     return next(err);
@@ -2295,6 +2310,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
       .select('_id number userId status consigne notifications')
       .lean();
     if (!existing) {
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, error: 'Commande introuvable.' });
       req.session.adminOrderError = 'Commande introuvable.';
       return res.redirect('/admin/commandes');
     }
@@ -2388,6 +2404,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
     }
 
     req.session.adminOrderSuccess = 'Statut mis à jour.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Statut mis à jour.', data: { id: orderId, status: status } });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -2448,6 +2465,7 @@ async function postAdminCreateReturnFromOrder(req, res, next) {
       return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Retour créé.', data: { returnId: String(rr._id) } });
     return res.redirect(`/admin/retours/${encodeURIComponent(String(rr._id))}`);
   } catch (err) {
     return next(err);
@@ -2556,6 +2574,7 @@ async function postAdminAddOrderShipment(req, res, next) {
     }
 
     req.session.adminOrderSuccess = 'Suivi ajouté.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Suivi ajouté.', data: { orderId } });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -2595,6 +2614,7 @@ async function postAdminDeleteOrderShipment(req, res, next) {
     });
 
     req.session.adminOrderSuccess = 'Suivi supprimé.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Suivi supprimé.', data: { orderId, shipmentId } });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -3253,6 +3273,11 @@ function getAdminUserIdFromRequest(req) {
     : null;
 }
 
+function wantsJsonResponse(req) {
+  const a = req && req.headers && typeof req.headers.accept === 'string' ? req.headers.accept : '';
+  return a.includes('application/json');
+}
+
 function getSafeAdminReturnTo(value, fallback = '/admin/catalogue') {
   const raw = typeof value === 'string' ? value : '';
   const trimmed = raw.trim();
@@ -3853,6 +3878,7 @@ async function postAdminCreateVehicleMake(req, res, next) {
       models: [],
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Marque créée.' });
     return res.redirect(getAdminVehiclesReturnTo(req));
   } catch (err) {
     if (err && err.code === 11000) {
@@ -3881,6 +3907,7 @@ async function postAdminUpdateVehicleMake(req, res, next) {
       $set: { name: normalized.name, nameLower: normalized.nameLower },
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Marque mise à jour.' });
     return res.redirect(getAdminVehiclesReturnTo(req));
   } catch (err) {
     if (err && err.code === 11000) {
@@ -3900,6 +3927,7 @@ async function postAdminDeleteVehicleMake(req, res, next) {
     if (!mongoose.Types.ObjectId.isValid(makeId)) return res.redirect('/admin/vehicules');
 
     await VehicleMake.findByIdAndDelete(makeId);
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Marque supprimée.', data: { deletedIds: [makeId] } });
     return res.redirect(getAdminVehiclesReturnTo(req));
   } catch (err) {
     return next(err);
@@ -3933,6 +3961,7 @@ async function postAdminAddVehicleModel(req, res, next) {
 
     make.models.push({ name: normalized.name, nameLower: normalized.nameLower });
     await make.save();
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Modèle ajouté.' });
     return res.redirect(getAdminVehiclesReturnTo(req));
   } catch (err) {
     return next(err);
@@ -3973,6 +4002,7 @@ async function postAdminUpdateVehicleModel(req, res, next) {
     make.models[idx].nameLower = normalized.nameLower;
     await make.save();
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Modèle mis à jour.' });
     return res.redirect(getAdminVehiclesReturnTo(req));
   } catch (err) {
     return next(err);
@@ -4000,6 +4030,7 @@ async function postAdminDeleteVehicleModel(req, res, next) {
       await make.save();
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Modèle supprimé.', data: { deletedIds: [modelId] } });
     return res.redirect(getAdminVehiclesReturnTo(req));
   } catch (err) {
     return next(err);
@@ -4260,6 +4291,7 @@ async function postAdminBulkDeleteProducts(req, res, next) {
     const blockedCount = selected.length - deletable.length;
 
     if (!deletable.length) {
+      if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: 'Impossible de supprimer : les produits sélectionnés sont présents dans une ou plusieurs commandes.' });
       req.session.adminCatalogError =
         'Impossible de supprimer : les produits sélectionnés sont présents dans une ou plusieurs commandes.';
       return res.redirect(safeReturnTo);
@@ -4290,6 +4322,7 @@ async function postAdminBulkDeleteProducts(req, res, next) {
       ? `${deletedCount} produit(s) supprimé(s). ${blockedCount} ignoré(s) (présents dans des commandes).`
       : `${deletedCount} produit(s) supprimé(s).`;
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: deletedCount + ' produit(s) supprimé(s).', data: { deletedIds: selectedIds.map(String), deletedCount, blockedCount } });
     return res.redirect(safeReturnTo);
   } catch (err) {
     return next(err);
@@ -4424,6 +4457,7 @@ async function postAdminCreateShippingClass(req, res, next) {
       );
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Classe d\'expédition créée.' });
     return res.redirect('/admin/expedition');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -4489,6 +4523,7 @@ async function postAdminUpdateShippingClass(req, res, next) {
       );
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Classe d\'expédition mise à jour.' });
     return res.redirect('/admin/expedition');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -4509,17 +4544,20 @@ async function postAdminDeleteShippingClass(req, res, next) {
     const existing = await ShippingClass.findById(classId).lean();
     if (!existing) return res.redirect('/admin/expedition');
     if (existing.isDefault === true) {
+      if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: 'Impossible de supprimer : classe par défaut.' });
       req.session.adminShippingClassError = 'Impossible de supprimer : classe par défaut.';
       return res.redirect('/admin/expedition');
     }
 
     const usedCount = await Product.countDocuments({ shippingClassId: new mongoose.Types.ObjectId(classId) });
     if (usedCount > 0) {
+      if (wantsJsonResponse(req)) return res.status(409).json({ ok: false, error: 'Impossible de supprimer : classe utilisée par des produits.' });
       req.session.adminShippingClassError = 'Impossible de supprimer : classe utilisée par des produits.';
       return res.redirect('/admin/expedition');
     }
 
     await ShippingClass.findByIdAndDelete(classId);
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Classe d\'expédition supprimée.', data: { deletedIds: [classId] } });
     return res.redirect('/admin/expedition');
   } catch (err) {
     return next(err);
@@ -4580,6 +4618,7 @@ async function postAdminCreateProductOptionTemplate(req, res, next) {
     });
 
     req.session.adminProductOptionTemplateSuccess = 'Option réutilisable créée.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Option réutilisable créée.' });
     return res.redirect('/admin/catalogue/options');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -4616,6 +4655,7 @@ async function postAdminUpdateProductOptionTemplate(req, res, next) {
     });
 
     req.session.adminProductOptionTemplateSuccess = 'Option réutilisable mise à jour.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Option réutilisable mise à jour.' });
     return res.redirect('/admin/catalogue/options');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -4653,6 +4693,7 @@ async function postAdminToggleProductOptionTemplate(req, res, next) {
     req.session.adminProductOptionTemplateSuccess = existing.isActive
       ? 'Option réutilisable réactivée.'
       : 'Option réutilisable désactivée.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Statut modifié.', data: { id: templateId, isActive: existing.isActive } });
     return res.redirect('/admin/catalogue/options');
   } catch (err) {
     return next(err);
@@ -5099,6 +5140,7 @@ async function postAdminCreateProduct(req, res, next) {
 
     await Product.create(createData);
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Produit créé.' });
     return res.redirect('/admin/catalogue');
   } catch (err) {
     for (const saved of Array.isArray(savedUploads) ? savedUploads : []) {
@@ -5684,6 +5726,7 @@ async function postAdminUpdateProduct(req, res, next) {
       await Product.updateOne({ _id: productId }, { $set: setPatch });
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Produit enregistré.' });
     return res.redirect(`/admin/catalogue/${encodeURIComponent(String(updated._id))}`);
   } catch (err) {
     return next(err);
@@ -5730,6 +5773,7 @@ async function postAdminDeleteProduct(req, res, next) {
 
     await Product.findByIdAndDelete(productId);
     req.session.adminCatalogSuccess = 'Produit supprimé.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Produit supprimé.', data: { deletedIds: [productId] } });
     return res.redirect(safeReturnTo);
   } catch (err) {
     return next(err);
@@ -6060,6 +6104,7 @@ async function postAdminUpdateClientDiscount(req, res, next) {
       },
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Remise client mise à jour.' });
     return res.redirect(`/admin/clients/${encodeURIComponent(String(userId))}`);
   } catch (err) {
     return next(err);
@@ -6203,6 +6248,7 @@ async function postAdminCreatePromoCode(req, res, next) {
       maxUsesPerUser,
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Code promo créé.' });
     return res.redirect('/admin/codes-promo');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -6298,6 +6344,7 @@ async function postAdminUpdatePromoCode(req, res, next) {
       },
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Code promo mis à jour.' });
     return res.redirect('/admin/codes-promo');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -6332,6 +6379,7 @@ async function postAdminDeletePromoCode(req, res, next) {
     await PromoRedemption.deleteMany({ promoCodeId: existing._id });
     await PromoCode.findByIdAndDelete(existing._id);
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Code promo supprimé.', data: { deletedIds: [promoId] } });
     return res.redirect('/admin/codes-promo');
   } catch (err) {
     return next(err);
@@ -6583,6 +6631,7 @@ async function postAdminUpdateReturnStatus(req, res, next) {
       });
     }
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Statut du retour mis à jour.', data: { id: returnId, status } });
     return res.redirect(`/admin/retours/${encodeURIComponent(returnId)}`);
   } catch (err) {
     return next(err);
@@ -6611,6 +6660,7 @@ async function postAdminUpdateReturnNote(req, res, next) {
       $set: { adminNote },
     });
 
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Note de retour mise à jour.' });
     return res.redirect(`/admin/retours/${encodeURIComponent(returnId)}`);
   } catch (err) {
     return next(err);
@@ -6706,6 +6756,7 @@ async function postAdminCreateBackofficeUser(req, res, next) {
     });
 
     req.session.adminTeamSuccess = 'Compte back-office créé.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Compte back-office créé.' });
     return res.redirect('/admin/parametres');
   } catch (err) {
     if (err && err.code === 11000) {
@@ -6743,6 +6794,7 @@ async function postAdminToggleBackofficeUser(req, res, next) {
     req.session.adminTeamSuccess = shouldEnable
       ? 'Compte back-office réactivé.'
       : 'Compte back-office désactivé.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Statut modifié.', data: { id: adminUserId, isActive: shouldEnable } });
     return res.redirect('/admin/parametres');
   } catch (err) {
     return next(err);
@@ -6789,6 +6841,7 @@ async function postAdminResetBackofficeUserPassword(req, res, next) {
     }
 
     req.session.adminTeamSuccess = 'Mot de passe employé mis à jour.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Mot de passe employé mis à jour.' });
     return res.redirect('/admin/parametres');
   } catch (err) {
     return next(err);
@@ -6842,6 +6895,7 @@ async function postAdminChangeOwnPassword(req, res, next) {
     }
 
     req.session.adminPasswordSuccess = 'Mot de passe mis à jour.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Mot de passe mis à jour.' });
     return res.redirect('/admin/parametres');
   } catch (err) {
     return next(err);
@@ -6907,6 +6961,7 @@ async function postAdminInvoiceSettings(req, res, next) {
 
     await invoiceSettings.updateInvoiceSettingsFromForm(req.body);
     req.session.adminInvoiceSettingsSuccess = 'Paramètres de facturation enregistrés.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Paramètres de facturation enregistrés.' });
     return res.redirect('/admin/parametres/facturation');
   } catch (err) {
     return next(err);

@@ -136,7 +136,7 @@
                   </form>
 
                   <div class="mt-3">
-                    <form action="/admin/expedition/<%= c.id %>/supprimer" method="POST" onsubmit="return confirm('Supprimer cette classe ?');">
+                    <form action="/admin/expedition/<%= c.id %>/supprimer" method="POST" data-ajax="true" data-confirm="Supprimer cette classe ?">
                       <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" type="submit" <%= (dbConnected && c.canDelete) ? '' : 'disabled' %>>
                         <span class="material-symbols-outlined mr-2 text-base">delete</span>
                         Supprimer

@@ -47,6 +47,10 @@ async function requireAdminAuth(req, res, next) {
       }
     }
 
+    const accept = req && req.headers && typeof req.headers.accept === 'string' ? req.headers.accept : '';
+    if (accept.includes('application/json')) {
+      return res.status(401).json({ ok: false, error: 'Session expir\u00e9e. Veuillez vous reconnecter.', redirect: '/admin/connexion' });
+    }
     const returnTo = getSafeReturnTo(req.originalUrl) || '/admin';
     return res.redirect(`/admin/connexion?returnTo=${encodeURIComponent(returnTo)}`);
   } catch (err) {

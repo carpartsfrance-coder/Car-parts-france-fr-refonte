@@ -108,7 +108,7 @@
 
               <div>
                 <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Statut</div>
-                <form action="/admin/commandes/<%= order.id %>/statut" class="mt-3 flex flex-col sm:flex-row gap-3" method="POST">
+                <form action="/admin/commandes/<%= order.id %>/statut" class="mt-3 flex flex-col sm:flex-row gap-3" method="POST" data-ajax="true">
                   <select class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="status">
                     <% (statusOptions || []).forEach((s) => { %>
                       <option value="<%= s.key %>" <%= s.key === order.statusKey ? 'selected' : '' %>><%= s.label %></option>
@@ -270,7 +270,7 @@
                         <% } %>
                       </div>
 
-                      <form action="/admin/commandes/<%= order.id %>/suivi/<%= s.id %>/supprimer" method="POST">
+                      <form action="/admin/commandes/<%= order.id %>/suivi/<%= s.id %>/supprimer" method="POST" data-ajax="true" data-confirm="Supprimer ce suivi ?">
                         <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition" type="submit">
                           Supprimer
                         </button>
@@ -324,7 +324,7 @@
               <div class="flex items-center justify-between gap-4">
                 <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Consigne (ancienne pièce)</div>
                 <% if (order.consigne.hasPending) { %>
-                  <form action="/admin/commandes/<%= order.id %>/consigne/recu" method="POST">
+                  <form action="/admin/commandes/<%= order.id %>/consigne/recu" method="POST" data-ajax="true">
                     <button class="inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-4 py-2 text-[10px] font-black uppercase tracking-wider hover:bg-slate-800 transition" type="submit">
                       Marquer reçu
                     </button>

@@ -141,7 +141,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-3">
-                  <form action="/admin/catalogue/options/<%= template.id %>/toggle" method="POST">
+                  <form action="/admin/catalogue/options/<%= template.id %>/toggle" method="POST" data-ajax="true">
                     <button class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider transition <%= template.isActive ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' %>" type="submit">
                       <%= template.isActive ? 'Désactiver' : 'Réactiver' %>
                     </button>

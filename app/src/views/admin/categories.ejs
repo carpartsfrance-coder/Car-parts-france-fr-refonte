@@ -144,7 +144,7 @@
             </form>
 
             <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <form action="/admin/categories/supprimer-multi" id="bulkDeleteForm" method="POST" onsubmit="return confirm('Supprimer toutes les catégories sélectionnées ?');">
+              <form action="/admin/categories/supprimer-multi" id="bulkDeleteForm" method="POST" data-ajax="true" data-confirm="Supprimer toutes les cat\u00e9gories s\u00e9lectionn\u00e9es ?">
                 <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" disabled id="bulkDeleteBtn" type="submit">
                   <span class="material-symbols-outlined mr-2 text-base">delete</span>
                   Supprimer la sélection
@@ -160,7 +160,7 @@
           <% if (categoryGroups && categoryGroups.length) { %>
             <div class="divide-y divide-slate-100">
               <% categoryGroups.forEach((g) => { %>
-                <div class="p-6">
+                <div class="p-6" data-row-id="<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>">
                   <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div>
                       <div class="text-lg font-black text-slate-900"><%= g.main %></div>
@@ -179,7 +179,7 @@
                         Sélection
                       </label>
 
-                      <form action="/admin/categories/<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>/toggle" method="POST">
+                      <form action="/admin/categories/<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>/toggle" method="POST" data-ajax="true">
                         <button class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition disabled:opacity-50" <%= (!dbConnected || mainDisabled) ? 'disabled' : '' %> type="submit">
                           <span class="material-symbols-outlined mr-2 text-base">toggle_on</span>
                           <%= (g.mainDoc && g.mainDoc.isActive) ? 'Désactiver' : 'Activer' %>
@@ -242,7 +242,7 @@
                         </div>
                       </details>
 
-                      <form action="/admin/categories/<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>/supprimer" method="POST" onsubmit="return confirm('Supprimer cette catégorie principale ?');">
+                      <form action="/admin/categories/<%= g.mainDoc && g.mainDoc.id ? g.mainDoc.id : '' %>/supprimer" method="POST" data-ajax="true" data-confirm="Supprimer cette cat\u00e9gorie principale ?">
                         <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" <%= (!dbConnected || !canDeleteMain) ? 'disabled' : '' %> type="submit">
                           <span class="material-symbols-outlined mr-2 text-base">delete</span>
                           Supprimer
@@ -256,7 +256,7 @@
                     <% if (g.subs && g.subs.length) { %>
                       <div class="mt-3 space-y-3">
                         <% g.subs.forEach((s) => { %>
-                          <div class="rounded-2xl border border-slate-200 p-4">
+                          <div class="rounded-2xl border border-slate-200 p-4" data-row-id="<%= s.id %>">
                             <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                               <div>
                                 <div class="font-black text-slate-900"><%= s.subName || s.name %></div>
@@ -269,7 +269,7 @@
                                   Sélection
                                 </label>
 
-                                <form action="/admin/categories/<%= s.id %>/toggle" method="POST">
+                                <form action="/admin/categories/<%= s.id %>/toggle" method="POST" data-ajax="true">
                                   <button class="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-200 transition disabled:opacity-50" <%= dbConnected ? '' : 'disabled' %> type="submit">
                                     <span class="material-symbols-outlined mr-2 text-base">toggle_on</span>
                                     <%= s.isActive ? 'Désactiver' : 'Activer' %>
@@ -320,7 +320,7 @@
                                   </div>
                                 </details>
 
-                                <form action="/admin/categories/<%= s.id %>/supprimer" method="POST" onsubmit="return confirm('Supprimer cette sous-catégorie ?');">
+                                <form action="/admin/categories/<%= s.id %>/supprimer" method="POST" data-ajax="true" data-confirm="Supprimer cette sous-cat\u00e9gorie ?">
                                   <button class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition disabled:opacity-50" <%= (!dbConnected || !s.canDelete) ? 'disabled' : '' %> type="submit">
                                     <span class="material-symbols-outlined mr-2 text-base">delete</span>
                                     Supprimer
