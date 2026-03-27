@@ -32,6 +32,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// trust proxy AVANT les middlewares qui dépendent de req.hostname / X-Forwarded-*
+if (isProd) {
+  app.set('trust proxy', 1);
+}
+
 function isSameOrigin(req) {
   const host = typeof req.headers.host === 'string' ? req.headers.host : '';
   if (!host) return true;
@@ -39,16 +44,33 @@ function isSameOrigin(req) {
   // En développement, localhost est toujours accepté
   if (!isProd && /^localhost(:\d+)?$/.test(host)) return true;
 
-  // Domaines de confiance : host, X-Forwarded-Host (reverse proxy), SITE_URL
-  const trustedHosts = new Set([host]);
+  // Construire la liste de domaines de confiance
+  const trustedHosts = new Set();
+
+  // 1. Host header (peut déjà être le bon domaine selon le proxy)
+  trustedHosts.add(host);
+
+  // 2. X-Forwarded-Host (envoyé par certains reverse proxies)
   const fwdHost = req.headers['x-forwarded-host'];
   if (typeof fwdHost === 'string' && fwdHost) {
-    // X-Forwarded-Host peut contenir plusieurs valeurs séparées par des virgules
     fwdHost.split(',').forEach(h => trustedHosts.add(h.trim()));
   }
+
+  // 3. SITE_URL (.env)
   const siteUrl = process.env.SITE_URL || '';
   if (siteUrl) {
     try { trustedHosts.add(new URL(siteUrl).host); } catch (_) {}
+  }
+
+  // 4. req.hostname (Express, tient compte de trust proxy)
+  if (req.hostname) {
+    trustedHosts.add(req.hostname);
+    // Ajouter aussi hostname:port si le port est non-standard
+    const port = req.headers.host && req.headers.host.includes(':')
+      ? req.headers.host.split(':')[1] : '';
+    if (port && port !== '443' && port !== '80') {
+      trustedHosts.add(req.hostname + ':' + port);
+    }
   }
 
   const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
@@ -56,6 +78,11 @@ function isSameOrigin(req) {
     try {
       const originHost = new URL(origin).host;
       if (trustedHosts.has(originHost)) return true;
+      // Comparer aussi sans le port (:443 est souvent omis par le navigateur)
+      const originHostname = new URL(origin).hostname;
+      for (const th of trustedHosts) {
+        if (th === originHostname || th.split(':')[0] === originHostname) return true;
+      }
       if (!isProd && /^localhost(:\d+)?$/.test(originHost)) return true;
       return false;
     } catch (e) {
@@ -66,12 +93,19 @@ function isSameOrigin(req) {
   const referer = typeof req.headers.referer === 'string' ? req.headers.referer : '';
   if (referer) {
     try {
-      return trustedHosts.has(new URL(referer).host);
+      const refHost = new URL(referer).host;
+      if (trustedHosts.has(refHost)) return true;
+      const refHostname = new URL(referer).hostname;
+      for (const th of trustedHosts) {
+        if (th === refHostname || th.split(':')[0] === refHostname) return true;
+      }
+      return false;
     } catch (e) {
       return false;
     }
   }
 
+  // Pas d'Origin ni Referer → navigateur légitime (form submit dans certains cas)
   return true;
 }
 
@@ -87,15 +121,12 @@ app.use((req, res, next) => {
   if (!shouldProtect) return next();
 
   if (!isSameOrigin(req)) {
+    console.warn('[CSRF] Blocked:', method, p, '| Host:', req.headers.host, '| Origin:', req.headers.origin, '| Referer:', req.headers.referer, '| X-Fwd-Host:', req.headers['x-forwarded-host']);
     return res.status(403).send('Requête refusée.');
   }
 
   return next();
 });
-
-if (isProd) {
-  app.set('trust proxy', 1);
-}
 
 app.use(helmet({
   contentSecurityPolicy: {
