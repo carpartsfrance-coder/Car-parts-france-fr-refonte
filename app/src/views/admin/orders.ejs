@@ -104,7 +104,7 @@
           const oPageUrls = {};
           oPageItems.forEach(function(i) { if (i.type === 'page') oPageUrls[i.page] = buildOrderPageUrl(i.page); });
           const oTotalLabel = pagination.totalItems + ' commande' + (pagination.totalItems > 1 ? 's' : '');
-          const ordersPb = {
+          var ordersPb = {
             pagination: pagination,
             totalLabel: oTotalLabel,
             pageItems: oPageItems,
