@@ -39,8 +39,13 @@ function isSameOrigin(req) {
   // En développement, localhost est toujours accepté
   if (!isProd && /^localhost(:\d+)?$/.test(host)) return true;
 
-  // Domaine(s) de confiance : le host + le domaine SITE_URL (pour les reverse proxies)
+  // Domaines de confiance : host, X-Forwarded-Host (reverse proxy), SITE_URL
   const trustedHosts = new Set([host]);
+  const fwdHost = req.headers['x-forwarded-host'];
+  if (typeof fwdHost === 'string' && fwdHost) {
+    // X-Forwarded-Host peut contenir plusieurs valeurs séparées par des virgules
+    fwdHost.split(',').forEach(h => trustedHosts.add(h.trim()));
+  }
   const siteUrl = process.env.SITE_URL || '';
   if (siteUrl) {
     try { trustedHosts.add(new URL(siteUrl).host); } catch (_) {}
@@ -51,7 +56,6 @@ function isSameOrigin(req) {
     try {
       const originHost = new URL(origin).host;
       if (trustedHosts.has(originHost)) return true;
-      // Accepter aussi si l'origin est localhost (même en prod partielle)
       if (!isProd && /^localhost(:\d+)?$/.test(originHost)) return true;
       return false;
     } catch (e) {
