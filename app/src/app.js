@@ -115,7 +115,9 @@ app.use((req, res, next) => {
   if (!isWrite) return next();
 
   const p = typeof req.path === 'string' ? req.path : '';
+  // Exclure les endpoints qui n'ont pas besoin de protection CSRF
   if (p === '/commande/paiement/webhook') return next();
+  if (p === '/admin/connexion' || p === '/admin/reinitialiser') return next();
 
   const shouldProtect = /^(\/admin|\/compte|\/contact|\/devis|\/commande|\/newsletter)(\/|$)/.test(p);
   if (!shouldProtect) return next();
