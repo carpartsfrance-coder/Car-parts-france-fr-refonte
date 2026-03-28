@@ -22,7 +22,7 @@
       <div class="lg:col-span-8">
         <article class="bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
           <% if (post && post.coverImageUrl) { %>
-            <img alt="<%= post.title %>" class="w-full h-72 object-cover" src="<%= post.coverImageUrl %>"/>
+            <img alt="<%= post.title %>" class="w-full h-72 object-cover" src="<%= post.coverImageUrl %>" loading="eager" width="1200" height="288" fetchpriority="high"/>
           <% } %>
 
           <div class="p-6 lg:p-8">

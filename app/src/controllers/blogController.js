@@ -243,7 +243,17 @@ function truncateText(value, max) {
 
 function stripHtml(value) {
   if (typeof value !== 'string') return '';
-  return value.replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function toSafeJsonLd(value) {
@@ -672,6 +682,10 @@ async function getBlogPost(req, res) {
         '@type': 'Organization',
         name: 'CarParts France',
         url: baseUrl || undefined,
+        logo: {
+          '@type': 'ImageObject',
+          url: baseUrl ? `${baseUrl}/images/logo-v2.png` : '/images/logo-v2.png',
+        },
       },
       mainEntityOfPage: {
         '@type': 'WebPage',
@@ -688,7 +702,7 @@ async function getBlogPost(req, res) {
           : -1;
       if (faqIdx !== -1) {
         const faqSection = contentHtml.slice(faqIdx);
-        const faqRegex = /<h[34][^>]*>(.*?)<\/h[34]>\s*<p>(.*?)<\/p>/gi;
+        const faqRegex = /<h[23][^>]*>(.*?)<\/h[23]>\s*<p>(.*?)<\/p>/gi;
         let faqMatch;
         while ((faqMatch = faqRegex.exec(faqSection)) !== null) {
           const question = stripHtml(faqMatch[1]).trim();
