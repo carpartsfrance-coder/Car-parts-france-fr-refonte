@@ -133,7 +133,7 @@ function markdownToHtml(markdown) {
   function flushOrderedList() {
     if (!inOrderedList) return;
     if (orderedListItems.length === 1) {
-      blocks.push(`<h4>${renderInlineMarkdown(orderedListItems[0])}</h4>`);
+      blocks.push(`<h3>${renderInlineMarkdown(orderedListItems[0])}</h3>`);
     } else {
       const items = orderedListItems
         .map((li) => `<li>${renderInlineMarkdown(li.replace(/^\d+[).]\s+/, ''))}</li>`)
@@ -225,7 +225,7 @@ function markdownToHtml(markdown) {
       const value = boldTitleMatch[1].trim();
       if (value) {
         const isNumbered = /^\d+[).]\s+/.test(value);
-        const tag = isNumbered ? 'h4' : 'h3';
+        const tag = 'h3';
         blocks.push(`<${tag}>${renderInlineMarkdown(value)}</${tag}>`);
       }
       continue;
@@ -250,7 +250,7 @@ function markdownToHtml(markdown) {
       flushList();
       flushQuote();
       flushOrderedList();
-      const tag = h1 ? 'h2' : h2 ? 'h3' : 'h4';
+      const tag = h1 ? 'h2' : h2 ? 'h2' : 'h3';
       const value = h1 || h2 || h3;
       blocks.push(`<${tag}>${renderInlineMarkdown(value)}</${tag}>`);
       continue;
