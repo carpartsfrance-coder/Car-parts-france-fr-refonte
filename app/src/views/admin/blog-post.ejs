@@ -82,7 +82,25 @@
           <div class="md:col-span-2">
             <label class="text-xs font-semibold uppercase tracking-widest text-slate-400">Contenu (texte simple / Markdown)</label>
             <textarea id="contentMarkdown" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 font-mono" name="contentMarkdown" rows="16"><%= form && form.contentMarkdown ? form.contentMarkdown : '' %></textarea>
-            <div class="mt-2 text-xs text-slate-500">Exemples : # Titre, ## Sous-titre, - liste, **gras**, *italique*, [lien](https://...).</div>
+            <div class="mt-2 text-xs text-slate-500 leading-relaxed">
+              Syntaxes supportées :
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded"># Titre</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">## Sous-titre</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">**gras**</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">*italique*</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">- liste</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">1. liste numérotée</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">[lien](url)</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">![alt](url)</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">&gt; citation</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">| tableau |</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">:::product</code>
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">---</code>
+              <br/>
+              Blockquotes spéciales :
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">&gt; ⚠️ Attention</code> (bordure orange) —
+              <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">&gt; 💡 Bon à savoir</code> (bordure bleue)
+            </div>
 
             <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
               <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Médias</div>

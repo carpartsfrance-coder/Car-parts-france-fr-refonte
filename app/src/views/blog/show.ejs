@@ -3,6 +3,8 @@
 
 <%- include('../partials/header') %>
 
+<div id="readingProgress" class="fixed top-0 left-0 h-0.5 bg-primary z-50 transition-all duration-150" style="width:0%"></div>
+
 <main class="flex-1 bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-300">
   <div class="container mx-auto px-4 lg:px-8 py-4">
 
@@ -136,6 +138,22 @@
 </main>
 
 <script>
+(function() {
+  var bar = document.getElementById('readingProgress');
+  var article = document.querySelector('article');
+  if (!bar || !article) return;
+  window.addEventListener('scroll', function() {
+    var rect = article.getBoundingClientRect();
+    var total = article.offsetHeight - window.innerHeight;
+    if (total <= 0) { bar.style.width = '100%'; return; }
+    var current = -rect.top;
+    var pct = Math.min(100, Math.max(0, (current / total) * 100));
+    bar.style.width = pct + '%';
+  });
+})();
+</script>
+
+<script>
   (function () {
     function slugify(value) {
       var input = String(value || '').trim().toLowerCase();
@@ -186,8 +204,8 @@
 
     if (items.length < 2) return;
 
-    if (items.length > 10) {
-      items = items.slice(0, 8).concat(items.slice(-2));
+    if (items.length > 12) {
+      items = items.filter(function(it) { return it.level === 0; });
     }
 
     list.innerHTML = items.map(function (it) {

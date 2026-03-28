@@ -46,6 +46,8 @@ function markdownToHtml(markdown) {
   let quoteLines = [];
   let inTable = false;
   let tableLines = [];
+  let inOrderedList = false;
+  let orderedListItems = [];
 
   function flushCode() {
     if (!inCode) return;
@@ -63,7 +65,14 @@ function markdownToHtml(markdown) {
         .split('\n')
         .map((l) => renderInlineMarkdown(l.trim()))
         .join('<br/>');
-      blocks.push(`<blockquote>${html}</blockquote>`);
+      const firstLine = quoteLines[0] || '';
+      let cls = '';
+      if (/Attention|Important|⚠️/i.test(firstLine)) {
+        cls = ' class="blockquote-warning"';
+      } else if (/Info|Bon à savoir|ℹ️|💡|Astuce|Conseil/i.test(firstLine)) {
+        cls = ' class="blockquote-info"';
+      }
+      blocks.push(`<blockquote${cls}>${html}</blockquote>`);
     }
     inQuote = false;
     quoteLines = [];
@@ -121,6 +130,20 @@ function markdownToHtml(markdown) {
     listItems = [];
   }
 
+  function flushOrderedList() {
+    if (!inOrderedList) return;
+    if (orderedListItems.length === 1) {
+      blocks.push(`<h4>${renderInlineMarkdown(orderedListItems[0])}</h4>`);
+    } else {
+      const items = orderedListItems
+        .map((li) => `<li>${renderInlineMarkdown(li.replace(/^\d+[).]\s+/, ''))}</li>`)
+        .join('');
+      blocks.push(`<ol>${items}</ol>`);
+    }
+    inOrderedList = false;
+    orderedListItems = [];
+  }
+
   for (const line of lines) {
     const trimmed = line.trim();
 
@@ -128,6 +151,7 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
+      flushOrderedList();
       if (inCode) {
         flushCode();
       } else {
@@ -146,6 +170,7 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
+      flushOrderedList();
       continue;
     }
 
@@ -153,6 +178,7 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
+      flushOrderedList();
       blocks.push('<hr/>');
       continue;
     }
@@ -162,6 +188,7 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
+      flushOrderedList();
       const alt = String(imageMatch[1] || '').trim();
       const url = normalizeUrl(imageMatch[2]);
       if (url) {
@@ -177,6 +204,7 @@ function markdownToHtml(markdown) {
         flushParagraph();
         flushList();
         flushQuote();
+        flushOrderedList();
         blocks.push(
           `<div style="position:relative;padding-top:56.25%;margin:1rem 0;border-radius:0.75rem;overflow:hidden;">`
           + `<iframe src="https://www.youtube-nocookie.com/embed/${escapeHtml(videoId)}" `
@@ -193,6 +221,7 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
+      flushOrderedList();
       const value = boldTitleMatch[1].trim();
       if (value) {
         const isNumbered = /^\d+[).]\s+/.test(value);
@@ -207,8 +236,8 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
-      const value = trimmed;
-      blocks.push(`<h4>${renderInlineMarkdown(value)}</h4>`);
+      inOrderedList = true;
+      orderedListItems.push(trimmed);
       continue;
     }
 
@@ -220,6 +249,7 @@ function markdownToHtml(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
+      flushOrderedList();
       const tag = h1 ? 'h2' : h2 ? 'h3' : 'h4';
       const value = h1 || h2 || h3;
       blocks.push(`<${tag}>${renderInlineMarkdown(value)}</${tag}>`);
@@ -231,6 +261,7 @@ function markdownToHtml(markdown) {
         flushParagraph();
         flushList();
         flushQuote();
+        flushOrderedList();
       }
       inTable = true;
       tableLines.push(trimmed);
@@ -244,6 +275,7 @@ function markdownToHtml(markdown) {
     if (quoteMatch) {
       flushParagraph();
       flushList();
+      flushOrderedList();
       inQuote = true;
       quoteLines.push(quoteMatch[1]);
       continue;
@@ -257,6 +289,7 @@ function markdownToHtml(markdown) {
     if (listMatch) {
       flushParagraph();
       flushQuote();
+      flushOrderedList();
       inList = true;
       listItems.push(listMatch[2].trim());
       continue;
@@ -266,12 +299,22 @@ function markdownToHtml(markdown) {
       flushList();
     }
 
+    if (trimmed === ':::product') {
+      flushParagraph();
+      flushList();
+      flushQuote();
+      flushOrderedList();
+      blocks.push('<div class="blog-product-cta" data-product-cta="1"></div>');
+      continue;
+    }
+
     paragraph.push(trimmed);
   }
 
   flushParagraph();
   flushList();
   flushQuote();
+  flushOrderedList();
   flushTable();
   flushCode();
 
