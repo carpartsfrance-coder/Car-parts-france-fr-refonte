@@ -44,6 +44,8 @@ function markdownToHtml(markdown) {
   let codeLines = [];
   let inQuote = false;
   let quoteLines = [];
+  let inTable = false;
+  let tableLines = [];
 
   function flushCode() {
     if (!inCode) return;
@@ -72,6 +74,41 @@ function markdownToHtml(markdown) {
     const joined = paragraph.join(' ').trim();
     if (joined) blocks.push(`<p>${renderInlineMarkdown(joined)}</p>`);
     paragraph = [];
+  }
+
+  function flushTable() {
+    if (!inTable) return;
+    const separator = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+    let sepIndex = tableLines.findIndex(l => separator.test(l.trim()));
+    const headerLines = sepIndex > 0 ? tableLines.slice(0, sepIndex) : [];
+    const bodyLines = sepIndex > 0 ? tableLines.slice(sepIndex + 1) : tableLines;
+
+    function parseCells(line) {
+      let t = line.trim();
+      if (t.startsWith('|')) t = t.slice(1);
+      if (t.endsWith('|')) t = t.slice(0, -1);
+      return t.split('|').map(c => renderInlineMarkdown(c.trim()));
+    }
+
+    let html = '<div class="table-wrapper"><table>';
+    if (headerLines.length) {
+      html += '<thead>';
+      for (const hl of headerLines) {
+        html += '<tr>' + parseCells(hl).map(c => `<th>${c}</th>`).join('') + '</tr>';
+      }
+      html += '</thead>';
+    }
+    if (bodyLines.length) {
+      html += '<tbody>';
+      for (const bl of bodyLines) {
+        html += '<tr>' + parseCells(bl).map(c => `<td>${c}</td>`).join('') + '</tr>';
+      }
+      html += '</tbody>';
+    }
+    html += '</table></div>';
+    blocks.push(html);
+    inTable = false;
+    tableLines = [];
   }
 
   function flushList() {
@@ -189,6 +226,20 @@ function markdownToHtml(markdown) {
       continue;
     }
 
+    if (trimmed.startsWith('|')) {
+      if (!inTable) {
+        flushParagraph();
+        flushList();
+        flushQuote();
+      }
+      inTable = true;
+      tableLines.push(trimmed);
+      continue;
+    }
+    if (inTable) {
+      flushTable();
+    }
+
     const quoteMatch = /^>\s*(.*)$/.exec(trimmed);
     if (quoteMatch) {
       flushParagraph();
@@ -221,6 +272,7 @@ function markdownToHtml(markdown) {
   flushParagraph();
   flushList();
   flushQuote();
+  flushTable();
   flushCode();
 
   return blocks.join('\n');

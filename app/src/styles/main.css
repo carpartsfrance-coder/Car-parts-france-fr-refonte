@@ -309,6 +309,24 @@ details > summary::-webkit-details-marker {
   background: transparent;
   padding: 0;
 }
+.prose .table-wrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+.prose table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.prose thead th {
+  background: #1a1a2e; color: #fff; padding: 0.75rem 1rem;
+  text-align: left; font-weight: 600; font-size: 0.8125rem;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.prose tbody td {
+  padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb;
+  vertical-align: top; color: #374151;
+}
+.prose tbody tr:nth-child(even) { background: #f9fafb; }
+.prose tbody tr:hover { background: #f3f4f6; }
 
 .dark .prose h2,
 .dark .prose h3,
@@ -329,6 +347,9 @@ details > summary::-webkit-details-marker {
 .dark .prose code {
   background: rgba(148, 163, 184, 0.18);
 }
+.dark .prose thead th { background: #0f172a; }
+.dark .prose tbody td { color: #e2e8f0; border-bottom-color: rgba(148,163,184,0.2); }
+.dark .prose tbody tr:nth-child(even) { background: rgba(15,23,42,0.4); }
 
 /* ------------------------------------------------------------------ */
 /*  Order tracking (from account/order-tracking.ejs)                  */
