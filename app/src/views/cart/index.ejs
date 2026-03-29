@@ -245,6 +245,60 @@
   </div>
 </main>
 
+<% if (items && items.length) { %>
+  <!-- Sticky checkout bar (mobile only) -->
+  <div class="fixed bottom-[72px] left-0 right-0 z-40 md:hidden opacity-0 pointer-events-none transition-opacity duration-300" data-sticky-checkout id="stickyCheckoutBar">
+    <div class="mx-3 mb-1 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-sm shadow-xl overflow-hidden">
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <div class="flex flex-col min-w-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><%= itemsCount %> article<%= itemsCount > 1 ? 's' : '' %></span>
+          <span class="text-lg font-black text-primary"><%= formatMoney(totalCents) %> €</span>
+          <span class="text-[10px] text-slate-400">TVA incluse</span>
+        </div>
+        <% if (!currentUser) { %>
+          <a class="shrink-0 bg-primary hover:bg-red-700 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-primary/20 transition-all" href="/compte/connexion?returnTo=%2Fpanier">
+            Valider
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
+          </a>
+        <% } else { %>
+          <a class="shrink-0 bg-primary hover:bg-red-700 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-primary/20 transition-all" href="/commande/livraison">
+            Valider
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
+          </a>
+        <% } %>
+      </div>
+      <div class="flex items-center justify-center gap-4 px-4 py-2 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-500 font-semibold">
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs text-primary">lock</span> Paiement sécurisé</span>
+        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs text-primary">local_shipping</span> Expédition 24h</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var stickyBar = document.querySelector('[data-sticky-checkout]');
+      var summaryCard = document.querySelector('.summary-card');
+      if (!stickyBar || !summaryCard) return;
+
+      var visible = false;
+      var observer = new IntersectionObserver(function(entries) {
+        var isInView = entries[0].isIntersecting;
+        if (!isInView && !visible) {
+          stickyBar.classList.remove('opacity-0', 'pointer-events-none');
+          stickyBar.classList.add('opacity-100', 'pointer-events-auto');
+          visible = true;
+        } else if (isInView && visible) {
+          stickyBar.classList.remove('opacity-100', 'pointer-events-auto');
+          stickyBar.classList.add('opacity-0', 'pointer-events-none');
+          visible = false;
+        }
+      }, { threshold: 0 });
+
+      observer.observe(summaryCard);
+    })();
+  </script>
+<% } %>
+
 <script>
   (function () {
     const clamp = (n) => {
