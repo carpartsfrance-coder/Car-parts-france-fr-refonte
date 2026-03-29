@@ -262,14 +262,17 @@
                   <% const isSupplyModeGroup = normalizeLoose(groupLabel).includes('mode-de-fourniture'); %>
                   <% const choices = Array.isArray(g && g.choices) ? g.choices : []; %>
 
-                  <div class="p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
+                  <div class="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
                     <div class="flex items-center justify-between gap-4">
-                      <div class="flex flex-col">
-                        <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight"><%= groupLabel %></span>
-                        <span class="text-slate-500 text-[11px] uppercase tracking-wider font-semibold mt-0.5"><%= g && g.helpText ? g.helpText : (g && g.required ? 'Option obligatoire' : 'Option produit') %></span>
+                      <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-lg">tune</span>
+                        <div class="flex flex-col">
+                          <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight"><%= groupLabel %></span>
+                          <span class="text-slate-500 text-[11px] uppercase tracking-wider font-semibold mt-0.5"><%= g && g.helpText ? g.helpText : (g && g.required ? 'Sélectionnez une option' : 'Option produit') %></span>
+                        </div>
                       </div>
                       <% if (g && g.required) { %>
-                        <span class="text-[10px] font-black uppercase tracking-widest text-primary">Requis</span>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-white bg-primary px-2 py-1 rounded-md">Requis</span>
                       <% } %>
                     </div>
 
@@ -324,12 +327,12 @@
                           <% const cAbsoluteRaw = c && c.absolutePriceCents !== null && typeof c.absolutePriceCents !== 'undefined' ? String(c.absolutePriceCents).trim() : ''; %>
                           <% const hasAbsolutePrice = cAbsoluteRaw !== '' && Number.isFinite(Number(cAbsoluteRaw)) && Number(cAbsoluteRaw) >= 0; %>
                           <% if (!cKey) return; %>
-                          <label class="flex items-center gap-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-3 text-xs font-bold uppercase tracking-wide cursor-pointer hover:border-primary transition-all">
+                          <label class="option-card group flex items-center gap-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-3.5 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
                             <input
                               type="radio"
                               name="<%= fieldName %>"
                               value="<%= cKey %>"
-                              class="text-primary focus:ring-primary"
+                              class="text-primary focus:ring-primary w-4 h-4 shrink-0"
                               <%= g && g.required ? 'required' : '' %>
                               data-option-input
                               data-option-type="choice"
@@ -339,9 +342,9 @@
                             />
                             <span class="flex-1 min-w-0 normal-case text-sm font-semibold tracking-normal"><%= c && c.label ? c.label : cKey %></span>
                             <% if (hasAbsolutePrice) { %>
-                              <span class="text-primary font-black normal-case"><%= formatMoney(c.absolutePriceCents) %> €</span>
+                              <span class="text-primary font-black normal-case text-sm"><%= formatMoney(c.absolutePriceCents) %> €</span>
                             <% } else if (Number(c && c.priceDeltaCents) > 0) { %>
-                              <span class="text-primary font-black normal-case">+<%= formatMoney(c.priceDeltaCents) %> €</span>
+                              <span class="text-primary font-black normal-case text-sm">+<%= formatMoney(c.priceDeltaCents) %> €</span>
                             <% } %>
                           </label>
                         <% }) %>
