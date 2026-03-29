@@ -426,24 +426,34 @@
           <div class="tab-content" id="content-description">
             <div class="py-10 grid grid-cols-1 md:grid-cols-2 gap-12">
               <div class="flex flex-col gap-6">
-                <h2 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h3>
-                <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
-                <% if (hasSafeHtml) { %>
-                  <div class="text-slate-700 dark:text-slate-300 leading-relaxed product-html"><%- product.descriptionHtmlSafe %></div>
-                <% } else { %>
-                  <p class="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
-                <% } %>
+                <h2 class="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white"><%= keyType || product.name %></h2>
+                <div class="desc-collapse-wrapper relative" data-desc-collapse>
+                  <div class="desc-collapse-inner" data-desc-collapse-inner>
+                    <% const hasSafeHtml = product && typeof product.descriptionHtmlSafe === 'string' && product.descriptionHtmlSafe.trim(); %>
+                    <% if (hasSafeHtml) { %>
+                      <div class="text-slate-700 dark:text-slate-300 leading-relaxed product-html"><%- product.descriptionHtmlSafe %></div>
+                    <% } else { %>
+                      <p class="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line"><%= product.descriptionText || product.description || product.shortDescription || '' %></p>
+                    <% } %>
 
-                <% if (summaryPoints.length) { %>
-                  <ul class="space-y-3">
-                    <% summaryPoints.forEach((point) => { %>
-                      <li class="flex items-start gap-3">
-                        <span class="material-symbols-outlined text-primary">check_circle</span>
-                        <span class="text-slate-700 dark:text-slate-300"><%= point %></span>
-                      </li>
-                    <% }) %>
-                  </ul>
-                <% } %>
+                    <% if (summaryPoints.length) { %>
+                      <ul class="space-y-3 mt-4">
+                        <% summaryPoints.forEach((point) => { %>
+                          <li class="flex items-start gap-3">
+                            <span class="material-symbols-outlined text-primary">check_circle</span>
+                            <span class="text-slate-700 dark:text-slate-300"><%= point %></span>
+                          </li>
+                        <% }) %>
+                      </ul>
+                    <% } %>
+                  </div>
+                  <div class="desc-collapse-fade hidden" data-desc-fade>
+                    <button class="w-full pt-10 pb-2 text-center text-sm font-bold text-primary flex items-center justify-center gap-1" data-desc-toggle type="button">
+                      <span data-desc-toggle-label>Lire la suite</span>
+                      <span class="material-symbols-outlined text-base transition-transform" data-desc-toggle-icon>expand_more</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="bg-slate-50 dark:bg-slate-900 rounded-2xl p-8 border border-slate-300 dark:border-slate-700 refined-shadow">
@@ -1153,6 +1163,62 @@
       }, { threshold: 0 });
 
       observer.observe(realBtn);
+    })();
+  </script>
+
+  <!-- Description read-more collapse (mobile only) -->
+  <script>
+    (function() {
+      var wrapper = document.querySelector('[data-desc-collapse]');
+      if (!wrapper) return;
+      var inner = wrapper.querySelector('[data-desc-collapse-inner]');
+      var fade = wrapper.querySelector('[data-desc-fade]');
+      var toggleBtn = wrapper.querySelector('[data-desc-toggle]');
+      var toggleLabel = wrapper.querySelector('[data-desc-toggle-label]');
+      var toggleIcon = wrapper.querySelector('[data-desc-toggle-icon]');
+      if (!inner || !fade || !toggleBtn) return;
+
+      var THRESHOLD = 250; /* px - only collapse if taller than this */
+      var expanded = false;
+
+      function checkSize() {
+        var isMobile = window.innerWidth < 768;
+        var naturalHeight = inner.scrollHeight;
+
+        if (isMobile && naturalHeight > THRESHOLD) {
+          inner.classList.add('is-collapsed');
+          inner.classList.remove('is-expanded');
+          fade.classList.remove('hidden');
+          expanded = false;
+          if (toggleLabel) toggleLabel.textContent = 'Lire la suite';
+          if (toggleIcon) toggleIcon.style.transform = '';
+        } else {
+          inner.classList.remove('is-collapsed');
+          inner.classList.add('is-expanded');
+          fade.classList.add('hidden');
+        }
+      }
+
+      toggleBtn.addEventListener('click', function() {
+        expanded = !expanded;
+        if (expanded) {
+          inner.classList.remove('is-collapsed');
+          inner.classList.add('is-expanded');
+          fade.classList.add('hidden');
+          if (toggleLabel) toggleLabel.textContent = 'Réduire';
+          if (toggleIcon) toggleIcon.style.transform = 'rotate(180deg)';
+        } else {
+          inner.classList.add('is-collapsed');
+          inner.classList.remove('is-expanded');
+          fade.classList.remove('hidden');
+          if (toggleLabel) toggleLabel.textContent = 'Lire la suite';
+          if (toggleIcon) toggleIcon.style.transform = '';
+          wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+
+      checkSize();
+      window.addEventListener('resize', checkSize);
     })();
   </script>
 </main>

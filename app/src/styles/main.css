@@ -200,6 +200,25 @@ details > summary::-webkit-details-marker {
   box-shadow: 0 2px 8px rgba(220, 38, 38, 0.12);
 }
 
+/* Description collapse (mobile) */
+.desc-collapse-inner.is-collapsed {
+  max-height: 200px;
+  overflow: hidden;
+}
+.desc-collapse-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to bottom, transparent, white 70%);
+}
+.dark .desc-collapse-fade {
+  background: linear-gradient(to bottom, transparent, #0f172a 70%);
+}
+.desc-collapse-inner.is-expanded {
+  max-height: none;
+}
+
 .cart-submit-success {
   background: #38a169 !important;
   box-shadow: 0 14px 28px rgba(56, 161, 105, 0.28) !important;
