@@ -1057,30 +1057,79 @@
 
       stickyBar.style.display = '';
 
+      /* Show custom validation error for missing required options */
+      function showOptionError(form) {
+        var firstInvalid = form.querySelector(':invalid');
+        if (!firstInvalid) return false;
+
+        /* Find the parent option group */
+        var group = firstInvalid.closest('.refined-shadow') || firstInvalid.closest('.rounded-xl');
+        if (!group) { form.reportValidity(); return true; }
+
+        /* Scroll to the group */
+        group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        /* Add error ring */
+        group.classList.add('ring-2', 'ring-red-500', 'ring-offset-2');
+
+        /* Remove any existing error message in this group */
+        var existing = group.querySelector('[data-option-error]');
+        if (existing) existing.remove();
+
+        /* Get option label */
+        var labelEl = group.querySelector('.uppercase.tracking-tight');
+        var optionName = labelEl ? labelEl.textContent.trim() : 'une option';
+
+        /* Insert custom error message */
+        var errorDiv = document.createElement('div');
+        errorDiv.setAttribute('data-option-error', '');
+        errorDiv.className = 'mt-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-red-700 text-sm font-semibold animate-pulse';
+        errorDiv.innerHTML = '<span class="material-symbols-outlined text-base">error</span> Veuillez sélectionner : ' + optionName;
+        group.appendChild(errorDiv);
+
+        /* Auto-cleanup after 4s */
+        setTimeout(function() {
+          group.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2');
+          if (errorDiv.parentNode) {
+            errorDiv.style.transition = 'opacity 0.3s';
+            errorDiv.style.opacity = '0';
+            setTimeout(function() { errorDiv.remove(); }, 300);
+          }
+        }, 4000);
+
+        /* Remove error on selection */
+        var inputs = group.querySelectorAll('input, select');
+        inputs.forEach(function(input) {
+          input.addEventListener('change', function handler() {
+            group.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2');
+            if (errorDiv.parentNode) errorDiv.remove();
+            input.removeEventListener('change', handler);
+          });
+        });
+
+        return true;
+      }
+
       /* Click on sticky → check options then submit or scroll to options */
       if (stickyBtn) {
         stickyBtn.addEventListener('click', function() {
           var form = realBtn.closest('form');
           if (form && !form.checkValidity()) {
-            /* Scroll to the first invalid field so user sees what's missing */
-            var firstInvalid = form.querySelector(':invalid');
-            if (firstInvalid) {
-              firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              /* Briefly highlight the option group */
-              var group = firstInvalid.closest('.rounded-xl');
-              if (group) {
-                group.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-                setTimeout(function() {
-                  group.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
-                }, 2500);
-              }
-            }
-            form.reportValidity();
+            showOptionError(form);
             return;
           }
           realBtn.click();
         });
       }
+
+      /* Also intercept the real submit button for consistent error UX */
+      realBtn.addEventListener('click', function(e) {
+        var form = realBtn.closest('form');
+        if (form && !form.checkValidity()) {
+          e.preventDefault();
+          showOptionError(form);
+        }
+      });
 
       /* Show/hide sticky bar based on real button visibility */
       var visible = false;
