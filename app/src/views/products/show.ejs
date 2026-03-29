@@ -1030,7 +1030,7 @@
   </div>
 
   <!-- Sticky Add-to-Cart bar (mobile only) — populated by JS -->
-  <div class="fixed bottom-[85px] left-0 right-0 z-40 md:hidden translate-y-full transition-transform duration-300" data-sticky-atc id="stickyAtcBar" style="display:none">
+  <div class="fixed bottom-[85px] left-0 right-0 z-40 md:hidden transition-all duration-300 opacity-0 pointer-events-none" data-sticky-atc id="stickyAtcBar" style="display:none">
     <div class="mx-3 mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-sm px-4 py-3 shadow-xl">
       <div class="flex flex-col min-w-0 flex-1">
         <span class="text-xs font-bold text-slate-900 truncate" data-sticky-atc-name></span>
@@ -1139,12 +1139,12 @@
       var observer = new IntersectionObserver(function(entries) {
         var isInView = entries[0].isIntersecting;
         if (!isInView && !visible) {
-          stickyBar.classList.remove('translate-y-full');
-          stickyBar.classList.add('translate-y-0');
+          stickyBar.classList.remove('opacity-0', 'pointer-events-none');
+          stickyBar.classList.add('opacity-100', 'pointer-events-auto');
           visible = true;
         } else if (isInView && visible) {
-          stickyBar.classList.remove('translate-y-0');
-          stickyBar.classList.add('translate-y-full');
+          stickyBar.classList.remove('opacity-100', 'pointer-events-auto');
+          stickyBar.classList.add('opacity-0', 'pointer-events-none');
           visible = false;
         }
       }, { threshold: 0 });
