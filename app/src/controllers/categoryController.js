@@ -274,7 +274,7 @@ function renderCategoryPage({ req, res, category, products, totalCount, page, pe
   const langPrefix = req.lang === 'en' ? '/en' : '';
   const pathWithoutLang = res.locals.currentPathWithoutLang || req.path;
   const hreflang = buildHreflangSet(baseUrl, pathWithoutLang);
-  const metaRobots = page > 1 ? 'noindex, follow' : '';
+  const metaRobots = page > 1 ? 'noindex, follow' : res.locals.metaRobots;
 
   const itemListElements = (products || []).map((p, idx) => {
     const productUrl = baseUrl ? `${baseUrl}${p.publicPath || buildProductPublicPath(p)}` : (p.publicPath || buildProductPublicPath(p));

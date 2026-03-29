@@ -345,7 +345,7 @@ function getBlogIndex(req, res) {
       "Guides techniques, conseils d'entretien et expertise automobile : retrouvez nos articles pour mieux choisir, diagnostiquer et entretenir vos pièces.";
 
     const shouldNoIndex = Boolean(q) || Boolean(category) || page > 1;
-    const metaRobots = shouldNoIndex ? 'noindex, follow' : '';
+    const metaRobots = shouldNoIndex ? 'noindex, follow' : res.locals.metaRobots;
 
     const ogTitle = title;
     const ogDescription = normalizeMetaText(metaDescription);
@@ -758,7 +758,7 @@ async function getBlogPost(req, res) {
       ogArticleModifiedTime,
       ogImage,
       jsonLd,
-      metaRobots: post.seo && post.seo.metaRobots ? post.seo.metaRobots : '',
+      metaRobots: post.seo && post.seo.metaRobots ? post.seo.metaRobots : res.locals.metaRobots,
       post: {
         title: post.title,
         slug: post.slug,

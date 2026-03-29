@@ -29,8 +29,6 @@ const EXACT_REDIRECTS = {
   '/my-account/':         '/compte',
   '/mon-compte':          '/compte',
   '/mon-compte/':         '/compte',
-  '/contact':             '/',
-  '/contact/':            '/',
   '/about':               '/',
   '/about/':              '/',
   '/a-propos':            '/',
