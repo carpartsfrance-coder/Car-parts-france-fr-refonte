@@ -86,7 +86,6 @@
 <% const _whatsAppHref = `https://wa.me/33756875025?text=${_whatsAppMessage}`; %>
 
 <% const _showMobileNav = !/^\/(admin|commande)(\/|$)/.test(_cp); %>
-<% const _showCookieBanner = !/^\/(admin)(\/|$)/.test(_cp); %>
 
 <% if (_showWhatsAppButton) { %>
   <div class="fixed bottom-20 right-6 z-40 md:bottom-6">
@@ -147,64 +146,6 @@
   </nav>
 <% } %>
 
-<% if (_showCookieBanner) { %>
-  <div id="cookieBanner" class="fixed bottom-4 left-4 right-4 z-[70] hidden">
-    <div class="mx-auto max-w-[1440px]">
-      <div class="rounded-2xl border border-slate-200 bg-white shadow-xl p-4 md:p-5 flex flex-col md:flex-row md:items-center gap-3">
-        <div class="text-xs md:text-sm text-slate-700 font-semibold">
-          <%= t('cookie.message') %>
-        </div>
-        <div class="flex gap-2 md:ml-auto">
-          <button id="cookieRefuse" type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition"><%= t('cookie.refuse') %></button>
-          <button id="cookieAccept" type="button" class="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-red-700 transition"><%= t('cookie.accept') %></button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    (function () {
-      function getCookie(name) {
-        var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\\[\\]\\\\\/\\+^])/g, '\\$1') + '=([^;]*)'));
-        return m ? decodeURIComponent(m[1]) : '';
-      }
-
-      function setCookie(name, value, maxAgeSeconds) {
-        var parts = [name + '=' + encodeURIComponent(value), 'Path=/', 'SameSite=Lax'];
-        if (typeof maxAgeSeconds === 'number') parts.push('Max-Age=' + String(maxAgeSeconds));
-        document.cookie = parts.join('; ');
-      }
-
-      var existing = getCookie('cp_cookie_consent');
-      var banner = document.getElementById('cookieBanner');
-      if (!banner) return;
-      if (existing) return;
-
-      banner.classList.remove('hidden');
-
-      var acceptBtn = document.getElementById('cookieAccept');
-      var refuseBtn = document.getElementById('cookieRefuse');
-
-      function close() {
-        banner.classList.add('hidden');
-      }
-
-      if (acceptBtn) {
-        acceptBtn.addEventListener('click', function () {
-          setCookie('cp_cookie_consent', 'accepted', 15552000);
-          close();
-        });
-      }
-
-      if (refuseBtn) {
-        refuseBtn.addEventListener('click', function () {
-          setCookie('cp_cookie_consent', 'refused', 15552000);
-          close();
-        });
-      }
-    })();
-  </script>
-<% } %>
 
 <style>
   #cartFeedbackRoot {
