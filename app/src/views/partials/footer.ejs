@@ -88,7 +88,7 @@
 <% const _showMobileNav = !/^\/(admin|commande)(\/|$)/.test(_cp); %>
 
 <% if (_showWhatsAppButton) { %>
-  <div class="fixed bottom-24 right-4 z-40 md:bottom-6" data-cpf-contact>
+  <div class="fixed bottom-28 right-4 z-40 md:bottom-6" data-cpf-contact>
     <!-- Contact menu (hidden by default) -->
     <div class="absolute bottom-[calc(100%+12px)] right-0 opacity-0 pointer-events-none scale-95 origin-bottom-right transition-all duration-200" data-cpf-contact-menu>
       <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden w-56">
@@ -130,16 +130,16 @@
       </div>
     </div>
 
-    <!-- Main FAB button with CPF logo -->
+    <!-- Main FAB button -->
     <button
       aria-label="Contactez-nous"
-      class="relative flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-xl border-2 border-primary transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-primary/20 overflow-hidden"
+      class="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-xl shadow-primary/30 transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-primary/20"
       data-cpf-contact-toggle
       title="Contactez-nous"
       type="button"
     >
-      <img alt="CarParts France" class="h-full w-full object-cover p-1 transition-opacity duration-200" src="/images/logo-fab.png" data-cpf-logo />
-      <span class="material-symbols-outlined text-2xl text-slate-500 absolute inset-0 items-center justify-center bg-white rounded-full opacity-0 pointer-events-none transition-opacity duration-200" style="display:flex" data-cpf-close>close</span>
+      <span class="material-symbols-outlined text-3xl text-white transition-opacity duration-200" data-cpf-logo>support_agent</span>
+      <span class="material-symbols-outlined text-2xl text-white absolute inset-0 items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200" style="display:flex" data-cpf-close>close</span>
     </button>
   </div>
 
