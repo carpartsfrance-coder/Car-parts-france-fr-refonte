@@ -222,23 +222,26 @@
           </div>
 
           <div class="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 border-l-4 border-l-primary refined-shadow">
-            <div class="flex justify-between items-end gap-4 mb-1">
-              <div>
+            <div class="flex flex-col md:flex-row md:justify-between md:items-end gap-1 md:gap-4 mb-1">
+              <div class="hidden md:block">
                 <span class="text-slate-500 text-sm font-medium">Prix public</span>
                 <% if (compareAt && compareAt > product.priceCents) { %>
                   <div class="mt-1 text-sm text-slate-400 line-through"><%= formatMoney(compareAt) %> €</div>
                 <% } %>
               </div>
-              <div class="text-right">
+              <% if (compareAt && compareAt > product.priceCents) { %>
+                <div class="md:hidden text-sm text-slate-400 line-through"><%= formatMoney(compareAt) %> €</div>
+              <% } %>
+              <div class="text-left md:text-right">
                 <span class="text-4xl font-black text-primary" data-price-display data-base-price-cents="<%= basePriceCents %>" data-installment-count="<%= installmentCount %>" data-installment-min-cents="<%= installmentMinPriceCents %>" data-installment-max-cents="<%= installmentMaxPriceCents %>"><%= formatMoney(product.priceCents) %> €</span>
                 <div class="text-[11px] uppercase tracking-wide text-slate-400">TTC</div>
-                <div class="mt-1 flex items-center justify-end gap-1 text-xs text-slate-500 <%= installmentEligible ? '' : 'hidden' %>" data-installment-wrapper>
+                <div class="mt-1 flex items-center md:justify-end gap-1 text-xs text-slate-500 <%= installmentEligible ? '' : 'hidden' %>" data-installment-wrapper>
                   <span class="material-symbols-outlined text-sm text-slate-400">credit_card</span>
                   <span>ou 3 × <span data-installment-amount><%= formatMoney(installmentAmountCents) %> €</span> sans frais</span>
                 </div>
               </div>
             </div>
-            <p class="text-right text-xs italic <%= hasConsigne ? 'text-emerald-600 font-semibold' : 'text-slate-400' %>"><%= hasConsigne ? 'Échange standard sans caution • Retour ancien organe sous 30 jours' : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
+            <p class="text-left md:text-right text-xs italic <%= hasConsigne ? 'text-emerald-600 font-semibold' : 'text-slate-400' %>"><%= hasConsigne ? 'Échange standard sans caution • Retour ancien organe sous 30 jours' : (shippingDelayText || (product.inStock ? 'Livraison rapide en France' : 'Disponible sur commande')) %></p>
           </div>
 
           <form action="/panier/ajouter/<%= product._id %>" class="flex flex-col gap-4 lg:flex-1" data-add-to-cart-form data-product-image="<%= mainImage %>" data-product-name="<%= product.name %>" method="POST">
