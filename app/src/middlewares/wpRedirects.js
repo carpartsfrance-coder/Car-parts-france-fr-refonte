@@ -45,6 +45,20 @@ const EXACT_REDIRECTS = {
   '/cgv/':                '/legal/cgv',
   '/conditions-generales-de-vente':  '/legal/cgv',
   '/conditions-generales-de-vente/': '/legal/cgv',
+
+  // Redirections migration SEO depuis carpartsfrance.fr
+  '/probleme-mecatronique-dsg-7-0am-guide-complet':   '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/probleme-mecatronique-dsg-7-0am-guide-complet/':  '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/remplacement-mecatronique-dsg-7':                  '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/remplacement-mecatronique-dsg-7/':                 '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/boite-dsg-7-bloquee-en-neutre-causes-et-solutions':  '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/boite-dsg-7-bloquee-en-neutre-causes-et-solutions/': '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/reparation-mecatronique-dsg-7':                    '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/reparation-mecatronique-dsg-7/':                   '/blog/mecatronique-dsg7-dq200-diagnostic-prix-remplacement',
+  '/mecatronique-dsg-6':                               '/blog/mecatronique-dsg6-dq250-diagnostic-prix-remplacement',
+  '/mecatronique-dsg-6/':                              '/blog/mecatronique-dsg6-dq250-diagnostic-prix-remplacement',
+  '/product/mecatronique-dsg-7-dq200-pour-volskwagen-audi-seat-et-skoda':   '/product/mecatronique-dsg-7-dq200-pour-volkswagen-audi-seat-et-skoda/',
+  '/product/mecatronique-dsg-7-dq200-pour-volskwagen-audi-seat-et-skoda/':  '/product/mecatronique-dsg-7-dq200-pour-volkswagen-audi-seat-et-skoda/',
 };
 
 // ── 2. WordPress artifact patterns -> 410 Gone ──────────────────────────────
