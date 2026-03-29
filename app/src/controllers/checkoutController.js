@@ -1484,12 +1484,14 @@ async function postPayment(req, res, next) {
           return res.redirect(`/compte/commandes/${encodeURIComponent(String(existingPending._id))}`);
         }
 
-        if (existingPending.mollieCheckoutUrl && existingPending.paymentStatus === 'pending') {
-          return res.redirect(existingPending.mollieCheckoutUrl);
-        }
-
-        if (existingPending.scalapayCheckoutUrl && existingPending.paymentStatus === 'pending') {
-          return res.redirect(existingPending.scalapayCheckoutUrl);
+        const pendingProvider = existingPending.paymentProvider || '';
+        if (existingPending.paymentStatus === 'pending' && pendingProvider === paymentProvider) {
+          if (paymentProvider === 'scalapay' && existingPending.scalapayCheckoutUrl) {
+            return res.redirect(existingPending.scalapayCheckoutUrl);
+          }
+          if (paymentProvider === 'mollie' && existingPending.mollieCheckoutUrl) {
+            return res.redirect(existingPending.mollieCheckoutUrl);
+          }
         }
 
         checkout.pendingOrderId = '';

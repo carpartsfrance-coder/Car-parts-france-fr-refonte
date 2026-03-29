@@ -40,7 +40,7 @@
           <form action="/commande/livraison" class="mt-6 space-y-4" method="POST">
             <% shippingMethods.forEach((m) => { %>
               <% const icon = m.id === 'domicile' ? 'local_shipping' : 'store'; %>
-              <label class="block rounded-2xl border p-5 cursor-pointer transition <%= selectedShippingMethod === m.id ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/50' %>">
+              <label class="block rounded-2xl border p-5 cursor-pointer transition" data-shipping-label>
                 <div class="flex items-start gap-4">
                   <input class="mt-1" name="shippingMethod" type="radio" value="<%= m.id %>" <%= selectedShippingMethod === m.id ? 'checked' : '' %> />
                   <div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
@@ -367,6 +367,32 @@
 </main>
 
 <%- include('../partials/footer') %>
+
+<script>
+  (function () {
+    var labels = document.querySelectorAll('[data-shipping-label]');
+    var radios = document.querySelectorAll('input[type="radio"][name="shippingMethod"]');
+
+    function updateStyles() {
+      labels.forEach(function (label) {
+        var radio = label.querySelector('input[type="radio"]');
+        if (!radio) return;
+        if (radio.checked) {
+          label.classList.remove('border-slate-200', 'hover:border-primary/50');
+          label.classList.add('border-primary', 'bg-primary/5');
+        } else {
+          label.classList.remove('border-primary', 'bg-primary/5');
+          label.classList.add('border-slate-200', 'hover:border-primary/50');
+        }
+      });
+    }
+
+    radios.forEach(function (r) {
+      r.addEventListener('change', updateStyles);
+    });
+    updateStyles();
+  })();
+</script>
 
 <script>
   (function () {
