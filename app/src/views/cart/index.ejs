@@ -277,8 +277,13 @@
   <script>
     (function() {
       var stickyBar = document.querySelector('[data-sticky-checkout]');
-      var summaryCard = document.querySelector('.summary-card');
-      if (!stickyBar || !summaryCard) return;
+      if (!stickyBar) return;
+
+      /* On mobile, the summary card is below the items (single column).
+         Show the sticky bar only after the user scrolls past the first
+         cart item (meaning they've seen the cart content). */
+      var firstItem = document.querySelector('.cart-page .space-y-6 > :first-child');
+      if (!firstItem) return;
 
       var visible = false;
       var observer = new IntersectionObserver(function(entries) {
@@ -292,9 +297,9 @@
           stickyBar.classList.add('opacity-0', 'pointer-events-none');
           visible = false;
         }
-      }, { threshold: 0 });
+      }, { threshold: 0.3 });
 
-      observer.observe(summaryCard);
+      observer.observe(firstItem);
     })();
   </script>
 <% } %>
