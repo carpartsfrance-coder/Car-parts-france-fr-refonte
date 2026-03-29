@@ -144,16 +144,23 @@
       <% if (technicalSpecs.length < 6) pushTechnicalSpec('Garantie', keyGarantie || 'Incluse'); %>
       <% if (technicalSpecs.length < 6) pushTechnicalSpec('Expédition', shippingDelayText || 'Sous 24/48h'); %>
 
-      <nav class="flex flex-wrap items-center gap-2 mb-6 text-sm overflow-x-auto no-scrollbar whitespace-nowrap" aria-label="Fil d'Ariane">
-        <a class="text-slate-500 hover:text-primary transition-colors" href="/">Accueil</a>
-        <span class="text-slate-300">/</span>
-        <a class="text-slate-500 hover:text-primary transition-colors" href="/produits">Catalogue</a>
+      <nav class="flex items-center gap-1.5 sm:gap-2 mb-6 text-xs sm:text-sm overflow-x-auto no-scrollbar whitespace-nowrap pb-1" aria-label="Fil d'Ariane">
+        <a class="text-slate-500 hover:text-primary transition-colors shrink-0" href="/">Accueil</a>
+        <span class="text-slate-300 shrink-0">/</span>
+        <a class="text-slate-500 hover:text-primary transition-colors shrink-0" href="/produits">Catalogue</a>
         <% if (typeof categoryUrl !== 'undefined' && categoryUrl && typeof categoryName !== 'undefined' && categoryName) { %>
-          <span class="text-slate-300">/</span>
-          <a class="text-slate-500 hover:text-primary transition-colors" href="<%= categoryUrl %>"><%= categoryName %></a>
+          <% const catParts = categoryName.split(/\s*>\s*/); %>
+          <% catParts.forEach((part, i) => { %>
+            <span class="text-slate-300 shrink-0">/</span>
+            <% if (i === catParts.length - 1) { %>
+              <a class="text-slate-500 hover:text-primary transition-colors shrink-0" href="<%= categoryUrl %>"><%= part %></a>
+            <% } else { %>
+              <span class="text-slate-500 shrink-0"><%= part %></span>
+            <% } %>
+          <% }) %>
         <% } %>
-        <span class="text-slate-300">/</span>
-        <span class="text-slate-900 dark:text-white font-medium"><%= product.name %></span>
+        <span class="text-slate-300 shrink-0">/</span>
+        <span class="text-slate-400 dark:text-slate-500 font-normal truncate"><%= product.name %></span>
       </nav>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start lg:items-stretch">
@@ -195,11 +202,11 @@
             <button class="hidden" data-thumb data-index="<%= idx + 4 %>" data-src="<%= img %>" type="button"></button>
           <% }) %>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-1">
+          <div class="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4 mt-1">
             <% qualityHighlights.forEach((item) => { %>
-              <div class="flex flex-col items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center refined-shadow">
-                <span class="material-symbols-outlined text-primary text-3xl mb-2"><%= item.icon %></span>
-                <span class="text-xs font-bold uppercase tracking-tight text-slate-900 dark:text-white"><%= item.label %></span>
+              <div class="flex flex-col items-center p-2 sm:p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center refined-shadow">
+                <span class="material-symbols-outlined text-primary text-2xl sm:text-3xl mb-1 sm:mb-2"><%= item.icon %></span>
+                <span class="text-[10px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 dark:text-white"><%= item.label %></span>
               </div>
             <% }) %>
           </div>
@@ -217,7 +224,7 @@
         <div class="lg:col-span-5 flex flex-col gap-6 h-full">
           <div>
             <span class="inline-block px-2 py-1 rounded bg-primary text-white text-[10px] font-black uppercase mb-3 tracking-widest"><%= heroBadge %></span>
-            <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight mb-2 uppercase tracking-tighter"><%= product.name %></h1>
+            <h1 class="text-[22px] sm:text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight mb-2 sm:uppercase tracking-tighter"><%= product.name %></h1>
             <p class="text-slate-500 dark:text-slate-300 text-lg"><%= productSubtitle || ('Série ' + ref) %></p>
           </div>
 
@@ -375,28 +382,17 @@
                   </div>
                 <% }) %>
               </div>
-            <% } else { %>
-              <div class="p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 refined-shadow">
-                <div class="flex items-center justify-between gap-4">
-                  <div class="flex flex-col">
-                    <span class="text-slate-900 dark:text-white font-bold text-sm uppercase tracking-tight">Configuration produit</span>
-                    <span class="text-slate-500 text-[11px] uppercase tracking-wider font-semibold mt-0.5">Version standard</span>
-                  </div>
-                  <span class="px-4 py-2 rounded-md text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-950 text-primary shadow-sm border border-slate-200 dark:border-slate-700">Prête à commander</span>
-                </div>
-                <p class="mt-3 text-[11px] text-slate-400 leading-tight">Cette référence ne nécessite pas de configuration supplémentaire avant l'ajout au panier.</p>
-              </div>
             <% } %>
 
             <div class="flex flex-col gap-3 lg:mt-auto">
-              <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div class="flex items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 shrink-0 w-fit">
-                  <button class="w-10 h-12 flex items-center justify-center hover:text-primary transition-colors" data-qty-minus type="button">—</button>
-                  <span class="w-10 text-center font-bold text-sm" data-qty-display>1</span>
-                  <button class="w-10 h-12 flex items-center justify-center hover:text-primary transition-colors" data-qty-plus type="button">+</button>
+              <div class="flex flex-row items-stretch gap-2">
+                <div class="flex items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-1 shrink-0">
+                  <button class="w-9 h-11 flex items-center justify-center hover:text-primary transition-colors text-sm" data-qty-minus type="button">—</button>
+                  <span class="w-8 text-center font-bold text-sm" data-qty-display>1</span>
+                  <button class="w-9 h-11 flex items-center justify-center hover:text-primary transition-colors text-sm" data-qty-plus type="button">+</button>
                 </div>
-                <button class="w-full sm:w-auto sm:flex-1 lg:flex-none lg:min-w-[320px] lg:max-w-[420px] bg-primary hover:bg-primary/90 text-white py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-lg shadow-primary/20 disabled:opacity-60" data-add-to-cart-submit <%= product.inStock ? '' : 'disabled' %> type="submit">
-                  <span class="material-symbols-outlined" data-add-to-cart-icon>add_shopping_cart</span>
+                <button class="flex-1 lg:flex-none lg:min-w-[320px] lg:max-w-[420px] bg-primary hover:bg-primary/90 text-white py-3.5 px-4 rounded-xl font-black uppercase tracking-wide text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 disabled:opacity-60" data-add-to-cart-submit <%= product.inStock ? '' : 'disabled' %> type="submit">
+                  <span class="material-symbols-outlined text-xl" data-add-to-cart-icon>add_shopping_cart</span>
                   <span data-add-to-cart-label>Ajouter au panier</span>
                 </button>
               </div>
@@ -1032,6 +1028,63 @@
       </script>
     <% } %>
   </div>
+
+  <!-- Sticky Add-to-Cart bar (mobile only) — populated by JS -->
+  <div class="fixed bottom-[70px] left-0 right-0 z-40 md:hidden translate-y-full transition-transform duration-300" data-sticky-atc id="stickyAtcBar" style="display:none">
+    <div class="mx-3 mb-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-sm px-4 py-3 shadow-xl">
+      <div class="flex flex-col min-w-0 flex-1">
+        <span class="text-xs font-bold text-slate-900 truncate" data-sticky-atc-name></span>
+        <span class="text-primary font-black text-sm" data-sticky-atc-price></span>
+      </div>
+      <button class="shrink-0 bg-primary hover:bg-primary/90 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-primary/20 transition-all" data-sticky-atc-btn type="button">
+        <span class="material-symbols-outlined text-lg">add_shopping_cart</span>
+        Ajouter
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var stickyBar = document.querySelector('[data-sticky-atc]');
+      var realBtn = document.querySelector('[data-add-to-cart-submit]');
+      var stickyBtn = document.querySelector('[data-sticky-atc-btn]');
+      if (!stickyBar || !realBtn) return;
+
+      /* Populate name & price from existing DOM */
+      var h1 = document.querySelector('h1');
+      var priceEl = document.querySelector('[data-price-display]');
+      var nameSpan = stickyBar.querySelector('[data-sticky-atc-name]');
+      var priceSpan = stickyBar.querySelector('[data-sticky-atc-price]');
+      if (h1 && nameSpan) nameSpan.textContent = h1.textContent.trim();
+      if (priceEl && priceSpan) priceSpan.textContent = priceEl.textContent.trim();
+
+      stickyBar.style.display = '';
+
+      /* Click on sticky → submit the real form */
+      if (stickyBtn) {
+        stickyBtn.addEventListener('click', function() {
+          realBtn.click();
+        });
+      }
+
+      /* Show/hide sticky bar based on real button visibility */
+      var visible = false;
+      var observer = new IntersectionObserver(function(entries) {
+        var isInView = entries[0].isIntersecting;
+        if (!isInView && !visible) {
+          stickyBar.classList.remove('translate-y-full');
+          stickyBar.classList.add('translate-y-0');
+          visible = true;
+        } else if (isInView && visible) {
+          stickyBar.classList.remove('translate-y-0');
+          stickyBar.classList.add('translate-y-full');
+          visible = false;
+        }
+      }, { threshold: 0 });
+
+      observer.observe(realBtn);
+    })();
+  </script>
 </main>
 
 <%- include('../partials/footer') %>
