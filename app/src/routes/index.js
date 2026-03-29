@@ -26,6 +26,14 @@ router.post('/devis', (req, res, next) => {
 
 router.get('/notre-histoire', aboutController.getAboutPage);
 
+router.get('/faq', (req, res) => {
+  res.render('faq/index', {
+    title: 'FAQ - Questions fréquentes | CarParts France',
+    metaDescription: 'Retrouvez les réponses aux questions les plus fréquentes : livraison, échange standard, garantie, compatibilité, paiement et retours.',
+    canonicalUrl: `${process.env.BASE_URL || 'https://www.carpartsfrance.fr'}/faq`,
+  });
+});
+
 router.get('/:slug', homeController.redirectLegacyBlogSlug);
 
 module.exports = router;
