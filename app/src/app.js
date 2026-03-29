@@ -123,8 +123,21 @@ app.use((req, res, next) => {
   if (!shouldProtect) return next();
 
   if (!isSameOrigin(req)) {
-    console.warn('[CSRF] Blocked:', method, p, '| Host:', req.headers.host, '| Origin:', req.headers.origin, '| Referer:', req.headers.referer, '| X-Fwd-Host:', req.headers['x-forwarded-host']);
-    return res.status(403).send('Requête refusée.');
+    const debugInfo = {
+      blocked: true,
+      method,
+      path: p,
+      host: req.headers.host,
+      origin: req.headers.origin || '(absent)',
+      referer: req.headers.referer || '(absent)',
+      xForwardedHost: req.headers['x-forwarded-host'] || '(absent)',
+      xForwardedProto: req.headers['x-forwarded-proto'] || '(absent)',
+      xForwardedFor: req.headers['x-forwarded-for'] || '(absent)',
+      hostname: req.hostname,
+      siteUrl: process.env.SITE_URL || '(non défini)',
+    };
+    console.warn('[CSRF] Blocked:', JSON.stringify(debugInfo));
+    return res.status(403).send('Requête refusée. Debug: ' + JSON.stringify(debugInfo, null, 2));
   }
 
   return next();
