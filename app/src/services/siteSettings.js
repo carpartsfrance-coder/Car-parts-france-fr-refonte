@@ -13,10 +13,8 @@ function getSafeUrl(value) {
 
 function buildEnvFallback() {
   return {
-    promoBannerText:
-      getTrimmedString(process.env.PROMO_BANNER_TEXT) ||
-      'Offre Spéciale : -5% sur toute commande cette semaine avec le code :',
-    promoBannerCode: getTrimmedString(process.env.PROMO_BANNER_CODE) || 'PROMO5',
+    promoBannerText: getTrimmedString(process.env.PROMO_BANNER_TEXT) || '',
+    promoBannerCode: getTrimmedString(process.env.PROMO_BANNER_CODE) || '',
     aboutTitle: getTrimmedString(process.env.HOME_ABOUT_TITLE) || 'Notre histoire',
     aboutText:
       getTrimmedString(process.env.HOME_ABOUT_TEXT)

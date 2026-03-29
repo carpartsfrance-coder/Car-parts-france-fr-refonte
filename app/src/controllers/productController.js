@@ -881,7 +881,7 @@ async function listProducts(req, res, next) {
       (!!sort && sort !== 'newest') ||
       (Number(page) || 1) > 1;
 
-    const metaRobots = hasAnyFilter ? 'noindex, follow' : '';
+    const metaRobots = hasAnyFilter ? 'noindex, follow' : res.locals.metaRobots;
 
     const titleParts = [];
     if (selectedCategoryLabel) titleParts.push(String(selectedCategoryLabel));
@@ -1066,7 +1066,7 @@ async function getProduct(req, res, next) {
         ratingValue: '4.2',
         bestRating: '5',
         worstRating: '1',
-        ratingCount: '127',
+        ratingCount: '37',
       },
       offers: {
         '@type': 'Offer',
