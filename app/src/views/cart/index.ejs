@@ -140,104 +140,106 @@
 
     <div class="lg:col-span-4">
       <div class="summary-card lg:sticky lg:top-28">
-        <h2 class="text-xl font-bold mb-6">Récapitulatif</h2>
-
-        <div class="space-y-4 mb-8">
-          <div class="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Sous-total</span>
-            <span class="font-semibold text-slate-900 dark:text-white"><%= formatMoney(typeof itemsSubtotalCents !== 'undefined' ? itemsSubtotalCents : totalCents) %> €</span>
+        <!-- Total highlight -->
+        <div class="bg-slate-900 dark:bg-slate-800 rounded-2xl p-5 mb-6 text-white">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-sm font-semibold text-slate-300">Total estimé TTC</span>
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">TVA incl.</span>
+          </div>
+          <div class="flex justify-between items-end">
+            <p class="text-3xl sm:text-4xl font-display font-black"><%= formatMoney(totalCents) %> €</p>
+            <p class="text-xs text-slate-400">dont <%= formatMoney(vatCents) %> € TVA</p>
           </div>
         </div>
 
-        <div class="mb-6 sm:mb-8">
-          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Code Promo</label>
-          <form action="/panier/code-promo" class="flex flex-col sm:flex-row gap-2" method="POST">
-            <input class="flex-grow bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" name="code" placeholder="Entrez votre code" type="text" value="<%= typeof promoCode !== 'undefined' ? promoCode : '' %>" />
-            <button class="bg-slate-900 dark:bg-slate-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors w-full sm:w-auto" type="submit">Appliquer</button>
-          </form>
-          <% if (typeof promoCode !== 'undefined' && promoCode) { %>
-            <form action="/panier/code-promo" class="mt-2" method="POST" onsubmit="return confirm('Supprimer le code promo ?');">
-              <input name="code" type="hidden" value="" />
-              <button class="text-xs font-bold text-slate-500 hover:text-primary underline underline-offset-4" type="submit">Supprimer le code</button>
-            </form>
-          <% } %>
-        </div>
+        <!-- Price breakdown -->
+        <div class="space-y-3 mb-5 text-sm">
+          <div class="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>Sous-total (<%= itemsCount %> article<%= itemsCount > 1 ? 's' : '' %>)</span>
+            <span class="font-semibold text-slate-900 dark:text-white"><%= formatMoney(typeof itemsSubtotalCents !== 'undefined' ? itemsSubtotalCents : totalCents) %> €</span>
+          </div>
 
-        <div class="space-y-4 mb-8">
           <% if (typeof clientDiscountCents !== 'undefined' && clientDiscountCents > 0) { %>
-            <div class="flex justify-between text-slate-600 dark:text-slate-400">
+            <div class="flex justify-between text-green-600">
               <span>Remise compte (<%= typeof clientDiscountPercent !== 'undefined' ? String(clientDiscountPercent).replace('.', ',') : '' %>%)</span>
-              <span class="font-semibold text-slate-900 dark:text-white">- <%= formatMoney(clientDiscountCents) %> €</span>
+              <span class="font-semibold">- <%= formatMoney(clientDiscountCents) %> €</span>
             </div>
           <% } %>
 
           <% if (typeof promoDiscountCents !== 'undefined' && promoDiscountCents > 0) { %>
-            <div class="flex justify-between text-slate-600 dark:text-slate-400">
+            <div class="flex justify-between text-green-600">
               <span>Code promo <%= promoCode ? '(' + promoCode + ')' : '' %></span>
-              <span class="font-semibold text-slate-900 dark:text-white">- <%= formatMoney(promoDiscountCents) %> €</span>
+              <span class="font-semibold">- <%= formatMoney(promoDiscountCents) %> €</span>
             </div>
           <% } %>
 
           <% if ((typeof clientDiscountCents !== 'undefined' && clientDiscountCents > 0) || (typeof promoDiscountCents !== 'undefined' && promoDiscountCents > 0)) { %>
-            <div class="flex justify-between text-slate-600 dark:text-slate-400">
+            <div class="flex justify-between text-slate-600 dark:text-slate-400 pt-2 border-t border-dashed border-slate-200">
               <span>Sous-total après remise</span>
               <span class="font-semibold text-slate-900 dark:text-white"><%= formatMoney(typeof itemsTotalAfterDiscountCents !== 'undefined' ? itemsTotalAfterDiscountCents : totalCents) %> €</span>
             </div>
           <% } %>
 
-          <div class="flex justify-between gap-4 text-slate-600 dark:text-slate-400">
+          <div class="flex justify-between items-start text-slate-600 dark:text-slate-400">
             <div>
-              <div>Livraison</div>
-              <div class="mt-1 text-[11px] text-slate-400"><%= shippingLabel %> estimée avant choix final à l'étape suivante</div>
+              <span>Livraison</span>
+              <div class="text-[10px] text-slate-400 mt-0.5"><%= shippingLabel %></div>
             </div>
-            <span class="font-semibold text-slate-900 dark:text-white"><%= shippingCost > 0 ? (formatMoney(shippingCost) + ' €') : 'Calculée à l\'étape suivante' %></span>
+            <span class="font-semibold text-slate-900 dark:text-white shrink-0"><%= shippingCost > 0 ? (formatMoney(shippingCost) + ' €') : 'Voir étape suivante' %></span>
           </div>
         </div>
 
-        <div class="pt-6 border-t border-slate-200 dark:border-slate-800 mb-8">
-          <div class="flex justify-between items-end">
-            <div>
-              <span class="text-lg font-bold">Total estimé TTC</span>
-              <div class="mt-1 text-[11px] text-slate-400 uppercase tracking-wider font-bold">Hors choix final du mode de livraison</div>
-            </div>
-            <div class="text-right">
-              <p class="text-2xl sm:text-3xl font-display font-bold text-primary"><%= formatMoney(totalCents) %> €</p>
-              <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">TVA incluse (<%= formatMoney(vatCents) %> €)</p>
-            </div>
+        <!-- Promo code — collapsible -->
+        <details class="mb-6 group">
+          <summary class="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-600 hover:text-primary transition-colors select-none">
+            <span class="material-symbols-outlined text-base">confirmation_number</span>
+            Ajouter un code promo
+            <span class="material-symbols-outlined text-sm ml-auto transition-transform group-open:rotate-180">expand_more</span>
+          </summary>
+          <div class="mt-3">
+            <form action="/panier/code-promo" class="flex gap-2" method="POST">
+              <input class="flex-grow bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" name="code" placeholder="Votre code" type="text" value="<%= typeof promoCode !== 'undefined' ? promoCode : '' %>" />
+              <button class="bg-slate-900 dark:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors shrink-0" type="submit">OK</button>
+            </form>
+            <% if (typeof promoCode !== 'undefined' && promoCode) { %>
+              <form action="/panier/code-promo" class="mt-2" method="POST" onsubmit="return confirm('Supprimer le code promo ?');">
+                <input name="code" type="hidden" value="" />
+                <button class="text-xs font-bold text-slate-500 hover:text-primary underline underline-offset-4" type="submit">Supprimer le code</button>
+              </form>
+            <% } %>
           </div>
-        </div>
+        </details>
 
+        <!-- CTA buttons -->
         <% if (!currentUser) { %>
-          <a class="w-full bg-primary hover:bg-red-700 text-white py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg shadow-xl shadow-red-500/20 transition-all flex items-center justify-center gap-3" href="/compte/connexion?returnTo=%2Fpanier">
+          <a class="w-full bg-primary hover:bg-red-700 text-white py-4 rounded-2xl font-bold text-base shadow-xl shadow-red-500/20 transition-all flex items-center justify-center gap-3" href="/compte/connexion?returnTo=%2Fpanier">
             Valider ma commande
             <span class="material-symbols-outlined">arrow_forward</span>
           </a>
-          <a class="mt-3 w-full border border-slate-200 hover:border-primary text-slate-700 hover:text-primary py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg transition-all flex items-center justify-center gap-3" href="/commande/livraison?guest=1">
+          <a class="mt-2 w-full border border-slate-200 hover:border-primary text-slate-700 hover:text-primary py-3.5 rounded-2xl font-semibold text-sm transition-all flex items-center justify-center gap-2" href="/commande/livraison?guest=1">
             Commander en invité
-            <span class="material-symbols-outlined">arrow_forward</span>
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
           </a>
         <% } else { %>
-          <a class="w-full bg-primary hover:bg-red-700 text-white py-4 sm:py-5 rounded-2xl font-bold text-base sm:text-lg shadow-xl shadow-red-500/20 transition-all flex items-center justify-center gap-3" href="/commande/livraison">
+          <a class="w-full bg-primary hover:bg-red-700 text-white py-4 rounded-2xl font-bold text-base shadow-xl shadow-red-500/20 transition-all flex items-center justify-center gap-3" href="/commande/livraison">
             Valider ma commande
             <span class="material-symbols-outlined">arrow_forward</span>
           </a>
         <% } %>
 
-        <div class="mt-8 space-y-4">
-          <div class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
-            <span class="material-symbols-outlined text-primary">verified_user</span>
-            <span>Paiement 100% sécurisé</span>
+        <!-- Trust badges — compact grid -->
+        <div class="mt-6 grid grid-cols-3 gap-2 text-center">
+          <div class="flex flex-col items-center gap-1 py-3 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+            <span class="material-symbols-outlined text-primary text-xl">verified_user</span>
+            <span class="text-[10px] font-semibold text-slate-600 dark:text-slate-400 leading-tight">Paiement sécurisé</span>
           </div>
-          <div class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
-            <span class="material-symbols-outlined text-primary">local_shipping</span>
-            <span>Expédition sous 24h</span>
+          <div class="flex flex-col items-center gap-1 py-3 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+            <span class="material-symbols-outlined text-primary text-xl">local_shipping</span>
+            <span class="text-[10px] font-semibold text-slate-600 dark:text-slate-400 leading-tight">Expédition 24h</span>
           </div>
-          <div class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
-            <span class="material-symbols-outlined text-primary">replay</span>
-            <span>Retours gratuits sous 30 jours</span>
-          </div>
-          <div class="pt-2 text-xs text-slate-500 dark:text-slate-400">
-            Livraison par transporteur spécialisé pièces auto.
+          <div class="flex flex-col items-center gap-1 py-3 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+            <span class="material-symbols-outlined text-primary text-xl">replay</span>
+            <span class="text-[10px] font-semibold text-slate-600 dark:text-slate-400 leading-tight">Retours 30 jours</span>
           </div>
         </div>
       </div>
@@ -246,14 +248,13 @@
 </main>
 
 <% if (items && items.length) { %>
-  <!-- Sticky checkout bar (mobile only) -->
-  <div class="fixed bottom-[72px] left-0 right-0 z-40 md:hidden opacity-0 pointer-events-none transition-opacity duration-300" data-sticky-checkout id="stickyCheckoutBar">
+  <!-- Sticky checkout bar (mobile only) — always visible -->
+  <div class="fixed bottom-[72px] left-0 right-0 z-40 md:hidden" data-sticky-checkout>
     <div class="mx-3 mb-1 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-sm shadow-xl overflow-hidden">
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div class="flex flex-col min-w-0">
           <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400"><%= itemsCount %> article<%= itemsCount > 1 ? 's' : '' %></span>
           <span class="text-lg font-black text-primary"><%= formatMoney(totalCents) %> €</span>
-          <span class="text-[10px] text-slate-400">TVA incluse</span>
         </div>
         <% if (!currentUser) { %>
           <a class="shrink-0 bg-primary hover:bg-red-700 text-white px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-primary/20 transition-all" href="/compte/connexion?returnTo=%2Fpanier">
@@ -267,41 +268,8 @@
           </a>
         <% } %>
       </div>
-      <div class="flex items-center justify-center gap-4 px-4 py-2 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-500 font-semibold">
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs text-primary">lock</span> Paiement sécurisé</span>
-        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs text-primary">local_shipping</span> Expédition 24h</span>
-      </div>
     </div>
   </div>
-
-  <script>
-    (function() {
-      var stickyBar = document.querySelector('[data-sticky-checkout]');
-      if (!stickyBar) return;
-
-      /* On mobile, the summary card is below the items (single column).
-         Show the sticky bar only after the user scrolls past the first
-         cart item (meaning they've seen the cart content). */
-      var firstItem = document.querySelector('.cart-page .space-y-6 > :first-child');
-      if (!firstItem) return;
-
-      var visible = false;
-      var observer = new IntersectionObserver(function(entries) {
-        var isInView = entries[0].isIntersecting;
-        if (!isInView && !visible) {
-          stickyBar.classList.remove('opacity-0', 'pointer-events-none');
-          stickyBar.classList.add('opacity-100', 'pointer-events-auto');
-          visible = true;
-        } else if (isInView && visible) {
-          stickyBar.classList.remove('opacity-100', 'pointer-events-auto');
-          stickyBar.classList.add('opacity-0', 'pointer-events-none');
-          visible = false;
-        }
-      }, { threshold: 0.3 });
-
-      observer.observe(firstItem);
-    })();
-  </script>
 <% } %>
 
 <script>
