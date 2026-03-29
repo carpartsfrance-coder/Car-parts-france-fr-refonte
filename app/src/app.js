@@ -142,6 +142,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://js.mollie.com"],
+      formAction: ["'self'", "https://*.mollie.com", "https://*.scalapay.com"],
     },
   },
   crossOriginEmbedderPolicy: false,
