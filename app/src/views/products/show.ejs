@@ -1180,8 +1180,10 @@
 
       var THRESHOLD = 250; /* px - only collapse if taller than this */
       var expanded = false;
+      var userToggled = false; /* true once user clicks — prevents resize from re-collapsing */
 
       function checkSize() {
+        if (userToggled) return; /* respect user's explicit choice */
         var isMobile = window.innerWidth < 768;
         var naturalHeight = inner.scrollHeight;
 
@@ -1201,6 +1203,7 @@
 
       toggleBtn.addEventListener('click', function() {
         expanded = !expanded;
+        userToggled = true;
         if (expanded) {
           inner.classList.remove('is-collapsed');
           inner.classList.add('is-expanded');
