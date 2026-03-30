@@ -6,7 +6,7 @@
     <script src="/js/form-validation.js"></script>
     <script>
       (function () {
-        /* Sidebar toggle */
+        /* Mobile sidebar toggle */
         var toggle = document.getElementById('sidebar-toggle');
         var sidebar = document.getElementById('admin-sidebar');
         var overlay = document.getElementById('sidebar-overlay');
@@ -18,6 +18,16 @@
           overlay.onclick = function () {
             sidebar.classList.add('-translate-x-full');
             overlay.classList.add('hidden');
+          };
+        }
+
+        /* Desktop sidebar collapse */
+        var collapseBtn = document.getElementById('sidebar-collapse-btn');
+        if (collapseBtn) {
+          collapseBtn.onclick = function () {
+            var html = document.documentElement;
+            var collapsed = html.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
           };
         }
       })();

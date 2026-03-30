@@ -5,19 +5,22 @@
 <!-- Overlay -->
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden"></div>
 
-<aside id="admin-sidebar" class="fixed top-0 left-0 h-full w-72 bg-slate-900 text-white flex flex-col z-40 -translate-x-full lg:translate-x-0 transition-transform duration-300">
+<aside id="admin-sidebar" class="fixed top-0 left-0 h-full w-72 bg-slate-900 text-white flex flex-col z-40 -translate-x-full lg:translate-x-0 transition-all duration-300">
 
   <!-- Logo -->
-  <div class="px-6 py-6 border-b border-white/10">
-    <a class="flex items-center gap-3" href="/admin">
-      <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+  <div class="sidebar-header relative px-6 py-6 border-b border-white/10 flex items-center justify-between">
+    <a class="sidebar-brand flex items-center gap-3 min-w-0" href="/admin">
+      <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
         <span class="material-symbols-outlined text-white">settings</span>
       </div>
-      <div class="leading-tight">
-        <div class="font-semibold tracking-tight text-lg">CARPARTS<span class="text-primary">ADMIN</span></div>
-        <div class="text-xs text-white/60">Back office</div>
+      <div class="sidebar-brand-text leading-tight overflow-hidden">
+        <div class="font-semibold tracking-tight text-lg whitespace-nowrap">CARPARTS<span class="text-primary">ADMIN</span></div>
+        <div class="text-xs text-white/60 whitespace-nowrap">Back office</div>
       </div>
     </a>
+    <button id="sidebar-collapse-btn" class="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 transition flex-shrink-0" type="button" title="Réduire la barre latérale">
+      <span class="material-symbols-outlined text-lg sidebar-collapse-icon">chevron_left</span>
+    </button>
   </div>
 
   <nav class="flex-1 px-4 py-4 overflow-y-auto">
@@ -25,24 +28,24 @@
     <!-- COMMERCE -->
     <div class="sidebar-group-label">Commerce</div>
     <div class="space-y-0.5">
-      <a class="sidebar-link <%= activeKey === 'dashboard' ? 'sidebar-link--active' : '' %>" href="/admin">
+      <a class="sidebar-link <%= activeKey === 'dashboard' ? 'sidebar-link--active' : '' %>" href="/admin" title="Tableau de bord">
         <span class="material-symbols-outlined">grid_view</span>
-        Tableau de bord
+        <span class="sidebar-link-text">Tableau de bord</span>
       </a>
-      <a class="sidebar-link <%= activeKey === 'orders' ? 'sidebar-link--active' : '' %>" href="/admin/commandes">
+      <a class="sidebar-link <%= activeKey === 'orders' ? 'sidebar-link--active' : '' %>" href="/admin/commandes" title="Commandes">
         <span class="material-symbols-outlined">shopping_cart</span>
-        <span class="flex-1">Commandes</span>
+        <span class="sidebar-link-text flex-1">Commandes</span>
         <% if (pendingCount > 0) { %>
           <span class="sidebar-badge"><%= pendingCount %></span>
         <% } %>
       </a>
-      <a class="sidebar-link <%= activeKey === 'clients' ? 'sidebar-link--active' : '' %>" href="/admin/clients">
+      <a class="sidebar-link <%= activeKey === 'clients' ? 'sidebar-link--active' : '' %>" href="/admin/clients" title="Clients">
         <span class="material-symbols-outlined">group</span>
-        Clients
+        <span class="sidebar-link-text">Clients</span>
       </a>
-      <a class="sidebar-link <%= activeKey === 'promo-codes' ? 'sidebar-link--active' : '' %>" href="/admin/codes-promo">
+      <a class="sidebar-link <%= activeKey === 'promo-codes' ? 'sidebar-link--active' : '' %>" href="/admin/codes-promo" title="Codes promo">
         <span class="material-symbols-outlined">sell</span>
-        Codes promo
+        <span class="sidebar-link-text">Codes promo</span>
       </a>
     </div>
 
@@ -51,17 +54,17 @@
     <!-- CATALOGUE -->
     <div class="sidebar-group-label">Catalogue</div>
     <div class="space-y-0.5">
-      <a class="sidebar-link <%= activeKey === 'catalog' ? 'sidebar-link--active' : '' %>" href="/admin/catalogue">
+      <a class="sidebar-link <%= activeKey === 'catalog' ? 'sidebar-link--active' : '' %>" href="/admin/catalogue" title="Produits">
         <span class="material-symbols-outlined">inventory_2</span>
-        Produits
+        <span class="sidebar-link-text">Produits</span>
       </a>
-      <a class="sidebar-link <%= activeKey === 'categories' ? 'sidebar-link--active' : '' %>" href="/admin/categories">
+      <a class="sidebar-link <%= activeKey === 'categories' ? 'sidebar-link--active' : '' %>" href="/admin/categories" title="Catégories">
         <span class="material-symbols-outlined">category</span>
-        Catégories
+        <span class="sidebar-link-text">Catégories</span>
       </a>
-      <a class="sidebar-link <%= activeKey === 'vehicle-makes' ? 'sidebar-link--active' : '' %>" href="/admin/vehicules">
+      <a class="sidebar-link <%= activeKey === 'vehicle-makes' ? 'sidebar-link--active' : '' %>" href="/admin/vehicules" title="Véhicules">
         <span class="material-symbols-outlined">directions_car</span>
-        Véhicules
+        <span class="sidebar-link-text">Véhicules</span>
       </a>
     </div>
 
@@ -70,13 +73,13 @@
     <!-- CONTENU -->
     <div class="sidebar-group-label">Contenu</div>
     <div class="space-y-0.5">
-      <a class="sidebar-link <%= activeKey === 'blog' ? 'sidebar-link--active' : '' %>" href="/admin/blog">
+      <a class="sidebar-link <%= activeKey === 'blog' ? 'sidebar-link--active' : '' %>" href="/admin/blog" title="Blog">
         <span class="material-symbols-outlined">article</span>
-        Blog
+        <span class="sidebar-link-text">Blog</span>
       </a>
-      <a class="sidebar-link <%= activeKey === 'legal-pages' ? 'sidebar-link--active' : '' %>" href="/admin/pages-legales">
+      <a class="sidebar-link <%= activeKey === 'legal-pages' ? 'sidebar-link--active' : '' %>" href="/admin/pages-legales" title="Pages légales">
         <span class="material-symbols-outlined">gavel</span>
-        Pages légales
+        <span class="sidebar-link-text">Pages légales</span>
       </a>
     </div>
 
@@ -85,20 +88,20 @@
     <!-- CONFIGURATION -->
     <div class="sidebar-group-label">Configuration</div>
     <div class="space-y-0.5">
-      <a class="sidebar-link <%= activeKey === 'shipping-classes' ? 'sidebar-link--active' : '' %>" href="/admin/expedition">
+      <a class="sidebar-link <%= activeKey === 'shipping-classes' ? 'sidebar-link--active' : '' %>" href="/admin/expedition" title="Expédition">
         <span class="material-symbols-outlined">local_shipping</span>
-        Expédition
+        <span class="sidebar-link-text">Expédition</span>
       </a>
-      <a class="sidebar-link <%= activeKey === 'returns' ? 'sidebar-link--active' : '' %>" href="/admin/retours">
+      <a class="sidebar-link <%= activeKey === 'returns' ? 'sidebar-link--active' : '' %>" href="/admin/retours" title="Consignes & retours">
         <span class="material-symbols-outlined">assignment_return</span>
-        <span class="flex-1">Consignes & retours</span>
+        <span class="sidebar-link-text flex-1">Consignes & retours</span>
         <% if (returnsCount > 0) { %>
           <span class="sidebar-badge"><%= returnsCount %></span>
         <% } %>
       </a>
-      <a class="sidebar-link <%= activeKey === 'settings' ? 'sidebar-link--active' : '' %>" href="/admin/parametres">
+      <a class="sidebar-link <%= activeKey === 'settings' ? 'sidebar-link--active' : '' %>" href="/admin/parametres" title="Paramètres">
         <span class="material-symbols-outlined">settings</span>
-        Paramètres
+        <span class="sidebar-link-text">Paramètres</span>
       </a>
     </div>
 
