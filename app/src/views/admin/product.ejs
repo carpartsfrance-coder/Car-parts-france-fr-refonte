@@ -142,7 +142,7 @@
         <div><span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-red-700">Obligatoire</span> = nécessaire pour enregistrer le produit.</div>
         <div><span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-700">Recommandé</span> = fortement conseillé pour une fiche produit complète.</div>
         <div><span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Optionnel</span> = utile selon le produit, mais non bloquant.</div>
-        <div>Minimum demandé aujourd’hui : <span class="font-semibold">Nom du produit</span> et <span class="font-semibold">Prix</span>.</div>
+        <div>Minimum demandé aujourd'hui : <span class="font-semibold">Nom du produit</span> et <span class="font-semibold">Prix</span>.</div>
         <div>Si vous laissez le <span class="font-semibold">slug</span> vide, il sera créé automatiquement à partir du nom du produit.</div>
         <div>Les autres champs peuvent être remplis maintenant ou plus tard pour améliorer la fiche produit.</div>
       </div>
@@ -155,18 +155,18 @@
           <div class="mt-2 text-sm space-y-1">
             <div>1. Renseignez au minimum le nom du produit ou la référence.</div>
             <div>2. Ajoutez des notes si vous voulez orienter la recherche.</div>
-            <div>3. Cliquez sur <span class="font-semibold">Générer avec l’IA</span> : la page se remplit, mais rien n’est enregistré automatiquement.</div>
+            <div>3. Cliquez sur <span class="font-semibold">Générer avec l'IA</span> : la page se remplit, mais rien n'est enregistré automatiquement.</div>
           </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
           <button class="btn btn-primary" id="aiGenerateBtn" type="button">
             <span class="material-symbols-outlined mr-2 text-lg">auto_awesome</span>
-            Générer avec l’IA
+            Générer avec l'IA
           </button>
           <button class="<%= currentAiDraftJob && (currentAiDraftJob.status === 'queued' || currentAiDraftJob.status === 'processing') ? '' : 'hidden ' %>inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:opacity-60" id="aiCancelBtn" type="button">
             <span class="material-symbols-outlined mr-2 text-lg">stop_circle</span>
-            Arrêter l’IA
+            Arrêter l'IA
           </button>
         </div>
       </div>
@@ -183,12 +183,12 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium uppercase tracking-widest text-violet-900" for="aiSourceNotes">Notes complémentaires pour l’IA</label>
+          <label class="block text-xs font-medium uppercase tracking-widest text-violet-900" for="aiSourceNotes">Notes complémentaires pour l'IA</label>
           <textarea class="mt-2 w-full rounded-lg border border-violet-200 bg-white/90 px-4 py-3 text-sm text-slate-900 focus:border-violet-400 focus:ring-violet-400" id="aiSourceNotes" rows="4" placeholder="Ex : calculateur moteur Bosch pour Audi A3 2.0 TDI, priorité SEO, style rassurant, éviter les affirmations non vérifiées."></textarea>
         </div>
       </div>
 
-      <div class="mt-3 text-sm text-violet-900/80" id="aiGenerateStatus">L’IA utilisera le nom du produit, la référence, la marque, la catégorie et les notes ci-dessus.</div>
+      <div class="mt-3 text-sm text-violet-900/80" id="aiGenerateStatus">L'IA utilisera le nom du produit, la référence, la marque, la catégorie et les notes ci-dessus.</div>
 
       <div class="mt-3 hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900" id="aiGenerateWarnings"></div>
 
@@ -205,7 +205,7 @@
                   <% } else if (currentAiDraftJob.status === 'processing') { %>
                     <span class="font-semibold text-violet-700">génération en cours</span>
                   <% } else if (currentAiDraftJob.status === 'queued') { %>
-                    <span class="font-semibold text-sky-700">en file d’attente</span>
+                    <span class="font-semibold text-sky-700">en file d'attente</span>
                   <% } else if (currentAiDraftJob.status === 'canceled') { %>
                     <span class="font-semibold text-slate-500">arrêtée</span>
                   <% } else if (currentAiDraftJob.status === 'failed') { %>
@@ -252,7 +252,7 @@
           <div class="font-bold">Suivi simple de la fiche produit</div>
           <div class="mt-2 text-sm space-y-1">
             <div>Les champs encore vides ressortent en rouge.</div>
-            <div>Les champs remplis par l’IA reçoivent un badge <span class="font-semibold">IA</span>.</div>
+            <div>Les champs remplis par l'IA reçoivent un badge <span class="font-semibold">IA</span>.</div>
             <div>Vous pouvez cocher <span class="font-semibold">Validé</span> après relecture pour vous repérer facilement.</div>
           </div>
         </div>
@@ -297,7 +297,7 @@
               Étape 1 · Informations essentielles
               <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-red-700">Obligatoire</span>
             </h2>
-            <div class="mt-2 text-xs text-slate-500">Commence par cette section : c’est ici que se trouvent les champs minimums pour créer le produit.</div>
+            <div class="mt-2 text-xs text-slate-500">Commence par cette section : c'est ici que se trouvent les champs minimums pour créer le produit.</div>
           </div>
         </div>
 
@@ -358,12 +358,12 @@
           </div>
 
           <div class="md:order-9">
-            <label class="block text-xs font-medium text-slate-500 uppercase mb-2" for="shippingDelayText">Délai d’expédition (affiché sur la fiche produit)</label>
+            <label class="block text-xs font-medium text-slate-500 uppercase mb-2" for="shippingDelayText">Délai d'expédition (affiché sur la fiche produit)</label>
             <input class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingDelayText" name="shippingDelayText" placeholder="Ex: Expédition sous 24/48h • Expédition sous 3 jours • Sur commande" type="text" value="<%= form && typeof form.shippingDelayText !== 'undefined' ? form.shippingDelayText : '' %>" />
           </div>
 
           <div class="md:order-10">
-            <label class="block text-xs font-medium text-slate-500 uppercase mb-2" for="shippingClassId">Classe d’expédition</label>
+            <label class="block text-xs font-medium text-slate-500 uppercase mb-2" for="shippingClassId">Classe d'expédition</label>
             <% if (typeof shippingClasses !== 'undefined' && shippingClasses && shippingClasses.length) { %>
               <select class="w-full bg-gray-50 dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary" id="shippingClassId" name="shippingClassId">
                 <option value="">Par défaut</option>
@@ -560,7 +560,7 @@
 
           <a class="inline-flex items-center justify-center rounded-lg border border-border-light dark:border-border-dark px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition" href="/admin/catalogue/options">
             <span class="material-symbols-outlined mr-2 text-sm">inventory</span>
-            Bibliothèque d’options
+            Bibliothèque d'options
           </a>
         </div>
 
@@ -590,7 +590,7 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div class="text-sm font-bold text-slate-900 dark:text-white">Options de ce produit</div>
-                <div class="mt-1 text-xs text-slate-500">Vous pouvez ajouter une option manuelle ou partir d’une option réutilisable.</div>
+                <div class="mt-1 text-xs text-slate-500">Vous pouvez ajouter une option manuelle ou partir d'une option réutilisable.</div>
               </div>
 
               <button class="btn btn-secondary" id="addCustomOptionBtn" type="button">
@@ -608,7 +608,7 @@
           <details class="rounded-2xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 overflow-hidden">
             <summary class="cursor-pointer px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">Mode expert (JSON)</summary>
             <div class="border-t border-border-light dark:border-border-dark p-5 space-y-4">
-              <div class="text-xs text-slate-500">Si besoin, vous pouvez toujours modifier le JSON brut puis recharger l’éditeur visuel.</div>
+              <div class="text-xs text-slate-500">Si besoin, vous pouvez toujours modifier le JSON brut puis recharger l'éditeur visuel.</div>
               <label class="block text-xs font-medium text-slate-500 uppercase" for="optionsJson">Options (JSON)</label>
               <textarea class="w-full bg-white dark:bg-gray-900 border-border-light dark:border-border-dark rounded-lg py-2.5 px-4 text-sm focus:ring-primary focus:border-primary font-mono min-h-[220px]" id="optionsJson" name="optionsJson" placeholder='[{"key":"programmation","label":"Programmation","type":"choice","required":true,"choices":[{"key":"avec","label":"Avec programmation","priceDeltaCents":5000},{"key":"sans","label":"Sans programmation","priceDeltaCents":0}]}]'><%= form && typeof form.optionsJson !== 'undefined' ? form.optionsJson : '' %></textarea>
               <div class="flex justify-end">
@@ -780,7 +780,7 @@
               Étape 9 · Articles de blog liés
               <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Optionnel</span>
             </h2>
-            <div class="mt-2 text-xs text-slate-500">Utile si vous voulez enrichir la fiche avec un article d’explication ou de conseil.</div>
+            <div class="mt-2 text-xs text-slate-500">Utile si vous voulez enrichir la fiche avec un article d'explication ou de conseil.</div>
           </div>
           <div class="text-[11px] text-slate-500">Ces articles apparaîtront sur la fiche produit.</div>
         </div>
@@ -804,7 +804,7 @@
           </div>
 
           <textarea id="relatedBlogPostIds" class="hidden" name="relatedBlogPostIds" rows="4"><%= form && form.relatedBlogPostIds ? form.relatedBlogPostIds : '' %></textarea>
-          <div class="text-xs text-slate-500">Astuce : si vous ne sélectionnez rien ici, vous pouvez quand même lier un produit depuis l’article (admin blog).</div>
+          <div class="text-xs text-slate-500">Astuce : si vous ne sélectionnez rien ici, vous pouvez quand même lier un produit depuis l'article (admin blog).</div>
         </div>
       </section>
 
@@ -1130,7 +1130,7 @@
           { id: 'brand', label: 'Marque', focusId: 'brand', highlightId: 'brand' },
           { id: 'slug', label: 'Slug', focusId: 'slug', highlightId: 'slug' },
           { id: 'sku', label: 'SKU', focusId: 'sku', highlightId: 'sku' },
-          { id: 'shippingDelayText', label: 'Délai d’expédition', focusId: 'shippingDelayText', highlightId: 'shippingDelayText' },
+          { id: 'shippingDelayText', label: 'Délai d\'expédition', focusId: 'shippingDelayText', highlightId: 'shippingDelayText' },
           { id: 'compatibleReferences', label: 'Références compatibles', focusId: 'compatibleReferences', highlightId: 'compatibleReferences' },
           {
             id: 'imageUrl',
@@ -1713,7 +1713,7 @@
             placeholderInput.placeholder = 'Ex : Tapez la référence';
             placeholderField.wrap.appendChild(placeholderInput);
 
-            const helpField = createField('Texte d’aide', true);
+            const helpField = createField('Texte d\'aide', true);
             const helpInput = document.createElement('input');
             helpInput.className = 'mt-2 w-full rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 px-4 py-3 text-sm';
             helpInput.type = 'text';
@@ -2672,7 +2672,7 @@
           renderAiWarnings(Array.isArray(draft.warnings) ? draft.warnings : []);
           if (latestAiDraftJob) latestAiDraftJob.status = 'completed';
           updateAiCancelButton();
-          setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relisez puis cliquez sur “Enregistrer” si tout vous convient.`, 'success');
+          setAiStatus(`Brouillon IA généré${data && data.model ? ' avec ' + data.model : ''}. Relisez puis cliquez sur "Enregistrer" si tout vous convient.`, 'success');
           toast.success('Génération terminée !');
         }
 
@@ -2744,31 +2744,31 @@
             const shouldCancel = window.confirm('Arrêter la génération IA en cours ?');
             if (!shouldCancel) return;
 
-            btnSetLoading(aiCancelBtn, ‘Arrêt\u2026’);
+            btnSetLoading(aiCancelBtn, 'Arrêt\u2026');
 
             try {
               const response = await fetch(`/admin/api/products/generate-draft/${encodeURIComponent(latestAiDraftJob.jobId)}/cancel`, {
-                method: ‘POST’,
+                method: 'POST',
                 headers: {
-                  ‘Accept’: ‘application/json’,
-                  ‘Content-Type’: ‘application/json’,
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({}),
               });
 
               const data = await response.json().catch(() => ({}));
               if (!response.ok || !data || data.ok !== true) {
-                throw new Error(data && data.error ? data.error : ‘Impossible d\’arrêter la génération IA.’);
+                throw new Error(data && data.error ? data.error : 'Impossible d\'arrêter la génération IA.');
               }
 
               if (!latestAiDraftJob) latestAiDraftJob = {};
-              latestAiDraftJob.status = ‘canceled’;
-              latestAiDraftJob.errorMessage = data && data.message ? String(data.message) : ‘Génération IA arrêtée à la demande.’;
+              latestAiDraftJob.status = 'canceled';
+              latestAiDraftJob.errorMessage = data && data.message ? String(data.message) : 'Génération IA arrêtée à la demande.';
               updateAiCancelButton();
-              setAiStatus(latestAiDraftJob.errorMessage, ‘success’);
+              setAiStatus(latestAiDraftJob.errorMessage, 'success');
             } catch (err) {
               btnResetLoading(aiCancelBtn);
-              setAiStatus(err && err.message ? err.message : ‘Impossible d\’arrêter la génération IA.’, ‘error’);
+              setAiStatus(err && err.message ? err.message : 'Impossible d\'arrêter la génération IA.', 'error');
               return;
             }
 
@@ -2790,7 +2790,7 @@
             };
 
             if (!payload.name && !payload.sku && !payload.compatibleReferences && !payload.sourceNotes) {
-              setAiStatus('Renseignez au moins un nom, une référence ou une note avant de lancer l’IA.', 'error');
+              setAiStatus('Renseignez au moins un nom, une référence ou une note avant de lancer l\'IA.', 'error');
               toast.warning('Renseignez au moins un nom de produit, une référence ou quelques notes.');
               return;
             }
@@ -2817,7 +2817,7 @@
 
               const data = await response.json().catch(() => ({}));
               if (!response.ok || !data || data.ok !== true || !data.jobId) {
-                throw new Error(data && data.error ? data.error : 'Impossible de générer la fiche avec l’IA.');
+                throw new Error(data && data.error ? data.error : 'Impossible de générer la fiche avec l\'IA.');
               }
               latestAiDraftJob = {
                 jobId: String(data.jobId),
