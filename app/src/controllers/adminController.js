@@ -1754,12 +1754,14 @@ async function getAdminDashboard(req, res, next) {
     startMonth.setDate(1);
     startMonth.setHours(0, 0, 0, 0);
 
+    const excludeCancelled = { status: { $ne: 'annulee' } };
+
     const revenueTodayAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: startToday } } },
+      { $match: { createdAt: { $gte: startToday }, ...excludeCancelled } },
       { $group: { _id: null, total: { $sum: '$totalCents' } } },
     ]);
     const revenueMonthAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: startMonth } } },
+      { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
       { $group: { _id: null, total: { $sum: '$totalCents' } } },
     ]);
 
@@ -1777,7 +1779,7 @@ async function getAdminDashboard(req, res, next) {
     prevWeekStart.setDate(prevWeekStart.getDate() - 7);
 
     const dailyRevenueAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: prevWeekStart } } },
+      { $match: { createdAt: { $gte: prevWeekStart }, ...excludeCancelled } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Europe/Paris' } },
@@ -1811,7 +1813,7 @@ async function getAdminDashboard(req, res, next) {
     sixMonthsAgo.setHours(0, 0, 0, 0);
 
     const monthlyRevenueAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      { $match: { createdAt: { $gte: sixMonthsAgo }, ...excludeCancelled } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone: 'Europe/Paris' } },
@@ -1836,11 +1838,11 @@ async function getAdminDashboard(req, res, next) {
     }
 
     /* ── New KPIs: average basket + top products ── */
-    const ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth } });
+    const ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth }, ...excludeCancelled });
     const averageBasketCents = ordersThisMonth > 0 ? Math.round(revenueMonthCents / ordersThisMonth) : 0;
 
     const topProductsAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: startMonth } } },
+      { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
       { $unwind: '$items' },
       {
         $group: {
