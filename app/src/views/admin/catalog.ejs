@@ -40,7 +40,17 @@
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex flex-col sm:flex-row gap-3 flex-wrap">
+          <% const currentCat = filters && filters.cat ? filters.cat : ''; %>
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="cat">
+            <option value="">Toutes les catégories</option>
+            <% if (typeof categoryOptions !== 'undefined' && categoryOptions && categoryOptions.length) { %>
+              <% categoryOptions.forEach((opt) => { %>
+                <option value="<%= opt.value %>" <%= currentCat === opt.value ? 'selected' : '' %>><%= opt.label %></option>
+              <% }) %>
+            <% } %>
+          </select>
+
           <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="stock">
             <option value="">Tous les stocks</option>
             <option value="in" <%= filters && filters.stock === 'in' ? 'selected' : '' %>>En stock</option>

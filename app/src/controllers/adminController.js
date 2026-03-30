@@ -4070,6 +4070,7 @@ async function getAdminCatalogPage(req, res, next) {
     scheduleProductDraftQueue();
 
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const cat = typeof req.query.cat === 'string' ? req.query.cat.trim() : '';
     const stock = typeof req.query.stock === 'string' ? req.query.stock.trim() : '';
     const sortRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
     const allowedSortKeys = new Set(['updated_desc', 'updated_asc', 'category_asc', 'category_desc', 'seo_desc', 'seo_asc', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'stock_asc', 'stock_desc']);
@@ -4088,7 +4089,8 @@ async function getAdminCatalogPage(req, res, next) {
         title: 'Admin - Catalogue',
         dbConnected,
         products: [],
-        filters: { q, stock, sort: sortKey },
+        categoryOptions: [],
+        filters: { q, cat, stock, sort: sortKey },
         successMessage: null,
         errorMessage: "La base de données n'est pas disponible.",
         activeAiDraftJobsCount: 0,
@@ -4113,9 +4115,28 @@ async function getAdminCatalogPage(req, res, next) {
     delete req.session.adminCatalogSuccess;
     delete req.session.adminCatalogError;
 
+    const categoryDocs = await Category.find({})
+      .sort({ sortOrder: 1, name: 1 })
+      .select('_id name')
+      .lean();
+
+    const categoryOptions = (categoryDocs || []).map((c) => {
+      const name = typeof c.name === 'string' ? c.name.trim() : '';
+      return { value: name, label: name };
+    }).filter((c) => c.value);
+
     const productQuery = {};
 
     Object.assign(productQuery, buildStockQuery(stock));
+
+    if (cat) {
+      if (cat.includes('>')) {
+        productQuery.category = cat;
+      } else {
+        const rx = new RegExp(`^${escapeRegExp(cat)}(\\s*>|$)`);
+        productQuery.category = { $regex: rx };
+      }
+    }
 
     if (q) {
       const rx = new RegExp(escapeRegExp(q), 'i');
@@ -4241,7 +4262,8 @@ async function getAdminCatalogPage(req, res, next) {
       title: 'Admin - Catalogue',
       dbConnected,
       products: viewProducts,
-      filters: { q, stock, sort: sortKey },
+      categoryOptions,
+      filters: { q, cat, stock, sort: sortKey },
       successMessage,
       errorMessage,
       activeAiDraftJobsCount,
