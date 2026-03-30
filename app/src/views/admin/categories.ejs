@@ -50,8 +50,8 @@
               <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
                 <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" />
                 <span>
-                  <span class="block font-semibold text-slate-900">Mettre en avant sur l’accueil</span>
-                  <span class="mt-1 block text-xs font-medium text-slate-500">Cette catégorie pourra apparaître dans la sidebar Catégories de la page d’accueil.</span>
+                  <span class="block font-semibold text-slate-900">Mettre en avant sur l'accueil</span>
+                  <span class="mt-1 block text-xs font-medium text-slate-500">Cette catégorie pourra apparaître dans la sidebar Catégories de la page d'accueil.</span>
                 </span>
               </label>
 
@@ -99,8 +99,8 @@
               <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
                 <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" />
                 <span>
-                  <span class="block font-semibold text-slate-900">Mettre en avant sur l’accueil</span>
-                  <span class="mt-1 block text-xs font-medium text-slate-500">Cette sous-catégorie pourra apparaître dans la sidebar Catégories de la page d’accueil.</span>
+                  <span class="block font-semibold text-slate-900">Mettre en avant sur l'accueil</span>
+                  <span class="mt-1 block text-xs font-medium text-slate-500">Cette sous-catégorie pourra apparaître dans la sidebar Catégories de la page d'accueil.</span>
                 </span>
               </label>
 
@@ -231,18 +231,18 @@
                                 </div>
                               </div>
                               <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
-                                <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= g.mainDoc.isHomeFeatured ? ‘checked’ : ‘’ %> />
+                                <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= g.mainDoc.isHomeFeatured ? 'checked' : '' %> />
                                 <span>
                                   <span class="block font-semibold text-slate-900">Mise en avant accueil</span>
-                                  <span class="mt-1 block text-xs font-medium text-slate-500">Active cette catégorie dans la sidebar Catégories de la page d’accueil.</span>
+                                  <span class="mt-1 block text-xs font-medium text-slate-500">Active cette catégorie dans la sidebar Catégories de la page d'accueil.</span>
                                 </span>
                               </label>
                               <div>
                                 <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Texte SEO (HTML)</label>
-                                <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium font-mono" name="seoText" rows="6" placeholder="Texte riche affiché en bas de la page catégorie pour le référencement..."><%= g.mainDoc.seoText || ‘’ %></textarea>
+                                <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium font-mono" name="seoText" rows="6" placeholder="Texte riche affiché en bas de la page catégorie pour le référencement..."><%= g.mainDoc.seoText || '' %></textarea>
                                 <div class="mt-1 text-xs text-slate-500">HTML autorisé. Idéal : 200-400 mots avec mots-clés et liens internes.</div>
                               </div>
-                              <button class="btn btn-primary" <%= dbConnected ? ‘’ : ‘disabled’ %> type="submit">Enregistrer</button>
+                              <button class="btn btn-primary" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
                             </form>
                           <% } %>
                         </div>
@@ -315,18 +315,18 @@
                                         <input class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="sortOrder" type="number" value="<%= typeof s.sortOrder !== 'undefined' ? s.sortOrder : 0 %>" />
                                       </div>
                                       <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
-                                        <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= s.isHomeFeatured ? ‘checked’ : ‘’ %> />
+                                        <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="isHomeFeatured" type="checkbox" value="true" <%= s.isHomeFeatured ? 'checked' : '' %> />
                                         <span>
                                           <span class="block font-semibold text-slate-900">Mise en avant accueil</span>
-                                          <span class="mt-1 block text-xs font-medium text-slate-500">Active cette sous-catégorie dans la sidebar Catégories de la page d’accueil.</span>
+                                          <span class="mt-1 block text-xs font-medium text-slate-500">Active cette sous-catégorie dans la sidebar Catégories de la page d'accueil.</span>
                                         </span>
                                       </label>
                                       <div>
                                         <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Texte SEO (HTML)</label>
-                                        <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium font-mono" name="seoText" rows="6" placeholder="Texte riche affiché en bas de la page catégorie pour le référencement..."><%= s.seoText || ‘’ %></textarea>
+                                        <textarea class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium font-mono" name="seoText" rows="6" placeholder="Texte riche affiché en bas de la page catégorie pour le référencement..."><%= s.seoText || '' %></textarea>
                                         <div class="mt-1 text-xs text-slate-500">HTML autorisé. Idéal : 200-400 mots avec mots-clés et liens internes.</div>
                                       </div>
-                                      <button class="btn btn-primary" <%= dbConnected ? ‘’ : ‘disabled’ %> type="submit">Enregistrer</button>
+                                      <button class="btn btn-primary" <%= dbConnected ? '' : 'disabled' %> type="submit">Enregistrer</button>
                                     </form>
                                   </div>
                                 </details>
