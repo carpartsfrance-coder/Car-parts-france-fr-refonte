@@ -23,6 +23,7 @@ const productOptions = require('../services/productOptions');
 const mediaStorage = require('../services/mediaStorage');
 const adminUsers = require('../services/adminUsers');
 const AdminUser = require('../models/AdminUser');
+const CartEvent = require('../models/CartEvent');
 const openaiProductGenerator = require('../services/openaiProductGenerator');
 const { getSiteUrlFromEnv } = require('../services/siteUrl');
 const { hasAbility, getRoleLabel, ROLES } = require('../permissions');
@@ -7070,6 +7071,130 @@ async function postAdminInvoiceSettings(req, res, next) {
   }
 }
 
+/* ───────────────────────────────────────────────────
+ * Activité panier (tracking ajouts/modifications/suppressions)
+ * ─────────────────────────────────────────────────── */
+
+async function getAdminCartActivityPage(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const q = getTrimmedString(req.query.q);
+    const action = getTrimmedString(req.query.action);
+    const period = getTrimmedString(req.query.period);
+
+    const perPage = 30;
+    const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
+    const page = Math.max(1, Number.parseInt(rawPage, 10) || 1);
+
+    if (!dbConnected) {
+      return res.render('admin/cart-activity', {
+        title: 'Admin - Activité panier',
+        dbConnected,
+        events: [],
+        filters: { q, action, period },
+        pagination: {
+          page: 1, perPage, totalItems: 0, totalPages: 1,
+          from: 0, to: 0, hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1,
+        },
+      });
+    }
+
+    /* Construction du filtre MongoDB */
+    const query = {};
+
+    if (action && ['add', 'update', 'remove'].includes(action)) {
+      query.action = action;
+    }
+
+    if (period) {
+      const now = new Date();
+      const start = new Date(now);
+      if (period === '24h') start.setHours(start.getHours() - 24);
+      else if (period === '7d') start.setDate(start.getDate() - 7);
+      else if (period === '30d') start.setDate(start.getDate() - 30);
+      else if (period === '90d') start.setDate(start.getDate() - 90);
+
+      if (['24h', '7d', '30d', '90d'].includes(period)) {
+        query.createdAt = { $gte: start };
+      }
+    }
+
+    if (q) {
+      const rx = new RegExp(escapeRegExp(q), 'i');
+      query.$or = [{ userEmail: rx }, { userName: rx }];
+    }
+
+    const totalItems = await CartEvent.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const currentPage = Math.min(page, totalPages);
+    const skip = (currentPage - 1) * perPage;
+
+    const rawEvents = await CartEvent.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(perPage)
+      .lean();
+
+    /* Résolution des noms de produits manquants via batch lookup */
+    const missingProductIds = rawEvents
+      .filter((e) => !e.productName && e.productId)
+      .map((e) => e.productId);
+
+    const productNameMap = new Map();
+    if (missingProductIds.length > 0) {
+      const products = await Product.find({ _id: { $in: missingProductIds } })
+        .select('_id name sku')
+        .lean();
+      for (const p of products) {
+        productNameMap.set(String(p._id), { name: p.name, sku: p.sku || '' });
+      }
+    }
+
+    const events = rawEvents.map((e) => {
+      let productName = e.productName || '';
+      let productSku = e.productSku || '';
+
+      if (!productName && e.productId) {
+        const resolved = productNameMap.get(String(e.productId));
+        if (resolved) {
+          productName = resolved.name;
+          productSku = productSku || resolved.sku;
+        }
+      }
+
+      return {
+        ...e,
+        productName,
+        productSku,
+        dateFormatted: formatDateTimeFR(e.createdAt),
+      };
+    });
+
+    const pagination = {
+      page: currentPage,
+      perPage,
+      totalItems,
+      totalPages,
+      from: totalItems ? skip + 1 : 0,
+      to: totalItems ? skip + rawEvents.length : 0,
+      hasPrev: currentPage > 1,
+      hasNext: currentPage < totalPages,
+      prevPage: Math.max(1, currentPage - 1),
+      nextPage: Math.min(totalPages, currentPage + 1),
+    };
+
+    return res.render('admin/cart-activity', {
+      title: 'Admin - Activité panier',
+      dbConnected,
+      events,
+      filters: { q, action, period },
+      pagination,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
@@ -7137,4 +7262,5 @@ module.exports = {
   postAdminInvoiceSettings,
   getAdminSiteSettingsPage,
   postAdminSiteSettings,
+  getAdminCartActivityPage,
 };
