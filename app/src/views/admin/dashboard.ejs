@@ -11,105 +11,109 @@
         <div class="mt-1 text-sm text-slate-500">Aperçu des performances de CarParts France</div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <button class="btn btn-secondary" type="button">
-          <span class="material-symbols-outlined mr-2 text-base">event</span>
-          7 derniers jours
-        </button>
-        <button class="btn btn-primary" type="button">
-          <span class="material-symbols-outlined mr-2 text-base">download</span>
-          Exporter Rapport
-        </button>
-      </div>
+      <% if (showFinancials) { %>
+        <div class="flex items-center gap-3">
+          <button class="btn btn-secondary" type="button">
+            <span class="material-symbols-outlined mr-2 text-base">event</span>
+            7 derniers jours
+          </button>
+          <button class="btn btn-primary" type="button">
+            <span class="material-symbols-outlined mr-2 text-base">download</span>
+            Exporter Rapport
+          </button>
+        </div>
+      <% } %>
     </div>
 
     <!-- KPI Cards Row 1 -->
-    <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 <%= showFinancials ? 'xl:grid-cols-4' : 'xl:grid-cols-2' %> gap-6">
 
-      <!-- Chiffre d'affaires (jour) -->
-      <a class="kpi-card" href="/admin/commandes">
-        <div class="kpi-card__header">
-          <div class="kpi-card__icon bg-green-50 text-green-600">
-            <span class="material-symbols-outlined">payments</span>
+      <% if (showFinancials) { %>
+        <!-- Chiffre d'affaires (jour) -->
+        <a class="kpi-card" href="/admin/commandes">
+          <div class="kpi-card__header">
+            <div class="kpi-card__icon bg-green-50 text-green-600">
+              <span class="material-symbols-outlined">payments</span>
+            </div>
+            <span class="badge badge-success">+12%</span>
           </div>
-          <span class="badge badge-success">+12%</span>
-        </div>
-        <div class="kpi-card__label">Chiffre d'affaires (jour)</div>
-        <div class="kpi-card__value"><%= kpis && kpis.revenueToday ? kpis.revenueToday : '—' %></div>
-        <div class="kpi-card__compare">
-          <span class="kpi-trend-up">↑ +12%</span> vs jour précédent
-        </div>
-        <div class="kpi-card__sparkline">
-          <svg viewBox="0 0 100 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="spark1-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#059669" stop-opacity="0.15"/>
-                <stop offset="100%" stop-color="#059669" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path d="M0,30 L16.7,24 L33.3,27 L50,19 L66.7,14 L83.3,9 L100,4" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M0,30 L16.7,24 L33.3,27 L50,19 L66.7,14 L83.3,9 L100,4 L100,36 L0,36 Z" fill="url(#spark1-fill)"/>
-            <circle cx="100" cy="4" r="3" fill="#059669"/>
-          </svg>
-        </div>
-      </a>
-
-      <!-- C.A. (mois en cours) -->
-      <a class="kpi-card" href="/admin/commandes">
-        <div class="kpi-card__header">
-          <div class="kpi-card__icon bg-blue-50 text-blue-600">
-            <span class="material-symbols-outlined">monitoring</span>
+          <div class="kpi-card__label">Chiffre d'affaires (jour)</div>
+          <div class="kpi-card__value"><%= kpis && kpis.revenueToday ? kpis.revenueToday : '—' %></div>
+          <div class="kpi-card__compare">
+            <span class="kpi-trend-up">↑ +12%</span> vs jour précédent
           </div>
-          <span class="badge badge-admin">+5.2%</span>
-        </div>
-        <div class="kpi-card__label">C.A. (mois en cours)</div>
-        <div class="kpi-card__value"><%= kpis && kpis.revenueMonth ? kpis.revenueMonth : '—' %></div>
-        <div class="kpi-card__compare">
-          <span class="kpi-trend-up">↑ +5.2%</span> vs mois précédent
-        </div>
-        <div class="kpi-card__sparkline">
-          <svg viewBox="0 0 100 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="spark2-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#2563EB" stop-opacity="0.12"/>
-                <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path d="M0,32 L16.7,28 L33.3,25 L50,21 L66.7,23 L83.3,15 L100,8" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M0,32 L16.7,28 L33.3,25 L50,21 L66.7,23 L83.3,15 L100,8 L100,36 L0,36 Z" fill="url(#spark2-fill)"/>
-            <circle cx="100" cy="8" r="3" fill="#2563EB"/>
-          </svg>
-        </div>
-      </a>
-
-      <!-- Panier moyen -->
-      <a class="kpi-card" href="/admin/commandes">
-        <div class="kpi-card__header">
-          <div class="kpi-card__icon bg-violet-50 text-violet-600">
-            <span class="material-symbols-outlined">shopping_basket</span>
+          <div class="kpi-card__sparkline">
+            <svg viewBox="0 0 100 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="spark1-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#059669" stop-opacity="0.15"/>
+                  <stop offset="100%" stop-color="#059669" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,30 L16.7,24 L33.3,27 L50,19 L66.7,14 L83.3,9 L100,4" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0,30 L16.7,24 L33.3,27 L50,19 L66.7,14 L83.3,9 L100,4 L100,36 L0,36 Z" fill="url(#spark1-fill)"/>
+              <circle cx="100" cy="4" r="3" fill="#059669"/>
+            </svg>
           </div>
-        </div>
-        <div class="kpi-card__label">Panier moyen</div>
-        <div class="kpi-card__value"><%= kpis && kpis.averageBasket ? kpis.averageBasket : '—' %></div>
-        <div class="kpi-card__compare">
-          <%= kpis && kpis.ordersThisMonth ? kpis.ordersThisMonth : 0 %> commandes ce mois
-        </div>
-        <div class="kpi-card__sparkline">
-          <svg viewBox="0 0 100 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="spark3-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.12"/>
-                <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path d="M0,22 L16.7,26 L33.3,20 L50,23 L66.7,17 L83.3,20 L100,12" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M0,22 L16.7,26 L33.3,20 L50,23 L66.7,17 L83.3,20 L100,12 L100,36 L0,36 Z" fill="url(#spark3-fill)"/>
-            <circle cx="100" cy="12" r="3" fill="#7C3AED"/>
-          </svg>
-        </div>
-      </a>
+        </a>
 
-      <!-- Commandes en attente -->
+        <!-- C.A. (mois en cours) -->
+        <a class="kpi-card" href="/admin/commandes">
+          <div class="kpi-card__header">
+            <div class="kpi-card__icon bg-blue-50 text-blue-600">
+              <span class="material-symbols-outlined">monitoring</span>
+            </div>
+            <span class="badge badge-admin">+5.2%</span>
+          </div>
+          <div class="kpi-card__label">C.A. (mois en cours)</div>
+          <div class="kpi-card__value"><%= kpis && kpis.revenueMonth ? kpis.revenueMonth : '—' %></div>
+          <div class="kpi-card__compare">
+            <span class="kpi-trend-up">↑ +5.2%</span> vs mois précédent
+          </div>
+          <div class="kpi-card__sparkline">
+            <svg viewBox="0 0 100 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="spark2-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#2563EB" stop-opacity="0.12"/>
+                  <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,32 L16.7,28 L33.3,25 L50,21 L66.7,23 L83.3,15 L100,8" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0,32 L16.7,28 L33.3,25 L50,21 L66.7,23 L83.3,15 L100,8 L100,36 L0,36 Z" fill="url(#spark2-fill)"/>
+              <circle cx="100" cy="8" r="3" fill="#2563EB"/>
+            </svg>
+          </div>
+        </a>
+
+        <!-- Panier moyen -->
+        <a class="kpi-card" href="/admin/commandes">
+          <div class="kpi-card__header">
+            <div class="kpi-card__icon bg-violet-50 text-violet-600">
+              <span class="material-symbols-outlined">shopping_basket</span>
+            </div>
+          </div>
+          <div class="kpi-card__label">Panier moyen</div>
+          <div class="kpi-card__value"><%= kpis && kpis.averageBasket ? kpis.averageBasket : '—' %></div>
+          <div class="kpi-card__compare">
+            <%= kpis && kpis.ordersThisMonth ? kpis.ordersThisMonth : 0 %> commandes ce mois
+          </div>
+          <div class="kpi-card__sparkline">
+            <svg viewBox="0 0 100 36" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="spark3-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.12"/>
+                  <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,22 L16.7,26 L33.3,20 L50,23 L66.7,17 L83.3,20 L100,12" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0,22 L16.7,26 L33.3,20 L50,23 L66.7,17 L83.3,20 L100,12 L100,36 L0,36 Z" fill="url(#spark3-fill)"/>
+              <circle cx="100" cy="12" r="3" fill="#7C3AED"/>
+            </svg>
+          </div>
+        </a>
+      <% } %>
+
+      <!-- Commandes en attente (visible par tous) -->
       <a class="kpi-card" href="/admin/commandes?status=en_attente">
         <div class="kpi-card__header">
           <div class="kpi-card__icon bg-orange-50 text-orange-600">
@@ -140,7 +144,7 @@
     </div>
 
     <!-- KPI Cards Row 2 -->
-    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 <%= showFinancials ? 'xl:grid-cols-4' : 'xl:grid-cols-1' %> gap-6">
       <div class="bg-white rounded-2xl border border-slate-200 p-5">
         <div class="flex items-center justify-between">
           <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -152,48 +156,99 @@
         <div class="mt-2 text-2xl font-semibold text-primary"><%= kpis && typeof kpis.stockAlertsCount !== 'undefined' ? kpis.stockAlertsCount : 0 %> articles</div>
       </div>
 
-      <!-- Top 3 Products -->
-      <div class="xl:col-span-3 bg-white rounded-2xl border border-slate-200 p-5">
-        <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Top 3 produits vendus (ce mois)</div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <% const topProducts = kpis && Array.isArray(kpis.topProducts) ? kpis.topProducts : []; %>
-          <% if (topProducts.length) { %>
-            <% topProducts.forEach((p, idx) => { %>
-              <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-sm <%= idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-500' : 'bg-orange-100 text-orange-600' %>">
-                  #<%= idx + 1 %>
+      <% if (showFinancials) { %>
+        <!-- Top 3 Products -->
+        <div class="xl:col-span-3 bg-white rounded-2xl border border-slate-200 p-5">
+          <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Top 3 produits vendus (ce mois)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <% const topProducts = kpis && Array.isArray(kpis.topProducts) ? kpis.topProducts : []; %>
+            <% if (topProducts.length) { %>
+              <% topProducts.forEach((p, idx) => { %>
+                <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-sm <%= idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-500' : 'bg-orange-100 text-orange-600' %>">
+                    #<%= idx + 1 %>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-bold text-slate-900 truncate"><%= p.name %></div>
+                    <div class="text-xs text-slate-500"><%= p.qty %> vendus &middot; <%= p.revenue %></div>
+                  </div>
                 </div>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-bold text-slate-900 truncate"><%= p.name %></div>
-                  <div class="text-xs text-slate-500"><%= p.qty %> vendus &middot; <%= p.revenue %></div>
+              <% }) %>
+            <% } else { %>
+              <div class="text-sm text-slate-500 col-span-3">Aucune vente ce mois.</div>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <% if (showFinancials) { %>
+      <!-- Charts -->
+      <div class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <!-- Weekly Bar Chart -->
+        <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="font-semibold text-slate-900">Ventes hebdomadaires</div>
+            <div class="flex items-center gap-4 text-xs">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-primary inline-block"></span> Cette semaine</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-300 inline-block"></span> Semaine précédente</span>
+            </div>
+          </div>
+          <div class="h-64">
+            <canvas id="weeklyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Activities -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="flex items-center justify-between">
+            <div class="font-semibold text-slate-900">Activités Récentes</div>
+          </div>
+
+          <div class="mt-6 space-y-4">
+            <% (activities || []).forEach((a) => { %>
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                  <span class="material-symbols-outlined text-slate-500">shopping_bag</span>
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="font-semibold text-slate-900"><%= a.number %></div>
+                    <div class="flex items-center gap-2">
+                      <% if (a.statusBadge) { %><span class="<%= a.statusBadge.className %>"><%= a.statusBadge.label %></span><% } %>
+                      <span class="badge <%= a.accountType === 'pro' ? 'badge-pro' : 'badge-particulier' %>"><%= a.accountType === 'pro' ? 'PRO' : 'PARTICULIER' %></span>
+                    </div>
+                  </div>
+                  <div class="mt-1 text-sm text-slate-500"><%= a.customer %><% if (a.total) { %> · <%= a.total %><% } %></div>
+                  <div class="mt-1 text-xs text-slate-400"><%= a.when %></div>
                 </div>
               </div>
             <% }) %>
-          <% } else { %>
-            <div class="text-sm text-slate-500 col-span-3">Aucune vente ce mois.</div>
-          <% } %>
-        </div>
-      </div>
-    </div>
 
-    <!-- Charts -->
-    <div class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <!-- Weekly Bar Chart -->
-      <div class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
-        <div class="flex items-center justify-between mb-4">
-          <div class="font-semibold text-slate-900">Ventes hebdomadaires</div>
-          <div class="flex items-center gap-4 text-xs">
-            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-primary inline-block"></span> Cette semaine</span>
-            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-300 inline-block"></span> Semaine précédente</span>
+            <% if (!activities || activities.length === 0) { %>
+              <div class="text-sm text-slate-500">Aucune activité.</div>
+            <% } %>
+
+            <a class="btn btn-secondary btn-block" href="/admin/commandes">
+              Voir toutes les activités
+            </a>
           </div>
         </div>
-        <div class="h-64">
-          <canvas id="weeklyChart"></canvas>
-        </div>
       </div>
 
-      <!-- Activities -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+      <!-- Monthly Line Chart -->
+      <div class="mt-6 bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="font-semibold text-slate-900">Évolution du C.A. (6 derniers mois)</div>
+          <div class="text-xs font-semibold uppercase tracking-widest text-slate-400">Mensuel</div>
+        </div>
+        <div class="h-64">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      </div>
+    <% } else { %>
+      <!-- Activités récentes (vue employé sans graphiques financiers) -->
+      <div class="mt-8 bg-white rounded-2xl border border-slate-200 p-6">
         <div class="flex items-center justify-between">
           <div class="font-semibold text-slate-900">Activités Récentes</div>
         </div>
@@ -212,7 +267,7 @@
                     <span class="badge <%= a.accountType === 'pro' ? 'badge-pro' : 'badge-particulier' %>"><%= a.accountType === 'pro' ? 'PRO' : 'PARTICULIER' %></span>
                   </div>
                 </div>
-                <div class="mt-1 text-sm text-slate-500"><%= a.customer %> · <%= a.total %></div>
+                <div class="mt-1 text-sm text-slate-500"><%= a.customer %></div>
                 <div class="mt-1 text-xs text-slate-400"><%= a.when %></div>
               </div>
             </div>
@@ -227,18 +282,7 @@
           </a>
         </div>
       </div>
-    </div>
-
-    <!-- Monthly Line Chart -->
-    <div class="mt-6 bg-white rounded-2xl border border-slate-200 p-6">
-      <div class="flex items-center justify-between mb-4">
-        <div class="font-semibold text-slate-900">Évolution du C.A. (6 derniers mois)</div>
-        <div class="text-xs font-semibold uppercase tracking-widest text-slate-400">Mensuel</div>
-      </div>
-      <div class="h-64">
-        <canvas id="monthlyChart"></canvas>
-      </div>
-    </div>
+    <% } %>
 
     <div class="mt-8 rounded-2xl border border-slate-200 bg-rose-50 p-6 flex items-start justify-between gap-6">
       <div class="flex items-start gap-4">
@@ -257,6 +301,7 @@
   </div>
 </main>
 
+<% if (showFinancials) { %>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
   (function () {
@@ -301,7 +346,7 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: function (ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR') + ' €'; },
+                label: function (ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR') + ' \u20AC'; },
               },
             },
           },
@@ -310,7 +355,7 @@
               beginAtZero: true,
               grid: { color: gridColor },
               ticks: {
-                callback: function (v) { return v.toLocaleString('fr-FR') + ' €'; },
+                callback: function (v) { return v.toLocaleString('fr-FR') + ' \u20AC'; },
                 font: { size: 11, weight: 'bold' },
                 color: tickColor,
               },
@@ -354,7 +399,7 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: function (ctx) { return ctx.parsed.y.toLocaleString('fr-FR') + ' €'; },
+                label: function (ctx) { return ctx.parsed.y.toLocaleString('fr-FR') + ' \u20AC'; },
               },
             },
           },
@@ -363,7 +408,7 @@
               beginAtZero: true,
               grid: { color: gridColor },
               ticks: {
-                callback: function (v) { return v.toLocaleString('fr-FR') + ' €'; },
+                callback: function (v) { return v.toLocaleString('fr-FR') + ' \u20AC'; },
                 font: { size: 11, weight: 'bold' },
                 color: tickColor,
               },
@@ -378,6 +423,7 @@
     }
   })();
 </script>
+<% } %>
 
 <script>
   (function () {
