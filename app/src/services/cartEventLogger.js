@@ -44,4 +44,52 @@ function logCartEvent({ req, action, productId, productName, productSku, quantit
   });
 }
 
-module.exports = { logCartEvent };
+/**
+ * Logge tous les articles déjà présents dans le panier session au moment
+ * de la connexion / inscription. Permet de rattraper les ajouts faits
+ * en tant que visiteur anonyme.
+ *
+ * Appeler APRÈS que req.session.user et req.session.cart soient définis.
+ *
+ * @param {Object} req — Express request
+ */
+function logExistingCartItems(req) {
+  const user = req && req.session && req.session.user;
+  if (!user || !user._id) return;
+
+  const cart = req.session && req.session.cart;
+  if (!cart || !cart.items || typeof cart.items !== 'object') return;
+
+  if (mongoose.connection.readyState !== 1) return;
+
+  const items = Object.values(cart.items);
+  if (items.length === 0) return;
+
+  const userName = ((user.firstName || '') + ' ' + (user.lastName || '')).trim();
+  const accountType = req.session.accountType || '';
+
+  const docs = items
+    .filter((it) => it && it.productId)
+    .map((it) => ({
+      userId: user._id,
+      userEmail: user.email || '',
+      userName,
+      accountType,
+      action: 'add',
+      productId: it.productId,
+      productName: '',
+      productSku: '',
+      quantity: it.quantity || 1,
+      previousQuantity: null,
+      optionsSummary: it.optionsSummary || '',
+    }));
+
+  if (docs.length === 0) return;
+
+  /* Fire-and-forget : insertion groupée */
+  CartEvent.insertMany(docs).catch((err) => {
+    console.error('[CartEvent] Erreur log panier existant :', err && err.message ? err.message : err);
+  });
+}
+
+module.exports = { logCartEvent, logExistingCartItems };
