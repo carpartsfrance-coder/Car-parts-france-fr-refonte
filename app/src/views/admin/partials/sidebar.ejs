@@ -88,10 +88,12 @@
     <!-- CONFIGURATION -->
     <div class="sidebar-group-label">Configuration</div>
     <div class="space-y-0.5">
-      <a class="sidebar-link <%= activeKey === 'shipping-classes' ? 'sidebar-link--active' : '' %>" href="/admin/expedition" title="Expédition">
-        <span class="material-symbols-outlined">local_shipping</span>
-        <span class="sidebar-link-text">Expédition</span>
-      </a>
+      <% if (typeof isOwner !== 'undefined' && isOwner) { %>
+        <a class="sidebar-link <%= activeKey === 'shipping-classes' ? 'sidebar-link--active' : '' %>" href="/admin/expedition" title="Expédition">
+          <span class="material-symbols-outlined">local_shipping</span>
+          <span class="sidebar-link-text">Expédition</span>
+        </a>
+      <% } %>
       <a class="sidebar-link <%= activeKey === 'returns' ? 'sidebar-link--active' : '' %>" href="/admin/retours" title="Consignes & retours">
         <span class="material-symbols-outlined">assignment_return</span>
         <span class="sidebar-link-text flex-1">Consignes & retours</span>
@@ -99,10 +101,12 @@
           <span class="sidebar-badge"><%= returnsCount %></span>
         <% } %>
       </a>
-      <a class="sidebar-link <%= activeKey === 'settings' ? 'sidebar-link--active' : '' %>" href="/admin/parametres" title="Paramètres">
-        <span class="material-symbols-outlined">settings</span>
-        <span class="sidebar-link-text">Paramètres</span>
-      </a>
+      <% if (typeof isOwner !== 'undefined' && isOwner) { %>
+        <a class="sidebar-link <%= activeKey === 'settings' ? 'sidebar-link--active' : '' %>" href="/admin/parametres" title="Paramètres">
+          <span class="material-symbols-outlined">settings</span>
+          <span class="sidebar-link-text">Paramètres</span>
+        </a>
+      <% } %>
     </div>
 
   </nav>
@@ -114,7 +118,7 @@
       const adminLastName  = currentAdmin && currentAdmin.lastName  ? currentAdmin.lastName  : '';
       const adminInitials  = (adminFirstName.charAt(0) + adminLastName.charAt(0)).toUpperCase() || '?';
       const adminFullName  = (adminFirstName + ' ' + adminLastName).trim() || (currentAdmin && currentAdmin.email) || 'Admin';
-      const adminRole      = currentAdmin && currentAdmin.role === 'owner' ? 'Propriétaire' : (currentAdmin && currentAdmin.role ? currentAdmin.role.charAt(0).toUpperCase() + currentAdmin.role.slice(1) : '');
+      const sidebarIsOwner = currentAdmin && currentAdmin.role === 'owner';
     %>
     <form action="/admin/deconnexion" method="POST">
       <div class="flex items-center gap-3">
@@ -122,10 +126,16 @@
         <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style="background: rgba(255,255,255,0.15)">
           <%= adminInitials %>
         </div>
-        <!-- Nom + rôle -->
+        <!-- Nom + rôle badge -->
         <div class="flex-1 min-w-0">
-          <div class="text-sm font-medium text-white truncate"><%= adminFullName %></div>
-          <div class="text-xs truncate" style="color: rgba(255,255,255,0.5)"><%= adminRole %></div>
+          <div class="flex items-center gap-2">
+            <div class="text-sm font-medium text-white truncate"><%= adminFullName %></div>
+            <% if (sidebarIsOwner) { %>
+              <span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">Propriétaire</span>
+            <% } else { %>
+              <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">Employé</span>
+            <% } %>
+          </div>
         </div>
         <!-- Logout -->
         <button class="sidebar-logout-btn" type="submit" title="Déconnexion">
