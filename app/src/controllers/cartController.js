@@ -9,6 +9,7 @@ const promoCodes = require('../services/promoCodes');
 const pricing = require('../services/pricing');
 const productOptions = require('../services/productOptions');
 const { getShippingMethods } = require('../services/shippingPricing');
+const { logCartEvent } = require('../services/cartEventLogger');
 
 function getCart(req) {
   if (!req.session.cart) {
@@ -511,6 +512,17 @@ async function addToCart(req, res, next) {
 
     cart.items[lineId].quantity = Math.min(cart.items[lineId].quantity + qty, 99);
 
+    /* Tracking activité panier (non-bloquant) */
+    logCartEvent({
+      req,
+      action: 'add',
+      productId: id,
+      productName: product.name || '',
+      productSku: product.sku || '',
+      quantity: qty,
+      optionsSummary: display.optionsSummary || '',
+    });
+
     if (jsonResponse) {
       return res.status(200).json({
         ok: true,
@@ -548,14 +560,37 @@ function updateCartItem(req, res) {
   }
 
   const cart = getCart(req);
+  const existingItem = cart.items[id];
+  const previousQuantity = existingItem ? existingItem.quantity : 0;
 
   if (qty <= 0) {
+    /* Tracking suppression (non-bloquant) */
+    if (existingItem) {
+      logCartEvent({
+        req,
+        action: 'remove',
+        productId: existingItem.productId || id,
+        quantity: 0,
+        previousQuantity,
+        optionsSummary: existingItem.optionsSummary || '',
+      });
+    }
     delete cart.items[id];
   } else {
     if (!cart.items[id]) {
       return res.redirect(returnTo || '/panier');
     }
     cart.items[id].quantity = qty;
+
+    /* Tracking modification (non-bloquant) */
+    logCartEvent({
+      req,
+      action: 'update',
+      productId: existingItem.productId || id,
+      quantity: qty,
+      previousQuantity,
+      optionsSummary: existingItem.optionsSummary || '',
+    });
   }
 
   return res.redirect(returnTo || '/panier');
@@ -566,6 +601,20 @@ function removeFromCart(req, res) {
   const returnTo = getSafeReturnTo(req.body.returnTo);
 
   const cart = getCart(req);
+  const removedItem = cart.items[id];
+
+  /* Tracking suppression (non-bloquant) */
+  if (removedItem) {
+    logCartEvent({
+      req,
+      action: 'remove',
+      productId: removedItem.productId || id,
+      quantity: 0,
+      previousQuantity: removedItem.quantity || 0,
+      optionsSummary: removedItem.optionsSummary || '',
+    });
+  }
+
   delete cart.items[id];
 
   return res.redirect(returnTo || '/panier');

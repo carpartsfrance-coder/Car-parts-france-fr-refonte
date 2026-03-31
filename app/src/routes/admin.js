@@ -187,6 +187,8 @@ router.get('/clients', requireAdminAuth, adminController.getAdminClientsPage);
 router.get('/clients/:userId', requireAdminAuth, adminController.getAdminClientDetailPage);
 router.post('/clients/:userId/remise', requireAdminAuth, adminController.postAdminUpdateClientDiscount);
 
+router.get('/activite-panier', requireAdminAuth, adminController.getAdminCartActivityPage);
+
 router.get('/codes-promo', requireAdminAuth, adminController.getAdminPromoCodesPage);
 router.post('/codes-promo', requireAdminAuth, adminController.postAdminCreatePromoCode);
 router.post('/codes-promo/:promoId', requireAdminAuth, adminController.postAdminUpdatePromoCode);
