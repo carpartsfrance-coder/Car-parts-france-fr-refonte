@@ -24,6 +24,8 @@ const productSchema = new mongoose.Schema(
 
     compatibleReferences: { type: [String], default: [] },
 
+    searchSynonyms: { type: [String], default: [] },
+
     badges: {
       topLeft: { type: String, default: '', trim: true },
       condition: { type: String, default: '', trim: true },
