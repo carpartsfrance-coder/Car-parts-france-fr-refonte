@@ -13,6 +13,7 @@ const emailService = require('../services/emailService');
 const { buildOrderInvoicePdfBuffer } = require('../services/invoicePdf');
 const { ensureInvoiceIssuedForPaidOrder } = require('../services/orderInvoices');
 const productOptions = require('../services/productOptions');
+const { logExistingCartItems } = require('../services/cartEventLogger');
 const { getSiteUrlFromEnv } = require('../services/siteUrl');
 
 const LOGIN_BUCKETS = new Map();
@@ -1799,12 +1800,16 @@ async function postLogin(req, res, next) {
         if (prevPromoCode) req.session.promoCode = prevPromoCode;
         req.session.user = nextSessionUser;
         req.session.accountType = user.accountType;
+        /* Rattrape les ajouts panier faits en anonyme */
+        logExistingCartItems(req);
         return req.session.save(() => res.redirect(target));
       });
     }
 
     req.session.user = nextSessionUser;
     req.session.accountType = user.accountType;
+    /* Rattrape les ajouts panier faits en anonyme */
+    logExistingCartItems(req);
     return req.session.save(() => res.redirect(target));
   } catch (err) {
     return next(err);
@@ -2318,12 +2323,16 @@ async function postRegister(req, res, next) {
         if (prevPromoCode) req.session.promoCode = prevPromoCode;
         req.session.user = nextSessionUser;
         req.session.accountType = created.accountType;
+        /* Rattrape les ajouts panier faits en anonyme */
+        logExistingCartItems(req);
         return req.session.save(() => res.redirect(target));
       });
     }
 
     req.session.user = nextSessionUser;
     req.session.accountType = created.accountType;
+    /* Rattrape les ajouts panier faits en anonyme */
+    logExistingCartItems(req);
     return req.session.save(() => res.redirect(target));
   } catch (err) {
     if (err && err.code === 11000) {

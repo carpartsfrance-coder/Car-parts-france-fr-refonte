@@ -22,8 +22,11 @@ const siteSettings = require('../services/siteSettings');
 const productOptions = require('../services/productOptions');
 const mediaStorage = require('../services/mediaStorage');
 const adminUsers = require('../services/adminUsers');
+const AdminUser = require('../models/AdminUser');
+const CartEvent = require('../models/CartEvent');
 const openaiProductGenerator = require('../services/openaiProductGenerator');
 const { getSiteUrlFromEnv } = require('../services/siteUrl');
+const { hasAbility, getRoleLabel, ROLES } = require('../permissions');
 
 const ADMIN_LOGIN_BUCKETS = new Map();
 const ADMIN_RESET_BUCKETS = new Map();
@@ -693,12 +696,33 @@ async function ensureAdminUserStoreReady() {
   if (!dbConnected) return null;
 
   const legacyCreds = getAdminCredentials();
-  return adminUsers.ensurePrimaryAdminUser({
+  const owner = await adminUsers.ensurePrimaryAdminUser({
     legacyEmail: legacyCreds.email,
     legacyPassword: legacyCreds.usesOverride ? '' : legacyCreds.password,
     legacyPasswordHash: legacyCreds.usesOverride ? legacyCreds.passwordHash : '',
     legacyPasswordSalt: legacyCreds.usesOverride ? legacyCreds.passwordSalt : '',
   });
+
+  /* Crée un compte employé de test en développement uniquement */
+  if (process.env.NODE_ENV !== 'production') {
+    const testEmployeEmail = 'employe@test.fr';
+    const existing = await AdminUser.findOne({ email: testEmployeEmail });
+    if (!existing) {
+      try {
+        await adminUsers.createStaffAdminUser({
+          firstName: 'Employé',
+          lastName: 'Test',
+          email: testEmployeEmail,
+          password: 'employe12345',
+          createdByAdminUserId: owner ? owner._id : null,
+        });
+      } catch (e) {
+        /* Ignore duplicate key errors silently */
+      }
+    }
+  }
+
+  return owner;
 }
 
 function getCurrentAdminSession(req) {
@@ -713,12 +737,13 @@ function canManageAdminUsers(req) {
 }
 
 function getAdminRoleLabel(role) {
-  return role === 'owner' ? 'Administrateur principal' : 'Employé back-office';
+  return getRoleLabel(role);
 }
 
 function renderAdminLoginPage(res, { status = 200, dbConnected, errorMessage, successMessage, email, returnTo, legacyCreds } = {}) {
   const safeCreds = legacyCreds || getAdminCredentials();
   const showDevFallback = !dbConnected && safeCreds.isDevFallback;
+  const isDevMode = process.env.NODE_ENV !== 'production';
   return res.status(status).render('admin/login', {
     title: 'Admin - Connexion',
     dbConnected,
@@ -729,6 +754,7 @@ function renderAdminLoginPage(res, { status = 200, dbConnected, errorMessage, su
     isDevFallback: showDevFallback,
     devFallbackEmail: showDevFallback ? safeCreds.email : '',
     devFallbackPassword: showDevFallback ? safeCreds.password : '',
+    isDevMode,
   });
 }
 
@@ -1609,14 +1635,14 @@ async function postAdminLogin(req, res) {
     });
   }
 
-  req.session.admin = {
-    email,
-  };
+  const fallbackAdmin = { email, role: ROLES.OWNER };
+
+  req.session.admin = fallbackAdmin;
 
   if (req.session && typeof req.session.regenerate === 'function') {
     return req.session.regenerate((err) => {
       if (err) return res.redirect('/admin/connexion');
-      req.session.admin = { email };
+      req.session.admin = fallbackAdmin;
       return req.session.save(() => res.redirect(returnTo));
     });
   }
@@ -1625,7 +1651,7 @@ async function postAdminLogin(req, res) {
     return res.redirect(returnTo);
   }
 
-  req.session.admin = { email };
+  req.session.admin = fallbackAdmin;
   return req.session.save(() => res.redirect(returnTo));
 }
 
@@ -1735,11 +1761,14 @@ function postAdminLogout(req, res) {
 async function getAdminDashboard(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
+    const role = req.session.admin && req.session.admin.role;
+    const showFinancials = hasAbility(role, 'dashboard.financial');
 
     if (!dbConnected) {
       return res.render('admin/dashboard', {
         title: 'Admin - Dashboard',
         dbConnected,
+        showFinancials,
         kpis: {},
         weeklyChart: { labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'], values: [0, 0, 0, 0, 0, 0, 0], prevValues: [0, 0, 0, 0, 0, 0, 0] },
         monthlyChart: { labels: [], values: [] },
@@ -1756,109 +1785,124 @@ async function getAdminDashboard(req, res, next) {
 
     const excludeCancelled = { status: { $ne: 'annulee' } };
 
-    const revenueTodayAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: startToday }, ...excludeCancelled } },
-      { $group: { _id: null, total: { $sum: '$totalCents' } } },
-    ]);
-    const revenueMonthAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
-      { $group: { _id: null, total: { $sum: '$totalCents' } } },
-    ]);
+    /* ── KPIs financiers (owner uniquement) ── */
+    let revenueTodayCents = 0;
+    let revenueMonthCents = 0;
+    let averageBasketCents = 0;
+    let ordersThisMonth = 0;
+    let topProducts = [];
+    let weekLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    let weekValues = [0, 0, 0, 0, 0, 0, 0];
+    let prevWeekValues = [0, 0, 0, 0, 0, 0, 0];
+    let monthLabels = [];
+    let monthValues = [];
 
-    const revenueTodayCents = revenueTodayAgg && revenueTodayAgg[0] ? Number(revenueTodayAgg[0].total) : 0;
-    const revenueMonthCents = revenueMonthAgg && revenueMonthAgg[0] ? Number(revenueMonthAgg[0].total) : 0;
+    if (showFinancials) {
+      const revenueTodayAgg = await Order.aggregate([
+        { $match: { createdAt: { $gte: startToday }, ...excludeCancelled } },
+        { $group: { _id: null, total: { $sum: '$totalCents' } } },
+      ]);
+      const revenueMonthAgg = await Order.aggregate([
+        { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
+        { $group: { _id: null, total: { $sum: '$totalCents' } } },
+      ]);
 
+      revenueTodayCents = revenueTodayAgg && revenueTodayAgg[0] ? Number(revenueTodayAgg[0].total) : 0;
+      revenueMonthCents = revenueMonthAgg && revenueMonthAgg[0] ? Number(revenueMonthAgg[0].total) : 0;
+
+      /* ── Weekly bar chart data (last 7 days + previous 7 days) ── */
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - 6);
+      weekStart.setHours(0, 0, 0, 0);
+      const prevWeekStart = new Date(weekStart);
+      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+
+      const dailyRevenueAgg = await Order.aggregate([
+        { $match: { createdAt: { $gte: prevWeekStart }, ...excludeCancelled } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Europe/Paris' } },
+            total: { $sum: '$totalCents' },
+          },
+        },
+      ]);
+      const dailyMap = new Map(dailyRevenueAgg.map((d) => [d._id, d.total]));
+
+      weekLabels = [];
+      weekValues = [];
+      prevWeekValues = [];
+      const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        const key = d.toISOString().slice(0, 10);
+        weekLabels.push(dayNames[d.getDay()] + ' ' + d.getDate());
+        weekValues.push(Math.round((dailyMap.get(key) || 0) / 100));
+
+        const pd = new Date(prevWeekStart);
+        pd.setDate(pd.getDate() + i);
+        const pkey = pd.toISOString().slice(0, 10);
+        prevWeekValues.push(Math.round((dailyMap.get(pkey) || 0) / 100));
+      }
+
+      /* ── Monthly line chart data (last 6 months) ── */
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+      sixMonthsAgo.setDate(1);
+      sixMonthsAgo.setHours(0, 0, 0, 0);
+
+      const monthlyRevenueAgg = await Order.aggregate([
+        { $match: { createdAt: { $gte: sixMonthsAgo }, ...excludeCancelled } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone: 'Europe/Paris' } },
+            total: { $sum: '$totalCents' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+      const monthlyMap = new Map(monthlyRevenueAgg.map((m) => [m._id, m]));
+
+      monthLabels = [];
+      monthValues = [];
+      const monthNamesFR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+      for (let i = 0; i < 6; i++) {
+        const md = new Date(sixMonthsAgo);
+        md.setMonth(md.getMonth() + i);
+        const key = md.toISOString().slice(0, 7);
+        monthLabels.push(monthNamesFR[md.getMonth()] + ' ' + md.getFullYear());
+        const entry = monthlyMap.get(key);
+        monthValues.push(Math.round((entry ? entry.total : 0) / 100));
+      }
+
+      /* ── Average basket + top products ── */
+      ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth }, ...excludeCancelled });
+      averageBasketCents = ordersThisMonth > 0 ? Math.round(revenueMonthCents / ordersThisMonth) : 0;
+
+      const topProductsAgg = await Order.aggregate([
+        { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
+        { $unwind: '$items' },
+        {
+          $group: {
+            _id: '$items.name',
+            totalQty: { $sum: '$items.quantity' },
+            totalRevenue: { $sum: '$items.lineTotalCents' },
+          },
+        },
+        { $sort: { totalQty: -1 } },
+        { $limit: 3 },
+      ]);
+      topProducts = topProductsAgg.map((p) => ({
+        name: p._id || 'Sans nom',
+        qty: p.totalQty,
+        revenue: formatEuro(p.totalRevenue),
+      }));
+    }
+
+    /* ── KPIs opérationnels (tous les admins) ── */
     const pendingOrdersCount = await Order.countDocuments({ status: 'en_attente' });
     const stockAlertsCount = await Product.countDocuments({ stockQty: { $ne: null, $lte: 2 } });
-
-    /* ── Weekly bar chart data (last 7 days + previous 7 days) ── */
-    const weekStart = new Date(now);
-    weekStart.setDate(weekStart.getDate() - 6);
-    weekStart.setHours(0, 0, 0, 0);
-    const prevWeekStart = new Date(weekStart);
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-
-    const dailyRevenueAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: prevWeekStart }, ...excludeCancelled } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Europe/Paris' } },
-          total: { $sum: '$totalCents' },
-        },
-      },
-    ]);
-    const dailyMap = new Map(dailyRevenueAgg.map((d) => [d._id, d.total]));
-
-    const weekLabels = [];
-    const weekValues = [];
-    const prevWeekValues = [];
-    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + i);
-      const key = d.toISOString().slice(0, 10);
-      weekLabels.push(dayNames[d.getDay()] + ' ' + d.getDate());
-      weekValues.push(Math.round((dailyMap.get(key) || 0) / 100));
-
-      const pd = new Date(prevWeekStart);
-      pd.setDate(pd.getDate() + i);
-      const pkey = pd.toISOString().slice(0, 10);
-      prevWeekValues.push(Math.round((dailyMap.get(pkey) || 0) / 100));
-    }
-
-    /* ── Monthly line chart data (last 6 months) ── */
-    const sixMonthsAgo = new Date(now);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    sixMonthsAgo.setHours(0, 0, 0, 0);
-
-    const monthlyRevenueAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: sixMonthsAgo }, ...excludeCancelled } },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone: 'Europe/Paris' } },
-          total: { $sum: '$totalCents' },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
-    const monthlyMap = new Map(monthlyRevenueAgg.map((m) => [m._id, m]));
-
-    const monthLabels = [];
-    const monthValues = [];
-    const monthNamesFR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    for (let i = 0; i < 6; i++) {
-      const md = new Date(sixMonthsAgo);
-      md.setMonth(md.getMonth() + i);
-      const key = md.toISOString().slice(0, 7);
-      monthLabels.push(monthNamesFR[md.getMonth()] + ' ' + md.getFullYear());
-      const entry = monthlyMap.get(key);
-      monthValues.push(Math.round((entry ? entry.total : 0) / 100));
-    }
-
-    /* ── New KPIs: average basket + top products ── */
-    const ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth }, ...excludeCancelled });
-    const averageBasketCents = ordersThisMonth > 0 ? Math.round(revenueMonthCents / ordersThisMonth) : 0;
-
-    const topProductsAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
-      { $unwind: '$items' },
-      {
-        $group: {
-          _id: '$items.name',
-          totalQty: { $sum: '$items.quantity' },
-          totalRevenue: { $sum: '$items.lineTotalCents' },
-        },
-      },
-      { $sort: { totalQty: -1 } },
-      { $limit: 3 },
-    ]);
-    const topProducts = topProductsAgg.map((p) => ({
-      name: p._id || 'Sans nom',
-      qty: p.totalQty,
-      revenue: formatEuro(p.totalRevenue),
-    }));
 
     const latestOrders = await Order.find({})
       .sort({ createdAt: -1 })
@@ -1888,7 +1932,7 @@ async function getAdminDashboard(req, res, next) {
         number: o.number,
         accountType: o.accountType,
         customer,
-        total: formatEuro(o.totalCents),
+        total: showFinancials ? formatEuro(o.totalCents) : null,
         when: formatDateTimeFR(o.createdAt),
         statusBadge: getOrderStatusBadge(o.status),
       };
@@ -1897,14 +1941,15 @@ async function getAdminDashboard(req, res, next) {
     return res.render('admin/dashboard', {
       title: 'Admin - Dashboard',
       dbConnected,
+      showFinancials,
       kpis: {
-        revenueToday: formatEuro(revenueTodayCents),
-        revenueMonth: formatEuro(revenueMonthCents),
+        revenueToday: showFinancials ? formatEuro(revenueTodayCents) : null,
+        revenueMonth: showFinancials ? formatEuro(revenueMonthCents) : null,
         pendingOrdersCount,
         stockAlertsCount,
-        averageBasket: formatEuro(averageBasketCents),
-        ordersThisMonth,
-        topProducts,
+        averageBasket: showFinancials ? formatEuro(averageBasketCents) : null,
+        ordersThisMonth: showFinancials ? ordersThisMonth : null,
+        topProducts: showFinancials ? topProducts : [],
       },
       weeklyChart: { labels: weekLabels, values: weekValues, prevValues: prevWeekValues },
       monthlyChart: { labels: monthLabels, values: monthValues },
@@ -7026,6 +7071,130 @@ async function postAdminInvoiceSettings(req, res, next) {
   }
 }
 
+/* ───────────────────────────────────────────────────
+ * Activité panier (tracking ajouts/modifications/suppressions)
+ * ─────────────────────────────────────────────────── */
+
+async function getAdminCartActivityPage(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const q = getTrimmedString(req.query.q);
+    const action = getTrimmedString(req.query.action);
+    const period = getTrimmedString(req.query.period);
+
+    const perPage = 30;
+    const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
+    const page = Math.max(1, Number.parseInt(rawPage, 10) || 1);
+
+    if (!dbConnected) {
+      return res.render('admin/cart-activity', {
+        title: 'Admin - Activité panier',
+        dbConnected,
+        events: [],
+        filters: { q, action, period },
+        pagination: {
+          page: 1, perPage, totalItems: 0, totalPages: 1,
+          from: 0, to: 0, hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1,
+        },
+      });
+    }
+
+    /* Construction du filtre MongoDB */
+    const query = {};
+
+    if (action && ['add', 'update', 'remove'].includes(action)) {
+      query.action = action;
+    }
+
+    if (period) {
+      const now = new Date();
+      const start = new Date(now);
+      if (period === '24h') start.setHours(start.getHours() - 24);
+      else if (period === '7d') start.setDate(start.getDate() - 7);
+      else if (period === '30d') start.setDate(start.getDate() - 30);
+      else if (period === '90d') start.setDate(start.getDate() - 90);
+
+      if (['24h', '7d', '30d', '90d'].includes(period)) {
+        query.createdAt = { $gte: start };
+      }
+    }
+
+    if (q) {
+      const rx = new RegExp(escapeRegExp(q), 'i');
+      query.$or = [{ userEmail: rx }, { userName: rx }];
+    }
+
+    const totalItems = await CartEvent.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const currentPage = Math.min(page, totalPages);
+    const skip = (currentPage - 1) * perPage;
+
+    const rawEvents = await CartEvent.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(perPage)
+      .lean();
+
+    /* Résolution des noms de produits manquants via batch lookup */
+    const missingProductIds = rawEvents
+      .filter((e) => !e.productName && e.productId)
+      .map((e) => e.productId);
+
+    const productNameMap = new Map();
+    if (missingProductIds.length > 0) {
+      const products = await Product.find({ _id: { $in: missingProductIds } })
+        .select('_id name sku')
+        .lean();
+      for (const p of products) {
+        productNameMap.set(String(p._id), { name: p.name, sku: p.sku || '' });
+      }
+    }
+
+    const events = rawEvents.map((e) => {
+      let productName = e.productName || '';
+      let productSku = e.productSku || '';
+
+      if (!productName && e.productId) {
+        const resolved = productNameMap.get(String(e.productId));
+        if (resolved) {
+          productName = resolved.name;
+          productSku = productSku || resolved.sku;
+        }
+      }
+
+      return {
+        ...e,
+        productName,
+        productSku,
+        dateFormatted: formatDateTimeFR(e.createdAt),
+      };
+    });
+
+    const pagination = {
+      page: currentPage,
+      perPage,
+      totalItems,
+      totalPages,
+      from: totalItems ? skip + 1 : 0,
+      to: totalItems ? skip + rawEvents.length : 0,
+      hasPrev: currentPage > 1,
+      hasNext: currentPage < totalPages,
+      prevPage: Math.max(1, currentPage - 1),
+      nextPage: Math.min(totalPages, currentPage + 1),
+    };
+
+    return res.render('admin/cart-activity', {
+      title: 'Admin - Activité panier',
+      dbConnected,
+      events,
+      filters: { q, action, period },
+      pagination,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
@@ -7093,4 +7262,5 @@ module.exports = {
   postAdminInvoiceSettings,
   getAdminSiteSettingsPage,
   postAdminSiteSettings,
+  getAdminCartActivityPage,
 };

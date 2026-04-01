@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 const AdminUser = require('../models/AdminUser');
+const { ROLES } = require('../permissions');
 
 function normalizeEmail(value) {
   if (typeof value !== 'string') return '';
@@ -54,14 +55,14 @@ function sanitizeAdminForSession(adminUser) {
     email: normalizeEmail(adminUser.email),
     firstName: getTrimmedString(adminUser.firstName),
     lastName: getTrimmedString(adminUser.lastName),
-    role: getTrimmedString(adminUser.role) || 'staff',
+    role: getTrimmedString(adminUser.role) || ROLES.EMPLOYE,
   };
 }
 
 async function ensurePrimaryAdminUser({ legacyEmail, legacyPassword, legacyPasswordHash, legacyPasswordSalt } = {}) {
   const existingCount = await AdminUser.countDocuments({});
   if (existingCount > 0) {
-    return AdminUser.findOne({ role: 'owner' }).sort({ createdAt: 1 });
+    return AdminUser.findOne({ role: ROLES.OWNER }).sort({ createdAt: 1 });
   }
 
   const email = normalizeEmail(legacyEmail);
@@ -87,7 +88,7 @@ async function ensurePrimaryAdminUser({ legacyEmail, legacyPassword, legacyPassw
       email,
       passwordHash,
       passwordSalt,
-      role: 'owner',
+      role: ROLES.OWNER,
       isActive: true,
       passwordUpdatedAt: new Date(),
     });
@@ -116,7 +117,7 @@ async function authenticateAdminUser({ email, password } = {}) {
 }
 
 async function getPrimaryAdminUser() {
-  return AdminUser.findOne({ role: 'owner' }).sort({ createdAt: 1 });
+  return AdminUser.findOne({ role: ROLES.OWNER }).sort({ createdAt: 1 });
 }
 
 async function touchLastLogin(adminUserId) {
@@ -132,7 +133,7 @@ async function listAdminUsers() {
     lastName: getTrimmedString(user.lastName),
     fullName: `${getTrimmedString(user.firstName)} ${getTrimmedString(user.lastName)}`.trim(),
     email: normalizeEmail(user.email),
-    role: getTrimmedString(user.role) || 'staff',
+    role: getTrimmedString(user.role) || ROLES.EMPLOYE,
     isActive: user.isActive !== false,
     createdAt: user.createdAt || null,
     updatedAt: user.updatedAt || null,
@@ -156,7 +157,7 @@ async function createStaffAdminUser({ firstName, lastName, email, password, crea
     email: safeEmail,
     passwordHash: record.hash,
     passwordSalt: record.salt,
-    role: 'staff',
+    role: ROLES.EMPLOYE,
     isActive: true,
     passwordUpdatedAt: new Date(),
     createdByAdminUserId: createdByAdminUserId || null,
@@ -211,7 +212,7 @@ async function toggleAdminUserActive({ adminUserId, isActive } = {}) {
 
   const adminUser = await AdminUser.findById(safeId);
   if (!adminUser) return { ok: false, reason: 'not_found' };
-  if (adminUser.role === 'owner') return { ok: false, reason: 'owner_locked' };
+  if (adminUser.role === ROLES.OWNER) return { ok: false, reason: 'owner_locked' };
 
   adminUser.isActive = isActive === true;
   await adminUser.save();
@@ -227,7 +228,7 @@ async function updateAdminUserPasswordByOwner({ adminUserId, nextPassword } = {}
 
   const adminUser = await AdminUser.findById(safeId);
   if (!adminUser) return { ok: false, reason: 'not_found' };
-  if (adminUser.role === 'owner') return { ok: false, reason: 'owner_locked' };
+  if (adminUser.role === ROLES.OWNER) return { ok: false, reason: 'owner_locked' };
 
   const record = buildPasswordRecord(safeNext);
   if (!record) return { ok: false, reason: 'invalid_next_password' };

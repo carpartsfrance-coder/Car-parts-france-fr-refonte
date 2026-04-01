@@ -1,3 +1,14 @@
+/*
+ * PERMISSIONS PAR ROUTE :
+ * - /admin/parametres             → owner uniquement (team.manage)
+ * - /admin/parametres/site        → owner uniquement (settings.site)
+ * - /admin/parametres/facturation → owner uniquement (settings.billing)
+ * - /admin/parametres/equipe      → owner uniquement (team.manage)
+ * - /admin/expedition             → owner uniquement (settings.shipping)
+ * - Toutes les autres routes      → tous les admins connectés (owner + employe)
+ * - Dashboard KPI financiers      → masqués côté vue pour les employés
+ */
+
 const express = require('express');
 const mongoose = require('mongoose');
 
@@ -11,6 +22,7 @@ const ReturnRequest = require('../models/ReturnRequest');
 const { handleProductImageUpload } = require('../middlewares/adminProductUpload');
 const { handleBlogCoverUpload, handleBlogMediaUpload } = require('../middlewares/adminBlogUpload');
 const { handleInvoiceLogoUpload } = require('../middlewares/adminInvoiceUpload');
+const { hasAbility, isOwner } = require('../permissions');
 
 const router = express.Router();
 
@@ -43,22 +55,50 @@ async function requireAdminAuth(req, res, next) {
             lastName: adminUser.lastName,
             role: adminUser.role,
           };
+
+          /* Injecte les helpers de permissions dans res.locals pour les vues */
+          res.locals.hasAbility = (ability) => hasAbility(req.session.admin.role, ability);
+          res.locals.isOwner = isOwner(req.session.admin.role);
+          res.locals.adminRole = req.session.admin.role;
+
           return next();
         }
       } else {
+        /* BDD non connectée ou pas d'adminUserId — mode fallback */
+        const fallbackRole = adminSession.role || 'owner';
+        res.locals.hasAbility = (ability) => hasAbility(fallbackRole, ability);
+        res.locals.isOwner = isOwner(fallbackRole);
+        res.locals.adminRole = fallbackRole;
         return next();
       }
     }
 
     const accept = req && req.headers && typeof req.headers.accept === 'string' ? req.headers.accept : '';
     if (accept.includes('application/json')) {
-      return res.status(401).json({ ok: false, error: 'Session expir\u00e9e. Veuillez vous reconnecter.', redirect: '/admin/connexion' });
+      return res.status(401).json({ ok: false, error: 'Session expirée. Veuillez vous reconnecter.', redirect: '/admin/connexion' });
     }
     const returnTo = getSafeReturnTo(req.originalUrl) || '/admin';
     return res.redirect(`/admin/connexion?returnTo=${encodeURIComponent(returnTo)}`);
   } catch (err) {
     return next(err);
   }
+}
+
+/**
+ * Middleware factory : vérifie qu'un admin connecté possède l'ability requise.
+ * À placer APRÈS requireAdminAuth.
+ */
+function requireAbility(ability) {
+  return (req, res, next) => {
+    const role = req.session.admin && req.session.admin.role;
+    if (!role || !hasAbility(role, ability)) {
+      return res.status(403).render('admin/forbidden', {
+        admin: req.session.admin,
+        pageTitle: 'Accès refusé',
+      });
+    }
+    next();
+  };
 }
 
 router.get('/connexion', adminController.getAdminLogin);
@@ -114,10 +154,11 @@ router.post('/vehicules/:makeId/modeles', requireAdminAuth, adminController.post
 router.post('/vehicules/:makeId/modeles/:modelId', requireAdminAuth, adminController.postAdminUpdateVehicleModel);
 router.post('/vehicules/:makeId/modeles/:modelId/supprimer', requireAdminAuth, adminController.postAdminDeleteVehicleModel);
 
-router.get('/expedition', requireAdminAuth, adminController.getAdminShippingClassesPage);
-router.post('/expedition', requireAdminAuth, adminController.postAdminCreateShippingClass);
-router.post('/expedition/:classId', requireAdminAuth, adminController.postAdminUpdateShippingClass);
-router.post('/expedition/:classId/supprimer', requireAdminAuth, adminController.postAdminDeleteShippingClass);
+/* Expédition — owner uniquement */
+router.get('/expedition', requireAdminAuth, requireAbility('settings.shipping'), adminController.getAdminShippingClassesPage);
+router.post('/expedition', requireAdminAuth, requireAbility('settings.shipping'), adminController.postAdminCreateShippingClass);
+router.post('/expedition/:classId', requireAdminAuth, requireAbility('settings.shipping'), adminController.postAdminUpdateShippingClass);
+router.post('/expedition/:classId/supprimer', requireAdminAuth, requireAbility('settings.shipping'), adminController.postAdminDeleteShippingClass);
 
 router.get('/catalogue/options', requireAdminAuth, adminController.getAdminProductOptionTemplatesPage);
 router.post('/catalogue/options', requireAdminAuth, adminController.postAdminCreateProductOptionTemplate);
@@ -149,6 +190,8 @@ router.get('/clients', requireAdminAuth, adminController.getAdminClientsPage);
 router.get('/clients/:userId', requireAdminAuth, adminController.getAdminClientDetailPage);
 router.post('/clients/:userId/remise', requireAdminAuth, adminController.postAdminUpdateClientDiscount);
 
+router.get('/activite-panier', requireAdminAuth, adminController.getAdminCartActivityPage);
+
 router.get('/codes-promo', requireAdminAuth, adminController.getAdminPromoCodesPage);
 router.post('/codes-promo', requireAdminAuth, adminController.postAdminCreatePromoCode);
 router.post('/codes-promo/:promoId', requireAdminAuth, adminController.postAdminUpdatePromoCode);
@@ -171,14 +214,16 @@ router.post('/api/blog/upload', requireAdminAuth, handleBlogMediaUpload, blogAdm
 router.get('/pages-legales', requireAdminAuth, legalAdminController.getAdminLegalPages);
 router.get('/pages-legales/:slug', requireAdminAuth, legalAdminController.getAdminEditLegalPage);
 router.post('/pages-legales/:slug', requireAdminAuth, legalAdminController.postAdminUpdateLegalPage);
-router.get('/parametres', requireAdminAuth, adminController.getAdminSettingsPage);
-router.post('/parametres/equipe', requireAdminAuth, adminController.postAdminCreateBackofficeUser);
-router.post('/parametres/equipe/:adminUserId/toggle', requireAdminAuth, adminController.postAdminToggleBackofficeUser);
-router.post('/parametres/equipe/:adminUserId/mot-de-passe', requireAdminAuth, adminController.postAdminResetBackofficeUserPassword);
+
+/* Paramètres — owner uniquement */
+router.get('/parametres', requireAdminAuth, requireAbility('team.manage'), adminController.getAdminSettingsPage);
+router.post('/parametres/equipe', requireAdminAuth, requireAbility('team.manage'), adminController.postAdminCreateBackofficeUser);
+router.post('/parametres/equipe/:adminUserId/toggle', requireAdminAuth, requireAbility('team.manage'), adminController.postAdminToggleBackofficeUser);
+router.post('/parametres/equipe/:adminUserId/mot-de-passe', requireAdminAuth, requireAbility('team.manage'), adminController.postAdminResetBackofficeUserPassword);
 router.post('/parametres/mot-de-passe', requireAdminAuth, adminController.postAdminChangeOwnPassword);
-router.get('/parametres/facturation', requireAdminAuth, adminController.getAdminInvoiceSettingsPage);
-router.post('/parametres/facturation', requireAdminAuth, handleInvoiceLogoUpload, adminController.postAdminInvoiceSettings);
-router.get('/parametres/site', requireAdminAuth, adminController.getAdminSiteSettingsPage);
-router.post('/parametres/site', requireAdminAuth, adminController.postAdminSiteSettings);
+router.get('/parametres/facturation', requireAdminAuth, requireAbility('settings.billing'), adminController.getAdminInvoiceSettingsPage);
+router.post('/parametres/facturation', requireAdminAuth, requireAbility('settings.billing'), handleInvoiceLogoUpload, adminController.postAdminInvoiceSettings);
+router.get('/parametres/site', requireAdminAuth, requireAbility('settings.site'), adminController.getAdminSiteSettingsPage);
+router.post('/parametres/site', requireAdminAuth, requireAbility('settings.site'), adminController.postAdminSiteSettings);
 
 module.exports = router;
