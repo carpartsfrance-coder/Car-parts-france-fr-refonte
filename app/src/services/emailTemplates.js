@@ -779,39 +779,17 @@ function buildNewBlogPostEmail({ post, baseUrl } = {}) {
   };
 }
 
-function renderCartItemRows(items, baseUrl) {
+function renderCartItemRowsSimple(items) {
   if (!Array.isArray(items) || !items.length) return '';
-  const safeBaseUrl = getTrimmedString(baseUrl);
-
   return items
     .map((it) => {
       if (!it) return '';
       const name = it.name ? escapeHtml(it.name) : 'Article';
       const qty = Number.isFinite(it.quantity) ? it.quantity : 1;
       const price = Number.isFinite(it.price) ? formatEuro(it.price) : '';
-      const lineTotal = Number.isFinite(it.price) && Number.isFinite(it.quantity)
-        ? formatEuro(it.price * it.quantity)
-        : '';
-      const rawImage = getTrimmedString(it.image);
-      const imageUrl = rawImage && safeBaseUrl && !rawImage.startsWith('http')
-        ? `${safeBaseUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
-        : rawImage;
-
-      const imageCell = imageUrl
-        ? `<img src="${escapeHtml(imageUrl)}" alt="${name}" width="56" height="56" style="display:block;width:56px;height:56px;object-fit:cover;border-radius:12px;" />`
-        : `<div style="width:56px;height:56px;border-radius:12px;background:#f1f5f9;"></div>`;
-
-      return `<tr>
-        <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;width:64px;">
-          ${imageCell}
-        </td>
-        <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;">
-          <div style="font-weight:900;color:#0f172a;">${name}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px;">Quantit\u00e9 : <strong style="color:#0f172a;">${escapeHtml(qty)}</strong></div>
-          ${price ? `<div style="font-size:12px;color:#64748b;margin-top:2px;">Prix : <strong style="color:#0f172a;">${escapeHtml(price)}</strong></div>` : ''}
-        </td>
-        <td align="right" style="padding:12px 0;border-bottom:1px solid #f1f5f9;font-weight:900;white-space:nowrap;vertical-align:top;">${lineTotal ? escapeHtml(lineTotal) : ''}</td>
-      </tr>`;
+      return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a;">
+        ${name}${qty > 1 ? ` (x${escapeHtml(qty)})` : ''}${price ? ` — ${escapeHtml(price)}` : ''}
+      </div>`;
     })
     .join('');
 }
@@ -824,52 +802,34 @@ function buildAbandonedCartReminder1({ cart, baseUrl } = {}) {
   const token = cart && cart.recoveryToken ? String(cart.recoveryToken) : '';
   const safeBaseUrl = getTrimmedString(baseUrl);
   const recoveryUrl = token && safeBaseUrl ? `${safeBaseUrl}/panier/recuperer/${encodeURIComponent(token)}` : '';
-  const unsubscribeUrl = safeBaseUrl ? `${safeBaseUrl}/newsletter/desinscription` : '';
 
-  const itemsHtml = renderCartItemRows(items, baseUrl);
+  const itemsText = renderCartItemRowsSimple(items);
 
-  const subject = `${firstName ? `${firstName}, ` : ''}vous avez oubli\u00e9 quelque chose ?`;
+  const subject = `Re: Votre commande en cours sur CarParts France`;
 
   const bodyHtml = `
-<div style="font-size:16px;font-weight:900;">${greeting},</div>
-<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Vous avez ajout\u00e9 des pi\u00e8ces \u00e0 votre panier mais vous n'avez pas finalis\u00e9 votre commande.
-  Pas de souci, votre panier est toujours l\u00e0.
-</div>
-
-<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Votre panier</div>
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
-  ${itemsHtml}
-</table>
-
-${totalAmountCents > 0 ? `
-<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
-  <div style="display:flex;justify-content:space-between;gap:10px;">
-    <div style="font-weight:900;">Total</div>
-    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totalAmountCents))}</div>
-  </div>
-</div>` : ''}
-
-${renderPrimaryButton({ href: recoveryUrl, label: 'Reprendre ma commande' })}
-
-<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
-  Une question sur un produit ? R\u00e9pondez directement \u00e0 cet email, notre \u00e9quipe vous r\u00e9pond rapidement.
-</div>
-
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
-  Vous recevez cet email car vous avez un panier en attente sur CarParts France.<br />
-  ${unsubscribeUrl ? `<a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se d\u00e9sinscrire</a>` : ''}
+<div style="font-size:14px;line-height:1.7;color:#334155;">
+  <p>${greeting},</p>
+  <p>Je me permets de revenir vers vous car j'ai vu que votre commande n'a pas \u00e9t\u00e9 finalis\u00e9e. Il y a peut-\u00eatre eu un souci technique ?</p>
+  <p>Votre panier est toujours sauvegard\u00e9 :</p>
+  ${itemsText}
+  ${totalAmountCents > 0 ? `<p style="margin-top:8px;font-weight:700;">Total : ${escapeHtml(formatEuro(totalAmountCents))}</p>` : ''}
+  <p>Vous pouvez reprendre votre commande directement ici :<br />
+  <a href="${escapeHtml(recoveryUrl)}" style="color:#ec1313;">${escapeHtml(recoveryUrl)}</a></p>
+  <p>Si vous avez une question sur une pi\u00e8ce ou la compatibilit\u00e9 avec votre v\u00e9hicule, r\u00e9pondez \u00e0 cet email, je vous r\u00e9ponds rapidement.</p>
+  <p>Bonne journ\u00e9e,<br /><strong>L'\u00e9quipe CarParts France</strong><br />
+  <span style="font-size:12px;color:#64748b;">04 65 84 54 88</span></p>
 </div>`;
 
   return {
     subject,
     html: renderEmailLayout({
       title: subject,
-      preheader: 'Votre panier vous attend sur CarParts France',
+      preheader: '',
       bodyHtml,
       baseUrl,
     }),
-    text: `${firstName ? `${firstName}, ` : ''}vous avez oubli\u00e9 quelque chose dans votre panier. Total : ${formatEuro(totalAmountCents)}. Reprenez votre commande : ${recoveryUrl}`,
+    text: `${greeting},\n\nJe me permets de revenir vers vous car votre commande n'a pas \u00e9t\u00e9 finalis\u00e9e.\n\nReprenez votre commande : ${recoveryUrl}\n\nTotal : ${formatEuro(totalAmountCents)}\n\nL'\u00e9quipe CarParts France\n04 65 84 54 88`,
   };
 }
 
@@ -881,55 +841,34 @@ function buildAbandonedCartReminder2({ cart, baseUrl } = {}) {
   const token = cart && cart.recoveryToken ? String(cart.recoveryToken) : '';
   const safeBaseUrl = getTrimmedString(baseUrl);
   const recoveryUrl = token && safeBaseUrl ? `${safeBaseUrl}/panier/recuperer/${encodeURIComponent(token)}` : '';
-  const unsubscribeUrl = safeBaseUrl ? `${safeBaseUrl}/newsletter/desinscription` : '';
 
-  const itemsHtml = renderCartItemRows(items, baseUrl);
+  const itemsText = renderCartItemRowsSimple(items);
 
-  const subject = `${firstName ? `${firstName}, ` : ''}votre panier vous attend toujours`;
+  const subject = `Re: Disponibilit\u00e9 de votre pi\u00e8ce`;
 
   const bodyHtml = `
-<div style="font-size:16px;font-weight:900;">${greeting},</div>
-<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  Votre panier est toujours disponible avec les pi\u00e8ces que vous avez s\u00e9lectionn\u00e9es.
-</div>
-
-<div style="margin-top:12px;padding:12px 14px;border:1px solid #fef3c7;background:#fffbeb;border-radius:14px;color:#92400e;font-size:13px;line-height:1.6;">
-  Nos pi\u00e8ces reconditionn\u00e9es sont disponibles en quantit\u00e9 limit\u00e9e. Chaque r\u00e9f\u00e9rence est unique et peut partir \u00e0 tout moment.
-</div>
-
-<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Votre panier</div>
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
-  ${itemsHtml}
-</table>
-
-${totalAmountCents > 0 ? `
-<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
-  <div style="display:flex;justify-content:space-between;gap:10px;">
-    <div style="font-weight:900;">Total</div>
-    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totalAmountCents))}</div>
-  </div>
-</div>` : ''}
-
-${renderPrimaryButton({ href: recoveryUrl, label: 'Finaliser ma commande' })}
-
-<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
-  Besoin d'aide pour votre commande ? Notre \u00e9quipe est disponible par email ou au 04 65 84 54 88.
-</div>
-
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
-  Vous recevez cet email car vous avez un panier en attente sur CarParts France.<br />
-  ${unsubscribeUrl ? `<a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se d\u00e9sinscrire</a>` : ''}
+<div style="font-size:14px;line-height:1.7;color:#334155;">
+  <p>${greeting},</p>
+  <p>Je voulais vous pr\u00e9venir : les pi\u00e8ces de votre panier sont des r\u00e9f\u00e9rences reconditionn\u00e9es, et nous les avons en stock en quantit\u00e9 tr\u00e8s limit\u00e9e. Je ne peux pas vous garantir qu'elles seront encore l\u00e0 dans quelques jours.</p>
+  <p>Votre panier :</p>
+  ${itemsText}
+  ${totalAmountCents > 0 ? `<p style="margin-top:8px;font-weight:700;">Total : ${escapeHtml(formatEuro(totalAmountCents))}</p>` : ''}
+  <p>Pour finaliser :<br />
+  <a href="${escapeHtml(recoveryUrl)}" style="color:#ec1313;">${escapeHtml(recoveryUrl)}</a></p>
+  <p>Si vous h\u00e9sitez sur la compatibilit\u00e9 ou si vous avez besoin d'un conseil, n'h\u00e9sitez pas \u00e0 me r\u00e9pondre ou \u00e0 nous appeler.</p>
+  <p>Cordialement,<br /><strong>L'\u00e9quipe CarParts France</strong><br />
+  <span style="font-size:12px;color:#64748b;">04 65 84 54 88</span></p>
 </div>`;
 
   return {
     subject,
     html: renderEmailLayout({
       title: subject,
-      preheader: 'Vos pi\u00e8ces sont encore disponibles, mais pour combien de temps ?',
+      preheader: '',
       bodyHtml,
       baseUrl,
     }),
-    text: `${firstName ? `${firstName}, ` : ''}votre panier vous attend toujours. Nos pi\u00e8ces reconditionn\u00e9es sont en quantit\u00e9 limit\u00e9e. Total : ${formatEuro(totalAmountCents)}. Finalisez votre commande : ${recoveryUrl}`,
+    text: `${greeting},\n\nLes pi\u00e8ces de votre panier sont en stock limit\u00e9. Je ne peux pas garantir leur disponibilit\u00e9.\n\nFinalisez votre commande : ${recoveryUrl}\n\nTotal : ${formatEuro(totalAmountCents)}\n\nL'\u00e9quipe CarParts France\n04 65 84 54 88`,
   };
 }
 
@@ -941,65 +880,40 @@ function buildAbandonedCartReminder3({ cart, baseUrl, promoCode } = {}) {
   const token = cart && cart.recoveryToken ? String(cart.recoveryToken) : '';
   const safeBaseUrl = getTrimmedString(baseUrl);
   const recoveryUrl = token && safeBaseUrl ? `${safeBaseUrl}/panier/recuperer/${encodeURIComponent(token)}` : '';
-  const unsubscribeUrl = safeBaseUrl ? `${safeBaseUrl}/newsletter/desinscription` : '';
   const safePromoCode = getTrimmedString(promoCode);
 
-  const itemsHtml = renderCartItemRows(items, baseUrl);
+  const itemsText = renderCartItemRowsSimple(items);
 
-  const subject = `${firstName ? `${firstName}, ` : ''}derni\u00e8re chance pour votre panier`;
+  const subject = `Re: Votre panier CarParts France`;
 
-  const promoHtml = safePromoCode
-    ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;color:#14532d;font-size:13px;line-height:1.6;">
-        <div style="font-weight:900;">Offre sp\u00e9ciale pour vous</div>
-        <div style="margin-top:6px;">Utilisez le code <strong style="font-size:15px;letter-spacing:1px;">${escapeHtml(safePromoCode)}</strong> pour b\u00e9n\u00e9ficier de <strong>5% de r\u00e9duction</strong> sur votre commande.</div>
-      </div>`
+  const promoLine = safePromoCode
+    ? `<p>Pour vous remercier de votre int\u00e9r\u00eat, je vous ai g\u00e9n\u00e9r\u00e9 un code de r\u00e9duction de 5% : <strong>${escapeHtml(safePromoCode)}</strong>. Il est valable sur votre panier actuel.</p>`
     : '';
 
   const bodyHtml = `
-<div style="font-size:16px;font-weight:900;">${greeting},</div>
-<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
-  C'est notre dernier rappel. Votre panier sera bient\u00f4t vid\u00e9 et nous ne pouvons pas garantir la disponibilit\u00e9 de vos pi\u00e8ces.
-</div>
-
-<div style="margin-top:12px;padding:12px 14px;border:1px solid #fee2e2;background:#fff1f2;border-radius:14px;color:#881337;font-size:13px;line-height:1.6;">
-  Les pi\u00e8ces reconditionn\u00e9es de votre panier sont des r\u00e9f\u00e9rences uniques. Une fois parties, elles ne seront plus disponibles.
-</div>
-
-${promoHtml}
-
-<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Votre panier</div>
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
-  ${itemsHtml}
-</table>
-
-${totalAmountCents > 0 ? `
-<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
-  <div style="display:flex;justify-content:space-between;gap:10px;">
-    <div style="font-weight:900;">Total</div>
-    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totalAmountCents))}</div>
-  </div>
-</div>` : ''}
-
-${renderPrimaryButton({ href: recoveryUrl, label: safePromoCode ? 'Profiter de l\'offre' : 'Finaliser ma commande' })}
-
-<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
-  Besoin d'aide ? Appelez-nous au 04 65 84 54 88 ou r\u00e9pondez \u00e0 cet email.
-</div>
-
-<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
-  Vous recevez cet email car vous avez un panier en attente sur CarParts France.<br />
-  ${unsubscribeUrl ? `<a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se d\u00e9sinscrire</a>` : ''}
+<div style="font-size:14px;line-height:1.7;color:#334155;">
+  <p>${greeting},</p>
+  <p>Dernier message de ma part \u00e0 ce sujet. Votre panier va \u00eatre automatiquement vid\u00e9 dans les prochains jours, et les pi\u00e8ces seront remises en vente.</p>
+  ${promoLine}
+  <p>Pour rappel, votre panier :</p>
+  ${itemsText}
+  ${totalAmountCents > 0 ? `<p style="margin-top:8px;font-weight:700;">Total : ${escapeHtml(formatEuro(totalAmountCents))}</p>` : ''}
+  <p>Lien direct :<br />
+  <a href="${escapeHtml(recoveryUrl)}" style="color:#ec1313;">${escapeHtml(recoveryUrl)}</a></p>
+  <p>Si vous avez d\u00e9cid\u00e9 de ne pas commander, pas de souci du tout. Bonne continuation !</p>
+  <p>Cordialement,<br /><strong>L'\u00e9quipe CarParts France</strong><br />
+  <span style="font-size:12px;color:#64748b;">04 65 84 54 88</span></p>
 </div>`;
 
   return {
     subject,
     html: renderEmailLayout({
       title: subject,
-      preheader: safePromoCode ? `Code promo ${safePromoCode} : 5% de r\u00e9duction sur votre panier` : 'Derni\u00e8re chance de finaliser votre commande',
+      preheader: '',
       bodyHtml,
       baseUrl,
     }),
-    text: `${firstName ? `${firstName}, ` : ''}derni\u00e8re chance pour votre panier. ${safePromoCode ? `Code promo ${safePromoCode} : 5% de r\u00e9duction. ` : ''}Total : ${formatEuro(totalAmountCents)}. Finalisez votre commande : ${recoveryUrl}`,
+    text: `${greeting},\n\nDernier message : votre panier va \u00eatre vid\u00e9 prochainement.${safePromoCode ? `\n\nCode promo 5% : ${safePromoCode}` : ''}\n\nLien : ${recoveryUrl}\n\nTotal : ${formatEuro(totalAmountCents)}\n\nL'\u00e9quipe CarParts France\n04 65 84 54 88`,
   };
 }
 
