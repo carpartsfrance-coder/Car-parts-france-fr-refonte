@@ -12,6 +12,7 @@ function requireAuth(req, res, next) {
 }
 
 router.get('/', cartController.showCart);
+router.get('/recuperer/:token', cartController.recoverCart);
 router.post('/code-promo', cartController.postCartPromoCode);
 router.post('/ajouter/:id', cartController.addToCart);
 router.post('/modifier/:id', cartController.updateCartItem);

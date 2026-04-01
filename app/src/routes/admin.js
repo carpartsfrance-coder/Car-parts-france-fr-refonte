@@ -13,6 +13,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const adminController = require('../controllers/adminController');
+const abandonedCartAdminController = require('../controllers/abandonedCartAdminController');
+const orderEmailAdminController = require('../controllers/orderEmailAdminController');
+const internalNoteAdminController = require('../controllers/internalNoteAdminController');
 const blogAdminController = require('../controllers/blogAdminController');
 const legalAdminController = require('../controllers/legalAdminController');
 const analyticsController = require('../controllers/analyticsController');
@@ -138,6 +141,8 @@ router.post('/commandes/:orderId/consigne/recu', requireAdminAuth, adminControll
 router.post('/commandes/:orderId/suivi', requireAdminAuth, adminController.postAdminAddOrderShipment);
 router.post('/commandes/:orderId/suivi/:shipmentId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrderShipment);
 router.post('/commandes/:orderId/retour', requireAdminAuth, adminController.postAdminCreateReturnFromOrder);
+router.get('/commandes/:orderId/email/preview/:type', requireAdminAuth, orderEmailAdminController.getEmailPreview);
+router.post('/commandes/:orderId/email/resend', requireAdminAuth, orderEmailAdminController.postResendEmail);
 
 router.get('/catalogue', requireAdminAuth, adminController.getAdminCatalogPage);
 router.get('/categories', requireAdminAuth, adminController.getAdminCategoriesPage);
@@ -198,6 +203,10 @@ router.post('/codes-promo', requireAdminAuth, adminController.postAdminCreatePro
 router.post('/codes-promo/:promoId', requireAdminAuth, adminController.postAdminUpdatePromoCode);
 router.post('/codes-promo/:promoId/supprimer', requireAdminAuth, adminController.postAdminDeletePromoCode);
 
+router.get('/relances', requireAdminAuth, abandonedCartAdminController.getAdminAbandonedCartsPage);
+router.get('/relances/:cartId', requireAdminAuth, abandonedCartAdminController.getAdminAbandonedCartDetail);
+router.post('/relances/:cartId/relancer', requireAdminAuth, abandonedCartAdminController.postAdminManualReminder);
+
 router.get('/retours', requireAdminAuth, adminController.getAdminReturnsPage);
 router.get('/retours/:returnId', requireAdminAuth, adminController.getAdminReturnDetailPage);
 router.post('/retours/:returnId/statut', requireAdminAuth, adminController.postAdminUpdateReturnStatus);
@@ -226,5 +235,12 @@ router.get('/parametres/facturation', requireAdminAuth, requireAbility('settings
 router.post('/parametres/facturation', requireAdminAuth, requireAbility('settings.billing'), handleInvoiceLogoUpload, adminController.postAdminInvoiceSettings);
 router.get('/parametres/site', requireAdminAuth, requireAbility('settings.site'), adminController.getAdminSiteSettingsPage);
 router.post('/parametres/site', requireAdminAuth, requireAbility('settings.site'), adminController.postAdminSiteSettings);
+
+router.get('/api/notes', requireAdminAuth, internalNoteAdminController.listNotes);
+router.post('/api/notes', requireAdminAuth, internalNoteAdminController.createNote);
+router.put('/api/notes/:id', requireAdminAuth, internalNoteAdminController.updateNote);
+router.delete('/api/notes/:id', requireAdminAuth, internalNoteAdminController.deleteNote);
+router.patch('/api/notes/:id/pin', requireAdminAuth, internalNoteAdminController.togglePin);
+router.patch('/api/notes/:id/important', requireAdminAuth, internalNoteAdminController.toggleImportant);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const Order = require('../models/Order');
+const AbandonedCart = require('../models/AbandonedCart');
 const demoProducts = require('../demoProducts');
 
 const promoCodes = require('../services/promoCodes');
@@ -626,6 +627,51 @@ function clearCart(req, res) {
   return res.redirect('/panier');
 }
 
+async function recoverCart(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    const { token } = req.params;
+    if (!token || typeof token !== 'string' || !dbConnected) {
+      return res.redirect('/panier');
+    }
+
+    const abandonedCart = await AbandonedCart.findOne({
+      recoveryToken: token,
+      status: { $nin: ['recovered', 'expired'] },
+    });
+
+    if (!abandonedCart) {
+      return res.redirect('/panier');
+    }
+
+    // Restore items into the session cart
+    const cart = getCart(req);
+
+    for (const item of abandonedCart.items) {
+      if (!item.productId) continue;
+
+      const lineId = String(item.productId) + (item.optionsSummary ? '_' + item.optionsSummary : '');
+
+      cart.items[lineId] = {
+        lineId,
+        productId: String(item.productId),
+        quantity: item.quantity || 1,
+        optionsSelection: item.optionsSelection || {},
+        optionsSummary: item.optionsSummary || '',
+      };
+    }
+
+    // Mark as recovered
+    abandonedCart.status = 'recovered';
+    abandonedCart.recoveredAt = new Date();
+    await abandonedCart.save();
+
+    return res.redirect('/panier');
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   showCart,
   postCartPromoCode,
@@ -634,4 +680,5 @@ module.exports = {
   removeFromCart,
   clearCart,
   placeOrder,
+  recoverCart,
 };

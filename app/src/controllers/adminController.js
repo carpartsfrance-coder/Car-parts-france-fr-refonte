@@ -14,6 +14,7 @@ const VehicleMake = require('../models/VehicleMake');
 const ShippingClass = require('../models/ShippingClass');
 const ProductOptionTemplate = require('../models/ProductOptionTemplate');
 const ProductDraftGeneration = require('../models/ProductDraftGeneration');
+const InternalNote = require('../models/InternalNote');
 
 const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
@@ -421,6 +422,7 @@ async function postAdminMarkOrderConsigneReceived(req, res, next) {
 
         if (user && user.email) {
           const sent = await emailService.sendConsigneReceivedEmail({ order: refreshed, user });
+          emailService.logEmailSent({ orderId: refreshed._id, emailType: 'consigne_received', recipientEmail: user.email, result: sent });
           if (sent && sent.ok) {
             await Order.updateOne(
               {
@@ -2055,6 +2057,31 @@ async function getAdminOrdersPage(req, res, next) {
       .lean();
     const userMap = new Map(users.map((u) => [String(u._id), u]));
 
+    // Aggregate note counts per order
+    const orderOids = orders.map((o) => o._id).filter(Boolean);
+    let noteMap = new Map();
+    if (orderOids.length) {
+      try {
+        const noteAgg = await InternalNote.aggregate([
+          { $match: { entityType: 'order', entityId: { $in: orderOids } } },
+          { $sort: { createdAt: -1 } },
+          {
+            $group: {
+              _id: '$entityId',
+              count: { $sum: 1 },
+              hasImportant: { $max: { $cond: ['$isImportant', true, false] } },
+              lastContent: { $first: '$content' },
+              lastAuthor: { $first: '$authorName' },
+              lastDate: { $first: '$createdAt' },
+            },
+          },
+        ]);
+        for (const n of noteAgg) {
+          noteMap.set(String(n._id), n);
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     const viewOrders = orders.map((o) => {
       const u = o.userId ? userMap.get(String(o.userId)) : null;
       const customer = u
@@ -2070,6 +2097,8 @@ async function getAdminOrdersPage(req, res, next) {
           }, 0)
         : 0;
 
+      const noteInfo = noteMap.get(String(o._id));
+
       return {
         id: String(o._id),
         number: o.number,
@@ -2080,6 +2109,11 @@ async function getAdminOrdersPage(req, res, next) {
         itemCount,
         total: formatEuro(o.totalCents),
         statusBadge: getOrderStatusBadge(o.status),
+        notesCount: noteInfo ? noteInfo.count : 0,
+        hasImportantNote: noteInfo ? !!noteInfo.hasImportant : false,
+        lastNotePreview: noteInfo && noteInfo.lastContent ? noteInfo.lastContent.substring(0, 100) : '',
+        lastNoteAuthor: noteInfo ? noteInfo.lastAuthor || '' : '',
+        lastNoteDate: noteInfo && noteInfo.lastDate ? formatDateTimeFR(noteInfo.lastDate) : '',
       };
     });
 
@@ -2347,6 +2381,28 @@ async function getAdminOrderDetailPage(req, res, next) {
         vat: formatEuro(vatCents),
         total: formatEuro(totalCents),
         totalCents,
+        emailsSent: Array.isArray(orderDoc.emailsSent)
+          ? orderDoc.emailsSent.map((e) => {
+              const typeLabels = {
+                order_confirmation: 'Confirmation de commande',
+                shipment_tracking: 'Suivi d\'expédition',
+                delivery_confirmed: 'Livraison confirmée',
+                consigne_start: 'Consigne : retour pièce',
+                consigne_received: 'Consigne reçue',
+                consigne_reminder_soon: 'Rappel consigne',
+                consigne_overdue: 'Consigne en retard',
+                status_change_validee: 'Statut : Validée',
+              };
+              return {
+                type: e.type || '',
+                typeLabel: typeLabels[e.type] || e.type || '—',
+                sentAt: formatDateTimeFR(e.sentAt),
+                recipientEmail: e.recipientEmail || '',
+                status: e.status || 'sent',
+                reason: e.reason || '',
+              };
+            })
+          : [],
       },
     });
   } catch (err) {
@@ -2445,6 +2501,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
 
             if (user && user.email) {
               const sent = await emailService.sendConsigneStartEmail({ order: refreshed, user });
+              emailService.logEmailSent({ orderId: refreshed._id, emailType: 'consigne_start', recipientEmail: user.email, result: sent });
               if (sent && sent.ok) {
                 await Order.updateOne(
                   {
@@ -2459,8 +2516,61 @@ async function postAdminUpdateOrderStatus(req, res, next) {
               }
             }
           }
+
+          // Send delivery confirmed email
+          const deliveryAlreadySent = refreshed
+            && refreshed.notifications
+            && refreshed.notifications.deliveryConfirmedSentAt;
+
+          if (!deliveryAlreadySent) {
+            const user = refreshed && refreshed.userId
+              ? await User.findById(refreshed.userId).select('_id email firstName').lean()
+              : null;
+
+            if (user && user.email) {
+              const sent = await emailService.sendDeliveryConfirmedEmail({ order: refreshed, user });
+              emailService.logEmailSent({ orderId: refreshed._id, emailType: 'delivery_confirmed', recipientEmail: user.email, result: sent });
+              if (sent && sent.ok) {
+                await Order.updateOne(
+                  {
+                    _id: refreshed._id,
+                    $or: [
+                      { 'notifications.deliveryConfirmedSentAt': { $exists: false } },
+                      { 'notifications.deliveryConfirmedSentAt': null },
+                    ],
+                  },
+                  { $set: { 'notifications.deliveryConfirmedSentAt': new Date() } }
+                );
+              }
+            }
+          }
         } catch (err) {
-          console.error('Erreur email consigne début (admin) :', err && err.message ? err.message : err);
+          console.error('Erreur email consigne/livraison (admin) :', err && err.message ? err.message : err);
+        }
+      } else if (status === 'validee') {
+        // Send status change notification for validated orders
+        try {
+          const user = existing && existing.userId
+            ? await User.findById(existing.userId).select('_id email firstName').lean()
+            : null;
+
+          if (user && user.email) {
+            const sent = await emailService.sendOrderStatusChangeEmail({
+              order: existing,
+              user,
+              newStatus: status,
+              message: 'Votre commande a été validée et va être préparée dans les meilleurs délais.',
+            });
+            emailService.logEmailSent({ orderId: existing._id, emailType: 'status_change_validee', recipientEmail: user.email, result: sent });
+            if (sent && sent.ok) {
+              await Order.updateOne(
+                { _id: existing._id },
+                { $set: { 'notifications.statusChangeSentAt': new Date() } }
+              );
+            }
+          }
+        } catch (err) {
+          console.error('Erreur email changement statut (admin) :', err && err.message ? err.message : err);
         }
       }
     }
@@ -2591,6 +2701,7 @@ async function postAdminAddOrderShipment(req, res, next) {
             user,
             shipment: { label, carrier, trackingNumber },
           });
+          emailService.logEmailSent({ orderId: existing._id, emailType: 'shipment_tracking', recipientEmail: user.email, result: sent });
 
           if (sent && sent.ok) {
             await Order.updateOne(
@@ -5951,13 +6062,46 @@ async function getAdminClientsPage(req, res, next) {
       .select('_id firstName lastName email accountType companyName createdAt')
       .lean();
 
-    const viewClients = users.map((u) => ({
-      id: String(u._id),
-      name: u.accountType === 'pro' ? u.companyName || `${u.firstName} ${u.lastName}` : `${u.firstName} ${u.lastName}`,
-      email: u.email,
-      accountType: u.accountType,
-      createdAt: formatDateTimeFR(u.createdAt),
-    }));
+    // Aggregate note counts per client
+    const clientOids = users.map((u) => u._id).filter(Boolean);
+    let clientNoteMap = new Map();
+    if (clientOids.length) {
+      try {
+        const clientNoteAgg = await InternalNote.aggregate([
+          { $match: { entityType: 'client', entityId: { $in: clientOids } } },
+          { $sort: { createdAt: -1 } },
+          {
+            $group: {
+              _id: '$entityId',
+              count: { $sum: 1 },
+              hasImportant: { $max: { $cond: ['$isImportant', true, false] } },
+              lastContent: { $first: '$content' },
+              lastAuthor: { $first: '$authorName' },
+              lastDate: { $first: '$createdAt' },
+            },
+          },
+        ]);
+        for (const n of clientNoteAgg) {
+          clientNoteMap.set(String(n._id), n);
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    const viewClients = users.map((u) => {
+      const cNote = clientNoteMap.get(String(u._id));
+      return {
+        id: String(u._id),
+        name: u.accountType === 'pro' ? u.companyName || `${u.firstName} ${u.lastName}` : `${u.firstName} ${u.lastName}`,
+        email: u.email,
+        accountType: u.accountType,
+        createdAt: formatDateTimeFR(u.createdAt),
+        notesCount: cNote ? cNote.count : 0,
+        hasImportantNote: cNote ? !!cNote.hasImportant : false,
+        lastNotePreview: cNote && cNote.lastContent ? cNote.lastContent.substring(0, 100) : '',
+        lastNoteAuthor: cNote ? cNote.lastAuthor || '' : '',
+        lastNoteDate: cNote && cNote.lastDate ? formatDateTimeFR(cNote.lastDate) : '',
+      };
+    });
 
     const pagination = {
       page: currentPage,
