@@ -68,6 +68,17 @@ const statusHistorySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const emailSentSchema = new mongoose.Schema(
+  {
+    type: { type: String, required: true, trim: true },
+    sentAt: { type: Date, required: true },
+    recipientEmail: { type: String, default: '', trim: true },
+    status: { type: String, enum: ['sent', 'failed'], default: 'sent' },
+    reason: { type: String, default: '', trim: true },
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
@@ -116,7 +127,10 @@ const orderSchema = new mongoose.Schema(
       consigneOverdueSentAt: { type: Date, default: null },
       shipmentLastSentAt: { type: Date, default: null },
       shipmentTrackingNumbersSent: { type: [String], default: [] },
+      deliveryConfirmedSentAt: { type: Date, default: null },
+      statusChangeSentAt: { type: Date, default: null },
     },
+    emailsSent: { type: [emailSentSchema], default: [] },
     consigne: {
       lines: { type: [consigneLineSchema], default: [] },
     },

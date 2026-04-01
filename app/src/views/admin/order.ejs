@@ -416,10 +416,87 @@
             </div>
           </div>
 
+          <div class="bg-white rounded-2xl border border-slate-200 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Emails</div>
+              <div class="relative" id="send-email-dropdown">
+                <button type="button" class="btn btn-secondary text-xs" id="send-email-btn">
+                  <span class="material-symbols-outlined mr-1 text-base">send</span>
+                  Envoyer
+                  <span class="material-symbols-outlined ml-1 text-sm">expand_more</span>
+                </button>
+                <div id="send-email-menu" class="hidden absolute right-0 top-full mt-2 w-72 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
+                  <%
+                    var emailTypes = [
+                      { key: 'order_confirmation', label: 'Confirmation de commande', icon: 'receipt_long' },
+                      { key: 'shipment_tracking', label: "Suivi d'expedition", icon: 'local_shipping' },
+                      { key: 'delivery_confirmed', label: 'Livraison confirmee', icon: 'done_all' },
+                      { key: 'status_change_validee', label: 'Statut : Validee', icon: 'check_circle' },
+                      { key: 'consigne_start', label: 'Consigne : retour piece', icon: 'assignment_return' },
+                      { key: 'consigne_received', label: 'Consigne recue', icon: 'inventory' },
+                    ];
+                  %>
+                  <% emailTypes.forEach(function(et) { %>
+                    <div class="flex items-center gap-1 border-b border-slate-100 last:border-0">
+                      <button type="button" class="email-preview-btn flex-1 flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition text-left" data-type="<%= et.key %>" title="Apercu">
+                        <span class="material-symbols-outlined text-base text-slate-400"><%= et.icon %></span>
+                        <span class="flex-1 truncate"><%= et.label %></span>
+                        <span class="material-symbols-outlined text-base text-slate-300">visibility</span>
+                      </button>
+                      <form action="/admin/commandes/<%= order.id %>/email/resend" method="POST" class="flex-shrink-0 pr-2" onsubmit="return confirm('Envoyer cet email maintenant ?')">
+                        <input type="hidden" name="type" value="<%= et.key %>" />
+                        <button type="submit" class="w-8 h-8 rounded-lg hover:bg-primary/10 flex items-center justify-center transition" title="Envoyer">
+                          <span class="material-symbols-outlined text-base text-primary">send</span>
+                        </button>
+                      </form>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+
+            <% if (order.emailsSent && order.emailsSent.length) { %>
+              <div class="mt-4 space-y-2">
+                <% order.emailsSent.forEach(function(e) { %>
+                  <div class="rounded-xl border border-slate-100 p-3 flex items-start gap-3">
+                    <div class="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 <%= e.status === 'sent' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600' %>">
+                      <span class="material-symbols-outlined text-[14px]"><%= e.status === 'sent' ? 'check' : 'close' %></span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-semibold text-slate-900"><%= e.typeLabel || e.type %></div>
+                      <div class="text-xs text-slate-500"><%= e.sentAt %></div>
+                      <% if (e.recipientEmail) { %>
+                        <div class="text-xs text-slate-400"><%= e.recipientEmail %></div>
+                      <% } %>
+                      <% if (e.status === 'failed' && e.reason) { %>
+                        <div class="text-xs text-red-500 mt-0.5">Erreur : <%= e.reason %></div>
+                      <% } %>
+                    </div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                      <button type="button" class="email-preview-btn w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition" data-type="<%= e.type %>" title="Apercu">
+                        <span class="material-symbols-outlined text-base text-slate-400">visibility</span>
+                      </button>
+                      <form action="/admin/commandes/<%= order.id %>/email/resend" method="POST" class="inline" onsubmit="return confirm('Renvoyer cet email ?')">
+                        <input type="hidden" name="type" value="<%= e.type %>" />
+                        <button type="submit" class="w-7 h-7 rounded-lg hover:bg-primary/10 flex items-center justify-center transition" title="Renvoyer">
+                          <span class="material-symbols-outlined text-base text-primary">replay</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <div class="mt-4 text-sm text-slate-500">Aucun email envoy&eacute; pour cette commande.</div>
+            <% } %>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-6" data-notes-widget data-entity-type="order" data-entity-id="<%= order ? order.id : '' %>"></div>
+
           <% if (!dbConnected) { %>
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-              <div class="font-bold">Mode démo</div>
-              <div class="mt-1 text-sm">La base de données est indisponible : impossible de modifier le statut.</div>
+              <div class="font-bold">Mode d&eacute;mo</div>
+              <div class="mt-1 text-sm">La base de donn&eacute;es est indisponible : impossible de modifier le statut.</div>
             </div>
           <% } %>
         </aside>
@@ -427,5 +504,85 @@
     <% } %>
   </div>
 </main>
+
+<!-- Email preview modal -->
+<div id="email-preview-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50" id="email-preview-overlay"></div>
+  <div class="absolute inset-4 lg:inset-8 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+      <div class="font-semibold text-slate-900" id="email-preview-title">Apercu email</div>
+      <button type="button" id="email-preview-close" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="flex-1 overflow-hidden">
+      <iframe id="email-preview-iframe" class="w-full h-full border-0" sandbox="allow-same-origin"></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Dropdown toggle
+  var dropBtn = document.getElementById('send-email-btn');
+  var dropMenu = document.getElementById('send-email-menu');
+  if (dropBtn && dropMenu) {
+    dropBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      dropMenu.classList.toggle('hidden');
+    });
+    document.addEventListener('click', function() {
+      dropMenu.classList.add('hidden');
+    });
+    dropMenu.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
+
+  // Email preview modal
+  var modal = document.getElementById('email-preview-modal');
+  var overlay = document.getElementById('email-preview-overlay');
+  var closeBtn = document.getElementById('email-preview-close');
+  var iframe = document.getElementById('email-preview-iframe');
+  var titleEl = document.getElementById('email-preview-title');
+
+  var typeLabels = {
+    order_confirmation: 'Confirmation de commande',
+    shipment_tracking: "Suivi d'expedition",
+    delivery_confirmed: 'Livraison confirmee',
+    status_change_validee: 'Statut : Validee',
+    consigne_start: 'Consigne : retour piece',
+    consigne_received: 'Consigne recue'
+  };
+
+  var orderId = '<%= order ? order.id : "" %>';
+
+  document.querySelectorAll('.email-preview-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var emailType = this.dataset.type;
+      if (!emailType || !orderId) return;
+
+      if (dropMenu) dropMenu.classList.add('hidden');
+
+      modal.classList.remove('hidden');
+      titleEl.textContent = 'Apercu : ' + (typeLabels[emailType] || emailType);
+      iframe.src = '';
+      iframe.src = '/admin/commandes/' + orderId + '/email/preview/' + emailType;
+    });
+  });
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    iframe.src = '';
+  }
+  if (overlay) overlay.addEventListener('click', closeModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+});
+</script>
 
 <%- include('./partials/footer') %>

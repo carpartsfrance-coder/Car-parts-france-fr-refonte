@@ -779,6 +779,392 @@ function buildNewBlogPostEmail({ post, baseUrl } = {}) {
   };
 }
 
+function renderCartItemRows(items, baseUrl) {
+  if (!Array.isArray(items) || !items.length) return '';
+  const safeBaseUrl = getTrimmedString(baseUrl);
+
+  return items
+    .map((it) => {
+      if (!it) return '';
+      const name = it.name ? escapeHtml(it.name) : 'Article';
+      const qty = Number.isFinite(it.quantity) ? it.quantity : 1;
+      const price = Number.isFinite(it.price) ? formatEuro(it.price) : '';
+      const lineTotal = Number.isFinite(it.price) && Number.isFinite(it.quantity)
+        ? formatEuro(it.price * it.quantity)
+        : '';
+      const rawImage = getTrimmedString(it.image);
+      const imageUrl = rawImage && safeBaseUrl && !rawImage.startsWith('http')
+        ? `${safeBaseUrl}${rawImage.startsWith('/') ? '' : '/'}${rawImage}`
+        : rawImage;
+
+      const imageCell = imageUrl
+        ? `<img src="${escapeHtml(imageUrl)}" alt="${name}" width="56" height="56" style="display:block;width:56px;height:56px;object-fit:cover;border-radius:12px;" />`
+        : `<div style="width:56px;height:56px;border-radius:12px;background:#f1f5f9;"></div>`;
+
+      return `<tr>
+        <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;width:64px;">
+          ${imageCell}
+        </td>
+        <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+          <div style="font-weight:900;color:#0f172a;">${name}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;">Quantit\u00e9 : <strong style="color:#0f172a;">${escapeHtml(qty)}</strong></div>
+          ${price ? `<div style="font-size:12px;color:#64748b;margin-top:2px;">Prix : <strong style="color:#0f172a;">${escapeHtml(price)}</strong></div>` : ''}
+        </td>
+        <td align="right" style="padding:12px 0;border-bottom:1px solid #f1f5f9;font-weight:900;white-space:nowrap;vertical-align:top;">${lineTotal ? escapeHtml(lineTotal) : ''}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+function buildAbandonedCartReminder1({ cart, baseUrl } = {}) {
+  const firstName = cart && cart.firstName ? String(cart.firstName).trim() : '';
+  const greeting = firstName ? escapeHtml(firstName) : 'Bonjour';
+  const items = cart && Array.isArray(cart.items) ? cart.items : [];
+  const totalAmountCents = cart && Number.isFinite(cart.totalAmountCents) ? cart.totalAmountCents : 0;
+  const token = cart && cart.recoveryToken ? String(cart.recoveryToken) : '';
+  const safeBaseUrl = getTrimmedString(baseUrl);
+  const recoveryUrl = token && safeBaseUrl ? `${safeBaseUrl}/panier/recuperer/${encodeURIComponent(token)}` : '';
+  const unsubscribeUrl = safeBaseUrl ? `${safeBaseUrl}/newsletter/desinscription` : '';
+
+  const itemsHtml = renderCartItemRows(items, baseUrl);
+
+  const subject = `${firstName ? `${firstName}, ` : ''}vous avez oubli\u00e9 quelque chose ?`;
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">${greeting},</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Vous avez ajout\u00e9 des pi\u00e8ces \u00e0 votre panier mais vous n'avez pas finalis\u00e9 votre commande.
+  Pas de souci, votre panier est toujours l\u00e0.
+</div>
+
+<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Votre panier</div>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
+  ${itemsHtml}
+</table>
+
+${totalAmountCents > 0 ? `
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
+  <div style="display:flex;justify-content:space-between;gap:10px;">
+    <div style="font-weight:900;">Total</div>
+    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totalAmountCents))}</div>
+  </div>
+</div>` : ''}
+
+${renderPrimaryButton({ href: recoveryUrl, label: 'Reprendre ma commande' })}
+
+<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
+  Une question sur un produit ? R\u00e9pondez directement \u00e0 cet email, notre \u00e9quipe vous r\u00e9pond rapidement.
+</div>
+
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
+  Vous recevez cet email car vous avez un panier en attente sur CarParts France.<br />
+  ${unsubscribeUrl ? `<a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se d\u00e9sinscrire</a>` : ''}
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      title: subject,
+      preheader: 'Votre panier vous attend sur CarParts France',
+      bodyHtml,
+      baseUrl,
+    }),
+    text: `${firstName ? `${firstName}, ` : ''}vous avez oubli\u00e9 quelque chose dans votre panier. Total : ${formatEuro(totalAmountCents)}. Reprenez votre commande : ${recoveryUrl}`,
+  };
+}
+
+function buildAbandonedCartReminder2({ cart, baseUrl } = {}) {
+  const firstName = cart && cart.firstName ? String(cart.firstName).trim() : '';
+  const greeting = firstName ? escapeHtml(firstName) : 'Bonjour';
+  const items = cart && Array.isArray(cart.items) ? cart.items : [];
+  const totalAmountCents = cart && Number.isFinite(cart.totalAmountCents) ? cart.totalAmountCents : 0;
+  const token = cart && cart.recoveryToken ? String(cart.recoveryToken) : '';
+  const safeBaseUrl = getTrimmedString(baseUrl);
+  const recoveryUrl = token && safeBaseUrl ? `${safeBaseUrl}/panier/recuperer/${encodeURIComponent(token)}` : '';
+  const unsubscribeUrl = safeBaseUrl ? `${safeBaseUrl}/newsletter/desinscription` : '';
+
+  const itemsHtml = renderCartItemRows(items, baseUrl);
+
+  const subject = `${firstName ? `${firstName}, ` : ''}votre panier vous attend toujours`;
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">${greeting},</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Votre panier est toujours disponible avec les pi\u00e8ces que vous avez s\u00e9lectionn\u00e9es.
+</div>
+
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #fef3c7;background:#fffbeb;border-radius:14px;color:#92400e;font-size:13px;line-height:1.6;">
+  Nos pi\u00e8ces reconditionn\u00e9es sont disponibles en quantit\u00e9 limit\u00e9e. Chaque r\u00e9f\u00e9rence est unique et peut partir \u00e0 tout moment.
+</div>
+
+<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Votre panier</div>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
+  ${itemsHtml}
+</table>
+
+${totalAmountCents > 0 ? `
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
+  <div style="display:flex;justify-content:space-between;gap:10px;">
+    <div style="font-weight:900;">Total</div>
+    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totalAmountCents))}</div>
+  </div>
+</div>` : ''}
+
+${renderPrimaryButton({ href: recoveryUrl, label: 'Finaliser ma commande' })}
+
+<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
+  Besoin d'aide pour votre commande ? Notre \u00e9quipe est disponible par email ou au 04 65 84 54 88.
+</div>
+
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
+  Vous recevez cet email car vous avez un panier en attente sur CarParts France.<br />
+  ${unsubscribeUrl ? `<a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se d\u00e9sinscrire</a>` : ''}
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      title: subject,
+      preheader: 'Vos pi\u00e8ces sont encore disponibles, mais pour combien de temps ?',
+      bodyHtml,
+      baseUrl,
+    }),
+    text: `${firstName ? `${firstName}, ` : ''}votre panier vous attend toujours. Nos pi\u00e8ces reconditionn\u00e9es sont en quantit\u00e9 limit\u00e9e. Total : ${formatEuro(totalAmountCents)}. Finalisez votre commande : ${recoveryUrl}`,
+  };
+}
+
+function buildAbandonedCartReminder3({ cart, baseUrl, promoCode } = {}) {
+  const firstName = cart && cart.firstName ? String(cart.firstName).trim() : '';
+  const greeting = firstName ? escapeHtml(firstName) : 'Bonjour';
+  const items = cart && Array.isArray(cart.items) ? cart.items : [];
+  const totalAmountCents = cart && Number.isFinite(cart.totalAmountCents) ? cart.totalAmountCents : 0;
+  const token = cart && cart.recoveryToken ? String(cart.recoveryToken) : '';
+  const safeBaseUrl = getTrimmedString(baseUrl);
+  const recoveryUrl = token && safeBaseUrl ? `${safeBaseUrl}/panier/recuperer/${encodeURIComponent(token)}` : '';
+  const unsubscribeUrl = safeBaseUrl ? `${safeBaseUrl}/newsletter/desinscription` : '';
+  const safePromoCode = getTrimmedString(promoCode);
+
+  const itemsHtml = renderCartItemRows(items, baseUrl);
+
+  const subject = `${firstName ? `${firstName}, ` : ''}derni\u00e8re chance pour votre panier`;
+
+  const promoHtml = safePromoCode
+    ? `<div style="margin-top:12px;padding:12px 14px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;color:#14532d;font-size:13px;line-height:1.6;">
+        <div style="font-weight:900;">Offre sp\u00e9ciale pour vous</div>
+        <div style="margin-top:6px;">Utilisez le code <strong style="font-size:15px;letter-spacing:1px;">${escapeHtml(safePromoCode)}</strong> pour b\u00e9n\u00e9ficier de <strong>5% de r\u00e9duction</strong> sur votre commande.</div>
+      </div>`
+    : '';
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">${greeting},</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  C'est notre dernier rappel. Votre panier sera bient\u00f4t vid\u00e9 et nous ne pouvons pas garantir la disponibilit\u00e9 de vos pi\u00e8ces.
+</div>
+
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #fee2e2;background:#fff1f2;border-radius:14px;color:#881337;font-size:13px;line-height:1.6;">
+  Les pi\u00e8ces reconditionn\u00e9es de votre panier sont des r\u00e9f\u00e9rences uniques. Une fois parties, elles ne seront plus disponibles.
+</div>
+
+${promoHtml}
+
+<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Votre panier</div>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
+  ${itemsHtml}
+</table>
+
+${totalAmountCents > 0 ? `
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
+  <div style="display:flex;justify-content:space-between;gap:10px;">
+    <div style="font-weight:900;">Total</div>
+    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totalAmountCents))}</div>
+  </div>
+</div>` : ''}
+
+${renderPrimaryButton({ href: recoveryUrl, label: safePromoCode ? 'Profiter de l\'offre' : 'Finaliser ma commande' })}
+
+<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
+  Besoin d'aide ? Appelez-nous au 04 65 84 54 88 ou r\u00e9pondez \u00e0 cet email.
+</div>
+
+<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;line-height:1.5;">
+  Vous recevez cet email car vous avez un panier en attente sur CarParts France.<br />
+  ${unsubscribeUrl ? `<a href="${escapeHtml(unsubscribeUrl)}" style="color:#94a3b8;text-decoration:underline;">Se d\u00e9sinscrire</a>` : ''}
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      title: subject,
+      preheader: safePromoCode ? `Code promo ${safePromoCode} : 5% de r\u00e9duction sur votre panier` : 'Derni\u00e8re chance de finaliser votre commande',
+      bodyHtml,
+      baseUrl,
+    }),
+    text: `${firstName ? `${firstName}, ` : ''}derni\u00e8re chance pour votre panier. ${safePromoCode ? `Code promo ${safePromoCode} : 5% de r\u00e9duction. ` : ''}Total : ${formatEuro(totalAmountCents)}. Finalisez votre commande : ${recoveryUrl}`,
+  };
+}
+
+function buildDeliveryConfirmedEmail({ order, user, baseUrl } = {}) {
+  const number = order && order.number ? String(order.number) : '';
+  const orderId = order && order._id ? String(order._id) : '';
+  const firstName = user && user.firstName ? String(user.firstName).trim() : '';
+  const greeting = firstName ? escapeHtml(firstName) : 'Bonjour';
+  const items = order && Array.isArray(order.items) ? order.items : [];
+
+  const totals = computeOrderTotals(order);
+
+  const orderUrl = baseUrl && orderId ? `${baseUrl.replace(/\/$/, '')}/compte/commandes/${encodeURIComponent(orderId)}` : '';
+  const contactUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/contact` : '';
+
+  const recapRows = items
+    .slice(0, 6)
+    .map((it) => {
+      if (!it) return '';
+      const name = it.name ? escapeHtml(it.name) : 'Article';
+      const qty = Number.isFinite(it.quantity) ? it.quantity : 1;
+      const imageUrl = it.imageUrl ? getTrimmedString(it.imageUrl) : '';
+      const imageCell = imageUrl
+        ? `<img src="${escapeHtml(imageUrl)}" alt="${name}" width="44" height="44" style="display:block;width:44px;height:44px;object-fit:cover;border-radius:12px;" />`
+        : `<div style="width:44px;height:44px;border-radius:12px;background:#f1f5f9;"></div>`;
+
+      return `<tr>
+        <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;width:52px;">${imageCell}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+          <div style="font-weight:900;color:#0f172a;">${name}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;">Quantit\u00e9 : <strong style="color:#0f172a;">${escapeHtml(qty)}</strong></div>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  const moreCount = items.length > 6 ? items.length - 6 : 0;
+
+  const subject = number ? `Commande #${number} livr\u00e9e` : 'Votre commande a \u00e9t\u00e9 livr\u00e9e';
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">${greeting}, bonne nouvelle !</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Votre commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''} a \u00e9t\u00e9 livr\u00e9e avec succ\u00e8s.
+</div>
+
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;color:#14532d;font-size:13px;line-height:1.6;">
+  <div style="font-weight:900;">Livraison confirm\u00e9e</div>
+  <div style="margin-top:4px;">Votre colis a bien \u00e9t\u00e9 r\u00e9ceptionn\u00e9. Si tout est en ordre, nous vous invitons \u00e0 nous laisser un avis.</div>
+</div>
+
+<div style="margin-top:18px;font-size:12px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Articles livr\u00e9s</div>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:10px;">
+  ${recapRows}
+</table>
+${moreCount ? `<div style="margin-top:10px;font-size:12px;color:#64748b;">+ ${escapeHtml(moreCount)} autre(s) article(s).</div>` : ''}
+
+<div style="margin-top:12px;padding:12px 14px;border:1px solid #e5e7eb;background:#f8fafc;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
+  <div style="display:flex;justify-content:space-between;gap:10px;">
+    <div style="font-weight:900;">Total TTC</div>
+    <div style="font-weight:900;white-space:nowrap;">${escapeHtml(formatEuro(totals.totalCents))}</div>
+  </div>
+</div>
+
+${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
+
+<div style="margin-top:18px;padding:12px 14px;border:1px solid #e5e7eb;background:#ffffff;border-radius:14px;color:#0f172a;font-size:13px;line-height:1.6;">
+  <div style="font-weight:900;">Un probl\u00e8me avec votre commande ?</div>
+  <div style="margin-top:4px;color:#64748b;">
+    Si un article ne correspond pas ou si vous constatez un d\u00e9faut, contactez-nous rapidement.
+    Notre \u00e9quipe se chargera de trouver une solution.
+  </div>
+  ${contactUrl ? `<div style="margin-top:6px;"><a href="${escapeHtml(contactUrl)}" style="color:#ec1313;text-decoration:none;font-weight:800;">Contacter le support</a></div>` : ''}
+</div>
+
+<div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64748b;">
+  Merci pour votre confiance. \u00c0 bient\u00f4t sur CarParts France !
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      title: subject,
+      preheader: 'Votre colis a bien \u00e9t\u00e9 livr\u00e9',
+      bodyHtml,
+      baseUrl,
+    }),
+    text: `Commande${number ? ` #${number}` : ''} livr\u00e9e. Total TTC : ${formatEuro(totals.totalCents)}.`,
+  };
+}
+
+function getOrderStatusLabelFR(status) {
+  const labels = {
+    en_attente: 'En attente de validation',
+    validee: 'Valid\u00e9e',
+    en_preparation: 'En pr\u00e9paration',
+    expediee: 'Exp\u00e9di\u00e9e',
+    livree: 'Livr\u00e9e',
+    annulee: 'Annul\u00e9e',
+  };
+  return labels[status] || String(status || '').replace(/_/g, ' ');
+}
+
+function getStatusIcon(status) {
+  const icons = {
+    en_attente: { icon: 'hourglass_top', color: '#d97706', bg: '#fffbeb', border: '#fef3c7' },
+    validee: { icon: 'check_circle', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
+    en_preparation: { icon: 'inventory_2', color: '#2563eb', bg: '#eff6ff', border: '#dbeafe' },
+    expediee: { icon: 'local_shipping', color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe' },
+    livree: { icon: 'done_all', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
+    annulee: { icon: 'cancel', color: '#dc2626', bg: '#fff1f2', border: '#fee2e2' },
+  };
+  return icons[status] || { icon: 'info', color: '#64748b', bg: '#f8fafc', border: '#e5e7eb' };
+}
+
+function buildOrderStatusChangeEmail({ order, user, newStatus, message, baseUrl } = {}) {
+  const number = order && order.number ? String(order.number) : '';
+  const orderId = order && order._id ? String(order._id) : '';
+  const firstName = user && user.firstName ? String(user.firstName).trim() : '';
+  const greeting = firstName ? escapeHtml(firstName) : 'Bonjour';
+
+  const statusLabel = getOrderStatusLabelFR(newStatus);
+  const si = getStatusIcon(newStatus);
+
+  const orderUrl = baseUrl && orderId ? `${baseUrl.replace(/\/$/, '')}/compte/commandes/${encodeURIComponent(orderId)}` : '';
+  const safeMessage = message ? getTrimmedString(message) : '';
+
+  const subject = number
+    ? `Commande #${number} : ${statusLabel}`
+    : `Mise \u00e0 jour de votre commande : ${statusLabel}`;
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">${greeting},</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Le statut de votre commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''} a \u00e9t\u00e9 mis \u00e0 jour.
+</div>
+
+<div style="margin-top:14px;padding:16px;border:1px solid ${si.border};background:${si.bg};border-radius:14px;color:${si.color};font-size:14px;line-height:1.6;">
+  <div style="font-weight:900;font-size:16px;">${escapeHtml(statusLabel)}</div>
+</div>
+
+${safeMessage ? `
+<div style="margin-top:14px;padding:12px 14px;border:1px solid #e5e7eb;background:#ffffff;border-radius:14px;color:#334155;font-size:13px;line-height:1.6;">
+  <div style="font-weight:900;color:#0f172a;margin-bottom:6px;">Message</div>
+  ${escapeHtml(safeMessage)}
+</div>` : ''}
+
+${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
+
+<div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64748b;">
+  Si vous avez une question, r\u00e9pondez directement \u00e0 cet email.
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      title: subject,
+      preheader: `Commande${number ? ` #${number}` : ''} : ${statusLabel}`,
+      bodyHtml,
+      baseUrl,
+    }),
+    text: `Commande${number ? ` #${number}` : ''} : statut mis \u00e0 jour \u2192 ${statusLabel}.${safeMessage ? ` Message : ${safeMessage}` : ''}`,
+  };
+}
+
 module.exports = {
   buildOrderConfirmationEmail,
   buildConsigneStartEmail,
@@ -790,4 +1176,9 @@ module.exports = {
   buildGuestAccountCreatedEmail,
   buildResetPasswordEmail,
   buildNewBlogPostEmail,
+  buildAbandonedCartReminder1,
+  buildAbandonedCartReminder2,
+  buildAbandonedCartReminder3,
+  buildDeliveryConfirmedEmail,
+  buildOrderStatusChangeEmail,
 };

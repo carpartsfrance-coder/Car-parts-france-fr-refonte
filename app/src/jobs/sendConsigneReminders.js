@@ -100,6 +100,7 @@ async function run() {
       }
 
       const sent = await emailService.sendConsigneReminderSoonEmail({ order, user });
+      emailService.logEmailSent({ orderId: order._id, emailType: 'consigne_reminder_soon', recipientEmail: user.email, result: sent });
       if (sent && sent.ok) {
         await Order.updateOne(
           {
@@ -140,6 +141,7 @@ async function run() {
       }
 
       const sent = await emailService.sendConsigneOverdueEmail({ order, user });
+      emailService.logEmailSent({ orderId: order._id, emailType: 'consigne_overdue', recipientEmail: user.email, result: sent });
       if (sent && sent.ok) {
         await Order.updateOne(
           {

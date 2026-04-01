@@ -9,6 +9,11 @@ const {
   buildGuestAccountCreatedEmail,
   buildResetPasswordEmail,
   buildNewBlogPostEmail,
+  buildAbandonedCartReminder1,
+  buildAbandonedCartReminder2,
+  buildAbandonedCartReminder3,
+  buildDeliveryConfirmedEmail,
+  buildOrderStatusChangeEmail,
 } = require('./emailTemplates');
 
 const mongoose = require('mongoose');
@@ -427,6 +432,83 @@ async function sendNewBlogPostToSubscribers({ post, baseUrl } = {}) {
   return { sent, errors };
 }
 
+async function sendAbandonedCartReminder({ cart, reminderNumber, promoCode } = {}) {
+  if (!cart || !cart.email) return { ok: false, reason: 'missing_data' };
+
+  const baseUrl = getBaseUrl();
+  const num = Number(reminderNumber) || 1;
+
+  let built;
+  if (num === 1) {
+    built = buildAbandonedCartReminder1({ cart, baseUrl });
+  } else if (num === 2) {
+    built = buildAbandonedCartReminder2({ cart, baseUrl });
+  } else {
+    built = buildAbandonedCartReminder3({ cart, baseUrl, promoCode });
+  }
+
+  if (!built) return { ok: false, reason: 'build_failed' };
+
+  return sendEmail({
+    toEmail: cart.email,
+    subject: built.subject,
+    html: built.html,
+    text: built.text,
+  });
+}
+
+async function sendDeliveryConfirmedEmail({ order, user } = {}) {
+  if (!order || !user || !user.email) return { ok: false, reason: 'missing_data' };
+  const baseUrl = getBaseUrl();
+
+  const fullUser = await hydrateUserForEmail(user);
+  const fullOrder = await hydrateOrderForEmail(order);
+  const orderWithImages = await addProductImagesToOrder({ order: fullOrder, baseUrl });
+
+  const built = buildDeliveryConfirmedEmail({ order: orderWithImages, user: fullUser, baseUrl });
+  return sendEmail({ toEmail: fullUser.email, subject: built.subject, html: built.html, text: built.text });
+}
+
+async function sendOrderStatusChangeEmail({ order, user, newStatus, message } = {}) {
+  if (!order || !user || !user.email) return { ok: false, reason: 'missing_data' };
+  const baseUrl = getBaseUrl();
+
+  const fullUser = await hydrateUserForEmail(user);
+
+  const built = buildOrderStatusChangeEmail({ order, user: fullUser, newStatus, message, baseUrl });
+  return sendEmail({ toEmail: fullUser.email, subject: built.subject, html: built.html, text: built.text });
+}
+
+/**
+ * Logs an email send event to the Order.emailsSent array.
+ * Non-blocking — errors are swallowed so they never break the caller.
+ *
+ * @param {Object} params
+ * @param {string|ObjectId} params.orderId  - Mongo Order _id
+ * @param {string} params.emailType         - e.g. 'order_confirmation', 'shipment_tracking', etc.
+ * @param {string} params.recipientEmail    - recipient email address
+ * @param {Object} params.result            - the return value of sendEmail()
+ */
+async function logEmailSent({ orderId, emailType, recipientEmail, result } = {}) {
+  if (!orderId || !emailType) return;
+  try {
+    const entry = {
+      type: emailType,
+      sentAt: new Date(),
+      recipientEmail: getTrimmedString(recipientEmail),
+      status: result && result.ok ? 'sent' : 'failed',
+      reason: result && !result.ok && result.reason ? String(result.reason) : '',
+    };
+
+    await Order.updateOne(
+      { _id: orderId },
+      { $push: { emailsSent: entry } }
+    );
+  } catch (err) {
+    console.error('[email-log] Erreur logging email:', err && err.message ? err.message : err);
+  }
+}
+
 module.exports = {
   sendEmail,
   sendOrderConfirmationEmail,
@@ -439,4 +521,8 @@ module.exports = {
   sendGuestAccountCreatedEmail,
   sendResetPasswordEmail,
   sendNewBlogPostToSubscribers,
+  sendAbandonedCartReminder,
+  sendDeliveryConfirmedEmail,
+  sendOrderStatusChangeEmail,
+  logEmailSent,
 };

@@ -540,6 +540,7 @@ async function applyMolliePaymentToOrder(order, payment) {
         const user = await User.findById(refreshed.userId).select('_id email firstName').lean();
         if (user && user.email) {
           const sent = await emailService.sendOrderConfirmationEmail({ order: refreshed, user });
+          emailService.logEmailSent({ orderId: refreshed._id, emailType: 'order_confirmation', recipientEmail: user.email, result: sent });
           if (sent && sent.ok) {
             await Order.updateOne(
               {
@@ -636,6 +637,7 @@ async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatu
         const user = await User.findById(refreshed.userId).select('_id email firstName').lean();
         if (user && user.email) {
           const sent = await emailService.sendOrderConfirmationEmail({ order: refreshed, user });
+          emailService.logEmailSent({ orderId: refreshed._id, emailType: 'order_confirmation', recipientEmail: user.email, result: sent });
           if (sent && sent.ok) {
             await Order.updateOne(
               {
