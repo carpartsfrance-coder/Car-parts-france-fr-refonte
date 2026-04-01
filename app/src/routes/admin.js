@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const adminController = require('../controllers/adminController');
 const blogAdminController = require('../controllers/blogAdminController');
 const legalAdminController = require('../controllers/legalAdminController');
+const analyticsController = require('../controllers/analyticsController');
 const AdminUser = require('../models/AdminUser');
 const Order = require('../models/Order');
 const ReturnRequest = require('../models/ReturnRequest');
@@ -86,6 +87,8 @@ router.use(async (req, res, next) => {
 });
 
 router.get('/', requireAdminAuth, adminController.getAdminDashboard);
+
+router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashboard);
 
 router.get('/commandes', requireAdminAuth, adminController.getAdminOrdersPage);
 router.get('/commandes/:orderId', requireAdminAuth, adminController.getAdminOrderDetailPage);
