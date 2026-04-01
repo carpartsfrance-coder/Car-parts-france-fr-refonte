@@ -180,6 +180,7 @@ const blogRouter = require('./routes/blog');
 const adminRouter = require('./routes/admin');
 const mediaRouter = require('./routes/media');
 const seoController = require('./controllers/seoController');
+const analyticsController = require('./controllers/analyticsController');
 const siteSettings = require('./services/siteSettings');
 
 app.set('view engine', 'ejs');
@@ -360,6 +361,9 @@ app.use(wpRedirects);
 
 // i18n: language detection from URL prefix (/en/)
 app.use(i18nMiddleware);
+
+// Analytics tracking endpoint (public, no auth)
+app.post('/api/analytics/track', analyticsController.postTrackEvent);
 
 // French routes (default)
 app.use('/', indexRouter);

@@ -1,0 +1,258 @@
+<%- include('./partials/head') %>
+
+<%- include('./partials/sidebar', { active: 'analytics' }) %>
+
+<main class="flex-1 relative">
+  <div class="px-6 lg:px-10 py-8">
+
+    <!-- Header -->
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+      <div>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">Analytics</div>
+        <div class="mt-1 text-sm text-slate-500">Comportement visiteurs et conversion</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/admin/analytics?days=7" class="btn <%= days === 7 ? 'btn-primary' : 'btn-secondary' %>">7j</a>
+        <a href="/admin/analytics?days=30" class="btn <%= days === 30 ? 'btn-primary' : 'btn-secondary' %>">30j</a>
+        <a href="/admin/analytics?days=90" class="btn <%= days === 90 ? 'btn-primary' : 'btn-secondary' %>">90j</a>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div class="kpi-card">
+        <div class="kpi-card__header">
+          <div class="kpi-card__icon bg-blue-50 text-blue-600">
+            <span class="material-symbols-outlined">visibility</span>
+          </div>
+        </div>
+        <div class="kpi-card__label">Pages vues</div>
+        <div class="kpi-card__value"><%= totalPageviews.toLocaleString('fr-FR') %></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-card__header">
+          <div class="kpi-card__icon bg-green-50 text-green-600">
+            <span class="material-symbols-outlined">group</span>
+          </div>
+        </div>
+        <div class="kpi-card__label">Sessions uniques</div>
+        <div class="kpi-card__value"><%= totalSessions.toLocaleString('fr-FR') %></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-card__header">
+          <div class="kpi-card__icon bg-purple-50 text-purple-600">
+            <span class="material-symbols-outlined">search</span>
+          </div>
+        </div>
+        <div class="kpi-card__label">Recherches</div>
+        <div class="kpi-card__value"><%= totalSearches.toLocaleString('fr-FR') %></div>
+      </div>
+    </div>
+
+    <!-- Grid: 2 columns -->
+    <div class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-8">
+
+      <!-- 1. Conversion par source de trafic -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-100">
+          <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <span class="material-symbols-outlined text-green-600">conversion_path</span>
+            Conversion par source de trafic
+          </h2>
+          <p class="text-sm text-slate-500 mt-1">Taux de conversion par canal d'acquisition</p>
+        </div>
+        <div class="overflow-x-auto">
+          <% if (conversionBySource.length === 0) { %>
+            <div class="px-6 py-10 text-center text-slate-400">
+              <span class="material-symbols-outlined text-4xl mb-2">hourglass_empty</span>
+              <p>Pas encore de donnees. Le tracking collecte les visites en temps reel.</p>
+            </div>
+          <% } else { %>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50">
+                  <th class="text-left px-6 py-3 font-medium text-slate-600">Source</th>
+                  <th class="text-left px-4 py-3 font-medium text-slate-600">Medium</th>
+                  <th class="text-right px-4 py-3 font-medium text-slate-600">Sessions</th>
+                  <th class="text-right px-4 py-3 font-medium text-slate-600">Conversions</th>
+                  <th class="text-right px-6 py-3 font-medium text-slate-600">Taux</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <% conversionBySource.forEach(function(row) { %>
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="px-6 py-3 font-medium text-slate-900"><%= row.source %></td>
+                    <td class="px-4 py-3 text-slate-600"><%= row.medium %></td>
+                    <td class="px-4 py-3 text-right text-slate-700"><%= row.sessions %></td>
+                    <td class="px-4 py-3 text-right text-slate-700"><%= row.conversions %></td>
+                    <td class="px-6 py-3 text-right">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                        <%= parseFloat(row.rate) > 3 ? 'bg-green-100 text-green-800' : parseFloat(row.rate) > 1 ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-600' %>">
+                        <%= row.rate %>%
+                      </span>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- 3. Recherches sans resultat -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-100">
+          <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <span class="material-symbols-outlined text-red-500">search_off</span>
+            Recherches sans resultat
+          </h2>
+          <p class="text-sm text-slate-500 mt-1">Produits que vos clients cherchent mais ne trouvent pas</p>
+        </div>
+        <div class="overflow-x-auto">
+          <% if (failedSearches.length === 0) { %>
+            <div class="px-6 py-10 text-center text-slate-400">
+              <span class="material-symbols-outlined text-4xl mb-2">check_circle</span>
+              <p>Aucune recherche sans resultat pour cette periode.</p>
+            </div>
+          <% } else { %>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50">
+                  <th class="text-left px-6 py-3 font-medium text-slate-600">Terme recherche</th>
+                  <th class="text-right px-4 py-3 font-medium text-slate-600">Nb recherches</th>
+                  <th class="text-right px-6 py-3 font-medium text-slate-600">Derniere fois</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <% failedSearches.forEach(function(row) { %>
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="px-6 py-3">
+                      <span class="font-medium text-slate-900">"<%= row.query %>"</span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700"><%= row.count %></span>
+                    </td>
+                    <td class="px-6 py-3 text-right text-slate-500 text-xs">
+                      <%= row.lastSearched ? new Date(row.lastSearched).toLocaleDateString('fr-FR') : '-' %>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Funnel (full width) -->
+    <div class="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-100">
+        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+          <span class="material-symbols-outlined text-blue-600">filter_alt</span>
+          Tunnel de conversion
+        </h2>
+        <p class="text-sm text-slate-500 mt-1">Taux d'abandon a chaque etape du parcours d'achat</p>
+      </div>
+
+      <% if (funnelSteps.length === 0) { %>
+        <div class="px-6 py-10 text-center text-slate-400">
+          <span class="material-symbols-outlined text-4xl mb-2">hourglass_empty</span>
+          <p>Pas encore de donnees de tunnel.</p>
+        </div>
+      <% } else { %>
+        <div class="px-6 py-6">
+          <div class="flex flex-col md:flex-row items-stretch gap-1">
+            <% funnelSteps.forEach(function(step, i) { %>
+              <div class="flex-1 relative">
+                <!-- Bar -->
+                <div class="rounded-xl overflow-hidden bg-slate-100" style="height: 120px; position: relative;">
+                  <div class="absolute bottom-0 left-0 right-0 rounded-xl transition-all duration-500
+                    <%= i === 0 ? 'bg-blue-500' : i === funnelSteps.length - 1 ? 'bg-green-500' : 'bg-blue-400' %>"
+                    style="height: <%= step.percentage %>%;">
+                  </div>
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <span class="text-lg font-bold text-slate-800"><%= step.count %></span>
+                  </div>
+                </div>
+                <!-- Label -->
+                <div class="mt-2 text-center">
+                  <div class="text-xs font-semibold text-slate-700"><%= step.label %></div>
+                  <div class="text-xs text-slate-500"><%= step.percentage %>%</div>
+                  <% if (i > 0 && parseFloat(step.dropoff) > 0) { %>
+                    <div class="text-xs text-red-500 font-medium mt-0.5">-<%= step.dropoff %>%</div>
+                  <% } %>
+                </div>
+                <!-- Arrow between steps -->
+                <% if (i < funnelSteps.length - 1) { %>
+                  <div class="hidden md:block absolute top-1/2 -right-2 transform -translate-y-1/2 z-10 text-slate-300">
+                    <span class="material-symbols-outlined text-xl">chevron_right</span>
+                  </div>
+                <% } %>
+              </div>
+            <% }); %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Product interactions -->
+    <div class="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-100">
+        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+          <span class="material-symbols-outlined text-orange-500">touch_app</span>
+          Interactions sur les fiches produit
+        </h2>
+        <p class="text-sm text-slate-500 mt-1">Ce que vos clients regardent et cliquent sur les pages produit</p>
+      </div>
+
+      <% if (!productClicks || !productClicks.summary || productClicks.summary.length === 0) { %>
+        <div class="px-6 py-10 text-center text-slate-400">
+          <span class="material-symbols-outlined text-4xl mb-2">hourglass_empty</span>
+          <p>Pas encore de donnees d'interactions.</p>
+        </div>
+      <% } else { %>
+        <!-- Summary cards -->
+        <div class="px-6 py-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <% productClicks.summary.forEach(function(item) { %>
+            <div class="bg-slate-50 rounded-xl p-4 text-center">
+              <div class="text-2xl font-bold text-slate-800"><%= item.count %></div>
+              <div class="text-xs text-slate-600 mt-1"><%= item.label %></div>
+              <div class="text-xs text-slate-400"><%= item.uniqueProducts %> produit<%= item.uniqueProducts > 1 ? 's' : '' %></div>
+            </div>
+          <% }); %>
+        </div>
+
+        <!-- Top interactions detail -->
+        <% if (productClicks.details && productClicks.details.length > 0) { %>
+          <div class="border-t border-slate-100 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50">
+                  <th class="text-left px-6 py-3 font-medium text-slate-600">Produit</th>
+                  <th class="text-left px-4 py-3 font-medium text-slate-600">Interaction</th>
+                  <th class="text-right px-6 py-3 font-medium text-slate-600">Nombre</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <% productClicks.details.slice(0, 20).forEach(function(row) { %>
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="px-6 py-3 font-medium text-slate-900 max-w-xs truncate"><%= row.productName %></td>
+                    <td class="px-4 py-3 text-slate-600"><%= row.interactionLabel %></td>
+                    <td class="px-6 py-3 text-right text-slate-700"><%= row.count %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+
+    <div class="h-8"></div>
+  </div>
+</main>
+
+<%- include('./partials/footer') %>
