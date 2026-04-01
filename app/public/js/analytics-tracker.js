@@ -111,11 +111,18 @@
     var funnelStep = '';
 
     if (path === '/' || path === '/en' || path === '/en/') funnelStep = 'landing';
-    else if (path.match(/^\/(en\/)?produits\//)) funnelStep = 'product_view';
+    else if (path.match(/^\/(en\/)?(produits|product)\//)) funnelStep = 'product_view';
     else if (path.match(/^\/(en\/)?panier/)) funnelStep = 'add_to_cart';
     else if (path.match(/^\/(en\/)?commande\/livraison/)) funnelStep = 'checkout_shipping';
-    else if (path.match(/^\/(en\/)?commande\/paiement/)) funnelStep = 'checkout_payment';
-    else if (path.match(/^\/(en\/)?commande\/confirmation/)) funnelStep = 'order_confirmed';
+    else if (path.match(/^\/(en\/)?commande\/paiement/)) {
+      funnelStep = 'checkout_payment';
+      // Flag: user reached payment step, next /compte/commandes/ visit = real conversion
+      sessionStorage.setItem('cpf_checkout_started', '1');
+    }
+    else if (path.match(/^\/(en\/)?(commande\/confirmation|compte\/commandes\/)/) && sessionStorage.getItem('cpf_checkout_started')) {
+      funnelStep = 'order_confirmed';
+      sessionStorage.removeItem('cpf_checkout_started'); // only count once
+    }
 
     track({ type: 'pageview' });
 
@@ -225,7 +232,7 @@
 
   function hookProductInteractions() {
     var path = window.location.pathname;
-    if (!path.match(/^\/(en\/)?produits\//)) return;
+    if (!path.match(/^\/(en\/)?(produits|product)\//)) return;
 
     var productName = '';
     var h1 = document.querySelector('h1');
@@ -298,12 +305,16 @@
 
   function markConversion() {
     var path = window.location.pathname;
-    if (path.match(/^\/(en\/)?commande\/confirmation/)) {
-      // Update pageview with converted flag
-      track({
-        type: 'pageview',
-        converted: true,
-      });
+    // Only mark conversion if user came from checkout (flag set on payment page)
+    if (path.match(/^\/(en\/)?(commande\/confirmation|compte\/commandes\/)/) && sessionStorage.getItem('cpf_converted_' + getSessionId()) !== '1') {
+      // Check if this session went through checkout (flag set in trackPageview)
+      if (sessionStorage.getItem('cpf_checkout_started') || path.match(/commande\/confirmation/)) {
+        track({
+          type: 'pageview',
+          converted: true,
+        });
+        sessionStorage.setItem('cpf_converted_' + getSessionId(), '1');
+      }
     }
   }
 

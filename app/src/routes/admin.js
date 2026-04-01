@@ -129,6 +129,7 @@ router.use(async (req, res, next) => {
 router.get('/', requireAdminAuth, adminController.getAdminDashboard);
 
 router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashboard);
+router.post('/analytics/synonyme', requireAdminAuth, analyticsController.postAddSynonym);
 
 router.get('/commandes', requireAdminAuth, adminController.getAdminOrdersPage);
 router.get('/commandes/:orderId', requireAdminAuth, adminController.getAdminOrderDetailPage);
