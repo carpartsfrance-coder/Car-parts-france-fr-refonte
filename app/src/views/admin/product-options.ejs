@@ -84,8 +84,8 @@
 
         <div class="lg:col-span-2" data-option-choice-fields>
           <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500" for="choicesText">Choix disponibles</label>
-          <textarea class="mt-2 w-full min-h-[160px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="choicesText" name="choicesText" placeholder="Un choix par ligne&#10;Exemples :&#10;Avec programmation | 49,90&#10;Sans programmation | 0"></textarea>
-          <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-500">libellé | supplément</span>. Le supplément est facultatif.</div>
+          <textarea class="mt-2 w-full min-h-[160px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold" id="choicesText" name="choicesText" placeholder="Un choix par ligne&#10;Exemples :&#10;Avec programmation | 49,90&#10;Sans programmation | 0&#10;Oui | 0 | clonage"></textarea>
+          <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-500">libellé | supplément | clonage</span>. Le supplément et le flag clonage sont facultatifs. Ajoutez <code class="bg-slate-200 px-1 rounded">clonage</code> pour marquer un choix qui déclenche une commande échange + clonage.</div>
         </div>
 
         <div class="lg:col-span-2 flex justify-end">
@@ -196,7 +196,7 @@
                   <div class="lg:col-span-2" data-option-choice-fields>
                     <label class="block text-xs font-semibold uppercase tracking-widest text-slate-500">Choix disponibles</label>
                     <textarea class="mt-2 w-full min-h-[160px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold" name="choicesText"><%= template.choicesText %></textarea>
-                    <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-500">libellé | supplément</span>.</div>
+                    <div class="mt-2 text-xs text-slate-500">Format : <span class="font-semibold text-slate-500">libellé | supplément | clonage</span>.</div>
                   </div>
 
                   <div class="lg:col-span-2 flex justify-end">

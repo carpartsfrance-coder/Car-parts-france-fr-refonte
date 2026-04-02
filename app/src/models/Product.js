@@ -66,6 +66,7 @@ const productSchema = new mongoose.Schema(
                 label: { type: String, default: '', trim: true },
                 priceDeltaCents: { type: Number, default: 0 },
                 absolutePriceCents: { type: Number, default: null, min: 0 },
+                triggersCloning: { type: Boolean, default: false },
               },
             ],
             default: [],

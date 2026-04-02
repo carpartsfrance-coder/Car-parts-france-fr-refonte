@@ -124,6 +124,7 @@ function normalizeProductOptions(options) {
           label: choiceLabel || choiceKey,
           priceDeltaCents: normalizeInt(c.priceDeltaCents, 0),
           absolutePriceCents: normalizeOptionalPriceInt(c && c.absolutePriceCents),
+          triggersCloning: c.triggersCloning === true,
         });
       }
 
@@ -289,6 +290,26 @@ function computeUnitPriceCents(product, selection) {
   return Math.max(0, Math.trunc(total));
 }
 
+function hasCloningSelection(items) {
+  if (!Array.isArray(items)) return false;
+
+  for (const item of items) {
+    if (!item || !item.product) continue;
+    const opts = getProductPageOptions(item.product.options || []);
+    const sel = item.optionsSelection && typeof item.optionsSelection === 'object' ? item.optionsSelection : {};
+
+    for (const g of opts) {
+      if (g.type !== 'choice') continue;
+      const value = Object.prototype.hasOwnProperty.call(sel, g.key) ? sel[g.key] : '';
+      if (!value) continue;
+      const choice = g.choices.find((c) => c && String(c.key) === String(value));
+      if (choice && choice.triggersCloning) return true;
+    }
+  }
+
+  return false;
+}
+
 function buildOptionsDisplay(productOptions, selection) {
   const opts = getProductPageOptions(productOptions);
   const sel = selection && typeof selection === 'object' ? selection : {};
@@ -345,4 +366,5 @@ module.exports = {
   buildCartLineId,
   computeUnitPriceCents,
   buildOptionsDisplay,
+  hasCloningSelection,
 };

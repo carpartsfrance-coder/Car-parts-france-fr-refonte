@@ -1414,6 +1414,7 @@
           label: String(choice && choice.label ? choice.label : '').trim(),
           priceDeltaCents: Number.isFinite(Number(choice && choice.priceDeltaCents)) ? Math.round(Number(choice.priceDeltaCents)) : 0,
           absolutePriceCents: normalizeOptionalStoredPriceCents(choice && choice.absolutePriceCents),
+          triggersCloning: choice && choice.triggersCloning === true,
         });
 
         const createEmptyOptionState = () => ({
@@ -1776,7 +1777,7 @@
 
               choices.forEach((choice, choiceIndex) => {
                 const row = document.createElement('div');
-                row.className = 'grid grid-cols-1 md:grid-cols-[1fr_180px_180px_auto] gap-3 items-end rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 p-4';
+                row.className = 'grid grid-cols-1 md:grid-cols-[1fr_150px_150px_auto_auto] gap-3 items-end rounded-xl border border-border-light dark:border-border-dark bg-white dark:bg-gray-900 p-4';
 
                 const choiceLabelField = createField('Libellé');
                 const choiceLabelInput = document.createElement('input');
@@ -1838,9 +1839,26 @@
                   syncOptionsField();
                 });
 
+                const cloningField = document.createElement('div');
+                cloningField.className = 'flex flex-col items-center justify-end pb-1';
+                const cloningLabel = document.createElement('label');
+                cloningLabel.className = 'text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2';
+                cloningLabel.textContent = 'Clonage';
+                const cloningCheckbox = document.createElement('input');
+                cloningCheckbox.type = 'checkbox';
+                cloningCheckbox.className = 'w-5 h-5 rounded border-slate-300 text-red-600 focus:ring-red-500';
+                cloningCheckbox.checked = choice && choice.triggersCloning === true;
+                cloningCheckbox.addEventListener('change', () => {
+                  choice.triggersCloning = cloningCheckbox.checked;
+                  syncOptionsField();
+                });
+                cloningField.appendChild(cloningLabel);
+                cloningField.appendChild(cloningCheckbox);
+
                 row.appendChild(choiceLabelField.wrap);
                 row.appendChild(choiceAbsolutePriceField.wrap);
                 row.appendChild(choicePriceField.wrap);
+                row.appendChild(cloningField);
                 row.appendChild(removeChoiceBtn);
                 list.appendChild(row);
               });

@@ -1610,6 +1610,7 @@ async function postPayment(req, res, next) {
     const orderItems = [];
     const consigneLines = [];
     const shippingProducts = [];
+    const cloningCheckItems = [];
     let itemsTotalCents = 0;
     let hasConsigne = false;
 
@@ -1637,6 +1638,8 @@ async function postPayment(req, res, next) {
         quantity: item.quantity,
         lineTotalCents,
       });
+
+      cloningCheckItems.push({ product, optionsSelection: item.optionsSelection });
 
       if (product.consigne && product.consigne.enabled && Number.isFinite(product.consigne.amountCents) && product.consigne.amountCents > 0) {
         hasConsigne = true;
@@ -1731,7 +1734,7 @@ async function postPayment(req, res, next) {
         created = await Order.create({
           userId: user._id,
           number: nextNumber.orderNumber,
-          orderType: hasConsigne ? 'exchange' : 'standard',
+          orderType: productOptions.hasCloningSelection(cloningCheckItems) ? 'exchange_cloning' : hasConsigne ? 'exchange' : 'standard',
           status: 'pending_payment',
           statusHistory: [
             {

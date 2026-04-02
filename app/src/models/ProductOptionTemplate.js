@@ -15,6 +15,7 @@ const productOptionTemplateSchema = new mongoose.Schema(
           key: { type: String, default: '', trim: true, lowercase: true },
           label: { type: String, default: '', trim: true },
           priceDeltaCents: { type: Number, default: 0 },
+          triggersCloning: { type: Boolean, default: false },
         },
       ],
       default: [],

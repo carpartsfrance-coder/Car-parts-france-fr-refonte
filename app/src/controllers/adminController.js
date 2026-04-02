@@ -3659,7 +3659,11 @@ function formatOptionChoiceLines(choices) {
           const label = getTrimmedString(choice.label);
           const price = Number.isFinite(choice.priceDeltaCents) ? choice.priceDeltaCents : 0;
           if (!label) return '';
-          return price > 0 ? `${label} | ${formatPriceForInput(price)}` : label;
+          const cloning = choice.triggersCloning === true;
+          const parts = [label];
+          if (price > 0 || cloning) parts.push(price > 0 ? formatPriceForInput(price) : '0');
+          if (cloning) parts.push('clonage');
+          return parts.join(' | ');
         })
         .filter(Boolean)
         .join('\n')
@@ -3674,9 +3678,10 @@ function parseOptionChoiceLines(value) {
 
   const choices = [];
   for (const line of lines) {
-    const parts = line.split('|');
+    const parts = line.split('|').map((p) => p.trim());
     const label = getTrimmedString(parts[0]);
-    const priceRaw = getTrimmedString(parts.slice(1).join('|'));
+    const priceRaw = getTrimmedString(parts[1]);
+    const flagsRaw = getTrimmedString(parts[2]);
     if (!label) continue;
 
     let priceDeltaCents = 0;
@@ -3688,7 +3693,9 @@ function parseOptionChoiceLines(value) {
       priceDeltaCents = parsed;
     }
 
-    choices.push({ label, priceDeltaCents });
+    const triggersCloning = flagsRaw.toLowerCase() === 'clonage';
+
+    choices.push({ label, priceDeltaCents, triggersCloning });
   }
 
   return { ok: true, choices };
