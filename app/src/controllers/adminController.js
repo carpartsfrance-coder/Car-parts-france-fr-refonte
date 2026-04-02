@@ -27,6 +27,7 @@ const AdminUser = require('../models/AdminUser');
 const CartEvent = require('../models/CartEvent');
 const openaiProductGenerator = require('../services/openaiProductGenerator');
 const { getSiteUrlFromEnv } = require('../services/siteUrl');
+const { getNextOrderNumber } = require('../services/orderNumber');
 const { hasAbility, getRoleLabel, ROLES } = require('../permissions');
 
 const ADMIN_LOGIN_BUCKETS = new Map();
@@ -1445,6 +1446,8 @@ function getSafeReturnTo(value) {
 
 function getOrderStatusBadge(status) {
   switch (status) {
+    case 'draft':
+      return { label: 'Brouillon', className: 'status-chip status-draft' };
     case 'expediee':
       return { label: 'Expédiée', className: 'status-chip status-expediee' };
     case 'livree':
@@ -1463,6 +1466,18 @@ function getOrderStatusBadge(status) {
 
 function getOrderStatusOptions() {
   return [
+    { key: 'en_attente', label: 'En attente' },
+    { key: 'validee', label: 'En préparation' },
+    { key: 'expediee', label: 'Expédiée' },
+    { key: 'livree', label: 'Livrée' },
+    { key: 'annulee', label: 'Annulée' },
+  ];
+}
+
+/* Status options including draft (for draft detail page dropdown) */
+function getOrderStatusOptionsWithDraft() {
+  return [
+    { key: 'draft', label: 'Brouillon' },
     { key: 'en_attente', label: 'En attente' },
     { key: 'validee', label: 'En préparation' },
     { key: 'expediee', label: 'Expédiée' },
@@ -1785,7 +1800,7 @@ async function getAdminDashboard(req, res, next) {
     startMonth.setDate(1);
     startMonth.setHours(0, 0, 0, 0);
 
-    const excludeCancelled = { status: { $ne: 'annulee' } };
+    const excludeCancelled = { status: { $nin: ['annulee', 'draft'] } };
 
     /* ── KPIs financiers (owner uniquement) ── */
     let revenueTodayCents = 0;
@@ -1970,6 +1985,7 @@ async function getAdminOrdersPage(req, res, next) {
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : '';
     const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
     const period = typeof req.query.period === 'string' ? req.query.period.trim() : '';
+    const sourceFilter = typeof req.query.source === 'string' ? req.query.source.trim() : '';
     const sortFieldRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
     const sortOrderRaw = typeof req.query.order === 'string' ? req.query.order.trim() : '';
     const allowedOrderSortFields = new Set(['date', 'total', 'status']);
@@ -1984,21 +2000,32 @@ async function getAdminOrdersPage(req, res, next) {
     const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
     const requestedPage = Math.max(1, Number.parseInt(rawPage, 10) || 1);
 
+    /* Count drafts for the tab badge */
+    let draftsCount = 0;
+
     if (!dbConnected) {
       return res.render('admin/orders', {
         title: 'Admin - Commandes',
         dbConnected,
         orders: [],
-        filters: { q, status, type, period },
+        draftsCount: 0,
+        filters: { q, status, type, period, source: sourceFilter },
         pagination: { page: 1, perPage, totalItems: 0, totalPages: 1, from: 0, to: 0, hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1 },
       });
     }
 
+    draftsCount = await Order.countDocuments({ status: 'draft' });
+
     const query = {};
 
-    const allowedStatus = new Set(getOrderStatusOptions().map((o) => o.key));
-    if (status && allowedStatus.has(status)) {
+    const allowedStatus = new Set(getOrderStatusOptionsWithDraft().map((o) => o.key));
+    if (status === 'draft') {
+      query.status = 'draft';
+    } else if (status && allowedStatus.has(status)) {
       query.status = status;
+    } else {
+      /* By default, exclude drafts */
+      query.status = { $ne: 'draft' };
     }
 
     if (type === 'pro' || type === 'particulier') {
@@ -2015,6 +2042,11 @@ async function getAdminOrdersPage(req, res, next) {
       if (['7d', '30d', '90d', '365d'].includes(period)) {
         query.createdAt = { $gte: start };
       }
+    }
+
+    const allowedSourceFilters = new Set(['website', 'phone', 'email', 'whatsapp', 'leboncoin', 'marketplace', 'salon', 'manual', 'other']);
+    if (sourceFilter && allowedSourceFilters.has(sourceFilter)) {
+      query['source.channel'] = sourceFilter;
     }
 
     if (q) {
@@ -2114,6 +2146,30 @@ async function getAdminOrdersPage(req, res, next) {
         lastNotePreview: noteInfo && noteInfo.lastContent ? noteInfo.lastContent.substring(0, 100) : '',
         lastNoteAuthor: noteInfo ? noteInfo.lastAuthor || '' : '',
         lastNoteDate: noteInfo && noteInfo.lastDate ? formatDateTimeFR(noteInfo.lastDate) : '',
+        isManual: !!o.isManual,
+        sourceChannel: o.source && o.source.channel ? o.source.channel : 'website',
+        docCount: (Array.isArray(o.documents) ? o.documents.length : 0)
+          + (Array.isArray(o.shipments) ? o.shipments.filter((s) => s && s.document && s.document.storedPath).length : 0),
+        hasShippingLabel: Array.isArray(o.documents) && o.documents.some((d) => d && d.docType === 'etiquette_envoi'),
+        lastShippingLabelUrl: (function() {
+          // Check direct documents for etiquette_envoi first (most recent)
+          if (Array.isArray(o.documents)) {
+            const labels = o.documents.filter((d) => d && d.docType === 'etiquette_envoi');
+            if (labels.length) {
+              const last = labels[labels.length - 1];
+              return `/admin/commandes/${String(o._id)}/documents/${String(last._id)}/view`;
+            }
+          }
+          // Fallback: shipment documents with "Envoi" label
+          if (Array.isArray(o.shipments)) {
+            const withDoc = o.shipments.filter((s) => s && s.document && s.document.storedPath && (s.label === 'Envoi' || s.label === 'Envoi partiel'));
+            if (withDoc.length) {
+              const last = withDoc[withDoc.length - 1];
+              return `/admin/commandes/${String(o._id)}/suivi/${String(last._id)}/document`;
+            }
+          }
+          return '';
+        })(),
       };
     });
 
@@ -2134,7 +2190,8 @@ async function getAdminOrdersPage(req, res, next) {
       title: 'Admin - Commandes',
       dbConnected,
       orders: viewOrders,
-      filters: { q, status, type, period, sort: activeSortField, order: activeSortDir === 1 ? 'asc' : 'desc', limit: perPage },
+      draftsCount,
+      filters: { q, status, type, period, source: sourceFilter, sort: activeSortField, order: activeSortDir === 1 ? 'asc' : 'desc', limit: perPage },
       pagination,
     });
   } catch (err) {
@@ -2181,6 +2238,11 @@ async function getAdminOrderDetailPage(req, res, next) {
           .select('_id accountType firstName lastName email companyName')
           .lean()
       : null;
+
+    let createdByAdmin = null;
+    if (orderDoc.isManual && orderDoc.createdBy) {
+      createdByAdmin = await AdminUser.findById(orderDoc.createdBy).select('firstName lastName').lean();
+    }
 
     const customer = user
       ? user.accountType === 'pro'
@@ -2247,10 +2309,69 @@ async function getAdminOrderDetailPage(req, res, next) {
             carrier: s.carrier || '',
             trackingNumber: s.trackingNumber,
             note: s.note || '',
+            document: s.document && s.document.storedPath ? {
+              originalName: s.document.originalName || 'document.pdf',
+              stamped: !!s.document.stamped,
+              sizeBytes: s.document.sizeBytes || 0,
+              uploadedAt: s.document.uploadedAt ? formatDateTimeFR(s.document.uploadedAt) : '',
+            } : null,
             createdAt: formatDateTimeFR(s.createdAt),
             createdBy: s.createdBy || '',
           }))
       : [];
+
+    const orderDocuments = Array.isArray(orderDoc.documents)
+      ? orderDoc.documents
+          .filter(Boolean)
+          .map((d) => ({
+            id: String(d._id),
+            docType: d.docType || 'autre',
+            originalName: d.originalName || 'document.pdf',
+            stamped: !!d.stamped,
+            sizeBytes: d.sizeBytes || 0,
+            note: d.note || '',
+            uploadedAt: d.uploadedAt ? formatDateTimeFR(d.uploadedAt) : '',
+            uploadedByName: d.uploadedByName || '',
+          }))
+      : [];
+
+    /* Collect all documents from shipments + direct uploads for the centralized section */
+    const allDocuments = [];
+    shipments.forEach((s) => {
+      if (s.document) {
+        allDocuments.push({
+          source: 'shipment',
+          shipmentId: s.id,
+          label: s.label || 'Envoi',
+          trackingNumber: s.trackingNumber || '',
+          originalName: s.document.originalName,
+          stamped: s.document.stamped,
+          sizeBytes: s.document.sizeBytes,
+          uploadedAt: s.document.uploadedAt || s.createdAt,
+          uploadedBy: s.createdBy || '',
+          viewUrl: `/admin/commandes/${String(orderDoc._id)}/suivi/${s.id}/document`,
+          downloadUrl: `/admin/commandes/${String(orderDoc._id)}/suivi/${s.id}/document?action=download`,
+        });
+      }
+    });
+    orderDocuments.forEach((d) => {
+      allDocuments.push({
+        source: 'direct',
+        docId: d.id,
+        docType: d.docType,
+        label: '',
+        trackingNumber: '',
+        originalName: d.originalName,
+        stamped: d.stamped,
+        sizeBytes: d.sizeBytes,
+        note: d.note,
+        uploadedAt: d.uploadedAt,
+        uploadedBy: d.uploadedByName || '',
+        viewUrl: `/admin/commandes/${String(orderDoc._id)}/documents/${d.id}/view`,
+        downloadUrl: `/admin/commandes/${String(orderDoc._id)}/documents/${d.id}/download`,
+        deleteUrl: `/admin/commandes/${String(orderDoc._id)}/documents/${d.id}/supprimer`,
+      });
+    });
 
     const items = Array.isArray(orderDoc.items)
       ? orderDoc.items.map((it) => ({
@@ -2335,7 +2456,7 @@ async function getAdminOrderDetailPage(req, res, next) {
       dbConnected,
       errorMessage,
       successMessage,
-      statusOptions: getOrderStatusOptions(),
+      statusOptions: orderDoc.status === 'draft' ? getOrderStatusOptionsWithDraft() : getOrderStatusOptions(),
       order: {
         id: String(orderDoc._id),
         number: orderDoc.number,
@@ -2362,6 +2483,14 @@ async function getAdminOrderDetailPage(req, res, next) {
               cgvUpdatedAt: orderDoc.legal.cgvUpdatedAt ? formatDateTimeFR(orderDoc.legal.cgvUpdatedAt) : '',
             }
           : null,
+        isManual: !!orderDoc.isManual,
+        createdBy: createdByAdmin ? `${createdByAdmin.firstName || ''} ${createdByAdmin.lastName || ''}`.trim() : null,
+        createdAt: formatDateTimeFR(orderDoc.createdAt),
+        sourceChannel: orderDoc.source && orderDoc.source.channel ? orderDoc.source.channel : 'website',
+        sourceDetail: orderDoc.source && orderDoc.source.detail ? orderDoc.source.detail : '',
+        noteInternal: orderDoc.noteInternal || '',
+        noteClient: orderDoc.noteClient || '',
+        quoteReference: orderDoc.quoteReference || '',
         consigne,
         shippingMethod: orderDoc.shippingMethod || 'domicile',
         shippingCostCents,
@@ -2370,6 +2499,8 @@ async function getAdminOrderDetailPage(req, res, next) {
         billingAddress: orderDoc.billingAddress || null,
         items,
         shipments,
+        documents: orderDocuments,
+        allDocuments,
         itemsSubtotal: formatEuro(itemsSubtotalCents),
         clientDiscountPercent,
         clientDiscountCents,
@@ -2419,13 +2550,13 @@ async function postAdminUpdateOrderStatus(req, res, next) {
     if (!dbConnected) return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
     if (!mongoose.Types.ObjectId.isValid(orderId)) return res.redirect('/admin/commandes');
 
-    const allowed = new Set(getOrderStatusOptions().map((o) => o.key));
+    const allowed = new Set(getOrderStatusOptionsWithDraft().map((o) => o.key));
     if (!allowed.has(status)) {
       return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
     }
 
     const existing = await Order.findById(orderId)
-      .select('_id number userId status consigne notifications')
+      .select('_id number userId status items consigne notifications')
       .lean();
     if (!existing) {
       if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, error: 'Commande introuvable.' });
@@ -2479,6 +2610,19 @@ async function postAdminUpdateOrderStatus(req, res, next) {
           },
         },
       });
+
+      /* When transitioning FROM draft to any active status, decrement stock */
+      if (existing.status === 'draft' && status !== 'draft' && status !== 'annulee') {
+        const items = Array.isArray(existing.items) ? existing.items : [];
+        for (const item of items) {
+          if (item && item.productId) {
+            await Product.updateOne(
+              { _id: item.productId, stockQty: { $ne: null } },
+              { $inc: { stockQty: -item.quantity } }
+            );
+          }
+        }
+      }
 
       if (status === 'livree') {
         try {
@@ -2660,10 +2804,16 @@ async function postAdminAddOrderShipment(req, res, next) {
       return res.redirect('/admin/commandes');
     }
 
+    if (req.uploadError) {
+      req.session.adminOrderError = req.uploadError;
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
     const label = getTrimmedString(req.body.label);
     const carrier = getTrimmedString(req.body.carrier);
     const trackingNumber = getTrimmedString(req.body.trackingNumber);
     const note = getTrimmedString(req.body.note);
+    const stampDocument = req.body.stampDocument === 'on' || req.body.stampDocument === 'true' || req.body.stampDocument === '1';
 
     if (!trackingNumber) {
       req.session.adminOrderError = 'Merci de renseigner un numéro de suivi.';
@@ -2674,17 +2824,80 @@ async function postAdminAddOrderShipment(req, res, next) {
       ? String(req.session.admin.email)
       : 'admin';
 
+    // Handle document upload + optional PDF stamping
+    let documentData = null;
+    if (req.file && req.file.buffer) {
+      try {
+        const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+
+        let pdfBytes = req.file.buffer;
+        let stamped = false;
+
+        if (stampDocument) {
+          try {
+            const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+            const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            const pages = pdfDoc.getPages();
+            const stampText = `Commande ${existing.number}`;
+            const fontSize = 10;
+
+            for (const page of pages) {
+              const { width } = page.getSize();
+              const textWidth = helveticaBold.widthOfTextAtSize(stampText, fontSize);
+              page.drawText(stampText, {
+                x: width - textWidth - 15,
+                y: 15,
+                size: fontSize,
+                font: helveticaBold,
+                color: rgb(0.3, 0.3, 0.3),
+              });
+            }
+
+            pdfBytes = await pdfDoc.save();
+            stamped = true;
+          } catch (stampErr) {
+            console.warn('PDF stamp failed, saving original:', stampErr && stampErr.message ? stampErr.message : stampErr);
+          }
+        }
+
+        // Save file to disk
+        const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'shipping-docs', String(orderId));
+        fs.mkdirSync(uploadsDir, { recursive: true });
+
+        const ext = '.pdf';
+        const storedName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+        const storedPath = path.join(uploadsDir, storedName);
+
+        fs.writeFileSync(storedPath, Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes));
+
+        documentData = {
+          originalName: req.file.originalname || 'document.pdf',
+          storedName,
+          storedPath,
+          mimeType: 'application/pdf',
+          sizeBytes: pdfBytes.length || pdfBytes.byteLength || 0,
+          stamped,
+          uploadedAt: new Date(),
+        };
+      } catch (docErr) {
+        console.error('Erreur traitement document expédition:', docErr && docErr.message ? docErr.message : docErr);
+      }
+    }
+
+    const shipmentEntry = {
+      label,
+      carrier,
+      trackingNumber,
+      note,
+      createdAt: new Date(),
+      createdBy: adminEmail,
+    };
+    if (documentData) {
+      shipmentEntry.document = documentData;
+    }
+
     await Order.findByIdAndUpdate(orderId, {
-      $push: {
-        shipments: {
-          label,
-          carrier,
-          trackingNumber,
-          note,
-          createdAt: new Date(),
-          createdBy: adminEmail,
-        },
-      },
+      $push: { shipments: shipmentEntry },
     });
 
     try {
@@ -2746,8 +2959,241 @@ async function postAdminAddOrderShipment(req, res, next) {
       }
     }
 
-    req.session.adminOrderSuccess = 'Suivi ajouté.';
+    req.session.adminOrderSuccess = documentData ? 'Suivi ajouté avec document.' : 'Suivi ajouté.';
     if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Suivi ajouté.', data: { orderId } });
+    return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getAdminShipmentDocument(req, res, next) {
+  try {
+    const { orderId, shipmentId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(shipmentId)) {
+      return res.status(404).send('Document introuvable.');
+    }
+
+    const order = await Order.findById(orderId).select('shipments').lean();
+    if (!order) return res.status(404).send('Commande introuvable.');
+
+    const shipment = Array.isArray(order.shipments)
+      ? order.shipments.find((s) => s && String(s._id) === String(shipmentId))
+      : null;
+
+    if (!shipment || !shipment.document || !shipment.document.storedPath) {
+      return res.status(404).send('Document introuvable.');
+    }
+
+    const filePath = shipment.document.storedPath;
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).send('Fichier introuvable sur le serveur.');
+    }
+
+    const action = req.query.action || 'view';
+    const disposition = action === 'download' ? 'attachment' : 'inline';
+    const filename = shipment.document.originalName || 'document.pdf';
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminUploadOrderDocument(req, res, next) {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) return res.redirect('/admin/commandes');
+
+    const existing = await Order.findById(orderId).select('_id number').lean();
+    if (!existing) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect('/admin/commandes');
+    }
+
+    if (req.uploadError) {
+      req.session.adminOrderError = req.uploadError;
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
+    if (!req.file || !req.file.buffer) {
+      req.session.adminOrderError = 'Veuillez sélectionner un fichier PDF.';
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
+    const docType = getTrimmedString(req.body.docType) || 'autre';
+    const allowedTypes = ['etiquette_envoi', 'bon_retour', 'recuperation_clonage', 'facture', 'bon_commande', 'autre'];
+    const safeDocType = allowedTypes.includes(docType) ? docType : 'autre';
+    const note = getTrimmedString(req.body.note);
+    const stampDocument = req.body.stampDocument === 'on' || req.body.stampDocument === 'true' || req.body.stampDocument === '1';
+
+    const adminEmail = req.session && req.session.admin && req.session.admin.email
+      ? String(req.session.admin.email)
+      : 'admin';
+    const adminUserId = req.session && req.session.admin && req.session.admin.adminUserId
+      ? req.session.admin.adminUserId
+      : null;
+
+    let pdfBytes = req.file.buffer;
+    let stamped = false;
+
+    if (stampDocument) {
+      try {
+        const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+        const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+        const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        const pages = pdfDoc.getPages();
+        const stampText = `Commande ${existing.number}`;
+        const fontSize = 10;
+
+        for (const page of pages) {
+          const { width } = page.getSize();
+          const textWidth = helveticaBold.widthOfTextAtSize(stampText, fontSize);
+          page.drawText(stampText, {
+            x: width - textWidth - 15,
+            y: 15,
+            size: fontSize,
+            font: helveticaBold,
+            color: rgb(0.3, 0.3, 0.3),
+          });
+        }
+
+        pdfBytes = await pdfDoc.save();
+        stamped = true;
+      } catch (stampErr) {
+        console.warn('PDF stamp failed, saving original:', stampErr && stampErr.message ? stampErr.message : stampErr);
+      }
+    }
+
+    const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'order-docs', String(orderId));
+    fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const storedName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.pdf`;
+    const storedPath = path.join(uploadsDir, storedName);
+    fs.writeFileSync(storedPath, Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes));
+
+    await Order.findByIdAndUpdate(orderId, {
+      $push: {
+        documents: {
+          docType: safeDocType,
+          originalName: req.file.originalname || 'document.pdf',
+          storedName,
+          storedPath,
+          mimeType: 'application/pdf',
+          sizeBytes: pdfBytes.length || pdfBytes.byteLength || 0,
+          stamped,
+          note,
+          uploadedAt: new Date(),
+          uploadedBy: adminUserId && mongoose.Types.ObjectId.isValid(adminUserId) ? adminUserId : null,
+          uploadedByName: adminEmail,
+        },
+      },
+    });
+
+    req.session.adminOrderSuccess = 'Document ajouté.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Document ajouté.' });
+    return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getAdminOrderDocument(req, res, next) {
+  try {
+    const { orderId, docId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(docId)) {
+      return res.status(404).send('Document introuvable.');
+    }
+
+    const order = await Order.findById(orderId).select('documents').lean();
+    if (!order) return res.status(404).send('Commande introuvable.');
+
+    const doc = Array.isArray(order.documents)
+      ? order.documents.find((d) => d && String(d._id) === String(docId))
+      : null;
+
+    if (!doc || !doc.storedPath) return res.status(404).send('Document introuvable.');
+    if (!fs.existsSync(doc.storedPath)) return res.status(404).send('Fichier introuvable sur le serveur.');
+
+    const filename = doc.originalName || 'document.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(doc.storedPath).pipe(res);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getAdminOrderDocumentDownload(req, res, next) {
+  try {
+    const { orderId, docId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(docId)) {
+      return res.status(404).send('Document introuvable.');
+    }
+
+    const order = await Order.findById(orderId).select('documents').lean();
+    if (!order) return res.status(404).send('Commande introuvable.');
+
+    const doc = Array.isArray(order.documents)
+      ? order.documents.find((d) => d && String(d._id) === String(docId))
+      : null;
+
+    if (!doc || !doc.storedPath) return res.status(404).send('Document introuvable.');
+    if (!fs.existsSync(doc.storedPath)) return res.status(404).send('Fichier introuvable sur le serveur.');
+
+    const filename = doc.originalName || 'document.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    fs.createReadStream(doc.storedPath).pipe(res);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminDeleteOrderDocument(req, res, next) {
+  try {
+    const { orderId, docId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(docId)) {
+      return res.redirect('/admin/commandes');
+    }
+
+    const order = await Order.findById(orderId).select('documents').lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect('/admin/commandes');
+    }
+
+    const doc = Array.isArray(order.documents)
+      ? order.documents.find((d) => d && String(d._id) === String(docId))
+      : null;
+
+    if (!doc) {
+      req.session.adminOrderError = 'Document introuvable.';
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
+    // Delete file from disk
+    if (doc.storedPath && fs.existsSync(doc.storedPath)) {
+      try {
+        fs.unlinkSync(doc.storedPath);
+      } catch (unlinkErr) {
+        console.warn('Failed to delete document file:', unlinkErr && unlinkErr.message ? unlinkErr.message : unlinkErr);
+      }
+    }
+
+    await Order.findByIdAndUpdate(orderId, {
+      $pull: { documents: { _id: doc._id } },
+    });
+
+    req.session.adminOrderSuccess = 'Document supprimé.';
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Document supprimé.' });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -7339,6 +7785,353 @@ async function getAdminCartActivityPage(req, res, next) {
   }
 }
 
+/* ──────────────────────────────────────────────
+ *  Nouvelle commande manuelle — Étape 1 Client
+ * ────────────────────────────────────────────── */
+
+async function getAdminNewOrderPage(req, res, next) {
+  try {
+    return res.render('admin/new-order', {
+      admin: req.session.admin,
+      title: 'Nouvelle commande',
+      active: 'orders',
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getAdminClientSearchApi(req, res) {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q || q.length < 2) {
+      return res.json({ ok: true, clients: [] });
+    }
+
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+
+    const clients = await User.find({
+      $or: [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { companyName: regex },
+      ],
+    })
+      .select('firstName lastName email accountType companyName siret addresses')
+      .sort({ lastName: 1, firstName: 1 })
+      .limit(10)
+      .lean();
+
+    return res.json({
+      ok: true,
+      clients: clients.map((c) => ({
+        _id: c._id,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        email: c.email,
+        accountType: c.accountType,
+        companyName: c.companyName || '',
+        address: c.addresses && c.addresses.length > 0
+          ? c.addresses.find((a) => a.isDefault) || c.addresses[0]
+          : null,
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erreur lors de la recherche.' });
+  }
+}
+
+async function postAdminCreateClientApi(req, res) {
+  try {
+    const accountType = req.body.accountType === 'pro' ? 'pro' : 'particulier';
+    const firstName = typeof req.body.firstName === 'string' ? req.body.firstName.trim() : '';
+    const lastName = typeof req.body.lastName === 'string' ? req.body.lastName.trim() : '';
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
+    const companyName = typeof req.body.companyName === 'string' ? req.body.companyName.trim() : '';
+    const siret = typeof req.body.siret === 'string' ? req.body.siret.trim() : '';
+
+    if (!firstName || !lastName || !email) {
+      return res.status(400).json({ ok: false, error: 'Prénom, nom et email sont obligatoires.' });
+    }
+
+    const existing = await User.findOne({ email }).lean();
+    if (existing) {
+      return res.status(409).json({ ok: false, error: 'Un client avec cet email existe déjà.' });
+    }
+
+    const randomPassword = crypto.randomBytes(16).toString('hex');
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = hashPassword(randomPassword, salt);
+
+    const newUser = await User.create({
+      accountType,
+      firstName,
+      lastName,
+      email,
+      passwordHash: hash,
+      passwordSalt: salt,
+      companyName: accountType === 'pro' ? companyName : '',
+      siret: accountType === 'pro' ? siret : '',
+      addresses: phone ? [{ label: 'Principale', fullName: `${firstName} ${lastName}`, phone, line1: '', postalCode: '', city: '' }] : [],
+    });
+
+    return res.json({
+      ok: true,
+      client: {
+        _id: newUser._id,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        email: newUser.email,
+        accountType: newUser.accountType,
+        companyName: newUser.companyName,
+        phone,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erreur lors de la création du client.' });
+  }
+}
+
+/* ──────────────────────────────────────────────
+ *  Nouvelle commande manuelle — Création
+ * ────────────────────────────────────────────── */
+
+async function postAdminCreateManualOrder(req, res) {
+  try {
+    const body = req.body || {};
+    const adminId = req.session.admin && req.session.admin.adminUserId ? req.session.admin.adminUserId : null;
+
+    /* ── Validate client ── */
+    const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
+    if (!clientId || !mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ ok: false, error: 'Client invalide.' });
+    }
+    const user = await User.findById(clientId).lean();
+    if (!user) {
+      return res.status(400).json({ ok: false, error: 'Client introuvable.' });
+    }
+
+    /* ── Validate items ── */
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    if (!rawItems.length) {
+      return res.status(400).json({ ok: false, error: 'Aucun article dans la commande.' });
+    }
+
+    const orderItems = [];
+    let itemsSubtotalCents = 0;
+
+    for (const ri of rawItems) {
+      const unitPriceCents = Math.max(0, Math.round(Number(ri.unitPriceCents) || 0));
+      const quantity = Math.max(1, Math.min(99, parseInt(ri.quantity, 10) || 1));
+      const discountType = ri.discountType === 'pct' ? 'pct' : 'eur';
+      const discountValue = Math.max(0, parseFloat(ri.discountValue) || 0);
+
+      let lineTotalCents = unitPriceCents * quantity;
+      if (discountType === 'eur') lineTotalCents -= Math.round(discountValue * 100);
+      else if (discountType === 'pct') lineTotalCents -= Math.round(lineTotalCents * discountValue / 100);
+      lineTotalCents = Math.max(0, lineTotalCents);
+
+      const productId = ri.productId && mongoose.Types.ObjectId.isValid(ri.productId) ? ri.productId : null;
+      const name = typeof ri.name === 'string' ? ri.name.trim() : '';
+      if (!name) continue;
+
+      orderItems.push({
+        productId: productId || undefined,
+        name,
+        sku: typeof ri.sku === 'string' ? ri.sku.trim() : '',
+        optionsSelection: {},
+        optionsSummary: '',
+        unitPriceCents,
+        quantity,
+        lineTotalCents,
+      });
+      itemsSubtotalCents += lineTotalCents;
+    }
+
+    if (!orderItems.length) {
+      return res.status(400).json({ ok: false, error: 'Aucun article valide.' });
+    }
+
+    /* ── Validate addresses ── */
+    const shipAddr = body.shippingAddress || {};
+    if (!shipAddr.fullName || !shipAddr.line1 || !shipAddr.postalCode || !shipAddr.city) {
+      return res.status(400).json({ ok: false, error: 'Adresse de livraison incomplète.' });
+    }
+    const shippingAddress = {
+      fullName: String(shipAddr.fullName || '').trim(),
+      phone: String(shipAddr.phone || '').trim(),
+      line1: String(shipAddr.line1 || '').trim(),
+      line2: String(shipAddr.line2 || '').trim(),
+      postalCode: String(shipAddr.postalCode || '').trim(),
+      city: String(shipAddr.city || '').trim(),
+      country: String(shipAddr.country || 'France').trim(),
+    };
+
+    const billAddr = body.billingAddress || shipAddr;
+    const billingAddress = {
+      fullName: String(billAddr.fullName || shippingAddress.fullName).trim(),
+      phone: String(billAddr.phone || shippingAddress.phone).trim(),
+      line1: String(billAddr.line1 || shippingAddress.line1).trim(),
+      line2: String(billAddr.line2 || '').trim(),
+      postalCode: String(billAddr.postalCode || shippingAddress.postalCode).trim(),
+      city: String(billAddr.city || shippingAddress.city).trim(),
+      country: String(billAddr.country || shippingAddress.country).trim(),
+    };
+
+    /* ── Shipping & totals ── */
+    const shippingCostCents = Math.max(0, Math.round(Number(body.shippingCostCents) || 0));
+    const tvaRate = Math.max(0, Math.min(100, parseFloat(body.tvaRate) || 20));
+    const tvaCents = Math.round(itemsSubtotalCents * tvaRate / 100);
+    const totalCents = itemsSubtotalCents + tvaCents + shippingCostCents;
+
+    /* ── Source ── */
+    const source = body.source || {};
+    const channelEnum = ['website', 'phone', 'email', 'whatsapp', 'leboncoin', 'marketplace', 'salon', 'manual', 'other'];
+    const channel = channelEnum.includes(source.channel) ? source.channel : 'manual';
+
+    /* ── Status ── */
+    const statusEnum = ['draft', 'en_attente', 'validee'];
+    const initialStatus = statusEnum.includes(body.initialStatus) ? body.initialStatus : 'en_attente';
+    const paymentStatus = initialStatus === 'validee' ? 'paid' : 'pending';
+
+    /* ── Create order ── */
+    const nextNumber = await getNextOrderNumber({ date: new Date() });
+
+    const created = await Order.create({
+      userId: user._id,
+      number: nextNumber.orderNumber,
+      status: initialStatus,
+      statusHistory: [{
+        status: initialStatus,
+        changedAt: new Date(),
+        changedBy: req.session.admin ? (req.session.admin.firstName + ' ' + req.session.admin.lastName).trim() : 'admin',
+      }],
+      accountType: user.accountType,
+      paymentProvider: 'manual',
+      paymentStatus,
+      source: { channel, detail: typeof source.detail === 'string' ? source.detail.trim() : '' },
+      isManual: true,
+      createdBy: adminId && mongoose.Types.ObjectId.isValid(adminId) ? adminId : undefined,
+      noteInternal: typeof body.noteInternal === 'string' ? body.noteInternal.trim() : '',
+      noteClient: typeof body.noteClient === 'string' ? body.noteClient.trim() : '',
+      quoteReference: typeof body.quoteReference === 'string' ? body.quoteReference.trim() : '',
+      totalCents,
+      items: orderItems,
+      shippingAddress,
+      billingAddress,
+      shippingMethod: 'manual',
+      shippingCostCents,
+      itemsSubtotalCents,
+      clientDiscountPercent: 0,
+      clientDiscountCents: 0,
+      promoCode: '',
+      promoDiscountCents: 0,
+      itemsTotalAfterDiscountCents: itemsSubtotalCents,
+    });
+
+    /* ── Update stock for catalogue items (skip for drafts) ── */
+    if (initialStatus !== 'draft') {
+      for (const item of orderItems) {
+        if (item.productId) {
+          await Product.updateOne(
+            { _id: item.productId, stockQty: { $ne: null } },
+            { $inc: { stockQty: -item.quantity } }
+          );
+        }
+      }
+    }
+
+    /* ── Send confirmation email if requested (skip for drafts) ── */
+    if (initialStatus !== 'draft' && body.sendConfirmationEmail && typeof emailService.sendOrderConfirmationEmail === 'function') {
+      try {
+        await emailService.sendOrderConfirmationEmail({ order: created, user });
+      } catch (emailErr) {
+        /* Non-blocking — order is already created */
+      }
+    }
+
+    return res.json({
+      ok: true,
+      orderId: String(created._id),
+      orderNumber: created.number,
+      redirectUrl: '/admin/commandes/' + String(created._id),
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ ok: false, error: 'Conflit de numéro de commande. Veuillez réessayer.' });
+    }
+    return res.status(500).json({ ok: false, error: 'Erreur lors de la création de la commande.' });
+  }
+}
+
+/* ──────────────────────────────────────────────
+ *  Valider un brouillon → statut actif
+ * ────────────────────────────────────────────── */
+
+async function postAdminValidateDraftOrder(req, res) {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ ok: false, error: 'ID commande invalide.' });
+    }
+
+    const targetStatus = typeof req.body.status === 'string' ? req.body.status.trim() : 'en_attente';
+    const allowedTargets = new Set(['en_attente', 'validee']);
+    const newStatus = allowedTargets.has(targetStatus) ? targetStatus : 'en_attente';
+    const sendEmail = !!req.body.sendEmail;
+
+    const orderDoc = await Order.findById(orderId);
+    if (!orderDoc) {
+      return res.status(404).json({ ok: false, error: 'Commande introuvable.' });
+    }
+    if (orderDoc.status !== 'draft') {
+      return res.status(400).json({ ok: false, error: 'Cette commande n\'est pas un brouillon.' });
+    }
+
+    const changedBy = req.session && req.session.admin
+      ? `${req.session.admin.firstName || ''} ${req.session.admin.lastName || ''}`.trim() || 'admin'
+      : 'admin';
+
+    orderDoc.status = newStatus;
+    orderDoc.paymentStatus = newStatus === 'validee' ? 'paid' : 'pending';
+    orderDoc.statusHistory.push({
+      status: newStatus,
+      changedAt: new Date(),
+      changedBy,
+    });
+    await orderDoc.save();
+
+    /* Decrement stock */
+    if (Array.isArray(orderDoc.items)) {
+      for (const item of orderDoc.items) {
+        if (item.productId) {
+          await Product.updateOne(
+            { _id: item.productId, stockQty: { $ne: null } },
+            { $inc: { stockQty: -item.quantity } }
+          );
+        }
+      }
+    }
+
+    /* Send confirmation email */
+    if (sendEmail && typeof emailService.sendOrderConfirmationEmail === 'function') {
+      try {
+        const user = orderDoc.userId ? await User.findById(orderDoc.userId).lean() : null;
+        if (user) {
+          await emailService.sendOrderConfirmationEmail({ order: orderDoc.toObject(), user });
+        }
+      } catch (emailErr) { /* non-blocking */ }
+    }
+
+    return res.json({ ok: true, status: newStatus });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erreur lors de la validation.' });
+  }
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
@@ -7356,6 +8149,11 @@ module.exports = {
   postAdminUpdateOrderStatus,
   postAdminMarkOrderConsigneReceived,
   postAdminAddOrderShipment,
+  getAdminShipmentDocument,
+  postAdminUploadOrderDocument,
+  getAdminOrderDocument,
+  getAdminOrderDocumentDownload,
+  postAdminDeleteOrderDocument,
   postAdminDeleteOrderShipment,
   postAdminCreateReturnFromOrder,
   getAdminCatalogPage,
@@ -7407,4 +8205,9 @@ module.exports = {
   getAdminSiteSettingsPage,
   postAdminSiteSettings,
   getAdminCartActivityPage,
+  getAdminNewOrderPage,
+  getAdminClientSearchApi,
+  postAdminCreateClientApi,
+  postAdminCreateManualOrder,
+  postAdminValidateDraftOrder,
 };

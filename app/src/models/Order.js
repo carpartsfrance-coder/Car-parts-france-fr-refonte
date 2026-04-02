@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const orderItemSchema = new mongoose.Schema(
   {
-    productId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    productId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
     name: { type: String, required: true, trim: true },
     sku: { type: String, default: '', trim: true },
     optionsSelection: { type: Object, default: {} },
@@ -14,12 +14,26 @@ const orderItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const shipmentDocumentSchema = new mongoose.Schema(
+  {
+    originalName: { type: String, default: '', trim: true },
+    storedName: { type: String, default: '', trim: true },
+    storedPath: { type: String, default: '', trim: true },
+    mimeType: { type: String, default: 'application/pdf', trim: true },
+    sizeBytes: { type: Number, default: 0 },
+    stamped: { type: Boolean, default: false },
+    uploadedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const shipmentSchema = new mongoose.Schema(
   {
     label: { type: String, default: '', trim: true },
     carrier: { type: String, default: '', trim: true },
     trackingNumber: { type: String, required: true, trim: true },
     note: { type: String, default: '', trim: true },
+    document: { type: shipmentDocumentSchema, default: null },
     createdAt: { type: Date, required: true },
     createdBy: { type: String, default: '', trim: true },
   },
@@ -59,7 +73,7 @@ const statusHistorySchema = new mongoose.Schema(
   {
     status: {
       type: String,
-      enum: ['en_attente', 'validee', 'expediee', 'livree', 'annulee'],
+      enum: ['draft', 'en_attente', 'validee', 'expediee', 'livree', 'annulee'],
       required: true,
     },
     changedAt: { type: Date, required: true },
@@ -79,6 +93,27 @@ const emailSentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const orderDocumentSchema = new mongoose.Schema(
+  {
+    docType: {
+      type: String,
+      enum: ['etiquette_envoi', 'bon_retour', 'recuperation_clonage', 'facture', 'bon_commande', 'autre'],
+      default: 'autre',
+    },
+    originalName: { type: String, default: '', trim: true },
+    storedName: { type: String, default: '', trim: true },
+    storedPath: { type: String, default: '', trim: true },
+    mimeType: { type: String, default: 'application/pdf', trim: true },
+    sizeBytes: { type: Number, default: 0 },
+    stamped: { type: Boolean, default: false },
+    note: { type: String, default: '', trim: true },
+    uploadedAt: { type: Date, default: null },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser', default: null },
+    uploadedByName: { type: String, default: '', trim: true },
+  },
+  { timestamps: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
@@ -89,7 +124,7 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['en_attente', 'validee', 'expediee', 'livree', 'annulee'],
+      enum: ['draft', 'en_attente', 'validee', 'expediee', 'livree', 'annulee'],
       default: 'en_attente',
       required: true,
     },
@@ -151,6 +186,20 @@ const orderSchema = new mongoose.Schema(
       cgvSlug: { type: String, default: 'cgv', trim: true },
       cgvUpdatedAt: { type: Date, default: null },
     },
+    source: {
+      channel: {
+        type: String,
+        enum: ['website', 'phone', 'email', 'whatsapp', 'leboncoin', 'marketplace', 'salon', 'manual', 'other'],
+        default: 'website',
+      },
+      detail: { type: String, default: '', trim: true },
+    },
+    isManual: { type: Boolean, default: false },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser', default: null },
+    noteInternal: { type: String, default: '', trim: true },
+    noteClient: { type: String, default: '', trim: true },
+    quoteReference: { type: String, default: '', trim: true },
+    documents: { type: [orderDocumentSchema], default: [] },
   },
   {
     timestamps: true,

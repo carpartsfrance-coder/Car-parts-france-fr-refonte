@@ -11,6 +11,10 @@
         <div class="text-2xl md:text-3xl font-semibold text-slate-900">Commandes</div>
         <div class="mt-1 text-sm text-slate-500">Gérez et suivez les commandes clients.</div>
       </div>
+      <a href="/admin/commandes/nouvelle" class="btn btn-primary flex items-center gap-2 shrink-0">
+        <span class="material-symbols-outlined text-lg">add</span>
+        Nouvelle commande
+      </a>
     </div>
 
     <form action="/admin/commandes" class="sticky top-0 z-30 mt-6 bg-white/98 backdrop-blur rounded-2xl border border-slate-200 p-4 shadow-lg shadow-slate-200/70" method="GET">
@@ -38,6 +42,18 @@
             <option value="pro" <%= filters && filters.type === 'pro' ? 'selected' : '' %>>Professionnel</option>
           </select>
 
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="source">
+            <option value="">Toutes les sources</option>
+            <option value="website" <%= filters && filters.source === 'website' ? 'selected' : '' %>>Site web</option>
+            <option value="phone" <%= filters && filters.source === 'phone' ? 'selected' : '' %>>T&eacute;l&eacute;phone</option>
+            <option value="email" <%= filters && filters.source === 'email' ? 'selected' : '' %>>Email</option>
+            <option value="whatsapp" <%= filters && filters.source === 'whatsapp' ? 'selected' : '' %>>WhatsApp</option>
+            <option value="leboncoin" <%= filters && filters.source === 'leboncoin' ? 'selected' : '' %>>Leboncoin</option>
+            <option value="marketplace" <%= filters && filters.source === 'marketplace' ? 'selected' : '' %>>Marketplace</option>
+            <option value="salon" <%= filters && filters.source === 'salon' ? 'selected' : '' %>>Salon</option>
+            <option value="other" <%= filters && filters.source === 'other' ? 'selected' : '' %>>Autre</option>
+          </select>
+
           <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="period">
             <option value="">Toutes périodes</option>
             <option value="7d" <%= filters && filters.period === '7d' ? 'selected' : '' %>>7 jours</option>
@@ -60,9 +76,24 @@
       </div>
     </form>
 
-    <div class="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <!-- Drafts tab -->
+    <% const isDraftView = filters && filters.status === 'draft'; %>
+    <% const _draftsCount = typeof draftsCount !== 'undefined' ? draftsCount : 0; %>
+    <div class="mt-6 flex items-center gap-3">
+      <a href="/admin/commandes" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors <%= !isDraftView ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
+        Toutes les commandes
+      </a>
+      <a href="/admin/commandes?status=draft" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 <%= isDraftView ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
+        Brouillons
+        <% if (_draftsCount > 0) { %>
+          <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold <%= isDraftView ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700' %>"><%= _draftsCount %></span>
+        <% } %>
+      </a>
+    </div>
+
+    <div class="mt-4 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
-        <div class="font-semibold text-slate-900">Commandes</div>
+        <div class="font-semibold text-slate-900"><%= isDraftView ? 'Brouillons' : 'Commandes' %></div>
         <% if (typeof pagination !== 'undefined' && pagination && pagination.totalItems) { %>
           <div class="text-xs font-bold text-slate-500">
             <%= pagination.totalItems %> commande<%= pagination.totalItems > 1 ? 's' : '' %>
@@ -78,6 +109,7 @@
             if (filters.q) parts.push('q=' + encodeURIComponent(filters.q));
             if (filters.status) parts.push('status=' + encodeURIComponent(filters.status));
             if (filters.type) parts.push('type=' + encodeURIComponent(filters.type));
+            if (filters.source) parts.push('source=' + encodeURIComponent(filters.source));
             if (filters.period) parts.push('period=' + encodeURIComponent(filters.period));
             if (filters.sort) parts.push('sort=' + filters.sort);
             if (filters.order) parts.push('order=' + filters.order);
@@ -132,6 +164,7 @@
                 if (filters.q) p.push('q=' + encodeURIComponent(filters.q));
                 if (filters.status) p.push('status=' + encodeURIComponent(filters.status));
                 if (filters.type) p.push('type=' + encodeURIComponent(filters.type));
+                if (filters.source) p.push('source=' + encodeURIComponent(filters.source));
                 if (filters.period) p.push('period=' + encodeURIComponent(filters.period));
                 p.push('sort=' + field, 'order=' + nextOrder);
                 return '/admin/commandes?' + p.join('&');
@@ -167,10 +200,21 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               <% orders.forEach((o) => { %>
-                <tr>
+                <tr class="<%= o.statusBadge && o.statusBadge.label === 'Brouillon' ? 'bg-slate-50/70' : '' %>">
                   <td class="px-6 py-4 font-semibold text-slate-900">
                     <div class="flex items-center gap-1.5">
                       <%= o.number %>
+                      <%
+                        var _srcIcons = { phone: 'call', email: 'mail', whatsapp: 'chat', leboncoin: '', marketplace: 'storefront', salon: 'groups', manual: 'edit_note', other: 'more_horiz', website: 'language' };
+                        var _srcLabels = { phone: 'T\u00e9l', email: 'Email', whatsapp: 'WA', leboncoin: 'LBC', marketplace: 'Mktp', salon: 'Salon', manual: 'Manuel', other: 'Autre', website: 'Web' };
+                        var _ch = o.sourceChannel || 'website';
+                        var _isWeb = _ch === 'website' && !o.isManual;
+                      %>
+                      <% if (_isWeb) { %>
+                        <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600"><span class="material-symbols-outlined" style="font-size:12px">language</span>Web</span>
+                      <% } else if (o.isManual || _ch !== 'website') { %>
+                        <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600"><% if (_srcIcons[_ch]) { %><span class="material-symbols-outlined" style="font-size:12px"><%= _srcIcons[_ch] %></span><% } %><%= _srcLabels[_ch] || _ch %></span>
+                      <% } %>
                       <% if (o.notesCount > 0) { %>
                         <span class="relative group cursor-default">
                           <span class="material-symbols-outlined text-base <%= o.hasImportantNote ? 'text-red-500' : 'text-slate-400' %>">comment</span>
@@ -200,15 +244,29 @@
                   <td class="px-6 py-4 text-sm font-semibold text-slate-900"><%= typeof o.itemCount !== 'undefined' ? o.itemCount : 0 %></td>
                   <td class="px-6 py-4 font-semibold text-slate-900"><%= o.total %></td>
                   <td class="px-6 py-4">
-                    <span class="<%= o.statusBadge.className %>"><%= o.statusBadge.label %></span>
+                    <div class="flex items-center gap-2">
+                      <span class="<%= o.statusBadge.className %>"><%= o.statusBadge.label %></span>
+                      <% if (o.hasShippingLabel) { %>
+                        <span class="material-symbols-outlined text-base text-green-500" title="Étiquette d'envoi attachée">local_shipping</span>
+                      <% } else if (o.docCount > 0) { %>
+                        <span class="material-symbols-outlined text-base text-slate-400" title="<%= o.docCount %> document(s) attaché(s)">attach_file</span>
+                      <% } %>
+                    </div>
                   </td>
                   <td class="px-6 py-4 text-right">
-                    <% if (o.id) { %>
-                      <a class="btn btn-ghost" href="/admin/commandes/<%= o.id %>">
-                        <span class="material-symbols-outlined mr-2 text-base">visibility</span>
-                        Détails
-                      </a>
-                    <% } %>
+                    <div class="flex items-center justify-end gap-1">
+                      <% if (o.lastShippingLabelUrl) { %>
+                        <button type="button" class="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 transition" title="Imprimer l'étiquette" onclick="(function(){ var w = window.open('<%= o.lastShippingLabelUrl %>', '_blank', 'width=800,height=600'); if(w){ w.addEventListener('load', function(){ setTimeout(function(){ w.print(); }, 500); }); } })()">
+                          <span class="material-symbols-outlined text-lg text-slate-500">print</span>
+                        </button>
+                      <% } %>
+                      <% if (o.id) { %>
+                        <a class="btn btn-ghost" href="/admin/commandes/<%= o.id %>">
+                          <span class="material-symbols-outlined mr-2 text-base">visibility</span>
+                          Détails
+                        </a>
+                      <% } %>
+                    </div>
                   </td>
                 </tr>
               <% }) %>

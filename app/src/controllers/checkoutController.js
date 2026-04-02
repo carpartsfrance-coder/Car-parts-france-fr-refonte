@@ -1738,6 +1738,7 @@ async function postPayment(req, res, next) {
             },
           ],
           accountType: user.accountType,
+          source: { channel: 'website' },
           paymentProvider,
           paymentStatus: 'pending',
           mollieProfileId: paymentProvider === 'mollie' ? getMollieProfileId() : '',

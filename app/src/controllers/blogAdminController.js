@@ -237,7 +237,7 @@ async function getAdminProductSearchApi(req, res, next) {
     const limitRaw = getTrimmedString(req.query.limit);
     const limit = Math.max(1, Math.min(20, Number.parseInt(limitRaw || '10', 10) || 10));
 
-    const projection = '_id name sku brand priceCents imageUrl slug';
+    const projection = '_id name sku brand priceCents imageUrl slug inStock stockQty';
 
     if (idsRaw) {
       const ids = idsRaw
@@ -269,6 +269,8 @@ async function getAdminProductSearchApi(req, res, next) {
         priceCents: Number.isFinite(p.priceCents) ? p.priceCents : null,
         imageUrl: p.imageUrl || '',
         slug: p.slug || '',
+        inStock: p.inStock !== false,
+        stockQty: Number.isFinite(p.stockQty) ? p.stockQty : null,
       }));
 
       return res.json({ ok: true, items });

@@ -25,6 +25,7 @@ const ReturnRequest = require('../models/ReturnRequest');
 const { handleProductImageUpload } = require('../middlewares/adminProductUpload');
 const { handleBlogCoverUpload, handleBlogMediaUpload } = require('../middlewares/adminBlogUpload');
 const { handleInvoiceLogoUpload } = require('../middlewares/adminInvoiceUpload');
+const { handleShippingDocUpload } = require('../middlewares/adminShippingDocUpload');
 const { hasAbility, isOwner } = require('../permissions');
 
 const router = express.Router();
@@ -135,11 +136,17 @@ router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashb
 router.post('/analytics/synonyme', requireAdminAuth, analyticsController.postAddSynonym);
 
 router.get('/commandes', requireAdminAuth, adminController.getAdminOrdersPage);
+router.get('/commandes/nouvelle', requireAdminAuth, adminController.getAdminNewOrderPage);
 router.get('/commandes/:orderId', requireAdminAuth, adminController.getAdminOrderDetailPage);
 router.post('/commandes/:orderId/statut', requireAdminAuth, adminController.postAdminUpdateOrderStatus);
 router.post('/commandes/:orderId/consigne/recu', requireAdminAuth, adminController.postAdminMarkOrderConsigneReceived);
-router.post('/commandes/:orderId/suivi', requireAdminAuth, adminController.postAdminAddOrderShipment);
+router.post('/commandes/:orderId/suivi', requireAdminAuth, handleShippingDocUpload, adminController.postAdminAddOrderShipment);
+router.get('/commandes/:orderId/suivi/:shipmentId/document', requireAdminAuth, adminController.getAdminShipmentDocument);
 router.post('/commandes/:orderId/suivi/:shipmentId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrderShipment);
+router.post('/commandes/:orderId/documents', requireAdminAuth, handleShippingDocUpload, adminController.postAdminUploadOrderDocument);
+router.get('/commandes/:orderId/documents/:docId/view', requireAdminAuth, adminController.getAdminOrderDocument);
+router.get('/commandes/:orderId/documents/:docId/download', requireAdminAuth, adminController.getAdminOrderDocumentDownload);
+router.post('/commandes/:orderId/documents/:docId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrderDocument);
 router.post('/commandes/:orderId/retour', requireAdminAuth, adminController.postAdminCreateReturnFromOrder);
 router.get('/commandes/:orderId/email/preview/:type', requireAdminAuth, orderEmailAdminController.getEmailPreview);
 router.post('/commandes/:orderId/email/resend', requireAdminAuth, orderEmailAdminController.postResendEmail);
@@ -187,10 +194,16 @@ const adminProductSearchHandler = typeof blogAdminController.getAdminProductSear
   ? blogAdminController.getAdminProductSearchApi
   : (req, res) => res.status(501).json({ ok: false, items: [], error: 'Recherche produits non disponible.' });
 router.get('/api/products/search', requireAdminAuth, adminProductSearchHandler);
+router.get('/api/produits/search', requireAdminAuth, adminProductSearchHandler);
 const adminBlogSearchHandler = typeof blogAdminController.getAdminBlogPostSearchApi === 'function'
   ? blogAdminController.getAdminBlogPostSearchApi
   : (req, res) => res.status(501).json({ ok: false, items: [], error: 'Recherche blog non disponible.' });
 router.get('/api/blog/search', requireAdminAuth, adminBlogSearchHandler);
+
+router.get('/api/clients/search', requireAdminAuth, adminController.getAdminClientSearchApi);
+router.post('/api/clients', requireAdminAuth, adminController.postAdminCreateClientApi);
+router.post('/api/commandes/manuelle', requireAdminAuth, adminController.postAdminCreateManualOrder);
+router.post('/api/commandes/:orderId/valider-brouillon', requireAdminAuth, adminController.postAdminValidateDraftOrder);
 
 router.get('/clients', requireAdminAuth, adminController.getAdminClientsPage);
 router.get('/clients/:userId', requireAdminAuth, adminController.getAdminClientDetailPage);

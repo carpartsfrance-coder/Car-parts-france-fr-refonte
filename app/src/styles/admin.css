@@ -310,6 +310,7 @@ aside nav a {
   font-weight: 600;
   line-height: 1.5;
 }
+.status-draft { background: #F1F5F9; color: #475569; }
 .status-en-attente { background: #FFFBEB; color: #B45309; }
 .status-en-preparation { background: #EFF6FF; color: #2563EB; }
 .status-expediee { background: #F0FDF4; color: #15803D; }
