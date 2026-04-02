@@ -1611,6 +1611,7 @@ async function postPayment(req, res, next) {
     const consigneLines = [];
     const shippingProducts = [];
     let itemsTotalCents = 0;
+    let hasConsigne = false;
 
     for (const item of rawItems) {
       const product = normalizeProduct(productById.get(String(item.productId)));
@@ -1638,6 +1639,7 @@ async function postPayment(req, res, next) {
       });
 
       if (product.consigne && product.consigne.enabled && Number.isFinite(product.consigne.amountCents) && product.consigne.amountCents > 0) {
+        hasConsigne = true;
         consigneLines.push({
           productId: new mongoose.Types.ObjectId(String(product._id)),
           name: product.name,
@@ -1729,6 +1731,7 @@ async function postPayment(req, res, next) {
         created = await Order.create({
           userId: user._id,
           number: nextNumber.orderNumber,
+          orderType: hasConsigne ? 'exchange' : 'standard',
           status: 'pending_payment',
           statusHistory: [
             {

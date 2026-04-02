@@ -139,6 +139,7 @@ router.get('/commandes', requireAdminAuth, adminController.getAdminOrdersPage);
 router.get('/commandes/nouvelle', requireAdminAuth, adminController.getAdminNewOrderPage);
 router.get('/commandes/:orderId', requireAdminAuth, adminController.getAdminOrderDetailPage);
 router.post('/commandes/:orderId/statut', requireAdminAuth, adminController.postAdminUpdateOrderStatus);
+router.post('/commandes/:orderId/type', requireAdminAuth, adminController.postAdminUpdateOrderType);
 router.post('/commandes/:orderId/consigne/recu', requireAdminAuth, adminController.postAdminMarkOrderConsigneReceived);
 router.post('/commandes/:orderId/suivi', requireAdminAuth, handleShippingDocUpload, adminController.postAdminAddOrderShipment);
 router.get('/commandes/:orderId/suivi/:shipmentId/document', requireAdminAuth, adminController.getAdminShipmentDocument);

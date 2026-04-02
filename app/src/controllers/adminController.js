@@ -2820,6 +2820,40 @@ async function postAdminUpdateOrderStatus(req, res, next) {
   }
 }
 
+async function postAdminUpdateOrderType(req, res) {
+  try {
+    const { orderId } = req.params;
+    const orderType = typeof req.body.orderType === 'string' ? req.body.orderType : '';
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ ok: false, error: 'ID commande invalide.' });
+    }
+
+    const allowed = ['standard', 'exchange', 'exchange_cloning'];
+    if (!allowed.includes(orderType)) {
+      return res.status(400).json({ ok: false, error: 'Type de commande invalide.' });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ ok: false, error: 'Commande introuvable.' });
+    }
+
+    order.orderType = orderType;
+    await order.save();
+
+    if (wantsJsonResponse(req)) {
+      return res.json({ ok: true, orderType, orderTypeLabel: getOrderTypeLabel(orderType) });
+    }
+    return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+  } catch (err) {
+    if (wantsJsonResponse(req)) {
+      return res.status(500).json({ ok: false, error: 'Erreur serveur.' });
+    }
+    return res.redirect(`/admin/commandes/${encodeURIComponent(req.params.orderId)}`);
+  }
+}
+
 async function postAdminCreateReturnFromOrder(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
@@ -8240,6 +8274,7 @@ module.exports = {
   getAdminOrdersPage,
   getAdminOrderDetailPage,
   postAdminUpdateOrderStatus,
+  postAdminUpdateOrderType,
   postAdminMarkOrderConsigneReceived,
   postAdminAddOrderShipment,
   getAdminShipmentDocument,

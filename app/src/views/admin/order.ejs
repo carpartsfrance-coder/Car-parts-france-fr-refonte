@@ -267,6 +267,20 @@
                   </button>
                 </form>
                 <div class="mt-2 text-xs text-slate-500">Cette action change le statut visible côté client.</div>
+
+                <div class="mt-6">
+                  <div class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Type de commande</div>
+                  <form action="/admin/commandes/<%= order.id %>/type" class="mt-3 flex flex-col sm:flex-row gap-3" method="POST" data-ajax="true">
+                    <select class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="orderType">
+                      <option value="standard" <%= order.orderType === 'standard' ? 'selected' : '' %>>Standard</option>
+                      <option value="exchange" <%= order.orderType === 'exchange' ? 'selected' : '' %>>Échange standard</option>
+                      <option value="exchange_cloning" <%= order.orderType === 'exchange_cloning' ? 'selected' : '' %>>Échange + Clonage</option>
+                    </select>
+                    <button class="rounded-xl bg-slate-800 text-white px-5 py-3 text-xs font-semibold uppercase tracking-wider hover:bg-slate-700 transition" type="submit">
+                      Mettre à jour
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
