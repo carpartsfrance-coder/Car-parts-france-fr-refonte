@@ -6,7 +6,7 @@ const promoCodeSchema = new mongoose.Schema(
     label: { type: String, default: '', trim: true },
     isActive: { type: Boolean, default: true },
     discountType: { type: String, enum: ['percent', 'fixed'], required: true, default: 'percent' },
-    discountPercent: { type: Number, default: 0, min: 0, max: 90 },
+    discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     discountAmountCents: { type: Number, default: 0, min: 0 },
     minSubtotalCents: { type: Number, default: 0, min: 0 },
     startsAt: { type: Date, default: null },

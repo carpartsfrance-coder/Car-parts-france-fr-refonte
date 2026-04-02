@@ -68,6 +68,12 @@
               Créer un retour
             </button>
           </form>
+          <form action="/admin/commandes/<%= order.id %>/supprimer" method="POST" onsubmit="return confirm('Supprimer définitivement cette commande ? Cette action est irréversible.')">
+            <button class="btn btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200" type="submit">
+              <span class="material-symbols-outlined mr-2 text-base">delete</span>
+              Supprimer
+            </button>
+          </form>
         <% } %>
 
         <% if (order && order.statusBadge) { %>

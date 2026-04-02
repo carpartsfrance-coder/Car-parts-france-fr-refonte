@@ -204,7 +204,7 @@ const orderSchema = new mongoose.Schema(
     shippingMethod: { type: String, default: 'domicile', trim: true },
     shippingCostCents: { type: Number, default: 0, min: 0 },
     itemsSubtotalCents: { type: Number, default: 0, min: 0 },
-    clientDiscountPercent: { type: Number, default: 0, min: 0, max: 90 },
+    clientDiscountPercent: { type: Number, default: 0, min: 0, max: 100 },
     clientDiscountCents: { type: Number, default: 0, min: 0 },
     promoCode: { type: String, default: '', trim: true },
     promoDiscountCents: { type: Number, default: 0, min: 0 },

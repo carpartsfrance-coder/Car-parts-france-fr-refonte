@@ -111,9 +111,9 @@
               </div>
 
               <div class="mt-4 flex items-center gap-4">
-                <input class="flex-1" id="discountRange" max="90" min="0" step="0.01" type="range" value="<%= typeof customer.discountPercent !== 'undefined' ? customer.discountPercent : 0 %>" />
+                <input class="flex-1" id="discountRange" max="100" min="0" step="0.01" type="range" value="<%= typeof customer.discountPercent !== 'undefined' ? customer.discountPercent : 0 %>" />
                 <div class="w-24">
-                  <input class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900" id="discountNumber" max="90" min="0" name="discountPercent" step="0.01" type="number" value="<%= typeof customer.discountPercent !== 'undefined' ? customer.discountPercent : 0 %>" />
+                  <input class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900" id="discountNumber" max="100" min="0" name="discountPercent" step="0.01" type="number" value="<%= typeof customer.discountPercent !== 'undefined' ? customer.discountPercent : 0 %>" />
                 </div>
               </div>
 
@@ -268,7 +268,7 @@
           const n = Number(v);
           if (!Number.isFinite(n)) return 0;
           if (n < 0) return 0;
-          if (n > 90) return 90;
+          if (n > 100) return 100;
           return n;
         }
 

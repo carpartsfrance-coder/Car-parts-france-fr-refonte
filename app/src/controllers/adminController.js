@@ -3327,6 +3327,42 @@ async function postAdminDeleteOrderDocument(req, res, next) {
   }
 }
 
+async function postAdminDeleteOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.redirect('/admin/commandes');
+    }
+
+    const order = await Order.findById(orderId).select('documents number').lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect('/admin/commandes');
+    }
+
+    // Delete associated document files from disk
+    if (Array.isArray(order.documents)) {
+      for (const doc of order.documents) {
+        if (doc.storedPath && fs.existsSync(doc.storedPath)) {
+          try {
+            fs.unlinkSync(doc.storedPath);
+          } catch (unlinkErr) {
+            console.warn('Failed to delete order document file:', unlinkErr && unlinkErr.message ? unlinkErr.message : unlinkErr);
+          }
+        }
+      }
+    }
+
+    await Order.findByIdAndDelete(orderId);
+
+    req.session.adminOrderSuccess = `Commande ${order.number || ''} supprimée.`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: `Commande supprimée.` });
+    return res.redirect('/admin/commandes');
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function postAdminDeleteOrderShipment(req, res, next) {
   try {
     const dbConnected = mongoose.connection.readyState === 1;
@@ -3531,7 +3567,7 @@ function parsePercent(value) {
   const num = Number.parseFloat(trimmed);
   if (!Number.isFinite(num)) return null;
   if (num <= 0) return null;
-  if (num > 90) return null;
+  if (num > 100) return null;
   return Math.round(num * 100) / 100;
 }
 
@@ -3542,7 +3578,7 @@ function parsePercentAllowZero(value) {
   const num = Number.parseFloat(trimmed);
   if (!Number.isFinite(num)) return null;
   if (num < 0) return null;
-  if (num > 90) return null;
+  if (num > 100) return null;
   return Math.round(num * 100) / 100;
 }
 
@@ -6914,7 +6950,7 @@ async function postAdminUpdateClientDiscount(req, res, next) {
 
     const discountPercent = parsePercentAllowZero(getTrimmedString(req.body.discountPercent));
     if (discountPercent === null) {
-      req.session.adminClientError = 'Remise invalide (entre 0 et 90).';
+      req.session.adminClientError = 'Remise invalide (entre 0 et 100).';
       return res.redirect(`/admin/clients/${encodeURIComponent(String(userId))}`);
     }
 
@@ -8283,6 +8319,7 @@ module.exports = {
   getAdminOrderDocumentDownload,
   postAdminDeleteOrderDocument,
   postAdminDeleteOrderShipment,
+  postAdminDeleteOrder,
   postAdminCreateReturnFromOrder,
   getAdminCatalogPage,
   getAdminCategoriesPage,

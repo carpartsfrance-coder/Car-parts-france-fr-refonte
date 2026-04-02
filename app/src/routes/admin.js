@@ -148,6 +148,7 @@ router.post('/commandes/:orderId/documents', requireAdminAuth, handleShippingDoc
 router.get('/commandes/:orderId/documents/:docId/view', requireAdminAuth, adminController.getAdminOrderDocument);
 router.get('/commandes/:orderId/documents/:docId/download', requireAdminAuth, adminController.getAdminOrderDocumentDownload);
 router.post('/commandes/:orderId/documents/:docId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrderDocument);
+router.post('/commandes/:orderId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrder);
 router.post('/commandes/:orderId/retour', requireAdminAuth, adminController.postAdminCreateReturnFromOrder);
 router.get('/commandes/:orderId/email/preview/:type', requireAdminAuth, orderEmailAdminController.getEmailPreview);
 router.post('/commandes/:orderId/email/resend', requireAdminAuth, orderEmailAdminController.postResendEmail);

@@ -7,7 +7,7 @@ function clampCents(value) {
 function clampPercent(value) {
   const n = Number(value) || 0;
   if (!Number.isFinite(n)) return 0;
-  return Math.min(90, Math.max(0, n));
+  return Math.min(100, Math.max(0, n));
 }
 
 function computeClientDiscountCents(itemsSubtotalCents, clientDiscountPercent) {

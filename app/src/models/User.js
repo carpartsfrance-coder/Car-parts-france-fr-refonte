@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema(
     passwordSalt: { type: String, required: true },
     companyName: { type: String, default: '', trim: true },
     siret: { type: String, default: '', trim: true },
-    discountPercent: { type: Number, default: 0, min: 0, max: 90 },
+    discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     addresses: { type: [addressSchema], default: [] },
     resetPasswordTokenHash: { type: String, default: '', trim: true, index: true },
     resetPasswordExpiresAt: { type: Date, default: null, index: true },
