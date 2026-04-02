@@ -73,11 +73,14 @@ const statusHistorySchema = new mongoose.Schema(
   {
     status: {
       type: String,
-      enum: ['draft', 'en_attente', 'validee', 'expediee', 'livree', 'annulee'],
+      enum: ['draft', 'pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded'],
       required: true,
     },
+    cloningStatus: { type: String, default: null, trim: true },
+    returnStatus: { type: String, default: null, trim: true },
     changedAt: { type: Date, required: true },
     changedBy: { type: String, default: '', trim: true },
+    note: { type: String, default: '', trim: true },
   },
   { _id: false }
 );
@@ -124,9 +127,61 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['draft', 'en_attente', 'validee', 'expediee', 'livree', 'annulee'],
-      default: 'en_attente',
+      enum: ['draft', 'pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded'],
+      default: 'pending_payment',
       required: true,
+    },
+    orderType: {
+      type: String,
+      enum: ['standard', 'exchange', 'exchange_cloning'],
+      default: 'standard',
+    },
+    cloningStatus: {
+      type: String,
+      enum: [
+        'pending_label',
+        'label_sent',
+        'client_piece_in_transit',
+        'client_piece_received',
+        'cloning_in_progress',
+        'cloning_done',
+        'cloning_failed',
+        null,
+      ],
+      default: null,
+    },
+    returnStatus: {
+      type: String,
+      enum: [
+        'not_applicable',
+        'pending',
+        'label_sent',
+        'in_transit',
+        'received',
+        'inspected_ok',
+        'inspected_nok',
+        'overdue',
+      ],
+      default: 'not_applicable',
+    },
+    cloningDates: {
+      labelSentAt: { type: Date, default: null },
+      clientPieceReceivedAt: { type: Date, default: null },
+      cloningStartedAt: { type: Date, default: null },
+      cloningCompletedAt: { type: Date, default: null },
+      shippedToClientAt: { type: Date, default: null },
+    },
+    cloningTracking: {
+      carrier: { type: String, default: '', trim: true },
+      trackingNumber: { type: String, default: '', trim: true },
+      trackingUrl: { type: String, default: '', trim: true },
+    },
+    cloningFailureNote: { type: String, default: '', trim: true },
+    returnDates: {
+      returnDueDate: { type: Date, default: null },
+      returnLabelSentAt: { type: Date, default: null },
+      returnReceivedAt: { type: Date, default: null },
+      returnInspectedAt: { type: Date, default: null },
     },
     statusHistory: { type: [statusHistorySchema], default: [] },
     accountType: { type: String, enum: ['particulier', 'pro'], required: true },
@@ -205,6 +260,119 @@ const orderSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// ---------------------------------------------------------------------------
+// Pre-save middleware — validation des sous-statuts et historique automatique
+// ---------------------------------------------------------------------------
+orderSchema.pre('save', function (next) {
+  const order = this;
+
+  // ─── 1. Synchroniser cloningStatus / returnStatus selon orderType ───
+  if (order.isModified('orderType')) {
+    if (order.orderType === 'exchange_cloning') {
+      // Clonage : la pièce client est envoyée au DÉBUT, pas de retour séparé
+      if (!order.cloningStatus) order.cloningStatus = 'pending_label';
+      order.returnStatus = 'not_applicable';
+    } else if (order.orderType === 'exchange') {
+      // Échange standard : retour attendu J+30 après livraison
+      order.cloningStatus = null;
+      if (order.returnStatus === 'not_applicable') {
+        order.returnStatus = 'pending';
+      }
+    } else {
+      // Standard : rien
+      order.cloningStatus = null;
+      order.returnStatus = 'not_applicable';
+    }
+  }
+
+  // ─── 2. Si status → 'shipped' et échange standard → calculer returnDueDate ───
+  if (order.isModified('status') && order.status === 'shipped' && order.orderType === 'exchange') {
+    if (!order.returnDates) order.returnDates = {};
+    if (!order.returnDates.returnDueDate) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+      order.returnDates.returnDueDate = dueDate;
+    }
+    if (order.returnStatus === 'not_applicable') {
+      order.returnStatus = 'pending';
+    }
+  }
+
+  // ─── 3. Mise à jour automatique des cloningDates ───
+  if (order.isModified('cloningStatus') && order.orderType === 'exchange_cloning') {
+    if (!order.cloningDates) order.cloningDates = {};
+
+    switch (order.cloningStatus) {
+      case 'label_sent':
+        if (!order.cloningDates.labelSentAt) order.cloningDates.labelSentAt = new Date();
+        break;
+      case 'client_piece_received':
+        if (!order.cloningDates.clientPieceReceivedAt) order.cloningDates.clientPieceReceivedAt = new Date();
+        break;
+      case 'cloning_in_progress':
+        if (!order.cloningDates.cloningStartedAt) order.cloningDates.cloningStartedAt = new Date();
+        break;
+      case 'cloning_done':
+      case 'cloning_failed':
+        if (!order.cloningDates.cloningCompletedAt) order.cloningDates.cloningCompletedAt = new Date();
+        break;
+    }
+  }
+
+  // ─── 4. Mise à jour automatique des returnDates ───
+  if (order.isModified('returnStatus') && order.orderType === 'exchange') {
+    if (!order.returnDates) order.returnDates = {};
+
+    switch (order.returnStatus) {
+      case 'label_sent':
+        if (!order.returnDates.returnLabelSentAt) order.returnDates.returnLabelSentAt = new Date();
+        break;
+      case 'received':
+        if (!order.returnDates.returnReceivedAt) order.returnDates.returnReceivedAt = new Date();
+        break;
+      case 'inspected_ok':
+      case 'inspected_nok':
+        if (!order.returnDates.returnInspectedAt) order.returnDates.returnInspectedAt = new Date();
+        break;
+    }
+  }
+
+  // ─── 5. Ajout automatique dans statusHistory ───
+  // On ajoute une entrée si status, cloningStatus ou returnStatus a changé
+  const statusChanged = order.isModified('status');
+  const cloningChanged = order.isModified('cloningStatus');
+  const returnChanged = order.isModified('returnStatus');
+
+  if ((statusChanged || cloningChanged || returnChanged) && !order.isNew) {
+    // Vérifier si la dernière entrée n'est pas identique (éviter doublons)
+    const lastEntry = Array.isArray(order.statusHistory) && order.statusHistory.length
+      ? order.statusHistory[order.statusHistory.length - 1]
+      : null;
+
+    const isSame = lastEntry
+      && lastEntry.status === order.status
+      && (lastEntry.cloningStatus || null) === (order.cloningStatus || null)
+      && (lastEntry.returnStatus || null) === (order.returnStatus || null);
+
+    if (!isSame) {
+      order.statusHistory.push({
+        status: order.status,
+        cloningStatus: order.cloningStatus || null,
+        returnStatus: order.returnStatus || null,
+        changedAt: new Date(),
+        changedBy: order._statusChangedBy || '',
+        note: order._statusChangeNote || '',
+      });
+    }
+  }
+
+  // Nettoyer les champs temporaires
+  delete order._statusChangedBy;
+  delete order._statusChangeNote;
+
+  next();
+});
 
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ userId: 1, status: 1, createdAt: -1 });

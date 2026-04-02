@@ -14,10 +14,10 @@ async function expireDraftOrders() {
       createdAt: { $lt: thirtyDaysAgo },
     },
     {
-      $set: { status: 'annulee' },
+      $set: { status: 'cancelled' },
       $push: {
         statusHistory: {
-          status: 'annulee',
+          status: 'cancelled',
           changedAt: new Date(),
           changedBy: 'system (draft expired)',
         },

@@ -87,7 +87,7 @@ async function detectAbandonedCarts() {
           ? await Order.findOne({
               userId: new mongoose.Types.ObjectId(userId),
               createdAt: { $gte: cutoff },
-              status: { $ne: 'annulee' },
+              status: { $nin: ['cancelled', 'refunded'] },
             })
               .select('_id')
               .lean()

@@ -416,7 +416,7 @@ async function getTotalsForRange(from, to) {
 async function getCommercialKpis(since, until) {
   // Count paid/validated orders in the period
   const paidStatuses = ['paid', 'completed', 'captured'];
-  const validOrderStatuses = ['validee', 'expediee', 'livree'];
+  const validOrderStatuses = ['paid', 'processing', 'shipped', 'delivered', 'completed'];
 
   const dateFilter = until ? { $gte: since, $lt: until } : { $gte: since };
 
@@ -424,7 +424,7 @@ async function getCommercialKpis(since, until) {
     {
       $match: {
         createdAt: dateFilter,
-        status: { $nin: ['draft', 'annulee'] },
+        status: { $nin: ['draft', 'cancelled', 'refunded'] },
         $or: [
           { paymentStatus: { $in: paidStatuses } },
           { status: { $in: validOrderStatuses } },

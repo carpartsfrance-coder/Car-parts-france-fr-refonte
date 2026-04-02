@@ -107,8 +107,9 @@
           </div>
           <div class="flex items-center gap-3 shrink-0">
             <select id="draft-target-status" class="rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400/30">
-              <option value="en_attente">En attente</option>
-              <option value="validee">Pay&eacute;e / En pr&eacute;paration</option>
+              <option value="pending_payment">En attente paiement</option>
+              <option value="paid">Pay&eacute;e</option>
+              <option value="processing">En pr&eacute;paration</option>
             </select>
             <label class="flex items-center gap-1.5 text-xs text-amber-800 cursor-pointer whitespace-nowrap">
               <input type="checkbox" id="draft-send-email" class="accent-amber-600 w-3.5 h-3.5" />
@@ -894,7 +895,7 @@
                       { key: 'order_confirmation', label: 'Confirmation de commande', icon: 'receipt_long' },
                       { key: 'shipment_tracking', label: "Suivi d'expedition", icon: 'local_shipping' },
                       { key: 'delivery_confirmed', label: 'Livraison confirmee', icon: 'done_all' },
-                      { key: 'status_change_validee', label: 'Statut : Validee', icon: 'check_circle' },
+                      { key: 'status_change', label: 'Statut : Validee', icon: 'check_circle' },
                       { key: 'consigne_start', label: 'Consigne : retour piece', icon: 'assignment_return' },
                       { key: 'consigne_received', label: 'Consigne recue', icon: 'inventory' },
                     ];
@@ -1013,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', function() {
     order_confirmation: 'Confirmation de commande',
     shipment_tracking: "Suivi d'expedition",
     delivery_confirmed: 'Livraison confirmee',
-    status_change_validee: 'Statut : Validee',
+    status_change: 'Statut : Validee',
     consigne_start: 'Consigne : retour piece',
     consigne_received: 'Consigne recue'
   };

@@ -484,11 +484,11 @@ async function applyMolliePaymentToOrder(order, payment) {
   if (paymentStatus === 'paid') {
     update.molliePaidAt = new Date();
 
-    if (order.status !== 'validee' && order.status !== 'expediee' && order.status !== 'livree') {
-      update.status = 'validee';
+    if (order.status !== 'paid' && order.status !== 'processing' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'completed') {
+      update.status = 'paid';
       update.$push = {
         statusHistory: {
-          status: 'validee',
+          status: 'paid',
           changedAt: new Date(),
           changedBy: 'mollie',
         },
@@ -497,11 +497,11 @@ async function applyMolliePaymentToOrder(order, payment) {
   }
 
   if (paymentStatus === 'failed') {
-    if (order.status !== 'annulee' && order.status !== 'livree') {
-      update.status = 'annulee';
+    if (order.status !== 'cancelled' && order.status !== 'delivered' && order.status !== 'completed') {
+      update.status = 'cancelled';
       update.$push = {
         statusHistory: {
-          status: 'annulee',
+          status: 'cancelled',
           changedAt: new Date(),
           changedBy: 'mollie',
         },
@@ -581,11 +581,11 @@ async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatu
   if (safePaymentStatus === 'paid') {
     if (captured) update.scalapayCapturedAt = new Date();
 
-    if (order.status !== 'validee' && order.status !== 'expediee' && order.status !== 'livree') {
-      update.status = 'validee';
+    if (order.status !== 'paid' && order.status !== 'processing' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'completed') {
+      update.status = 'paid';
       update.$push = {
         statusHistory: {
-          status: 'validee',
+          status: 'paid',
           changedAt: new Date(),
           changedBy: 'scalapay',
         },
@@ -594,11 +594,11 @@ async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatu
   }
 
   if (safePaymentStatus === 'failed') {
-    if (order.status !== 'annulee' && order.status !== 'livree') {
-      update.status = 'annulee';
+    if (order.status !== 'cancelled' && order.status !== 'delivered' && order.status !== 'completed') {
+      update.status = 'cancelled';
       update.$push = {
         statusHistory: {
-          status: 'annulee',
+          status: 'cancelled',
           changedAt: new Date(),
           changedBy: 'scalapay',
         },
@@ -1729,10 +1729,10 @@ async function postPayment(req, res, next) {
         created = await Order.create({
           userId: user._id,
           number: nextNumber.orderNumber,
-          status: 'en_attente',
+          status: 'pending_payment',
           statusHistory: [
             {
-              status: 'en_attente',
+              status: 'pending_payment',
               changedAt: new Date(),
               changedBy: 'client',
             },
@@ -1795,11 +1795,11 @@ async function postPayment(req, res, next) {
             promoCode: '',
             promoDiscountCents: 0,
             paymentStatus: 'failed',
-            status: 'annulee',
+            status: 'cancelled',
           },
           $push: {
             statusHistory: {
-              status: 'annulee',
+              status: 'cancelled',
               changedAt: new Date(),
               changedBy: 'promo',
             },
@@ -1871,11 +1871,11 @@ async function postPayment(req, res, next) {
             paymentStatus: 'failed',
             molliePaymentStatus: 'failed',
             mollieLastCheckedAt: new Date(),
-            status: 'annulee',
+            status: 'cancelled',
           },
           $push: {
             statusHistory: {
-              status: 'annulee',
+              status: 'cancelled',
               changedAt: new Date(),
               changedBy: 'mollie',
             },
@@ -2002,11 +2002,11 @@ async function postPayment(req, res, next) {
           paymentStatus: 'failed',
           scalapayStatus: 'failed',
           scalapayLastCheckedAt: new Date(),
-          status: 'annulee',
+          status: 'cancelled',
         },
         $push: {
           statusHistory: {
-            status: 'annulee',
+            status: 'cancelled',
             changedAt: new Date(),
             changedBy: 'scalapay',
           },

@@ -1448,29 +1448,79 @@ function getOrderStatusBadge(status) {
   switch (status) {
     case 'draft':
       return { label: 'Brouillon', className: 'status-chip status-draft' };
-    case 'expediee':
-      return { label: 'Expédiée', className: 'status-chip status-expediee' };
-    case 'livree':
-      return { label: 'Livrée', className: 'status-chip status-livree' };
-    case 'annulee':
-      return { label: 'Annulée', className: 'status-chip status-annulee' };
-    case 'validee':
+    case 'pending_payment':
+      return { label: 'En attente paiement', className: 'status-chip status-en-attente' };
+    case 'paid':
+      return { label: 'Payée', className: 'status-chip status-paid' };
+    case 'processing':
       return { label: 'En préparation', className: 'status-chip status-en-preparation' };
-    case 'remboursee':
+    case 'shipped':
+      return { label: 'Expédiée', className: 'status-chip status-expediee' };
+    case 'delivered':
+      return { label: 'Livrée', className: 'status-chip status-livree' };
+    case 'completed':
+      return { label: 'Terminée', className: 'status-chip status-completed' };
+    case 'cancelled':
+      return { label: 'Annulée', className: 'status-chip status-annulee' };
+    case 'refunded':
       return { label: 'Remboursée', className: 'status-chip status-remboursee' };
-    case 'en_attente':
     default:
-      return { label: 'En attente', className: 'status-chip status-en-attente' };
+      return { label: status || '—', className: 'status-chip' };
+  }
+}
+
+function getCloningStatusBadge(cloningStatus) {
+  switch (cloningStatus) {
+    case 'pending_label':
+      return { label: 'Attente étiquette', className: 'bg-amber-50 text-amber-700 border border-amber-200' };
+    case 'label_sent':
+      return { label: 'Étiquette envoyée', className: 'bg-blue-50 text-blue-700 border border-blue-200' };
+    case 'client_piece_in_transit':
+      return { label: 'Pièce client en transit', className: 'bg-indigo-50 text-indigo-700 border border-indigo-200' };
+    case 'client_piece_received':
+      return { label: 'Pièce client reçue', className: 'bg-cyan-50 text-cyan-700 border border-cyan-200' };
+    case 'cloning_in_progress':
+      return { label: 'Clonage en cours', className: 'bg-purple-50 text-purple-700 border border-purple-200' };
+    case 'cloning_done':
+      return { label: 'Clonage terminé', className: 'bg-green-50 text-green-700 border border-green-200' };
+    case 'cloning_failed':
+      return { label: 'Clonage échoué', className: 'bg-red-50 text-red-700 border border-red-200' };
+    default:
+      return null;
+  }
+}
+
+function getReturnStatusBadgeForOrder(returnStatus) {
+  switch (returnStatus) {
+    case 'pending':
+      return { label: 'Retour attendu', className: 'bg-amber-50 text-amber-700 border border-amber-200' };
+    case 'label_sent':
+      return { label: 'Étiquette retour envoyée', className: 'bg-blue-50 text-blue-700 border border-blue-200' };
+    case 'in_transit':
+      return { label: 'Retour en transit', className: 'bg-indigo-50 text-indigo-700 border border-indigo-200' };
+    case 'received':
+      return { label: 'Retour reçu', className: 'bg-cyan-50 text-cyan-700 border border-cyan-200' };
+    case 'inspected_ok':
+      return { label: 'Inspecté OK', className: 'bg-green-50 text-green-700 border border-green-200' };
+    case 'inspected_nok':
+      return { label: 'Inspecté NOK', className: 'bg-red-50 text-red-700 border border-red-200' };
+    case 'overdue':
+      return { label: 'Retour en retard', className: 'bg-red-50 text-red-700 border border-red-200' };
+    default:
+      return null;
   }
 }
 
 function getOrderStatusOptions() {
   return [
-    { key: 'en_attente', label: 'En attente' },
-    { key: 'validee', label: 'En préparation' },
-    { key: 'expediee', label: 'Expédiée' },
-    { key: 'livree', label: 'Livrée' },
-    { key: 'annulee', label: 'Annulée' },
+    { key: 'pending_payment', label: 'En attente paiement' },
+    { key: 'paid', label: 'Payée' },
+    { key: 'processing', label: 'En préparation' },
+    { key: 'shipped', label: 'Expédiée' },
+    { key: 'delivered', label: 'Livrée' },
+    { key: 'completed', label: 'Terminée' },
+    { key: 'cancelled', label: 'Annulée' },
+    { key: 'refunded', label: 'Remboursée' },
   ];
 }
 
@@ -1478,11 +1528,42 @@ function getOrderStatusOptions() {
 function getOrderStatusOptionsWithDraft() {
   return [
     { key: 'draft', label: 'Brouillon' },
-    { key: 'en_attente', label: 'En attente' },
-    { key: 'validee', label: 'En préparation' },
-    { key: 'expediee', label: 'Expédiée' },
-    { key: 'livree', label: 'Livrée' },
-    { key: 'annulee', label: 'Annulée' },
+    ...getOrderStatusOptions(),
+  ];
+}
+
+function getOrderTypeLabel(orderType) {
+  switch (orderType) {
+    case 'exchange': return 'Échange standard';
+    case 'exchange_cloning': return 'Échange + Clonage';
+    case 'standard':
+    default:
+      return 'Standard';
+  }
+}
+
+function getCloningStatusOptions() {
+  return [
+    { key: 'pending_label', label: 'Attente étiquette récupération' },
+    { key: 'label_sent', label: 'Étiquette envoyée' },
+    { key: 'client_piece_in_transit', label: 'Pièce client en transit' },
+    { key: 'client_piece_received', label: 'Pièce client reçue' },
+    { key: 'cloning_in_progress', label: 'Clonage en cours' },
+    { key: 'cloning_done', label: 'Clonage terminé' },
+    { key: 'cloning_failed', label: 'Clonage échoué' },
+  ];
+}
+
+function getReturnStatusOptions() {
+  return [
+    { key: 'not_applicable', label: 'Non applicable' },
+    { key: 'pending', label: 'Retour attendu (J+30)' },
+    { key: 'label_sent', label: 'Étiquette retour envoyée' },
+    { key: 'in_transit', label: 'En transit retour' },
+    { key: 'received', label: 'Ancien organe reçu' },
+    { key: 'inspected_ok', label: 'Inspecté, conforme' },
+    { key: 'inspected_nok', label: 'Inspecté, non conforme' },
+    { key: 'overdue', label: 'Délai dépassé' },
   ];
 }
 
@@ -1800,7 +1881,7 @@ async function getAdminDashboard(req, res, next) {
     startMonth.setDate(1);
     startMonth.setHours(0, 0, 0, 0);
 
-    const excludeCancelled = { status: { $nin: ['annulee', 'draft'] } };
+    const excludeCancelled = { status: { $nin: ['cancelled', 'draft', 'refunded'] } };
 
     /* ── KPIs financiers (owner uniquement) ── */
     let revenueTodayCents = 0;
@@ -1918,7 +1999,7 @@ async function getAdminDashboard(req, res, next) {
     }
 
     /* ── KPIs opérationnels (tous les admins) ── */
-    const pendingOrdersCount = await Order.countDocuments({ status: 'en_attente' });
+    const pendingOrdersCount = await Order.countDocuments({ status: 'pending_payment' });
     const stockAlertsCount = await Product.countDocuments({ stockQty: { $ne: null, $lte: 2 } });
 
     const latestOrders = await Order.find({})
@@ -2024,8 +2105,8 @@ async function getAdminOrdersPage(req, res, next) {
     } else if (status && allowedStatus.has(status)) {
       query.status = status;
     } else {
-      /* By default, exclude drafts */
-      query.status = { $ne: 'draft' };
+      /* By default, exclude drafts and refunded */
+      query.status = { $nin: ['draft'] };
     }
 
     if (type === 'pro' || type === 'particulier') {
@@ -2457,12 +2538,24 @@ async function getAdminOrderDetailPage(req, res, next) {
       errorMessage,
       successMessage,
       statusOptions: orderDoc.status === 'draft' ? getOrderStatusOptionsWithDraft() : getOrderStatusOptions(),
+      cloningStatusOptions: getCloningStatusOptions(),
+      returnStatusOptions: getReturnStatusOptions(),
       order: {
         id: String(orderDoc._id),
         number: orderDoc.number,
         dateTime: formatDateTimeFR(orderDoc.createdAt),
         statusKey: orderDoc.status,
         statusBadge: getOrderStatusBadge(orderDoc.status),
+        orderType: orderDoc.orderType || 'standard',
+        orderTypeLabel: getOrderTypeLabel(orderDoc.orderType),
+        cloningStatus: orderDoc.cloningStatus || null,
+        cloningStatusBadge: getCloningStatusBadge(orderDoc.cloningStatus),
+        returnStatus: orderDoc.returnStatus || 'not_applicable',
+        returnStatusBadge: getReturnStatusBadgeForOrder(orderDoc.returnStatus),
+        cloningDates: orderDoc.cloningDates || {},
+        cloningTracking: orderDoc.cloningTracking || {},
+        cloningFailureNote: orderDoc.cloningFailureNote || '',
+        returnDates: orderDoc.returnDates || {},
         statusHistory,
         customer,
         customerEmail: user && user.email ? user.email : '',
@@ -2570,7 +2663,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
         : 'admin';
 
       const setPatch = { status };
-      if (status === 'livree') {
+      if (status === 'delivered') {
         const lines = existing && existing.consigne && Array.isArray(existing.consigne.lines)
           ? existing.consigne.lines
           : [];
@@ -2612,7 +2705,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
       });
 
       /* When transitioning FROM draft to any active status, decrement stock */
-      if (existing.status === 'draft' && status !== 'draft' && status !== 'annulee') {
+      if (existing.status === 'draft' && status !== 'draft' && status !== 'cancelled') {
         const items = Array.isArray(existing.items) ? existing.items : [];
         for (const item of items) {
           if (item && item.productId) {
@@ -2624,7 +2717,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
         }
       }
 
-      if (status === 'livree') {
+      if (status === 'delivered') {
         try {
           const refreshed = await Order.findById(orderId)
             .select('_id number userId consigne notifications')
@@ -2691,8 +2784,8 @@ async function postAdminUpdateOrderStatus(req, res, next) {
         } catch (err) {
           console.error('Erreur email consigne/livraison (admin) :', err && err.message ? err.message : err);
         }
-      } else if (status === 'validee') {
-        // Send status change notification for validated orders
+      } else if (status === 'paid' || status === 'processing') {
+        // Send status change notification for paid/processing orders
         try {
           const user = existing && existing.userId
             ? await User.findById(existing.userId).select('_id email firstName').lean()
@@ -2705,7 +2798,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
               newStatus: status,
               message: 'Votre commande a été validée et va être préparée dans les meilleurs délais.',
             });
-            emailService.logEmailSent({ orderId: existing._id, emailType: 'status_change_validee', recipientEmail: user.email, result: sent });
+            emailService.logEmailSent({ orderId: existing._id, emailType: 'status_change', recipientEmail: user.email, result: sent });
             if (sent && sent.ok) {
               await Order.updateOne(
                 { _id: existing._id },
@@ -6624,7 +6717,7 @@ async function getAdminClientDetailPage(req, res, next) {
 
     const filteredOrderQuery = { ...baseOrderQuery };
 
-    if (['en_attente', 'validee', 'expediee', 'livree', 'annulee'].includes(orderStatus)) {
+    if (['pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded'].includes(orderStatus)) {
       filteredOrderQuery.status = orderStatus;
     }
 
@@ -6731,7 +6824,7 @@ async function getAdminClientDetailPage(req, res, next) {
 
     const orderFilters = {
       q: orderQ,
-      status: ['en_attente', 'validee', 'expediee', 'livree', 'annulee'].includes(orderStatus) ? orderStatus : '',
+      status: ['pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded'].includes(orderStatus) ? orderStatus : '',
       period: ['7d', '30d', '90d', '365d'].includes(orderPeriod) ? orderPeriod : '',
     };
 
@@ -7993,9 +8086,9 @@ async function postAdminCreateManualOrder(req, res) {
     const channel = channelEnum.includes(source.channel) ? source.channel : 'manual';
 
     /* ── Status ── */
-    const statusEnum = ['draft', 'en_attente', 'validee'];
-    const initialStatus = statusEnum.includes(body.initialStatus) ? body.initialStatus : 'en_attente';
-    const paymentStatus = initialStatus === 'validee' ? 'paid' : 'pending';
+    const statusEnum = ['draft', 'pending_payment', 'paid', 'processing'];
+    const initialStatus = statusEnum.includes(body.initialStatus) ? body.initialStatus : 'pending_payment';
+    const paymentStatus = (initialStatus === 'paid' || initialStatus === 'processing') ? 'paid' : 'pending';
 
     /* ── Create order ── */
     const nextNumber = await getNextOrderNumber({ date: new Date() });
@@ -8078,9 +8171,9 @@ async function postAdminValidateDraftOrder(req, res) {
       return res.status(400).json({ ok: false, error: 'ID commande invalide.' });
     }
 
-    const targetStatus = typeof req.body.status === 'string' ? req.body.status.trim() : 'en_attente';
-    const allowedTargets = new Set(['en_attente', 'validee']);
-    const newStatus = allowedTargets.has(targetStatus) ? targetStatus : 'en_attente';
+    const targetStatus = typeof req.body.status === 'string' ? req.body.status.trim() : 'pending_payment';
+    const allowedTargets = new Set(['pending_payment', 'paid', 'processing']);
+    const newStatus = allowedTargets.has(targetStatus) ? targetStatus : 'pending_payment';
     const sendEmail = !!req.body.sendEmail;
 
     const orderDoc = await Order.findById(orderId);
@@ -8096,7 +8189,7 @@ async function postAdminValidateDraftOrder(req, res) {
       : 'admin';
 
     orderDoc.status = newStatus;
-    orderDoc.paymentStatus = newStatus === 'validee' ? 'paid' : 'pending';
+    orderDoc.paymentStatus = (newStatus === 'paid' || newStatus === 'processing') ? 'paid' : 'pending';
     orderDoc.statusHistory.push({
       status: newStatus,
       changedAt: new Date(),

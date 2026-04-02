@@ -117,7 +117,7 @@ router.use(async (req, res, next) => {
   if (req.session && req.session.admin) {
     try {
       const [pendingOrders, pendingReturns] = await Promise.all([
-        Order.countDocuments({ status: 'en_attente' }),
+        Order.countDocuments({ status: 'pending_payment' }),
         ReturnRequest.countDocuments({ status: 'en_attente' }),
       ]);
       res.locals.sidebarPendingCount = pendingOrders;

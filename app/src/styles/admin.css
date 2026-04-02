@@ -312,9 +312,11 @@ aside nav a {
 }
 .status-draft { background: #F1F5F9; color: #475569; }
 .status-en-attente { background: #FFFBEB; color: #B45309; }
+.status-paid { background: #ECFDF5; color: #059669; }
 .status-en-preparation { background: #EFF6FF; color: #2563EB; }
 .status-expediee { background: #F0FDF4; color: #15803D; }
 .status-livree { background: #ECFDF5; color: #059669; }
+.status-completed { background: #F0FDF4; color: #166534; }
 .status-annulee { background: #FEF2F2; color: #DC2626; }
 .status-remboursee { background: #F5F3FF; color: #7C3AED; }
 

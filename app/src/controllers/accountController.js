@@ -790,7 +790,8 @@ function formatTimelineTimeLabel(value) {
 
 function getTrackingUiForStatus(status) {
   switch (status) {
-    case 'livree':
+    case 'delivered':
+    case 'completed':
       return {
         statusLabel: 'Livrée',
         statusBadgeClass: 'bg-green-50 text-green-700',
@@ -799,7 +800,7 @@ function getTrackingUiForStatus(status) {
         activeStepIndex: 3,
         progressWidthClass: 'w-[100%]',
       };
-    case 'expediee':
+    case 'shipped':
       return {
         statusLabel: "En cours d'acheminement",
         statusBadgeClass: 'bg-blue-50 text-blue-600',
@@ -808,7 +809,8 @@ function getTrackingUiForStatus(status) {
         activeStepIndex: 2,
         progressWidthClass: 'w-[66.66%]',
       };
-    case 'validee':
+    case 'paid':
+    case 'processing':
       return {
         statusLabel: 'En préparation',
         statusBadgeClass: 'bg-amber-50 text-amber-800',
@@ -817,7 +819,7 @@ function getTrackingUiForStatus(status) {
         activeStepIndex: 1,
         progressWidthClass: 'w-[33.33%]',
       };
-    case 'annulee':
+    case 'cancelled':
       return {
         statusLabel: 'Annulée',
         statusBadgeClass: 'bg-red-50 text-red-700',
@@ -826,7 +828,16 @@ function getTrackingUiForStatus(status) {
         activeStepIndex: 0,
         progressWidthClass: 'w-[0%]',
       };
-    case 'en_attente':
+    case 'refunded':
+      return {
+        statusLabel: 'Remboursée',
+        statusBadgeClass: 'bg-slate-100 text-slate-700',
+        statusDotClass: 'bg-slate-600',
+        statusDotPulse: false,
+        activeStepIndex: 0,
+        progressWidthClass: 'w-[0%]',
+      };
+    case 'pending_payment':
     default:
       return {
         statusLabel: 'En attente',
@@ -841,17 +852,23 @@ function getTrackingUiForStatus(status) {
 
 function getTimelineTitleForStatus(status) {
   switch (status) {
-    case 'livree':
+    case 'delivered':
       return 'Commande livrée';
-    case 'expediee':
+    case 'completed':
+      return 'Commande terminée';
+    case 'shipped':
       return 'Commande expédiée';
-    case 'validee':
+    case 'paid':
+      return 'Paiement accepté';
+    case 'processing':
       return 'Commande en préparation';
-    case 'annulee':
+    case 'cancelled':
       return 'Commande annulée';
-    case 'en_attente':
+    case 'refunded':
+      return 'Commande remboursée';
+    case 'pending_payment':
     default:
-      return 'Paiement accepté & Commande validée';
+      return 'Commande créée';
   }
 }
 
@@ -865,7 +882,7 @@ function addDays(date, days) {
 function getTrackingUiForParcelStatusCode(statusCode, fallbackOrderStatus) {
   const code = Number.isFinite(statusCode) ? statusCode : null;
 
-  if (code === 0) return getTrackingUiForStatus('livree');
+  if (code === 0) return getTrackingUiForStatus('delivered');
 
   if (code === 4) {
     return {
@@ -879,11 +896,11 @@ function getTrackingUiForParcelStatusCode(statusCode, fallbackOrderStatus) {
   }
 
   if (code === 2 || code === 3) {
-    return getTrackingUiForStatus('expediee');
+    return getTrackingUiForStatus('shipped');
   }
 
   if (code === 8) {
-    return getTrackingUiForStatus('validee');
+    return getTrackingUiForStatus('processing');
   }
 
   if (code === 6 || code === 7) {
@@ -1193,11 +1210,11 @@ async function getOrderTrackingPage(req, res, next) {
         const end = new Date(parcelExpectedEndMs).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         estimatedTimeLabel = `${start} - ${end}`;
       }
-    } else if (order.status === 'annulee') {
+    } else if (order.status === 'cancelled' || order.status === 'refunded') {
       estimatedDateLabel = '—';
-    } else if (order.status === 'livree') {
+    } else if (order.status === 'delivered' || order.status === 'completed') {
       const delivered = Array.isArray(order.statusHistory)
-        ? order.statusHistory.find((h) => h && h.status === 'livree' && h.changedAt)
+        ? order.statusHistory.find((h) => h && (h.status === 'delivered' || h.status === 'completed') && h.changedAt)
         : null;
       estimatedDateLabel = delivered ? formatPrettyDateFR(delivered.changedAt) : 'Livrée';
     } else {
@@ -1431,15 +1448,21 @@ function formatOrderListDate(value) {
 
 function getStatusBadge(status) {
   switch (status) {
-    case 'expediee':
+    case 'shipped':
       return { label: 'Expédiée', className: 'bg-blue-50 text-blue-700' };
-    case 'livree':
+    case 'delivered':
       return { label: 'Livrée', className: 'bg-green-50 text-green-700' };
-    case 'annulee':
+    case 'completed':
+      return { label: 'Terminée', className: 'bg-green-50 text-green-700' };
+    case 'cancelled':
       return { label: 'Annulée', className: 'bg-red-50 text-red-700' };
-    case 'validee':
+    case 'refunded':
+      return { label: 'Remboursée', className: 'bg-slate-100 text-slate-700' };
+    case 'paid':
+      return { label: 'Payée', className: 'bg-emerald-50 text-emerald-700' };
+    case 'processing':
       return { label: 'En préparation', className: 'bg-amber-50 text-amber-800' };
-    case 'en_attente':
+    case 'pending_payment':
     default:
       return { label: 'En attente', className: 'bg-amber-50 text-amber-800' };
   }
@@ -1476,30 +1499,41 @@ function formatShippingMethod(value) {
 
 function getOrderStatusBanner(status) {
   switch (status) {
-    case 'expediee':
+    case 'shipped':
       return {
         title: "Votre commande est en cours d'expédition",
         subtitle: "Livraison prévue estimée sous 2-3 jours ouvrés.",
       };
-    case 'validee':
+    case 'paid':
+    case 'processing':
       return {
         title: 'Votre commande est validée',
         subtitle: 'Nous préparons votre colis.',
       };
-    case 'livree':
+    case 'delivered':
       return {
         title: 'Votre commande a été livrée',
         subtitle: 'Merci pour votre commande.',
       };
-    case 'annulee':
+    case 'completed':
+      return {
+        title: 'Commande terminée',
+        subtitle: 'Tout est en ordre. Merci pour votre confiance.',
+      };
+    case 'cancelled':
       return {
         title: 'Votre commande a été annulée',
-        subtitle: 'Si besoin, contacte le support.',
+        subtitle: 'Si besoin, contactez le support.',
       };
-    case 'en_attente':
+    case 'refunded':
+      return {
+        title: 'Votre commande a été remboursée',
+        subtitle: 'Le remboursement a été effectué.',
+      };
+    case 'pending_payment':
     default:
       return {
-        title: 'Votre commande est en cours de préparation',
+        title: 'Votre commande est en attente de paiement',
         subtitle: 'Nous confirmons et préparons les articles.',
       };
   }
@@ -1507,16 +1541,22 @@ function getOrderStatusBanner(status) {
 
 function formatOrderStatus(status) {
   switch (status) {
-    case 'en_attente':
-      return "En attente";
-    case 'validee':
-      return 'Validée';
-    case 'expediee':
+    case 'pending_payment':
+      return 'En attente';
+    case 'paid':
+      return 'Payée';
+    case 'processing':
+      return 'En préparation';
+    case 'shipped':
       return 'Expédiée';
-    case 'livree':
+    case 'delivered':
       return 'Livrée';
-    case 'annulee':
+    case 'completed':
+      return 'Terminée';
+    case 'cancelled':
       return 'Annulée';
+    case 'refunded':
+      return 'Remboursée';
     default:
       return '—';
   }
@@ -1556,7 +1596,7 @@ async function getAccount(req, res, next) {
 
       req.session.accountType = user.accountType;
 
-      const inProgressStatuses = ['en_attente', 'validee', 'expediee'];
+      const inProgressStatuses = ['pending_payment', 'paid', 'processing', 'shipped'];
       inProgressOrderCount = await Order.countDocuments({
         userId: user._id,
         status: { $in: inProgressStatuses },

@@ -19,7 +19,7 @@ const EMAIL_TYPES = {
   order_confirmation: { label: 'Confirmation de commande', icon: 'receipt_long' },
   shipment_tracking: { label: "Suivi d'expédition", icon: 'local_shipping' },
   delivery_confirmed: { label: 'Livraison confirmée', icon: 'done_all' },
-  status_change_validee: { label: 'Statut : Validée', icon: 'check_circle' },
+  status_change: { label: 'Changement de statut', icon: 'check_circle' },
   consigne_start: { label: 'Consigne : retour pièce', icon: 'assignment_return' },
   consigne_received: { label: 'Consigne reçue', icon: 'inventory' },
 };
@@ -46,12 +46,12 @@ async function buildPreviewForType({ order, user, emailType, baseUrl }) {
     case 'delivery_confirmed':
       return buildDeliveryConfirmedEmail({ order, user, baseUrl });
 
-    case 'status_change_validee':
+    case 'status_change':
       return buildOrderStatusChangeEmail({
         order,
         user,
-        newStatus: 'validee',
-        message: 'Votre commande a été validée et va être préparée dans les meilleurs délais.',
+        newStatus: order.status || 'paid',
+        message: 'Le statut de votre commande a été mis à jour.',
         baseUrl,
       });
 
@@ -168,12 +168,12 @@ async function postResendEmail(req, res, next) {
         result = await emailService.sendDeliveryConfirmedEmail({ order, user });
         break;
 
-      case 'status_change_validee':
+      case 'status_change':
         result = await emailService.sendOrderStatusChangeEmail({
           order,
           user,
-          newStatus: 'validee',
-          message: 'Votre commande a été validée et va être préparée dans les meilleurs délais.',
+          newStatus: order.status || 'paid',
+          message: 'Le statut de votre commande a été mis à jour.',
         });
         break;
 

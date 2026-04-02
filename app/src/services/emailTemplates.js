@@ -1007,24 +1007,29 @@ ${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
 
 function getOrderStatusLabelFR(status) {
   const labels = {
-    en_attente: 'En attente de validation',
-    validee: 'Valid\u00e9e',
-    en_preparation: 'En pr\u00e9paration',
-    expediee: 'Exp\u00e9di\u00e9e',
-    livree: 'Livr\u00e9e',
-    annulee: 'Annul\u00e9e',
+    pending_payment: 'En attente de paiement',
+    paid: 'Pay\u00e9e',
+    processing: 'En pr\u00e9paration',
+    shipped: 'Exp\u00e9di\u00e9e',
+    delivered: 'Livr\u00e9e',
+    completed: 'Termin\u00e9e',
+    cancelled: 'Annul\u00e9e',
+    refunded: 'Rembours\u00e9e',
+    draft: 'Brouillon',
   };
   return labels[status] || String(status || '').replace(/_/g, ' ');
 }
 
 function getStatusIcon(status) {
   const icons = {
-    en_attente: { icon: 'hourglass_top', color: '#d97706', bg: '#fffbeb', border: '#fef3c7' },
-    validee: { icon: 'check_circle', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
-    en_preparation: { icon: 'inventory_2', color: '#2563eb', bg: '#eff6ff', border: '#dbeafe' },
-    expediee: { icon: 'local_shipping', color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe' },
-    livree: { icon: 'done_all', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
-    annulee: { icon: 'cancel', color: '#dc2626', bg: '#fff1f2', border: '#fee2e2' },
+    pending_payment: { icon: 'hourglass_top', color: '#d97706', bg: '#fffbeb', border: '#fef3c7' },
+    paid: { icon: 'check_circle', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
+    processing: { icon: 'inventory_2', color: '#2563eb', bg: '#eff6ff', border: '#dbeafe' },
+    shipped: { icon: 'local_shipping', color: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe' },
+    delivered: { icon: 'done_all', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
+    completed: { icon: 'verified', color: '#059669', bg: '#f0fdf4', border: '#dcfce7' },
+    cancelled: { icon: 'cancel', color: '#dc2626', bg: '#fff1f2', border: '#fee2e2' },
+    refunded: { icon: 'currency_exchange', color: '#64748b', bg: '#f8fafc', border: '#e5e7eb' },
   };
   return icons[status] || { icon: 'info', color: '#64748b', bg: '#f8fafc', border: '#e5e7eb' };
 }

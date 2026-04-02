@@ -490,8 +490,9 @@
             <label class="block text-xs font-bold text-slate-600 mb-1">Statut initial de la commande</label>
             <select id="initial-status" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
               <option value="draft">Brouillon (non comptabilis&eacute;e)</option>
-              <option value="en_attente" selected>En attente (de paiement)</option>
-              <option value="validee">Pay&eacute;e / En pr&eacute;paration</option>
+              <option value="pending_payment" selected>En attente paiement</option>
+              <option value="paid">Pay&eacute;e</option>
+              <option value="processing">En pr&eacute;paration</option>
             </select>
           </div>
           <div class="space-y-3 pt-5">
