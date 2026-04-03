@@ -485,12 +485,13 @@ async function applyMolliePaymentToOrder(order, payment) {
     update.molliePaidAt = new Date();
 
     if (order.status !== 'paid' && order.status !== 'processing' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'completed') {
-      update.status = 'paid';
+      update.status = 'processing';
       update.$push = {
         statusHistory: {
-          status: 'paid',
-          changedAt: new Date(),
-          changedBy: 'mollie',
+          $each: [
+            { status: 'paid', changedAt: new Date(), changedBy: 'mollie' },
+            { status: 'processing', changedAt: new Date(), changedBy: 'system', note: 'Passage automatique en préparation après paiement' },
+          ],
         },
       };
     }
@@ -582,12 +583,13 @@ async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatu
     if (captured) update.scalapayCapturedAt = new Date();
 
     if (order.status !== 'paid' && order.status !== 'processing' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'completed') {
-      update.status = 'paid';
+      update.status = 'processing';
       update.$push = {
         statusHistory: {
-          status: 'paid',
-          changedAt: new Date(),
-          changedBy: 'scalapay',
+          $each: [
+            { status: 'paid', changedAt: new Date(), changedBy: 'scalapay' },
+            { status: 'processing', changedAt: new Date(), changedBy: 'system', note: 'Passage automatique en préparation après paiement' },
+          ],
         },
       };
     }
@@ -1628,6 +1630,14 @@ async function postPayment(req, res, next) {
 
       if (!mongoose.Types.ObjectId.isValid(String(product._id))) continue;
 
+      // Determine per-item type: clonage > exchange (consigne) > standard
+      let detectedItemType = 'standard';
+      if (productOptions.itemHasCloning(product.options, item.optionsSelection)) {
+        detectedItemType = 'exchange_cloning';
+      } else if (product.consigne && product.consigne.enabled && Number.isFinite(product.consigne.amountCents) && product.consigne.amountCents > 0) {
+        detectedItemType = 'exchange';
+      }
+
       orderItems.push({
         productId: new mongoose.Types.ObjectId(String(product._id)),
         name: product.name,
@@ -1637,6 +1647,7 @@ async function postPayment(req, res, next) {
         unitPriceCents,
         quantity: item.quantity,
         lineTotalCents,
+        itemType: detectedItemType,
       });
 
       cloningCheckItems.push({ product, optionsSelection: item.optionsSelection });

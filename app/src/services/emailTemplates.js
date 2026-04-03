@@ -292,6 +292,20 @@ ${attachmentsInfo}
   </tr>
 </table>
 
+${order && order.orderType === 'exchange_cloning' ? `
+<div style="margin-top:18px;padding:16px;border:2px solid #ddd6fe;background:#f5f3ff;border-radius:14px;">
+  <div style="font-weight:900;color:#4c1d95;font-size:14px;margin-bottom:10px;">🔬 Service clonage 1:1 inclus</div>
+  <div style="font-size:13px;line-height:1.8;color:#334155;">
+    Votre commande inclut le <strong>clonage des données</strong> de votre ancienne mécatronique. Voici comment ça se passe :
+  </div>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:10px;font-size:13px;line-height:1.8;color:#334155;">
+    <tr><td style="padding:4px 8px 4px 0;font-weight:bold;vertical-align:top;color:#7c3aed;">①</td><td>Vous recevrez une <strong>étiquette UPS</strong> pour nous envoyer votre ancienne pièce</td></tr>
+    <tr><td style="padding:4px 8px 4px 0;font-weight:bold;vertical-align:top;color:#7c3aed;">②</td><td>Nos techniciens <strong>clonent les données</strong> sur votre nouvelle pièce (2-5 jours)</td></tr>
+    <tr><td style="padding:4px 8px 4px 0;font-weight:bold;vertical-align:top;color:#7c3aed;">③</td><td>Votre <strong>pièce programmée est expédiée</strong> chez vous</td></tr>
+  </table>
+  <div style="margin-top:10px;font-size:12px;color:#64748b;">Vous serez notifié par email à chaque étape.</div>
+</div>` : ''}
+
 ${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
 
 ${cgvUrl ? `<div style="margin-top:14px;font-size:12px;line-height:1.6;color:#64748b;">CGV : <a href="${escapeHtml(cgvUrl)}" style="color:#ec1313;text-decoration:none;font-weight:800;">${escapeHtml(cgvUrl)}</a></div>` : ''}
@@ -1084,6 +1098,158 @@ ${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
   };
 }
 
+function buildCloningPieceReceivedEmail({ order, user, baseUrl } = {}) {
+  const number = order && order.number ? String(order.number) : '';
+  const orderId = order && order._id ? String(order._id) : '';
+  const orderUrl = baseUrl && orderId ? `${baseUrl.replace(/\/$/, '')}/compte/commandes/${encodeURIComponent(orderId)}` : '';
+
+  const subject = number
+    ? `Pièce reçue, le clonage va commencer — commande #${number}`
+    : 'Nous avons bien reçu votre pièce';
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">Votre pièce est bien arrivée !</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Nous confirmons la réception de votre ancienne pièce pour la commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''}.
+</div>
+
+<div style="margin-top:16px;padding:16px;border:1px solid #ddd6fe;background:#f5f3ff;border-radius:14px;">
+  <div style="font-weight:900;color:#4c1d95;font-size:14px;margin-bottom:8px;">🔬 Prochaine étape : clonage</div>
+  <div style="font-size:13px;line-height:1.6;color:#334155;">
+    Nos techniciens vont maintenant procéder à la <strong>lecture des données</strong> de votre ancienne mécatronique et les <strong>programmer sur votre nouvelle pièce</strong>.<br/>
+    Délai estimé : <strong>2 à 5 jours ouvrés</strong>.
+  </div>
+</div>
+
+<div style="margin-top:16px;padding:12px 14px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;color:#14532d;font-size:13px;line-height:1.6;">
+  Vous recevrez un email dès que le clonage sera terminé et que votre pièce sera prête à être expédiée.
+</div>
+
+${renderPrimaryButton({ href: orderUrl, label: 'Suivre le parcours de ma commande' })}`;
+
+  return {
+    subject,
+    html: renderEmailLayout({ title: subject, preheader: 'Votre pièce est arrivée, le clonage va commencer', bodyHtml, baseUrl }),
+    text: `Nous confirmons la réception de votre pièce pour la commande${number ? ` #${number}` : ''}. Le clonage va commencer sous 2 à 5 jours ouvrés.`,
+  };
+}
+
+function buildCloningDoneEmail({ order, user, baseUrl } = {}) {
+  const number = order && order.number ? String(order.number) : '';
+  const orderId = order && order._id ? String(order._id) : '';
+  const orderUrl = baseUrl && orderId ? `${baseUrl.replace(/\/$/, '')}/compte/commandes/${encodeURIComponent(orderId)}` : '';
+
+  const subject = number
+    ? `Clonage terminé, expédition imminente — commande #${number}`
+    : 'Clonage terminé, votre pièce va être expédiée';
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">✅ Clonage terminé avec succès !</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  La programmation de votre nouvelle mécatronique pour la commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''} est terminée.
+</div>
+
+<div style="margin-top:16px;padding:16px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;">
+  <div style="font-weight:900;color:#14532d;font-size:14px;margin-bottom:8px;">📦 Prochaine étape : expédition</div>
+  <div style="font-size:13px;line-height:1.6;color:#334155;">
+    Votre pièce clonée sera <strong>expédiée sous 24 à 48h</strong>. Vous recevrez un email avec le numéro de suivi dès l'envoi.
+  </div>
+</div>
+
+${renderPrimaryButton({ href: orderUrl, label: 'Suivre ma commande' })}`;
+
+  return {
+    subject,
+    html: renderEmailLayout({ title: subject, preheader: 'Clonage terminé, expédition sous 24-48h', bodyHtml, baseUrl }),
+    text: `Le clonage de votre pièce pour la commande${number ? ` #${number}` : ''} est terminé. Expédition sous 24-48h.`,
+  };
+}
+
+function buildCloningFailedEmail({ order, user, baseUrl } = {}) {
+  const number = order && order.number ? String(order.number) : '';
+  const orderId = order && order._id ? String(order._id) : '';
+  const orderUrl = baseUrl && orderId ? `${baseUrl.replace(/\/$/, '')}/compte/commandes/${encodeURIComponent(orderId)}` : '';
+
+  const subject = number
+    ? `Information importante concernant votre commande #${number}`
+    : 'Information importante concernant votre commande';
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">Un problème a été détecté</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Nos techniciens ont rencontré une difficulté lors du clonage de votre pièce pour la commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''}.
+</div>
+
+<div style="margin-top:16px;padding:16px;border:2px solid #fca5a5;background:#fef2f2;border-radius:14px;">
+  <div style="font-weight:900;color:#991b1b;font-size:14px;margin-bottom:8px;">⚠️ Que se passe-t-il ?</div>
+  <div style="font-size:13px;line-height:1.6;color:#334155;">
+    La lecture ou le transfert des données de votre ancienne pièce n'a pas pu aboutir. Cela peut arriver si la pièce est endommagée, si les données sont corrompues ou si le composant est incompatible.
+  </div>
+</div>
+
+<div style="margin-top:16px;padding:12px 14px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;color:#334155;font-size:13px;line-height:1.6;">
+  <strong>Notre équipe technique va vous contacter</strong> dans les plus brefs délais pour discuter des solutions disponibles (programmation alternative, remplacement, remboursement).
+</div>
+
+${renderPrimaryButton({ href: orderUrl, label: 'Voir ma commande' })}
+
+<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
+  Si vous souhaitez nous contacter directement : <a href="mailto:contact@carpartsfrance.fr" style="color:#dc2626;font-weight:bold;">contact@carpartsfrance.fr</a>
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({ title: subject, preheader: 'Un problème a été détecté lors du clonage', bodyHtml, baseUrl }),
+    text: `Un problème a été détecté lors du clonage de votre pièce pour la commande${number ? ` #${number}` : ''}. Notre équipe vous contactera rapidement.`,
+  };
+}
+
+function buildCloningLabelEmail({ order, user, baseUrl } = {}) {
+  const number = order && order.number ? String(order.number) : '';
+  const orderId = order && order._id ? String(order._id) : '';
+  const orderUrl = baseUrl && orderId ? `${baseUrl.replace(/\/$/, '')}/compte/commandes/${encodeURIComponent(orderId)}` : '';
+
+  const subject = number
+    ? `Étiquette de récupération prête — commande #${number}`
+    : 'Votre étiquette de récupération est prête';
+
+  const bodyHtml = `
+<div style="font-size:16px;font-weight:900;">Votre étiquette de récupération est prête</div>
+<div style="margin-top:10px;font-size:14px;line-height:1.6;color:#334155;">
+  Pour votre commande${number ? ` <strong>#${escapeHtml(number)}</strong>` : ''} avec service de clonage 1:1, nous avons besoin de votre ancienne pièce pour lire et transférer les données sur votre nouvelle mécatronique.
+</div>
+
+<div style="margin-top:16px;padding:16px;border:2px solid #fb923c;background:#fff7ed;border-radius:14px;">
+  <div style="font-weight:900;color:#9a3412;font-size:14px;margin-bottom:10px;">📦 Comment procéder :</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.8;color:#334155;">
+    <tr><td style="padding:4px 8px 4px 0;font-weight:bold;vertical-align:top;">1.</td><td><strong>Imprimez l'étiquette UPS</strong> en pièce jointe de cet email</td></tr>
+    <tr><td style="padding:4px 8px 4px 0;font-weight:bold;vertical-align:top;">2.</td><td><strong>Emballez soigneusement</strong> votre pièce dans un sachet antistatique, entourée de mousse ou papier bulle, dans un carton rigide</td></tr>
+    <tr><td style="padding:4px 8px 4px 0;font-weight:bold;vertical-align:top;">3.</td><td><strong>Collez l'étiquette UPS</strong> sur le carton et déposez-le dans un <a href="https://www.ups.com/dropoff?loc=fr_FR" style="color:#dc2626;font-weight:bold;">Point Relais UPS</a></td></tr>
+  </table>
+</div>
+
+<div style="margin-top:16px;padding:12px 14px;border:1px solid #ddd6fe;background:#f5f3ff;border-radius:14px;color:#4c1d95;font-size:13px;line-height:1.6;">
+  <strong>Délai estimé :</strong> une fois votre pièce reçue, le clonage prend en moyenne 2 à 5 jours ouvrés. Vous serez notifié à chaque étape.
+</div>
+
+${renderPrimaryButton({ href: orderUrl, label: 'Suivre le parcours de ma commande' })}
+
+<div style="margin-top:16px;font-size:12px;line-height:1.6;color:#64748b;">
+  L'étiquette UPS est également téléchargeable depuis votre espace client, sur la page de votre commande.
+</div>`;
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      title: subject,
+      preheader: 'Imprimez l\'étiquette et envoyez-nous votre ancienne pièce',
+      bodyHtml,
+      baseUrl,
+    }),
+    text: `Votre étiquette de récupération est prête pour la commande${number ? ` #${number}` : ''}. Imprimez l'étiquette UPS en pièce jointe, emballez soigneusement votre pièce et déposez le colis dans un Point Relais UPS.`,
+  };
+}
+
 module.exports = {
   buildOrderConfirmationEmail,
   buildConsigneStartEmail,
@@ -1100,4 +1266,8 @@ module.exports = {
   buildAbandonedCartReminder3,
   buildDeliveryConfirmedEmail,
   buildOrderStatusChangeEmail,
+  buildCloningLabelEmail,
+  buildCloningPieceReceivedEmail,
+  buildCloningDoneEmail,
+  buildCloningFailedEmail,
 };

@@ -37,11 +37,22 @@
                 </div>
               </div>
 
-              <div class="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-100 flex flex-col md:text-right">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Livraison estimée</span>
-                <span class="text-xl md:text-2xl font-display font-bold text-primary"><%= tracking.estimatedDateLabel || '—' %></span>
-                <span class="text-xs text-slate-400 font-medium"><%= tracking.estimatedTimeLabel || '' %></span>
-              </div>
+              <% if (order.orderType === 'exchange_cloning' && !['shipped', 'delivered', 'completed'].includes(order.statusKey)) { %>
+                <div class="bg-violet-50 p-4 md:p-6 rounded-2xl border border-violet-100 flex flex-col md:text-right">
+                  <span class="text-xs font-bold text-violet-500 uppercase tracking-widest mb-1">Parcours clonage</span>
+                  <%
+                    var _cStepLabels = { pending_label: 'Préparation étiquette', label_sent: 'En attente de votre envoi', client_piece_in_transit: 'Pièce en transit', client_piece_received: 'Reçue, clonage imminent', cloning_in_progress: 'Clonage en cours', cloning_done: 'Prête à expédier', cloning_failed: 'Problème détecté' };
+                  %>
+                  <span class="text-lg md:text-xl font-display font-bold text-violet-700"><%= _cStepLabels[order.cloningStatus] || 'En cours' %></span>
+                  <span class="text-xs text-slate-400 font-medium">Délai total estimé : 7-14 jours</span>
+                </div>
+              <% } else { %>
+                <div class="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-100 flex flex-col md:text-right">
+                  <span class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Livraison estimée</span>
+                  <span class="text-xl md:text-2xl font-display font-bold text-primary"><%= tracking.estimatedDateLabel || '—' %></span>
+                  <span class="text-xs text-slate-400 font-medium"><%= tracking.estimatedTimeLabel || '' %></span>
+                </div>
+              <% } %>
             </div>
 
             <% if (tracking.parcelErrorMessage) { %>
@@ -55,12 +66,13 @@
               <div class="tracker-line"></div>
               <div class="tracker-progress <%= tracking.progressWidthClass %>"></div>
               <div class="flex justify-between">
+                <% var _isMultiStep = tracking.steps.length > 5; %>
                 <% tracking.steps.forEach((s) => { %>
-                  <div class="step-node <%= s.state %>">
-                    <div class="step-circle">
-                      <span class="material-symbols-outlined text-lg md:text-xl"><%= s.icon %></span>
+                  <div class="step-node <%= s.state %> <%= s.state === 'error' ? 'step-error' : '' %>">
+                    <div class="step-circle <%= s.state === 'error' ? '!bg-red-500 !border-red-500' : '' %>">
+                      <span class="material-symbols-outlined <%= _isMultiStep ? 'text-base md:text-lg' : 'text-lg md:text-xl' %>"><%= s.state === 'error' ? 'warning' : s.icon %></span>
                     </div>
-                    <span class="mt-2 md:mt-3 text-[10px] md:text-xs font-bold uppercase tracking-wider text-center <%= s.state === 'active' ? 'text-primary' : (s.state === 'completed' ? 'text-slate-900' : 'text-slate-400') %>"><%= s.label %></span>
+                    <span class="mt-2 md:mt-3 <%= _isMultiStep ? 'text-[8px] md:text-[10px]' : 'text-[10px] md:text-xs' %> font-bold uppercase tracking-wider text-center <%= s.state === 'active' ? 'text-primary' : (s.state === 'completed' ? 'text-slate-900' : (s.state === 'error' ? 'text-red-600' : 'text-slate-400')) %>"><%= s.label %></span>
                   </div>
                 <% }) %>
               </div>

@@ -290,21 +290,33 @@ function computeUnitPriceCents(product, selection) {
   return Math.max(0, Math.trunc(total));
 }
 
+/**
+ * Check if a single item has a cloning option selected.
+ * @param {Object} productOptions - product.options array
+ * @param {Object} optionsSelection - selected options object
+ * @returns {boolean}
+ */
+function itemHasCloning(productOpts, optionsSelection) {
+  const opts = getProductPageOptions(productOpts || []);
+  const sel = optionsSelection && typeof optionsSelection === 'object' ? optionsSelection : {};
+
+  for (const g of opts) {
+    if (g.type !== 'choice') continue;
+    const value = Object.prototype.hasOwnProperty.call(sel, g.key) ? sel[g.key] : '';
+    if (!value) continue;
+    const choice = g.choices.find((c) => c && String(c.key) === String(value));
+    if (choice && choice.triggersCloning) return true;
+  }
+
+  return false;
+}
+
 function hasCloningSelection(items) {
   if (!Array.isArray(items)) return false;
 
   for (const item of items) {
     if (!item || !item.product) continue;
-    const opts = getProductPageOptions(item.product.options || []);
-    const sel = item.optionsSelection && typeof item.optionsSelection === 'object' ? item.optionsSelection : {};
-
-    for (const g of opts) {
-      if (g.type !== 'choice') continue;
-      const value = Object.prototype.hasOwnProperty.call(sel, g.key) ? sel[g.key] : '';
-      if (!value) continue;
-      const choice = g.choices.find((c) => c && String(c.key) === String(value));
-      if (choice && choice.triggersCloning) return true;
-    }
+    if (itemHasCloning(item.product.options, item.optionsSelection)) return true;
   }
 
   return false;
@@ -366,5 +378,6 @@ module.exports = {
   buildCartLineId,
   computeUnitPriceCents,
   buildOptionsDisplay,
+  itemHasCloning,
   hasCloningSelection,
 };

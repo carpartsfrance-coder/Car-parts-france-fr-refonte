@@ -182,6 +182,49 @@
       <% } %>
     </div>
 
+    <!-- Pipeline Clonage Widget -->
+    <%
+      var _pl = typeof pipeline !== 'undefined' && pipeline ? pipeline : {};
+      var _plTotal = (_pl.pendingLabel || 0) + (_pl.labelSent || 0) + (_pl.pieceInTransit || 0) + (_pl.pieceReceived || 0) + (_pl.cloningInProgress || 0) + (_pl.cloningDone || 0) + (_pl.cloningFailed || 0);
+    %>
+    <% if (_plTotal > 0) { %>
+      <div class="mt-8 bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center gap-2 mb-5">
+          <span class="material-symbols-outlined text-lg text-purple-600">science</span>
+          <span class="font-semibold text-slate-900">Pipeline Clonage</span>
+          <span class="text-xs text-slate-400">(<%= _plTotal %> commande<%= _plTotal > 1 ? 's' : '' %> en cours)</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-<%= _pl.cloningFailed > 0 ? '7' : '6' %> gap-4">
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=pending_label" class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center hover:bg-amber-100 transition">
+            <div class="text-2xl font-bold text-amber-700"><%= _pl.pendingLabel || 0 %></div>
+            <div class="mt-1 text-[11px] font-semibold text-amber-600">Étiquette à envoyer</div>
+          </a>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=label_sent" class="rounded-xl border border-orange-200 bg-orange-50 p-4 text-center hover:bg-orange-100 transition">
+            <div class="text-2xl font-bold text-orange-700"><%= (_pl.labelSent || 0) + (_pl.pieceInTransit || 0) %></div>
+            <div class="mt-1 text-[11px] font-semibold text-orange-600">Pièce en transit</div>
+          </a>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=client_piece_received" class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center hover:bg-blue-100 transition">
+            <div class="text-2xl font-bold text-blue-700"><%= _pl.pieceReceived || 0 %></div>
+            <div class="mt-1 text-[11px] font-semibold text-blue-600">Pièce reçue</div>
+          </a>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=cloning_in_progress" class="rounded-xl border border-purple-200 bg-purple-50 p-4 text-center hover:bg-purple-100 transition">
+            <div class="text-2xl font-bold text-purple-700"><%= _pl.cloningInProgress || 0 %></div>
+            <div class="mt-1 text-[11px] font-semibold text-purple-600">Clonage en cours</div>
+          </a>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=cloning_done" class="rounded-xl border border-green-200 bg-green-50 p-4 text-center hover:bg-green-100 transition">
+            <div class="text-2xl font-bold text-green-700"><%= _pl.cloningDone || 0 %></div>
+            <div class="mt-1 text-[11px] font-semibold text-green-600">Prêt à expédier</div>
+          </a>
+          <% if (_pl.cloningFailed > 0) { %>
+            <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=cloning_failed" class="rounded-xl border border-red-300 bg-red-50 p-4 text-center hover:bg-red-100 transition">
+              <div class="text-2xl font-bold text-red-700"><%= _pl.cloningFailed %></div>
+              <div class="mt-1 text-[11px] font-semibold text-red-600">Échoué<%= _pl.cloningFailed > 1 ? 's' : '' %></div>
+            </a>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
     <% if (showFinancials) { %>
       <!-- Charts -->
       <div class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">

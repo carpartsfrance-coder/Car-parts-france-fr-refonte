@@ -27,12 +27,16 @@
           <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <div class="flex items-center gap-3 flex-wrap">
               <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Filtrer par :</div>
-              <select class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900">
-                <option>Toutes les commandes</option>
-                <option>En attente</option>
-                <option>En préparation</option>
-                <option>Expédiée</option>
-                <option>Livrée</option>
+              <select id="filter-status" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900">
+                <option value="">Toutes les commandes</option>
+                <option value="pending_payment">En attente de paiement</option>
+                <option value="paid">Payée</option>
+                <option value="processing">En préparation</option>
+                <option value="shipped">Expédiée</option>
+                <option value="delivered">Livrée</option>
+                <option value="completed">Terminée</option>
+                <option value="cancelled">Annulée</option>
+                <option value="refunded">Remboursée</option>
               </select>
 
               <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Période :</div>
@@ -51,9 +55,9 @@
 
         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <% if (orders && orders.length) { %>
-            <div class="md:hidden divide-y divide-slate-100">
+            <div class="md:hidden divide-y divide-slate-100" id="orders-mobile">
               <% orders.forEach((o) => { %>
-                <div class="p-4">
+                <div class="p-4 order-row" data-status="<%= o.statusKey || '' %>">
                   <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">
                       <div class="font-black text-slate-900 text-sm"><%= o.number || '—' %></div>
@@ -121,9 +125,9 @@
                   </tr>
                 </thead>
 
-                <tbody class="divide-y divide-slate-100">
+                <tbody class="divide-y divide-slate-100" id="orders-desktop">
                   <% orders.forEach((o) => { %>
-                    <tr>
+                    <tr class="order-row" data-status="<%= o.statusKey || '' %>">
                       <td class="px-6 py-5">
                         <div class="font-black text-slate-900"><%= o.number || '—' %></div>
                         <% if (o.id) { %>
@@ -221,5 +225,22 @@
     </div>
   </div>
 </main>
+
+<script>
+(function() {
+  var filterSelect = document.getElementById('filter-status');
+  if (!filterSelect) return;
+  filterSelect.addEventListener('change', function() {
+    var val = filterSelect.value;
+    document.querySelectorAll('.order-row').forEach(function(row) {
+      if (!val || row.getAttribute('data-status') === val) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+})();
+</script>
 
 <%- include('../partials/footer') %>

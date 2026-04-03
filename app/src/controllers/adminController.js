@@ -1868,6 +1868,7 @@ async function getAdminDashboard(req, res, next) {
         dbConnected,
         showFinancials,
         kpis: {},
+        pipeline: { pendingLabel: 0, labelSent: 0, pieceInTransit: 0, pieceReceived: 0, cloningInProgress: 0, cloningDone: 0, cloningFailed: 0 },
         weeklyChart: { labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'], values: [0, 0, 0, 0, 0, 0, 0], prevValues: [0, 0, 0, 0, 0, 0, 0] },
         monthlyChart: { labels: [], values: [] },
         activities: [],
@@ -2036,6 +2037,12 @@ async function getAdminDashboard(req, res, next) {
       };
     });
 
+    // Pipeline clonage counts
+    let pipeline = { pendingLabel: 0, labelSent: 0, pieceInTransit: 0, pieceReceived: 0, cloningInProgress: 0, cloningDone: 0, cloningFailed: 0 };
+    try {
+      pipeline = await computePipelineCounts();
+    } catch (_) { /* ignore */ }
+
     return res.render('admin/dashboard', {
       title: 'Admin - Dashboard',
       dbConnected,
@@ -2049,6 +2056,7 @@ async function getAdminDashboard(req, res, next) {
         ordersThisMonth: showFinancials ? ordersThisMonth : null,
         topProducts: showFinancials ? topProducts : [],
       },
+      pipeline,
       weeklyChart: { labels: weekLabels, values: weekValues, prevValues: prevWeekValues },
       monthlyChart: { labels: monthLabels, values: monthValues },
       activities,
@@ -2067,13 +2075,17 @@ async function getAdminOrdersPage(req, res, next) {
     const type = typeof req.query.type === 'string' ? req.query.type.trim() : '';
     const period = typeof req.query.period === 'string' ? req.query.period.trim() : '';
     const sourceFilter = typeof req.query.source === 'string' ? req.query.source.trim() : '';
+    const orderTypeFilter = typeof req.query.orderType === 'string' ? req.query.orderType.trim() : '';
+    const cloningStatusFilter = typeof req.query.cloningStatus === 'string' ? req.query.cloningStatus.trim() : '';
+    const returnFilter = typeof req.query.returnFilter === 'string' ? req.query.returnFilter.trim() : '';
     const sortFieldRaw = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
     const sortOrderRaw = typeof req.query.order === 'string' ? req.query.order.trim() : '';
-    const allowedOrderSortFields = new Set(['date', 'total', 'status']);
+    const allowedOrderSortFields = new Set(['date', 'total', 'status', 'urgency']);
     const activeSortField = allowedOrderSortFields.has(sortFieldRaw) ? sortFieldRaw : 'date';
     const activeSortDir = sortOrderRaw === 'asc' ? 1 : -1;
     const orderSortFieldMap = { date: 'createdAt', total: 'totalCents', status: 'status' };
-    const mongoOrderSort = { [orderSortFieldMap[activeSortField]]: activeSortDir };
+    const isUrgencySort = activeSortField === 'urgency';
+    const mongoOrderSort = isUrgencySort ? { createdAt: -1 } : { [orderSortFieldMap[activeSortField]]: activeSortDir };
     const limitRaw = typeof req.query.limit === 'string' ? req.query.limit.trim() : '';
     const requestedLimit = Number.parseInt(limitRaw || '20', 10) || 20;
     const allowedOrderLimits = new Set([20, 50, 100]);
@@ -2090,12 +2102,18 @@ async function getAdminOrdersPage(req, res, next) {
         dbConnected,
         orders: [],
         draftsCount: 0,
-        filters: { q, status, type, period, source: sourceFilter },
+        filters: { q, status, type, period, source: sourceFilter, orderType: orderTypeFilter, cloningStatus: cloningStatusFilter, returnFilter },
         pagination: { page: 1, perPage, totalItems: 0, totalPages: 1, from: 0, to: 0, hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1 },
       });
     }
 
     draftsCount = await Order.countDocuments({ status: 'draft' });
+
+    // Compute alerts for the banner
+    let orderAlerts = { overdueReturns: 0, failedClonings: 0, pieceWaiting: 0, cloningLong: 0, readyToShip: 0 };
+    try {
+      orderAlerts = await computeOrderAlerts();
+    } catch (_) { /* ignore */ }
 
     const query = {};
 
@@ -2128,6 +2146,22 @@ async function getAdminOrdersPage(req, res, next) {
     const allowedSourceFilters = new Set(['website', 'phone', 'email', 'whatsapp', 'leboncoin', 'marketplace', 'salon', 'manual', 'other']);
     if (sourceFilter && allowedSourceFilters.has(sourceFilter)) {
       query['source.channel'] = sourceFilter;
+    }
+
+    const allowedOrderTypes = new Set(['standard', 'exchange', 'exchange_cloning']);
+    if (orderTypeFilter && allowedOrderTypes.has(orderTypeFilter)) {
+      query.orderType = orderTypeFilter;
+    }
+
+    const allowedCloningStatuses = new Set(['pending_label', 'label_sent', 'client_piece_in_transit', 'client_piece_received', 'cloning_in_progress', 'cloning_done', 'cloning_failed']);
+    if (cloningStatusFilter && allowedCloningStatuses.has(cloningStatusFilter)) {
+      query.cloningStatus = cloningStatusFilter;
+    }
+
+    if (returnFilter === 'pending') {
+      query.returnStatus = 'pending';
+    } else if (returnFilter === 'overdue') {
+      query.returnStatus = 'overdue';
     }
 
     if (q) {
@@ -2210,7 +2244,21 @@ async function getAdminOrdersPage(req, res, next) {
           }, 0)
         : 0;
 
+      const hasCloningItem = Array.isArray(o.items) && o.items.some((it) => it && it.itemType === 'exchange_cloning');
+
       const noteInfo = noteMap.get(String(o._id));
+
+      // Compute return days info for exchange orders (NOT exchange_cloning)
+      let returnDaysLeft = null;
+      let returnDaysTotal = 30;
+      if (o.orderType === 'exchange' && o.returnStatus === 'pending' && o.returnDates && o.returnDates.returnDueDate) {
+        const now = new Date();
+        const due = new Date(o.returnDates.returnDueDate);
+        returnDaysLeft = Math.ceil((due.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+      }
+
+      // Cloning tracking info
+      const cloningTrackingNumber = o.cloningTracking && o.cloningTracking.trackingNumber ? o.cloningTracking.trackingNumber : '';
 
       return {
         id: String(o._id),
@@ -2220,8 +2268,16 @@ async function getAdminOrdersPage(req, res, next) {
         customerEmail: u && u.email ? u.email : '',
         accountType: o.accountType,
         itemCount,
+        hasCloningItem,
         total: formatEuro(o.totalCents),
         statusBadge: getOrderStatusBadge(o.status),
+        orderType: o.orderType || 'standard',
+        orderTypeLabel: getOrderTypeLabel(o.orderType),
+        cloningStatus: o.cloningStatus || null,
+        cloningStatusBadge: o.orderType === 'exchange_cloning' ? getCloningStatusBadge(o.cloningStatus) : null,
+        cloningTrackingNumber,
+        returnStatus: o.returnStatus || 'not_applicable',
+        returnDaysLeft,
         notesCount: noteInfo ? noteInfo.count : 0,
         hasImportantNote: noteInfo ? !!noteInfo.hasImportant : false,
         lastNotePreview: noteInfo && noteInfo.lastContent ? noteInfo.lastContent.substring(0, 100) : '',
@@ -2254,6 +2310,18 @@ async function getAdminOrdersPage(req, res, next) {
       };
     });
 
+    // Urgency sort (client-side reorder after DB fetch)
+    if (isUrgencySort) {
+      const urgencyScore = (o) => {
+        if (o.returnStatus === 'overdue') return 0;
+        if (o.orderType === 'exchange_cloning' && (o.cloningStatus === 'pending_label' || o.cloningStatus === 'label_sent' || o.cloningStatus === 'client_piece_in_transit')) return 1;
+        if (o.orderType === 'exchange_cloning' && o.cloningStatus === 'cloning_in_progress') return 2;
+        if (o.statusBadge && o.statusBadge.label === 'En attente paiement') return 3;
+        return 4;
+      };
+      viewOrders.sort((a, b) => urgencyScore(a) - urgencyScore(b));
+    }
+
     const pagination = {
       page,
       perPage,
@@ -2272,7 +2340,8 @@ async function getAdminOrdersPage(req, res, next) {
       dbConnected,
       orders: viewOrders,
       draftsCount,
-      filters: { q, status, type, period, source: sourceFilter, sort: activeSortField, order: activeSortDir === 1 ? 'asc' : 'desc', limit: perPage },
+      orderAlerts,
+      filters: { q, status, type, period, source: sourceFilter, orderType: orderTypeFilter, cloningStatus: cloningStatusFilter, returnFilter, sort: activeSortField, order: activeSortDir === 1 ? 'asc' : 'desc', limit: perPage },
       pagination,
     });
   } catch (err) {
@@ -2532,6 +2601,8 @@ async function getAdminOrderDetailPage(req, res, next) {
       totalAllCents,
     };
 
+    const timelineSteps = buildTimelineSteps(orderDoc);
+
     return res.render('admin/order', {
       title: `Admin - ${orderDoc.number}`,
       dbConnected,
@@ -2540,6 +2611,16 @@ async function getAdminOrderDetailPage(req, res, next) {
       statusOptions: orderDoc.status === 'draft' ? getOrderStatusOptionsWithDraft() : getOrderStatusOptions(),
       cloningStatusOptions: getCloningStatusOptions(),
       returnStatusOptions: getReturnStatusOptions(),
+      timelineSteps,
+      timelineRawDates: JSON.stringify({
+        createdAt: orderDoc.createdAt || null,
+        molliePaidAt: orderDoc.molliePaidAt || null,
+        labelSentAt: orderDoc.cloningDates && orderDoc.cloningDates.labelSentAt || null,
+        clientPieceReceivedAt: orderDoc.cloningDates && orderDoc.cloningDates.clientPieceReceivedAt || null,
+        cloningStartedAt: orderDoc.cloningDates && orderDoc.cloningDates.cloningStartedAt || null,
+        cloningCompletedAt: orderDoc.cloningDates && orderDoc.cloningDates.cloningCompletedAt || null,
+        shippedToClientAt: orderDoc.cloningDates && orderDoc.cloningDates.shippedToClientAt || null,
+      }),
       order: {
         id: String(orderDoc._id),
         number: orderDoc.number,
@@ -3027,41 +3108,45 @@ async function postAdminAddOrderShipment(req, res, next) {
       $push: { shipments: shipmentEntry },
     });
 
-    try {
-      const alreadySent = existing
-        && existing.notifications
-        && Array.isArray(existing.notifications.shipmentTrackingNumbersSent)
-        && existing.notifications.shipmentTrackingNumbersSent.includes(trackingNumber);
+    // Skip shipment tracking email for "Récupération clonage" — a dedicated cloning label email is sent instead
+    const _isRecupClonageLabel = label.toLowerCase().includes('cupération clonage') || label.toLowerCase().includes('recuperation clonage') || label.toLowerCase() === 'récupération clonage';
+    if (!_isRecupClonageLabel) {
+      try {
+        const alreadySent = existing
+          && existing.notifications
+          && Array.isArray(existing.notifications.shipmentTrackingNumbersSent)
+          && existing.notifications.shipmentTrackingNumbersSent.includes(trackingNumber);
 
-      if (!alreadySent && existing.userId) {
-        const user = await User.findById(existing.userId).select('_id email firstName').lean();
-        if (user && user.email) {
-          const sent = await emailService.sendShipmentTrackingEmail({
-            order: { _id: existing._id, number: existing.number },
-            user,
-            shipment: { label, carrier, trackingNumber },
-          });
-          emailService.logEmailSent({ orderId: existing._id, emailType: 'shipment_tracking', recipientEmail: user.email, result: sent });
+        if (!alreadySent && existing.userId) {
+          const user = await User.findById(existing.userId).select('_id email firstName').lean();
+          if (user && user.email) {
+            const sent = await emailService.sendShipmentTrackingEmail({
+              order: { _id: existing._id, number: existing.number },
+              user,
+              shipment: { label, carrier, trackingNumber },
+            });
+            emailService.logEmailSent({ orderId: existing._id, emailType: 'shipment_tracking', recipientEmail: user.email, result: sent });
 
-          if (sent && sent.ok) {
-            await Order.updateOne(
-              {
-                _id: existing._id,
-                $or: [
-                  { 'notifications.shipmentTrackingNumbersSent': { $exists: false } },
-                  { 'notifications.shipmentTrackingNumbersSent': { $ne: trackingNumber } },
-                ],
-              },
-              {
-                $set: { 'notifications.shipmentLastSentAt': new Date() },
-                $addToSet: { 'notifications.shipmentTrackingNumbersSent': trackingNumber },
-              }
-            );
+            if (sent && sent.ok) {
+              await Order.updateOne(
+                {
+                  _id: existing._id,
+                  $or: [
+                    { 'notifications.shipmentTrackingNumbersSent': { $exists: false } },
+                    { 'notifications.shipmentTrackingNumbersSent': { $ne: trackingNumber } },
+                  ],
+                },
+                {
+                  $set: { 'notifications.shipmentLastSentAt': new Date() },
+                  $addToSet: { 'notifications.shipmentTrackingNumbersSent': trackingNumber },
+                }
+              );
+            }
           }
         }
+      } catch (err) {
+        console.error('Erreur email expédition (admin) :', err && err.message ? err.message : err);
       }
-    } catch (err) {
-      console.error('Erreur email expédition (admin) :', err && err.message ? err.message : err);
     }
 
     const track17ApiKey = typeof process.env.TRACK17_API_KEY === 'string'
@@ -3086,8 +3171,80 @@ async function postAdminAddOrderShipment(req, res, next) {
       }
     }
 
-    req.session.adminOrderSuccess = documentData ? 'Suivi ajouté avec document.' : 'Suivi ajouté.';
-    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Suivi ajouté.', data: { orderId } });
+    // ─── Auto-advance clonage if label is "Récupération clonage" ───
+    let cloningEmailSent = false;
+    const isRecupClonage = label.toLowerCase().includes('cupération clonage') || label.toLowerCase().includes('recuperation clonage') || label.toLowerCase() === 'récupération clonage';
+    if (isRecupClonage) {
+      try {
+        const orderForClonage = await Order.findById(orderId);
+        if (orderForClonage && orderForClonage.orderType === 'exchange_cloning' && orderForClonage.cloningStatus === 'pending_label') {
+          orderForClonage.cloningStatus = 'label_sent';
+          if (carrier || trackingNumber) {
+            orderForClonage.cloningTracking = {
+              carrier: carrier || '',
+              trackingNumber: trackingNumber || '',
+              trackingUrl: generateTrackingUrl(carrier, trackingNumber),
+            };
+          }
+          orderForClonage._statusChangedBy = adminEmail;
+          orderForClonage._statusChangeNote = 'Étiquette de récupération ajoutée via suivi';
+          await orderForClonage.save();
+
+          // Send cloning label email to client
+          try {
+            const clientUser = orderForClonage.userId ? await User.findById(orderForClonage.userId).lean() : null;
+            if (clientUser && clientUser.email) {
+              const labelPdfBuffer = documentData && documentData.storedPath && fs.existsSync(documentData.storedPath)
+                ? fs.readFileSync(documentData.storedPath)
+                : null;
+              const { sendCloningLabelEmail } = require('../services/emailService');
+              await sendCloningLabelEmail({
+                order: orderForClonage.toObject ? orderForClonage.toObject() : orderForClonage,
+                user: clientUser,
+                labelPdfBuffer,
+              });
+              cloningEmailSent = true;
+            }
+          } catch (emailErr) {
+            console.error('[clonage-label] Erreur envoi email:', emailErr && emailErr.message ? emailErr.message : emailErr);
+          }
+        }
+      } catch (clonageErr) {
+        console.error('[clonage-label] Erreur auto-advance:', clonageErr && clonageErr.message ? clonageErr.message : clonageErr);
+      }
+    }
+
+    // ─── Auto-advance to 'shipped' when adding "Envoi" on a cloning_done order ───
+    let autoShipped = false;
+    const isEnvoiLabel = label === 'Envoi' || label === 'Envoi partiel';
+    if (isEnvoiLabel && !isRecupClonage) {
+      try {
+        const orderForShip = await Order.findById(orderId);
+        if (orderForShip && orderForShip.orderType === 'exchange_cloning' && orderForShip.cloningStatus === 'cloning_done'
+            && orderForShip.status !== 'shipped' && orderForShip.status !== 'delivered' && orderForShip.status !== 'completed') {
+          orderForShip.status = 'shipped';
+          if (!orderForShip.cloningDates) orderForShip.cloningDates = {};
+          orderForShip.cloningDates.shippedToClientAt = new Date();
+          orderForShip._statusChangedBy = adminEmail;
+          orderForShip._statusChangeNote = 'Expédition ajoutée — statut mis à jour automatiquement';
+          await orderForShip.save();
+          autoShipped = true;
+        }
+      } catch (shipErr) {
+        console.error('[clonage-ship] Erreur auto-ship:', shipErr && shipErr.message ? shipErr.message : shipErr);
+      }
+    }
+
+    const successMsg = cloningEmailSent
+      ? 'Suivi ajouté. Étiquette envoyée au client par email. Statut clonage mis à jour.'
+      : autoShipped
+        ? 'Suivi ajouté. Commande marquée comme expédiée automatiquement.'
+        : isRecupClonage
+          ? (documentData ? 'Suivi ajouté avec document. Statut clonage mis à jour.' : 'Suivi ajouté. Statut clonage mis à jour.')
+          : (documentData ? 'Suivi ajouté avec document.' : 'Suivi ajouté.');
+
+    req.session.adminOrderSuccess = successMsg;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: successMsg, data: { orderId } });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -3224,8 +3381,46 @@ async function postAdminUploadOrderDocument(req, res, next) {
       },
     });
 
-    req.session.adminOrderSuccess = 'Document ajouté.';
-    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Document ajouté.' });
+    // ─── Auto-advance clonage if recuperation_clonage uploaded ───
+    let emailSent = false;
+    if (safeDocType === 'recuperation_clonage') {
+      try {
+        const orderForClonage = await Order.findById(orderId);
+        if (orderForClonage && orderForClonage.orderType === 'exchange_cloning' && orderForClonage.cloningStatus === 'pending_label') {
+          orderForClonage.cloningStatus = 'label_sent';
+          orderForClonage._statusChangedBy = adminEmail;
+          orderForClonage._statusChangeNote = 'Étiquette de récupération uploadée';
+          await orderForClonage.save();
+
+          // Send email to client with the PDF attached
+          try {
+            const clientUser = orderForClonage.userId ? await User.findById(orderForClonage.userId).lean() : null;
+            if (clientUser && clientUser.email) {
+              const { sendCloningLabelEmail } = require('../services/emailService');
+              await sendCloningLabelEmail({
+                order: orderForClonage.toObject ? orderForClonage.toObject() : orderForClonage,
+                user: clientUser,
+                labelPdfBuffer: Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes),
+              });
+              emailSent = true;
+            }
+          } catch (emailErr) {
+            console.error('[clonage-label] Erreur envoi email:', emailErr && emailErr.message ? emailErr.message : emailErr);
+          }
+        }
+      } catch (clonageErr) {
+        console.error('[clonage-label] Erreur auto-advance:', clonageErr && clonageErr.message ? clonageErr.message : clonageErr);
+      }
+    }
+
+    const successMsg = emailSent
+      ? 'Document ajouté. Étiquette envoyée au client par email.'
+      : safeDocType === 'recuperation_clonage'
+        ? 'Document ajouté. Statut clonage mis à jour.'
+        : 'Document ajouté.';
+
+    req.session.adminOrderSuccess = successMsg;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: successMsg });
     return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
   } catch (err) {
     return next(err);
@@ -6703,8 +6898,25 @@ async function getAdminClientsPage(req, res, next) {
       } catch (_) { /* ignore */ }
     }
 
+    // Aggregate overdue returns per user (exchange only, NOT exchange_cloning)
+    let overdueReturnMap = new Map();
+    const clientUserOids = users.map((u) => u._id).filter(Boolean);
+    if (clientUserOids.length) {
+      try {
+        const overdueAgg = await Order.aggregate([
+          { $match: { userId: { $in: clientUserOids }, orderType: 'exchange', returnStatus: 'overdue', status: { $nin: ['cancelled', 'refunded', 'draft'] } } },
+          { $group: { _id: '$userId', count: { $sum: 1 }, oldestDue: { $min: '$returnDates.returnDueDate' } } },
+        ]);
+        for (const r of overdueAgg) {
+          const daysOverdue = r.oldestDue ? Math.ceil((Date.now() - new Date(r.oldestDue).getTime()) / (24 * 60 * 60 * 1000)) : 0;
+          overdueReturnMap.set(String(r._id), { count: r.count, daysOverdue });
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     const viewClients = users.map((u) => {
       const cNote = clientNoteMap.get(String(u._id));
+      const overdueReturn = overdueReturnMap.get(String(u._id));
       return {
         id: String(u._id),
         name: u.accountType === 'pro' ? u.companyName || `${u.firstName} ${u.lastName}` : `${u.firstName} ${u.lastName}`,
@@ -6716,6 +6928,8 @@ async function getAdminClientsPage(req, res, next) {
         lastNotePreview: cNote && cNote.lastContent ? cNote.lastContent.substring(0, 100) : '',
         lastNoteAuthor: cNote ? cNote.lastAuthor || '' : '',
         lastNoteDate: cNote && cNote.lastDate ? formatDateTimeFR(cNote.lastDate) : '',
+        overdueReturnCount: overdueReturn ? overdueReturn.count : 0,
+        overdueReturnDays: overdueReturn ? overdueReturn.daysOverdue : 0,
       };
     });
 
@@ -8185,6 +8399,7 @@ async function postAdminCreateManualOrder(req, res) {
       source: { channel, detail: typeof source.detail === 'string' ? source.detail.trim() : '' },
       isManual: true,
       createdBy: adminId && mongoose.Types.ObjectId.isValid(adminId) ? adminId : undefined,
+      orderType: ['standard', 'exchange', 'exchange_cloning'].includes(body.orderType) ? body.orderType : 'standard',
       noteInternal: typeof body.noteInternal === 'string' ? body.noteInternal.trim() : '',
       noteClient: typeof body.noteClient === 'string' ? body.noteClient.trim() : '',
       quoteReference: typeof body.quoteReference === 'string' ? body.quoteReference.trim() : '',
@@ -8302,6 +8517,339 @@ async function postAdminValidateDraftOrder(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Alerts helpers
+// ---------------------------------------------------------------------------
+
+async function computeOrderAlerts() {
+  const now = new Date();
+
+  const tenDaysAgo = new Date(now);
+  tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+  const fiveDaysAgo = new Date(now);
+  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+  const twoDaysAgo = new Date(now);
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+  const activeFilter = { status: { $nin: ['cancelled', 'refunded', 'draft'] } };
+
+  const [overdueReturns, failedClonings, pieceWaiting, cloningLong, readyToShip] = await Promise.all([
+    // Retours en retard (exchange uniquement, PAS exchange_cloning)
+    Order.countDocuments({ orderType: 'exchange', returnStatus: 'overdue', ...activeFilter }),
+    // Clonages échoués non traités (> 2 jours)
+    Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'cloning_failed', 'cloningDates.cloningCompletedAt': { $lt: twoDaysAgo }, ...activeFilter }),
+    // Pièce client en attente > 10 jours
+    Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'label_sent', 'cloningDates.labelSentAt': { $lt: tenDaysAgo }, ...activeFilter }),
+    // Clonage en cours > 5 jours
+    Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'cloning_in_progress', 'cloningDates.cloningStartedAt': { $lt: fiveDaysAgo }, ...activeFilter }),
+    // Prêtes à expédier (clonage terminé, pas encore shipped)
+    Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'cloning_done', status: { $nin: ['shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'draft'] } }),
+  ]);
+
+  return { overdueReturns, failedClonings, pieceWaiting, cloningLong, readyToShip };
+}
+
+async function computePipelineCounts() {
+  const activeFilter = { orderType: 'exchange_cloning', status: { $nin: ['cancelled', 'refunded', 'draft'] } };
+
+  const [pendingLabel, labelSent, pieceInTransit, pieceReceived, cloningInProgress, cloningDone, cloningFailed] = await Promise.all([
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'pending_label' }),
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'label_sent' }),
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'client_piece_in_transit' }),
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'client_piece_received' }),
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'cloning_in_progress' }),
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'cloning_done', status: { $nin: ['shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'draft'] } }),
+    Order.countDocuments({ ...activeFilter, cloningStatus: 'cloning_failed' }),
+  ]);
+
+  return { pendingLabel, labelSent, pieceInTransit, pieceReceived, cloningInProgress, cloningDone, cloningFailed };
+}
+
+async function getAdminAlertsApi(req, res) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) return res.json({ ok: true, alerts: {}, pipeline: {} });
+
+    const [alerts, pipeline] = await Promise.all([computeOrderAlerts(), computePipelineCounts()]);
+    return res.json({ ok: true, alerts, pipeline });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erreur serveur.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline helpers
+// ---------------------------------------------------------------------------
+
+function generateTrackingUrl(carrier, trackingNumber) {
+  if (!trackingNumber) return '';
+  const c = (carrier || '').toLowerCase().trim();
+  if (c === 'chronopost') return `https://www.chronopost.fr/tracking-no-powerful/tracking-colis-powerful?liession=${encodeURIComponent(trackingNumber)}`;
+  if (c === 'colissimo') return `https://www.laposte.fr/outils/suivre-vos-envois?code=${encodeURIComponent(trackingNumber)}`;
+  if (c === 'dhl') return `https://www.dhl.com/fr-fr/home/suivi.html?tracking-id=${encodeURIComponent(trackingNumber)}`;
+  if (c === 'ups') return `https://www.ups.com/track?tracknum=${encodeURIComponent(trackingNumber)}`;
+  if (c === 'mondial relay' || c === 'mondial_relay') return `https://www.mondialrelay.fr/suivi-de-colis/?numExp=${encodeURIComponent(trackingNumber)}`;
+  return '';
+}
+
+function buildTimelineSteps(order) {
+  const steps = [];
+  const ot = order.orderType || 'standard';
+  const cs = order.cloningStatus || null;
+  const rs = order.returnStatus || 'not_applicable';
+  const st = order.status || 'pending_payment';
+  const cd = order.cloningDates || {};
+  const rd = order.returnDates || {};
+  const ct = order.cloningTracking || {};
+
+  const paidStatuses = new Set(['paid', 'processing', 'shipped', 'delivered', 'completed']);
+  const isPaid = paidStatuses.has(st);
+
+  if (ot === 'exchange_cloning') {
+    // ① Commande passée
+    steps.push({ key: 'order_placed', label: 'Commande passée', date: order.createdAt ? formatDateTimeFR(order.createdAt) : null, state: 'done', icon: 'shopping_cart' });
+
+    // ② Paiement
+    steps.push({ key: 'payment_received', label: isPaid ? 'Paiement reçu' : 'Paiement en attente', date: isPaid && order.molliePaidAt ? formatDateTimeFR(order.molliePaidAt) : (isPaid && order.scalapayCapturedAt ? formatDateTimeFR(order.scalapayCapturedAt) : null), state: isPaid ? 'done' : (st === 'pending_payment' ? 'current' : 'future'), icon: 'payments' });
+
+    // Cloning step states
+    const cloningOrder = ['pending_label', 'label_sent', 'client_piece_in_transit', 'client_piece_received', 'cloning_in_progress', 'cloning_done'];
+    const cloningIdx = cs ? cloningOrder.indexOf(cs) : -1;
+    const isFailed = cs === 'cloning_failed';
+
+    function cloningStepState(stepIdx) {
+      if (!isPaid) return 'future';
+      if (isFailed && stepIdx <= 3) return stepIdx < 3 ? 'done' : 'error';
+      if (cloningIdx < 0) return 'future';
+      if (stepIdx < cloningIdx) return 'done';
+      if (stepIdx === cloningIdx) return 'current';
+      return 'future';
+    }
+
+    // ③ Étiquette de récupération (pending_label=0 → current means action needed)
+    steps.push({ key: 'label_sent', label: 'Étiquette de récupération envoyée', date: cd.labelSentAt ? formatDateTimeFR(cd.labelSentAt) : null, state: cloningStepState(0), icon: 'mail', action: cloningStepState(0) === 'current' ? 'mark_label_sent' : null, carrier: ct.carrier || '', trackingNumber: ct.trackingNumber || '', trackingUrl: ct.trackingUrl || generateTrackingUrl(ct.carrier, ct.trackingNumber) });
+
+    // ④ Pièce client en transit (label_sent=1)
+    steps.push({ key: 'client_piece_in_transit', label: 'Pièce client en transit', date: null, state: cloningStepState(1), icon: 'local_shipping', trackingNumber: ct.trackingNumber || '', trackingUrl: ct.trackingUrl || generateTrackingUrl(ct.carrier, ct.trackingNumber), action: cloningStepState(1) === 'current' ? 'mark_piece_in_transit' : null });
+
+    // ⑤ Pièce client reçue (client_piece_in_transit=2)
+    steps.push({ key: 'client_piece_received', label: 'Pièce client reçue chez CPF', date: cd.clientPieceReceivedAt ? formatDateTimeFR(cd.clientPieceReceivedAt) : null, state: cloningStepState(2), icon: 'inventory_2', action: cloningStepState(2) === 'current' ? 'mark_piece_received' : null });
+
+    // ⑥ Clonage en cours (client_piece_received=3)
+    steps.push({ key: 'cloning_in_progress', label: 'Clonage/programmation en cours', date: cd.cloningStartedAt ? formatDateTimeFR(cd.cloningStartedAt) : null, state: cloningStepState(3), icon: 'settings', action: cloningStepState(3) === 'current' ? 'start_cloning' : null, failAction: (cloningStepState(3) === 'current' || isFailed) ? 'mark_cloning_failed' : null, isFailed, failureNote: order.cloningFailureNote || '' });
+
+    // ⑦ Clonage terminé (cloning_in_progress=4)
+    steps.push({ key: 'cloning_done', label: 'Clonage terminé, prête à expédier', date: cd.cloningCompletedAt && !isFailed ? formatDateTimeFR(cd.cloningCompletedAt) : null, state: cloningStepState(4), icon: 'check_circle', action: cloningStepState(4) === 'current' ? 'mark_cloning_done' : null });
+
+    // ⑧ Expédiée
+    const isShipped = st === 'shipped' || st === 'delivered' || st === 'completed';
+    steps.push({ key: 'shipped', label: 'Pièce clonée expédiée', date: cd.shippedToClientAt ? formatDateTimeFR(cd.shippedToClientAt) : null, state: isShipped ? 'done' : (cs === 'cloning_done' && !isShipped ? 'current' : 'future'), icon: 'local_shipping', action: cs === 'cloning_done' && !isShipped ? 'mark_shipped' : null });
+
+    // ⑨ Livrée
+    steps.push({ key: 'delivered', label: 'Livrée au client', date: st === 'delivered' || st === 'completed' ? formatDateTimeFR(order.updatedAt) : null, state: st === 'delivered' || st === 'completed' ? 'done' : 'future', icon: 'where_to_vote' });
+
+  } else if (ot === 'exchange') {
+    steps.push({ key: 'order_placed', label: 'Commande passée', date: formatDateTimeFR(order.createdAt), state: 'done', icon: 'shopping_cart' });
+    steps.push({ key: 'payment_received', label: isPaid ? 'Paiement reçu' : 'Paiement en attente', date: isPaid ? (order.molliePaidAt ? formatDateTimeFR(order.molliePaidAt) : formatDateTimeFR(order.createdAt)) : null, state: isPaid ? 'done' : 'current', icon: 'payments' });
+
+    const processingOrBeyond = new Set(['processing', 'shipped', 'delivered', 'completed']);
+    steps.push({ key: 'processing', label: 'En préparation', date: null, state: processingOrBeyond.has(st) ? 'done' : (st === 'paid' ? 'current' : 'future'), icon: 'inventory' });
+
+    const shippedOrBeyond = new Set(['shipped', 'delivered', 'completed']);
+    steps.push({ key: 'shipped', label: 'Expédiée', date: null, state: shippedOrBeyond.has(st) ? 'done' : (st === 'processing' ? 'current' : 'future'), icon: 'local_shipping' });
+
+    const deliveredOrBeyond = new Set(['delivered', 'completed']);
+    steps.push({ key: 'delivered', label: 'Livrée', date: null, state: deliveredOrBeyond.has(st) ? 'done' : (st === 'shipped' ? 'current' : 'future'), icon: 'where_to_vote' });
+
+    // ⑥ Retour J+30
+    let returnState = 'future';
+    let returnLabel = 'Retour ancien organe — J+30';
+    let returnDate = null;
+    if (rs === 'received' || rs === 'inspected_ok' || rs === 'inspected_nok') { returnState = 'done'; returnDate = rd.returnReceivedAt ? formatDateTimeFR(rd.returnReceivedAt) : null; }
+    else if (rs === 'overdue') { returnState = 'error'; returnLabel = 'Retour en retard !'; }
+    else if (rs === 'pending' || rs === 'label_sent' || rs === 'in_transit') {
+      returnState = deliveredOrBeyond.has(st) ? 'current' : 'future';
+      if (rd.returnDueDate) {
+        const daysLeft = Math.ceil((new Date(rd.returnDueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+        returnLabel = `Retour ancien organe — J+${Math.max(0, 30 - daysLeft)}/30`;
+      }
+    }
+    steps.push({ key: 'return', label: returnLabel, date: returnDate, state: returnState, icon: 'assignment_return' });
+
+  } else {
+    // standard
+    steps.push({ key: 'order_placed', label: 'Commande passée', date: formatDateTimeFR(order.createdAt), state: 'done', icon: 'shopping_cart' });
+    steps.push({ key: 'payment_received', label: isPaid ? 'Paiement reçu' : 'Paiement en attente', date: isPaid ? (order.molliePaidAt ? formatDateTimeFR(order.molliePaidAt) : null) : null, state: isPaid ? 'done' : 'current', icon: 'payments' });
+
+    const processingOrBeyond = new Set(['processing', 'shipped', 'delivered', 'completed']);
+    steps.push({ key: 'processing', label: 'En préparation', date: null, state: processingOrBeyond.has(st) ? 'done' : (st === 'paid' ? 'current' : 'future'), icon: 'inventory' });
+
+    const shippedOrBeyond = new Set(['shipped', 'delivered', 'completed']);
+    steps.push({ key: 'shipped', label: 'Expédiée', date: null, state: shippedOrBeyond.has(st) ? 'done' : (st === 'processing' ? 'current' : 'future'), icon: 'local_shipping' });
+
+    steps.push({ key: 'delivered', label: 'Livrée', date: null, state: (st === 'delivered' || st === 'completed') ? 'done' : (st === 'shipped' ? 'current' : 'future'), icon: 'where_to_vote' });
+  }
+
+  return steps;
+}
+
+// ---------------------------------------------------------------------------
+// GET /admin/api/commandes/:id/timeline
+// ---------------------------------------------------------------------------
+async function getAdminOrderTimelineApi(req, res) {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'ID invalide.' });
+    const order = await Order.findById(orderId).lean();
+    if (!order) return res.status(404).json({ ok: false, error: 'Commande introuvable.' });
+    const steps = buildTimelineSteps(order);
+    return res.json({ ok: true, steps, orderType: order.orderType || 'standard', status: order.status, cloningStatus: order.cloningStatus || null, returnStatus: order.returnStatus || 'not_applicable' });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erreur serveur.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /admin/api/commandes/:id/advance
+// ---------------------------------------------------------------------------
+async function postAdminAdvanceOrder(req, res) {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) return res.status(400).json({ ok: false, error: 'ID invalide.' });
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ ok: false, error: 'Commande introuvable.' });
+
+    const action = typeof req.body.action === 'string' ? req.body.action.trim() : '';
+    const carrier = typeof req.body.carrier === 'string' ? req.body.carrier.trim() : '';
+    const trackingNumber = typeof req.body.trackingNumber === 'string' ? req.body.trackingNumber.trim() : '';
+    const failureNote = typeof req.body.failureNote === 'string' ? req.body.failureNote.trim() : '';
+    const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
+
+    const changedBy = req.session && req.session.admin && req.session.admin.email
+      ? String(req.session.admin.email) : 'admin';
+    order._statusChangedBy = changedBy;
+    order._statusChangeNote = note;
+
+    switch (action) {
+      case 'mark_label_sent': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide pour ce type de commande.' });
+        if (order.cloningStatus !== 'pending_label') return res.status(400).json({ ok: false, error: 'La commande n\'est pas en attente d\'étiquette.' });
+        order.cloningStatus = 'label_sent';
+        if (carrier || trackingNumber) {
+          order.cloningTracking = {
+            carrier: carrier || order.cloningTracking.carrier || '',
+            trackingNumber: trackingNumber || order.cloningTracking.trackingNumber || '',
+            trackingUrl: generateTrackingUrl(carrier || order.cloningTracking.carrier, trackingNumber || order.cloningTracking.trackingNumber),
+          };
+        }
+        break;
+      }
+      case 'mark_piece_in_transit': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide pour ce type de commande.' });
+        if (order.cloningStatus !== 'label_sent') return res.status(400).json({ ok: false, error: 'L\'étiquette n\'a pas encore été envoyée.' });
+        order.cloningStatus = 'client_piece_in_transit';
+        if (carrier || trackingNumber) {
+          order.cloningTracking = {
+            carrier: carrier || order.cloningTracking.carrier || '',
+            trackingNumber: trackingNumber || order.cloningTracking.trackingNumber || '',
+            trackingUrl: generateTrackingUrl(carrier || order.cloningTracking.carrier, trackingNumber || order.cloningTracking.trackingNumber),
+          };
+        }
+        break;
+      }
+      case 'mark_piece_received': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide pour ce type de commande.' });
+        if (order.cloningStatus !== 'client_piece_in_transit' && order.cloningStatus !== 'label_sent') return res.status(400).json({ ok: false, error: 'Transition invalide.' });
+        order.cloningStatus = 'client_piece_received';
+        break;
+      }
+      case 'start_cloning': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide pour ce type de commande.' });
+        if (order.cloningStatus !== 'client_piece_received') return res.status(400).json({ ok: false, error: 'La pièce client n\'a pas été reçue.' });
+        order.cloningStatus = 'cloning_in_progress';
+        break;
+      }
+      case 'mark_cloning_done': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide pour ce type de commande.' });
+        if (order.cloningStatus !== 'cloning_in_progress') return res.status(400).json({ ok: false, error: 'Le clonage n\'est pas en cours.' });
+        order.cloningStatus = 'cloning_done';
+        break;
+      }
+      case 'mark_cloning_failed': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide pour ce type de commande.' });
+        if (!failureNote) return res.status(400).json({ ok: false, error: 'Veuillez indiquer la raison de l\'échec.' });
+        order.cloningStatus = 'cloning_failed';
+        order.cloningFailureNote = failureNote;
+        order._statusChangeNote = `Clonage échoué : ${failureNote}`;
+        break;
+      }
+      case 'retry_cloning': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide.' });
+        if (order.cloningStatus !== 'cloning_failed') return res.status(400).json({ ok: false, error: 'Le clonage n\'est pas en échec.' });
+        order.cloningStatus = 'cloning_in_progress';
+        order.cloningFailureNote = '';
+        if (!order.cloningDates) order.cloningDates = {};
+        order.cloningDates.cloningStartedAt = new Date();
+        order.cloningDates.cloningCompletedAt = null;
+        order._statusChangeNote = 'Nouvelle tentative de clonage';
+        break;
+      }
+      case 'skip_cloning': {
+        if (order.orderType !== 'exchange_cloning') return res.status(400).json({ ok: false, error: 'Action invalide.' });
+        if (order.cloningStatus !== 'cloning_failed') return res.status(400).json({ ok: false, error: 'Le clonage n\'est pas en échec.' });
+        order.cloningStatus = 'cloning_done';
+        order._statusChangeNote = note || 'Envoi sans clonage (programmation VIN)';
+        break;
+      }
+      case 'mark_shipped': {
+        if (order.status === 'shipped' || order.status === 'delivered' || order.status === 'completed') {
+          return res.status(400).json({ ok: false, error: 'Commande déjà expédiée.' });
+        }
+        order.status = 'shipped';
+        if (order.orderType === 'exchange_cloning') {
+          if (!order.cloningDates) order.cloningDates = {};
+          order.cloningDates.shippedToClientAt = new Date();
+        }
+        break;
+      }
+      default:
+        return res.status(400).json({ ok: false, error: `Action inconnue : "${action}"` });
+    }
+
+    await order.save();
+
+    // Send cloning step emails to client
+    const emailStepMap = {
+      mark_piece_received: 'piece_received',
+      mark_cloning_done: 'cloning_done',
+      mark_cloning_failed: 'cloning_failed',
+    };
+    const emailStep = emailStepMap[action];
+    if (emailStep && order.userId) {
+      try {
+        const clientUser = await User.findById(order.userId).select('_id email firstName').lean();
+        if (clientUser && clientUser.email) {
+          await emailService.sendCloningStepEmail({
+            order: order.toObject ? order.toObject() : order,
+            user: clientUser,
+            step: emailStep,
+          });
+        }
+      } catch (emailErr) {
+        console.error('[advance-email] Erreur envoi email clonage:', emailErr && emailErr.message ? emailErr.message : emailErr);
+      }
+    }
+
+    // Return fresh timeline
+    const freshOrder = await Order.findById(orderId).lean();
+    const steps = buildTimelineSteps(freshOrder);
+    return res.json({ ok: true, steps, status: freshOrder.status, cloningStatus: freshOrder.cloningStatus, returnStatus: freshOrder.returnStatus });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message || 'Erreur serveur.' });
+  }
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
@@ -8382,4 +8930,7 @@ module.exports = {
   postAdminCreateClientApi,
   postAdminCreateManualOrder,
   postAdminValidateDraftOrder,
+  getAdminOrderTimelineApi,
+  postAdminAdvanceOrder,
+  getAdminAlertsApi,
 };

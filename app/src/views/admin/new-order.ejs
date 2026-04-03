@@ -383,6 +383,18 @@
         <h2 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
           <span class="material-symbols-outlined text-red-600">notes</span>Notes et options
         </h2>
+        <div class="mb-4">
+          <label class="block text-xs font-bold text-slate-600 mb-1">Type de commande</label>
+          <select id="order-type-select" class="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500">
+            <option value="standard">Vente simple</option>
+            <option value="exchange">Échange standard (retour J+30)</option>
+            <option value="exchange_cloning">Échange + Clonage (récupération pièce client)</option>
+          </select>
+          <div id="order-type-cloning-info" class="hidden mt-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700">
+            <span class="material-symbols-outlined align-middle mr-1" style="font-size:14px">science</span>
+            <strong>Parcours clonage :</strong> Étiquette récup envoyée &rarr; Pièce client en transit &rarr; Reçue chez CPF &rarr; Clonage &rarr; Expédition pièce clonée
+          </div>
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Note interne <span class="text-slate-400">(admin uniquement)</span></label>
@@ -539,6 +551,7 @@
     billingSameAsShipping: true,
     noteInternal: '',
     noteClient: '',
+    orderType: 'standard',
     skipConfirmationEmail: false,
     quoteReference: '',
   };
@@ -1103,6 +1116,15 @@
     document.getElementById('note-internal').value = formData.noteInternal || '';
     document.getElementById('note-client').value = formData.noteClient || '';
     document.getElementById('skip-email-checkbox').checked = !!formData.skipConfirmationEmail;
+    var otSel = document.getElementById('order-type-select');
+    if (otSel) {
+      otSel.value = formData.orderType || 'standard';
+      var clInfo = document.getElementById('order-type-cloning-info');
+      if (clInfo) clInfo.classList.toggle('hidden', otSel.value !== 'exchange_cloning');
+      otSel.addEventListener('change', function() {
+        if (clInfo) clInfo.classList.toggle('hidden', otSel.value !== 'exchange_cloning');
+      });
+    }
   }
 
   function saveStep3() {
@@ -1125,6 +1147,7 @@
 
     formData.noteInternal = (document.getElementById('note-internal').value || '').trim();
     formData.noteClient = (document.getElementById('note-client').value || '').trim();
+    formData.orderType = (document.getElementById('order-type-select') || {}).value || 'standard';
     formData.skipConfirmationEmail = document.getElementById('skip-email-checkbox').checked;
     saveFormData();
   }
@@ -1268,6 +1291,7 @@
       tvaRate: formData.tvaRate || 20,
       source: formData.source,
       initialStatus: document.getElementById('initial-status').value,
+      orderType: formData.orderType || 'standard',
       noteInternal: formData.noteInternal || '',
       noteClient: formData.noteClient || '',
       quoteReference: formData.quoteReference || '',

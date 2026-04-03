@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const fs = require('fs');
 
 const crypto = require('crypto');
 
@@ -571,7 +572,7 @@ async function getOrderDetailPage(req, res, next) {
     const htCents = Math.round(totalCents / 1.2);
     const vatCents = totalCents - htCents;
 
-    const statusBanner = getOrderStatusBanner(order.status);
+    const statusBanner = getOrderStatusBanner(order);
 
     const invoiceNumber = order && order.invoice && typeof order.invoice.number === 'string' ? order.invoice.number.trim() : '';
     const hasInvoice = getTrimmedString(order.paymentStatus).toLowerCase() === 'paid';
@@ -649,6 +650,30 @@ async function getOrderDetailPage(req, res, next) {
         statusKey: order.status,
         statusTitle: statusBanner.title,
         statusSubtitle: statusBanner.subtitle,
+        statusBgClass: statusBanner.bgClass || 'bg-blue-600',
+        statusIcon: statusBanner.icon || 'inventory_2',
+        paymentRetryUrl: order.status === 'pending_payment' ? (order.mollieCheckoutUrl || order.scalapayCheckoutUrl || '') : '',
+        orderType: order.orderType || 'standard',
+        cloningStatus: order.cloningStatus || null,
+        cloningDates: {
+          labelSentAt: order.cloningDates && order.cloningDates.labelSentAt ? formatDateTimeFR(order.cloningDates.labelSentAt) : null,
+          clientPieceReceivedAt: order.cloningDates && order.cloningDates.clientPieceReceivedAt ? formatDateTimeFR(order.cloningDates.clientPieceReceivedAt) : null,
+          cloningStartedAt: order.cloningDates && order.cloningDates.cloningStartedAt ? formatDateTimeFR(order.cloningDates.cloningStartedAt) : null,
+          cloningCompletedAt: order.cloningDates && order.cloningDates.cloningCompletedAt ? formatDateTimeFR(order.cloningDates.cloningCompletedAt) : null,
+          shippedToClientAt: order.cloningDates && order.cloningDates.shippedToClientAt ? formatDateTimeFR(order.cloningDates.shippedToClientAt) : null,
+        },
+        cloningTracking: order.cloningTracking || { carrier: '', trackingNumber: '', trackingUrl: '' },
+        cloningFailureNote: order.cloningFailureNote || '',
+        cloningLabel: (() => {
+          const docs = Array.isArray(order.documents) ? order.documents : [];
+          const labelDoc = docs.find(d => d && d.docType === 'recuperation_clonage' && d.storedPath);
+          if (!labelDoc) return null;
+          return {
+            originalName: labelDoc.originalName || 'Étiquette de récupération.pdf',
+            url: `/compte/commandes/${encodeURIComponent(String(order._id))}/documents/${encodeURIComponent(String(labelDoc._id))}`,
+            uploadedAt: labelDoc.uploadedAt ? formatDateTimeFR(labelDoc.uploadedAt) : null,
+          };
+        })(),
         total: formatEuro(totalCents),
         totalCents,
         ht: formatEuro(htCents),
@@ -1080,25 +1105,59 @@ async function getOrderTrackingPage(req, res, next) {
       ? getTrackingUiForParcelStatusCode(trackingDelivery.status_code, order.status)
       : getTrackingUiForStatus(order.status);
 
-    const baseSteps = [
-      { label: 'Validée', icon: 'check' },
-      { label: 'Préparation', icon: 'inventory_2' },
-      { label: 'En livraison', icon: 'local_shipping' },
-      { label: 'Livrée', icon: 'task_alt' },
-    ];
+    // Steps depend on order type
+    let baseSteps;
+    let activeStepOverride = null;
+    const isCloning = order.orderType === 'exchange_cloning';
+
+    if (isCloning) {
+      baseSteps = [
+        { label: 'Validée', icon: 'check' },
+        { label: 'Étiquette envoyée', icon: 'mail' },
+        { label: 'Pièce en transit', icon: 'package_2' },
+        { label: 'Pièce reçue', icon: 'inventory_2' },
+        { label: 'Clonage', icon: 'memory' },
+        { label: 'Expédiée', icon: 'local_shipping' },
+        { label: 'Livrée', icon: 'task_alt' },
+      ];
+      const cs = order.cloningStatus || 'pending_label';
+      const st = order.status || 'pending_payment';
+      if (st === 'delivered' || st === 'completed') activeStepOverride = 6;
+      else if (st === 'shipped') activeStepOverride = 5;
+      else if (cs === 'cloning_done') activeStepOverride = 5;
+      else if (cs === 'cloning_in_progress' || cs === 'cloning_failed') activeStepOverride = 4;
+      else if (cs === 'client_piece_received') activeStepOverride = 3;
+      else if (cs === 'client_piece_in_transit') activeStepOverride = 2;
+      else if (cs === 'label_sent') activeStepOverride = 1;
+      else activeStepOverride = 0;
+    } else {
+      baseSteps = [
+        { label: 'Validée', icon: 'check' },
+        { label: 'Préparation', icon: 'inventory_2' },
+        { label: 'En livraison', icon: 'local_shipping' },
+        { label: 'Livrée', icon: 'task_alt' },
+      ];
+    }
 
     const isDeliveredUi =
       ui.statusLabel === 'Livrée' ||
       ui.progressWidthClass === 'w-[100%]' ||
-      (trackingDelivery && trackingDelivery.status_code === 0);
+      (trackingDelivery && trackingDelivery.status_code === 0) ||
+      (isCloning && activeStepOverride === 6);
+
+    const effectiveActiveIdx = activeStepOverride !== null ? activeStepOverride : ui.activeStepIndex;
 
     const steps = baseSteps.map((s, idx) => {
       if (isDeliveredUi) {
         return { ...s, state: 'completed' };
       }
 
-      if (idx < ui.activeStepIndex) return { ...s, state: 'completed' };
-      if (idx === ui.activeStepIndex) return { ...s, state: 'active' };
+      if (idx < effectiveActiveIdx) return { ...s, state: 'completed' };
+      if (idx === effectiveActiveIdx) {
+        // Mark cloning_failed step as error
+        if (isCloning && order.cloningStatus === 'cloning_failed' && idx === 4) return { ...s, state: 'error' };
+        return { ...s, state: 'active' };
+      }
       return { ...s, state: '' };
     });
 
@@ -1187,6 +1246,27 @@ async function getOrderTrackingPage(req, res, next) {
       }
     }
 
+    // Add clonage events to order timeline
+    if (isCloning) {
+      const cd = order.cloningDates || {};
+      if (cd.labelSentAt) {
+        orderTimeline.push({ sortTime: new Date(cd.labelSentAt).getTime(), title: 'Étiquette de récupération envoyée', description: '', timeLabel: formatTimelineTimeLabel(cd.labelSentAt) });
+      }
+      if (cd.clientPieceReceivedAt) {
+        orderTimeline.push({ sortTime: new Date(cd.clientPieceReceivedAt).getTime(), title: 'Votre pièce a été reçue par nos ateliers', description: '', timeLabel: formatTimelineTimeLabel(cd.clientPieceReceivedAt) });
+      }
+      if (cd.cloningStartedAt) {
+        orderTimeline.push({ sortTime: new Date(cd.cloningStartedAt).getTime(), title: 'Clonage/programmation démarré', description: '', timeLabel: formatTimelineTimeLabel(cd.cloningStartedAt) });
+      }
+      if (cd.cloningCompletedAt) {
+        const isFailed = order.cloningStatus === 'cloning_failed';
+        orderTimeline.push({ sortTime: new Date(cd.cloningCompletedAt).getTime(), title: isFailed ? 'Problème détecté lors du clonage' : 'Clonage terminé avec succès', description: '', timeLabel: formatTimelineTimeLabel(cd.cloningCompletedAt) });
+      }
+      if (cd.shippedToClientAt) {
+        orderTimeline.push({ sortTime: new Date(cd.shippedToClientAt).getTime(), title: 'Pièce clonée expédiée', description: '', timeLabel: formatTimelineTimeLabel(cd.shippedToClientAt) });
+      }
+    }
+
     orderTimeline.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
 
     const lastUpdateLabel = carrierTimeline.length
@@ -1223,6 +1303,11 @@ async function getOrderTrackingPage(req, res, next) {
       estimatedTimeLabel = 'Entre 08:00 et 18:00';
     }
 
+    // Dynamic progress width based on actual steps
+    const totalSteps = baseSteps.length;
+    const dynamicProgressPercent = Math.min(100, Math.round((effectiveActiveIdx / (totalSteps - 1)) * 100));
+    const dynamicProgressWidth = isCloning ? `w-[${dynamicProgressPercent}%]` : ui.progressWidthClass;
+
     return res.render('account/order-tracking', {
       title: `Suivi ${order.number} - CarParts France`,
       dbConnected,
@@ -1231,6 +1316,18 @@ async function getOrderTrackingPage(req, res, next) {
         number: order.number,
         total: formatEuro(totalCents),
         itemsCount,
+        statusKey: order.status,
+        orderType: order.orderType || 'standard',
+        cloningStatus: order.cloningStatus || null,
+        cloningDates: {
+          labelSentAt: order.cloningDates && order.cloningDates.labelSentAt ? formatDateTimeFR(order.cloningDates.labelSentAt) : null,
+          clientPieceReceivedAt: order.cloningDates && order.cloningDates.clientPieceReceivedAt ? formatDateTimeFR(order.cloningDates.clientPieceReceivedAt) : null,
+          cloningStartedAt: order.cloningDates && order.cloningDates.cloningStartedAt ? formatDateTimeFR(order.cloningDates.cloningStartedAt) : null,
+          cloningCompletedAt: order.cloningDates && order.cloningDates.cloningCompletedAt ? formatDateTimeFR(order.cloningDates.cloningCompletedAt) : null,
+          shippedToClientAt: order.cloningDates && order.cloningDates.shippedToClientAt ? formatDateTimeFR(order.cloningDates.shippedToClientAt) : null,
+        },
+        cloningTracking: order.cloningTracking || { carrier: '', trackingNumber: '', trackingUrl: '' },
+        cloningFailureNote: order.cloningFailureNote || '',
         shippingAddress: order.shippingAddress,
         shippingMethod: order.shippingMethod || 'domicile',
         shippingMethodLabel: formatShippingMethod(order.shippingMethod),
@@ -1257,7 +1354,7 @@ async function getOrderTrackingPage(req, res, next) {
         carrierTrackingUrl,
         estimatedDateLabel,
         estimatedTimeLabel,
-        progressWidthClass: ui.progressWidthClass,
+        progressWidthClass: dynamicProgressWidth,
         steps,
         lastUpdateLabel,
         carrierTimeline: carrierTimeline.map((t) => ({
@@ -1463,6 +1560,7 @@ function getStatusBadge(status) {
     case 'processing':
       return { label: 'En préparation', className: 'bg-amber-50 text-amber-800' };
     case 'pending_payment':
+      return { label: 'Paiement en attente', className: 'bg-orange-50 text-orange-700' };
     default:
       return { label: 'En attente', className: 'bg-amber-50 text-amber-800' };
   }
@@ -1497,52 +1595,59 @@ function formatShippingMethod(value) {
   }
 }
 
-function getOrderStatusBanner(status) {
+function getOrderStatusBanner(order) {
+  const status = order && typeof order === 'object' && order.status ? order.status : (typeof order === 'string' ? order : 'pending_payment');
+  const orderType = order && typeof order === 'object' ? (order.orderType || 'standard') : 'standard';
+  const cloningStatus = order && typeof order === 'object' ? (order.cloningStatus || null) : null;
+
+  // ─── Commandes CLONAGE : messages adaptés au parcours inversé ───
+  if (orderType === 'exchange_cloning' && cloningStatus) {
+    switch (cloningStatus) {
+      case 'pending_label':
+        return { title: 'Étape 1 : Nous préparons votre étiquette d\'envoi', subtitle: 'Vous recevrez par email une étiquette UPS pour nous envoyer votre ancienne pièce.', icon: 'mail', bgClass: 'bg-amber-500' };
+      case 'label_sent':
+        return { title: 'Étape 2 : Envoyez-nous votre ancienne pièce', subtitle: 'Votre étiquette UPS est prête. Imprimez-la et déposez votre colis en point relais UPS.', icon: 'package_2', bgClass: 'bg-orange-500' };
+      case 'client_piece_in_transit':
+        return { title: 'Étape 3 : Votre pièce est en route vers nos ateliers', subtitle: 'Nous vous notifierons dès réception.', icon: 'local_shipping', bgClass: 'bg-blue-500' };
+      case 'client_piece_received':
+        return { title: 'Étape 4 : Pièce reçue, clonage imminent', subtitle: 'Nos techniciens vont procéder à la lecture et au transfert des données.', icon: 'precision_manufacturing', bgClass: 'bg-indigo-500' };
+      case 'cloning_in_progress':
+        return { title: 'Étape 5 : Clonage en cours', subtitle: 'Nos techniciens programment votre nouvelle pièce. Délai estimé : 2-5 jours ouvrés.', icon: 'memory', bgClass: 'bg-violet-600' };
+      case 'cloning_done':
+        if (status === 'shipped') {
+          return { title: 'Votre pièce clonée a été expédiée !', subtitle: 'Suivez votre colis avec le numéro de suivi ci-dessous.', icon: 'local_shipping', bgClass: 'bg-green-600' };
+        }
+        return { title: 'Étape 6 : Clonage terminé, expédition imminente', subtitle: 'Votre pièce programmée sera expédiée sous 24-48h.', icon: 'check_circle', bgClass: 'bg-green-600' };
+      case 'cloning_failed':
+        return { title: 'Un problème a été détecté sur votre pièce', subtitle: 'Notre équipe technique vous contactera dans les plus brefs délais pour trouver une solution.', icon: 'warning', bgClass: 'bg-red-600' };
+    }
+  }
+
+  // ─── Commandes standard / échange : messages existants ───
   switch (status) {
     case 'shipped':
-      return {
-        title: "Votre commande est en cours d'expédition",
-        subtitle: "Livraison prévue estimée sous 2-3 jours ouvrés.",
-      };
+      return { title: "Votre commande est en cours d'expédition", subtitle: 'Livraison prévue sous 2-3 jours ouvrés.', icon: 'local_shipping', bgClass: 'bg-blue-600' };
     case 'paid':
     case 'processing':
-      return {
-        title: 'Votre commande est validée',
-        subtitle: 'Nous préparons votre colis.',
-      };
+      return { title: 'Votre commande est validée', subtitle: 'Nous préparons votre colis.', icon: 'inventory_2', bgClass: 'bg-blue-600' };
     case 'delivered':
-      return {
-        title: 'Votre commande a été livrée',
-        subtitle: 'Merci pour votre commande.',
-      };
+      return { title: 'Votre commande a été livrée', subtitle: 'Merci pour votre commande.', icon: 'task_alt', bgClass: 'bg-green-600' };
     case 'completed':
-      return {
-        title: 'Commande terminée',
-        subtitle: 'Tout est en ordre. Merci pour votre confiance.',
-      };
+      return { title: 'Commande terminée', subtitle: 'Tout est en ordre. Merci pour votre confiance.', icon: 'task_alt', bgClass: 'bg-slate-600' };
     case 'cancelled':
-      return {
-        title: 'Votre commande a été annulée',
-        subtitle: 'Si besoin, contactez le support.',
-      };
+      return { title: 'Votre commande a été annulée', subtitle: 'Si besoin, contactez le support.', icon: 'cancel', bgClass: 'bg-red-600' };
     case 'refunded':
-      return {
-        title: 'Votre commande a été remboursée',
-        subtitle: 'Le remboursement a été effectué.',
-      };
+      return { title: 'Votre commande a été remboursée', subtitle: 'Le remboursement a été effectué.', icon: 'currency_exchange', bgClass: 'bg-slate-600' };
     case 'pending_payment':
     default:
-      return {
-        title: 'Votre commande est en attente de paiement',
-        subtitle: 'Nous confirmons et préparons les articles.',
-      };
+      return { title: 'En attente de paiement', subtitle: 'Votre paiement n\'a pas encore été confirmé. Vous pouvez réessayer le paiement ou nous contacter si besoin.', icon: 'hourglass_top', bgClass: 'bg-amber-500' };
   }
 }
 
 function formatOrderStatus(status) {
   switch (status) {
     case 'pending_payment':
-      return 'En attente';
+      return 'Paiement en attente';
     case 'paid':
       return 'Payée';
     case 'processing':
@@ -2548,6 +2653,35 @@ async function postProfile(req, res, next) {
   }
 }
 
+async function getOrderDocumentForClient(req, res, next) {
+  try {
+    const sessionUser = req.session.user;
+    const { orderId, docId } = req.params;
+
+    if (!sessionUser || !sessionUser._id) return res.redirect('/compte');
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(docId)) {
+      return res.status(404).send('Document introuvable.');
+    }
+
+    const order = await Order.findOne({ _id: orderId, userId: sessionUser._id }).select('documents').lean();
+    if (!order) return res.status(404).send('Commande introuvable.');
+
+    const doc = Array.isArray(order.documents)
+      ? order.documents.find((d) => d && String(d._id) === String(docId))
+      : null;
+
+    if (!doc || !doc.storedPath) return res.status(404).send('Document introuvable.');
+    if (!fs.existsSync(doc.storedPath)) return res.status(404).send('Fichier introuvable.');
+
+    const filename = doc.originalName || 'document.pdf';
+    res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(doc.storedPath).pipe(res);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   getAccount,
   setAccountType,
@@ -2575,4 +2709,5 @@ module.exports = {
   postRepurchaseOrder,
   getInvoicesPage,
   getGaragePage,
+  getOrderDocumentForClient,
 };

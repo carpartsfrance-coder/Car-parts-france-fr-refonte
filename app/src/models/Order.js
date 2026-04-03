@@ -10,6 +10,11 @@ const orderItemSchema = new mongoose.Schema(
     unitPriceCents: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1, max: 99 },
     lineTotalCents: { type: Number, required: true, min: 0 },
+    itemType: {
+      type: String,
+      enum: ['standard', 'exchange', 'exchange_cloning', ''],
+      default: '',
+    },
   },
   { _id: false }
 );
@@ -286,16 +291,34 @@ orderSchema.pre('save', function (next) {
     }
   }
 
-  // ─── 2. Si status → 'shipped' et échange standard → calculer returnDueDate ───
-  if (order.isModified('status') && order.status === 'shipped' && order.orderType === 'exchange') {
+  // ─── 2. Si status → 'shipped' → calculer returnDueDate selon orderType ───
+  if (order.isModified('status') && order.status === 'shipped') {
     if (!order.returnDates) order.returnDates = {};
-    if (!order.returnDates.returnDueDate) {
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30);
-      order.returnDates.returnDueDate = dueDate;
-    }
-    if (order.returnStatus === 'not_applicable') {
-      order.returnStatus = 'pending';
+
+    if (order.orderType === 'exchange') {
+      // Échange standard : retour J+30 systématique
+      if (!order.returnDates.returnDueDate) {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 30);
+        order.returnDates.returnDueDate = dueDate;
+      }
+      if (order.returnStatus === 'not_applicable') {
+        order.returnStatus = 'pending';
+      }
+    } else if (order.orderType === 'exchange_cloning') {
+      // Clonage : vérifier si un article est de type 'exchange' (commande mixte)
+      // Si oui, un retour J+30 est quand même nécessaire pour cet article
+      const hasExchangeItem = Array.isArray(order.items)
+        && order.items.some(item => item && item.itemType === 'exchange');
+      if (hasExchangeItem) {
+        if (!order.returnDates.returnDueDate) {
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 30);
+          order.returnDates.returnDueDate = dueDate;
+        }
+        order.returnStatus = 'pending';
+      }
+      // Si tous les articles sont exchange_cloning → returnStatus reste 'not_applicable'
     }
   }
 

@@ -29,7 +29,33 @@ async function expireDraftOrders() {
     console.log(`[expireDraftOrders] ${result.modifiedCount} brouillon(s) expiré(s) et annulé(s).`);
   }
 
-  return result.modifiedCount || 0;
+  // Also expire pending_payment orders older than 48 hours
+  const fortyEightHoursAgo = new Date();
+  fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+
+  const pendingResult = await Order.updateMany(
+    {
+      status: 'pending_payment',
+      createdAt: { $lt: fortyEightHoursAgo },
+    },
+    {
+      $set: { status: 'cancelled' },
+      $push: {
+        statusHistory: {
+          status: 'cancelled',
+          changedAt: new Date(),
+          changedBy: 'system',
+          note: 'Paiement non reçu sous 48h — commande annulée automatiquement',
+        },
+      },
+    }
+  );
+
+  if (pendingResult.modifiedCount > 0) {
+    console.log(`[expireDraftOrders] ${pendingResult.modifiedCount} commande(s) en attente de paiement expirée(s) (> 48h).`);
+  }
+
+  return (result.modifiedCount || 0) + (pendingResult.modifiedCount || 0);
 }
 
 module.exports = { expireDraftOrders };

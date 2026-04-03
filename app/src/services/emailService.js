@@ -14,6 +14,10 @@ const {
   buildAbandonedCartReminder3,
   buildDeliveryConfirmedEmail,
   buildOrderStatusChangeEmail,
+  buildCloningLabelEmail,
+  buildCloningPieceReceivedEmail,
+  buildCloningDoneEmail,
+  buildCloningFailedEmail,
 } = require('./emailTemplates');
 
 const mongoose = require('mongoose');
@@ -509,6 +513,79 @@ async function logEmailSent({ orderId, emailType, recipientEmail, result } = {})
   }
 }
 
+async function sendCloningLabelEmail({ order, user, labelPdfBuffer } = {}) {
+  if (!order || !user || !user.email) return { ok: false, reason: 'missing_data' };
+  const baseUrl = getBaseUrl();
+
+  const fullUser = await hydrateUserForEmail(user);
+  const fullOrder = await hydrateOrderForEmail(order);
+
+  const attachments = [];
+  if (labelPdfBuffer && Buffer.isBuffer(labelPdfBuffer) && labelPdfBuffer.length) {
+    const number = fullOrder && fullOrder.number ? String(fullOrder.number).trim() : '';
+    const filename = number ? `Etiquette-recuperation-${number}.pdf` : 'Etiquette-recuperation.pdf';
+    attachments.push({ filename, content: labelPdfBuffer.toString('base64'), disposition: 'attachment' });
+  }
+
+  const built = buildCloningLabelEmail({ order: fullOrder, user: fullUser, baseUrl });
+  if (!built) return { ok: false, reason: 'template_failed' };
+
+  const result = await sendEmail({
+    toEmail: fullUser.email,
+    subject: built.subject,
+    html: built.html,
+    text: built.text,
+    attachments,
+  });
+
+  await logEmailSent({
+    orderId: fullOrder._id,
+    type: 'cloning_label',
+    recipientEmail: fullUser.email,
+    ok: result && result.ok,
+    reason: result && !result.ok ? (result.reason || '') : '',
+  });
+
+  return result;
+}
+
+async function sendCloningStepEmail({ order, user, step } = {}) {
+  if (!order || !user || !user.email || !step) return { ok: false, reason: 'missing_data' };
+  const baseUrl = getBaseUrl();
+
+  const fullUser = await hydrateUserForEmail(user);
+  const fullOrder = await hydrateOrderForEmail(order);
+
+  const builders = {
+    piece_received: buildCloningPieceReceivedEmail,
+    cloning_done: buildCloningDoneEmail,
+    cloning_failed: buildCloningFailedEmail,
+  };
+
+  const builder = builders[step];
+  if (!builder) return { ok: false, reason: 'unknown_step' };
+
+  const built = builder({ order: fullOrder, user: fullUser, baseUrl });
+  if (!built) return { ok: false, reason: 'template_failed' };
+
+  const result = await sendEmail({
+    toEmail: fullUser.email,
+    subject: built.subject,
+    html: built.html,
+    text: built.text,
+  });
+
+  await logEmailSent({
+    orderId: fullOrder._id,
+    type: `cloning_${step}`,
+    recipientEmail: fullUser.email,
+    ok: result && result.ok,
+    reason: result && !result.ok ? (result.reason || '') : '',
+  });
+
+  return result;
+}
+
 module.exports = {
   sendEmail,
   sendOrderConfirmationEmail,
@@ -524,5 +601,7 @@ module.exports = {
   sendAbandonedCartReminder,
   sendDeliveryConfirmedEmail,
   sendOrderStatusChangeEmail,
+  sendCloningLabelEmail,
+  sendCloningStepEmail,
   logEmailSent,
 };

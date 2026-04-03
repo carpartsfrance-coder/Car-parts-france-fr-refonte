@@ -26,7 +26,7 @@
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex flex-col sm:flex-row gap-3 flex-wrap">
           <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="status">
             <option value="">Tous les statuts</option>
             <option value="pending_payment" <%= filters && filters.status === 'pending_payment' ? 'selected' : '' %>>En attente paiement</option>
@@ -37,6 +37,30 @@
             <option value="completed" <%= filters && filters.status === 'completed' ? 'selected' : '' %>>Terminée</option>
             <option value="cancelled" <%= filters && filters.status === 'cancelled' ? 'selected' : '' %>>Annulée</option>
             <option value="refunded" <%= filters && filters.status === 'refunded' ? 'selected' : '' %>>Remboursée</option>
+          </select>
+
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="orderType" id="orderTypeFilter">
+            <option value="">Type de commande</option>
+            <option value="standard" <%= filters && filters.orderType === 'standard' ? 'selected' : '' %>>Vente simple</option>
+            <option value="exchange" <%= filters && filters.orderType === 'exchange' ? 'selected' : '' %>>Échange standard</option>
+            <option value="exchange_cloning" <%= filters && filters.orderType === 'exchange_cloning' ? 'selected' : '' %>>Échange + Clonage</option>
+          </select>
+
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 <%= filters && filters.orderType === 'exchange_cloning' ? '' : 'hidden' %>" name="cloningStatus" id="cloningStatusFilter">
+            <option value="">Statut clonage</option>
+            <option value="pending_label" <%= filters && filters.cloningStatus === 'pending_label' ? 'selected' : '' %>>Attente étiquette</option>
+            <option value="label_sent" <%= filters && filters.cloningStatus === 'label_sent' ? 'selected' : '' %>>Étiquette envoyée</option>
+            <option value="client_piece_in_transit" <%= filters && filters.cloningStatus === 'client_piece_in_transit' ? 'selected' : '' %>>Pièce en transit</option>
+            <option value="client_piece_received" <%= filters && filters.cloningStatus === 'client_piece_received' ? 'selected' : '' %>>Pièce reçue</option>
+            <option value="cloning_in_progress" <%= filters && filters.cloningStatus === 'cloning_in_progress' ? 'selected' : '' %>>Clonage en cours</option>
+            <option value="cloning_done" <%= filters && filters.cloningStatus === 'cloning_done' ? 'selected' : '' %>>Clonage terminé</option>
+            <option value="cloning_failed" <%= filters && filters.cloningStatus === 'cloning_failed' ? 'selected' : '' %>>Clonage échoué</option>
+          </select>
+
+          <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="returnFilter">
+            <option value="">Retour (tous)</option>
+            <option value="pending" <%= filters && filters.returnFilter === 'pending' ? 'selected' : '' %>>Retour attendu</option>
+            <option value="overdue" <%= filters && filters.returnFilter === 'overdue' ? 'selected' : '' %>>Retour en retard</option>
           </select>
 
           <select class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900" name="type">
@@ -79,6 +103,46 @@
       </div>
     </form>
 
+    <!-- Alert banner -->
+    <%
+      var _oa = typeof orderAlerts !== 'undefined' && orderAlerts ? orderAlerts : {};
+      var _hasAlerts = (_oa.overdueReturns > 0) || (_oa.failedClonings > 0) || (_oa.pieceWaiting > 0) || (_oa.cloningLong > 0) || (_oa.readyToShip > 0);
+    %>
+    <% if (_hasAlerts) { %>
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-4 flex flex-wrap gap-3">
+        <% if (_oa.overdueReturns > 0) { %>
+          <a href="/admin/commandes?orderType=exchange&returnFilter=overdue" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-100 transition">
+            <span class="material-symbols-outlined text-base">error</span>
+            <%= _oa.overdueReturns %> retour<%= _oa.overdueReturns > 1 ? 's' : '' %> en retard
+          </a>
+        <% } %>
+        <% if (_oa.failedClonings > 0) { %>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=cloning_failed" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-100 transition">
+            <span class="material-symbols-outlined text-base">warning</span>
+            <%= _oa.failedClonings %> clonage<%= _oa.failedClonings > 1 ? 's' : '' %> échoué<%= _oa.failedClonings > 1 ? 's' : '' %> à traiter
+          </a>
+        <% } %>
+        <% if (_oa.pieceWaiting > 0) { %>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=label_sent" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200 text-orange-700 text-sm font-semibold hover:bg-orange-100 transition">
+            <span class="material-symbols-outlined text-base">schedule</span>
+            <%= _oa.pieceWaiting %> pièce<%= _oa.pieceWaiting > 1 ? 's' : '' %> client en attente (&gt; 10j)
+          </a>
+        <% } %>
+        <% if (_oa.cloningLong > 0) { %>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=cloning_in_progress" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition">
+            <span class="material-symbols-outlined text-base">hourglass_top</span>
+            <%= _oa.cloningLong %> clonage<%= _oa.cloningLong > 1 ? 's' : '' %> en cours &gt; 5j
+          </a>
+        <% } %>
+        <% if (_oa.readyToShip > 0) { %>
+          <a href="/admin/commandes?orderType=exchange_cloning&cloningStatus=cloning_done" class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-semibold hover:bg-green-100 transition">
+            <span class="material-symbols-outlined text-base">inventory_2</span>
+            <%= _oa.readyToShip %> commande<%= _oa.readyToShip > 1 ? 's' : '' %> prête<%= _oa.readyToShip > 1 ? 's' : '' %> à expédier
+          </a>
+        <% } %>
+      </div>
+    <% } %>
+
     <!-- Drafts tab -->
     <% const isDraftView = filters && filters.status === 'draft'; %>
     <% const _draftsCount = typeof draftsCount !== 'undefined' ? draftsCount : 0; %>
@@ -113,6 +177,9 @@
             if (filters.status) parts.push('status=' + encodeURIComponent(filters.status));
             if (filters.type) parts.push('type=' + encodeURIComponent(filters.type));
             if (filters.source) parts.push('source=' + encodeURIComponent(filters.source));
+            if (filters.orderType) parts.push('orderType=' + encodeURIComponent(filters.orderType));
+            if (filters.cloningStatus) parts.push('cloningStatus=' + encodeURIComponent(filters.cloningStatus));
+            if (filters.returnFilter) parts.push('returnFilter=' + encodeURIComponent(filters.returnFilter));
             if (filters.period) parts.push('period=' + encodeURIComponent(filters.period));
             if (filters.sort) parts.push('sort=' + filters.sort);
             if (filters.order) parts.push('order=' + filters.order);
@@ -168,6 +235,9 @@
                 if (filters.status) p.push('status=' + encodeURIComponent(filters.status));
                 if (filters.type) p.push('type=' + encodeURIComponent(filters.type));
                 if (filters.source) p.push('source=' + encodeURIComponent(filters.source));
+                if (filters.orderType) p.push('orderType=' + encodeURIComponent(filters.orderType));
+                if (filters.cloningStatus) p.push('cloningStatus=' + encodeURIComponent(filters.cloningStatus));
+                if (filters.returnFilter) p.push('returnFilter=' + encodeURIComponent(filters.returnFilter));
                 if (filters.period) p.push('period=' + encodeURIComponent(filters.period));
                 p.push('sort=' + field, 'order=' + nextOrder);
                 return '/admin/commandes?' + p.join('&');
@@ -186,7 +256,8 @@
                   </a>
                 </th>
                 <th class="px-6 py-4">Client</th>
-                <th class="px-6 py-4">Type</th>
+                <th class="px-6 py-4">Type client</th>
+                <th class="px-6 py-4">Type commande</th>
                 <th class="px-6 py-4">Articles</th>
                 <th class="px-6 py-4 th-sortable <%= oSort === 'total' ? 'sort-active' : '' %>">
                   <a href="<%= oSortUrl('total') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
@@ -196,6 +267,11 @@
                 <th class="px-6 py-4 th-sortable <%= oSort === 'status' ? 'sort-active' : '' %>">
                   <a href="<%= oSortUrl('status') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
                     Statut<span class="sort-icon material-symbols-outlined"><%= oSortIcon('status') %></span>
+                  </a>
+                </th>
+                <th class="px-6 py-4 th-sortable <%= oSort === 'urgency' ? 'sort-active' : '' %>">
+                  <a href="<%= oSortUrl('urgency') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
+                    <span class="material-symbols-outlined" style="font-size:14px">priority_high</span>Urgence<span class="sort-icon material-symbols-outlined"><%= oSortIcon('urgency') %></span>
                   </a>
                 </th>
                 <th class="px-6 py-4 text-right">Actions</th>
@@ -244,17 +320,93 @@
                       <%= o.accountType === 'pro' ? 'PRO' : 'PARTICULIER' %>
                     </span>
                   </td>
-                  <td class="px-6 py-4 text-sm font-semibold text-slate-900"><%= typeof o.itemCount !== 'undefined' ? o.itemCount : 0 %></td>
+                  <td class="px-6 py-4">
+                    <% if (o.orderType === 'exchange_cloning') { %>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                        <span class="material-symbols-outlined" style="font-size:13px">science</span>Éch. + Clonage
+                      </span>
+                    <% } else if (o.orderType === 'exchange') { %>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                        Échange std
+                      </span>
+                    <% } else { %>
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                        Vente simple
+                      </span>
+                    <% } %>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-sm font-semibold text-slate-900"><%= typeof o.itemCount !== 'undefined' ? o.itemCount : 0 %></span>
+                    <% if (o.hasCloningItem) { %>
+                      <span class="ml-1 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200"><span class="material-symbols-outlined" style="font-size:11px">science</span>Clonage</span>
+                    <% } %>
+                  </td>
                   <td class="px-6 py-4 font-semibold text-slate-900"><%= o.total %></td>
                   <td class="px-6 py-4">
-                    <div class="flex items-center gap-2">
-                      <span class="<%= o.statusBadge.className %>"><%= o.statusBadge.label %></span>
-                      <% if (o.hasShippingLabel) { %>
-                        <span class="material-symbols-outlined text-base text-green-500" title="Étiquette d'envoi attachée">local_shipping</span>
-                      <% } else if (o.docCount > 0) { %>
-                        <span class="material-symbols-outlined text-base text-slate-400" title="<%= o.docCount %> document(s) attaché(s)">attach_file</span>
+                    <div class="flex flex-col gap-1">
+                      <div class="flex items-center gap-2">
+                        <span class="<%= o.statusBadge.className %>"><%= o.statusBadge.label %></span>
+                        <% if (o.hasShippingLabel) { %>
+                          <span class="material-symbols-outlined text-base text-green-500" title="Étiquette d'envoi attachée">local_shipping</span>
+                        <% } else if (o.docCount > 0) { %>
+                          <span class="material-symbols-outlined text-base text-slate-400" title="<%= o.docCount %> document(s) attaché(s)">attach_file</span>
+                        <% } %>
+                      </div>
+                      <%/* Sous-statut clonage pour exchange_cloning */ %>
+                      <% if (o.orderType === 'exchange_cloning' && o.cloningStatusBadge) { %>
+                        <div class="flex items-center gap-1 text-[11px] font-semibold">
+                          <% if (o.cloningStatus === 'pending_label') { %>
+                            <span class="inline-flex items-center gap-1 text-amber-600"><span style="font-size:12px">&#x1F7E1;</span> Étiquette récup à envoyer</span>
+                          <% } else if (o.cloningStatus === 'label_sent') { %>
+                            <span class="inline-flex items-center gap-1 text-blue-600"><span class="material-symbols-outlined" style="font-size:13px">mail</span> Étiquette récup envoyée</span>
+                          <% } else if (o.cloningStatus === 'client_piece_in_transit') { %>
+                            <span class="inline-flex items-center gap-1 text-indigo-600"><span class="material-symbols-outlined" style="font-size:13px">local_shipping</span> Pièce client en transit<% if (o.cloningTrackingNumber) { %> <span class="text-[10px] text-slate-400">(<%= o.cloningTrackingNumber %>)</span><% } %></span>
+                          <% } else if (o.cloningStatus === 'client_piece_received') { %>
+                            <span class="inline-flex items-center gap-1 text-cyan-600"><span class="material-symbols-outlined" style="font-size:13px">inventory_2</span> Pièce client reçue</span>
+                          <% } else if (o.cloningStatus === 'cloning_in_progress') { %>
+                            <span class="inline-flex items-center gap-1 text-purple-600"><span class="material-symbols-outlined" style="font-size:13px">settings</span> Clonage en cours</span>
+                          <% } else if (o.cloningStatus === 'cloning_done') { %>
+                            <span class="inline-flex items-center gap-1 text-green-600"><span class="material-symbols-outlined" style="font-size:13px">check_circle</span> Clonage terminé, prête à expédier</span>
+                          <% } else if (o.cloningStatus === 'cloning_failed') { %>
+                            <span class="inline-flex items-center gap-1 text-red-600 font-bold"><span class="material-symbols-outlined" style="font-size:13px">warning</span> Clonage échoué</span>
+                          <% } %>
+                        </div>
+                      <% } %>
+                      <%/* Indicateur retour pour exchange (PAS exchange_cloning) */ %>
+                      <% if (o.orderType === 'exchange' && o.returnStatus === 'pending' && o.returnDaysLeft !== null) { %>
+                        <% if (o.returnDaysLeft <= 0) { %>
+                          <div class="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                            <span class="material-symbols-outlined" style="font-size:13px">error</span> Retour en retard !
+                          </div>
+                        <% } else if (o.returnDaysLeft <= 10) { %>
+                          <div class="text-[11px] font-bold text-orange-600 flex items-center gap-1">
+                            <span class="material-symbols-outlined" style="font-size:13px">schedule</span> Retour J+<%= 30 - o.returnDaysLeft %>/30
+                          </div>
+                        <% } %>
+                      <% } else if (o.orderType === 'exchange' && o.returnStatus === 'overdue') { %>
+                        <div class="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                          <span class="material-symbols-outlined" style="font-size:13px">error</span> Retour en retard !
+                        </div>
                       <% } %>
                     </div>
+                  </td>
+                  <td class="px-6 py-4 text-center">
+                    <%
+                      var _urgencyLevel = 4;
+                      var _urgencyLabel = '';
+                      var _urgencyClass = 'text-slate-300';
+                      if (o.returnStatus === 'overdue') { _urgencyLevel = 0; _urgencyLabel = 'Retour en retard'; _urgencyClass = 'text-red-500'; }
+                      else if (o.orderType === 'exchange_cloning' && (o.cloningStatus === 'pending_label' || o.cloningStatus === 'label_sent' || o.cloningStatus === 'client_piece_in_transit')) { _urgencyLevel = 1; _urgencyLabel = 'Attente pièce'; _urgencyClass = 'text-orange-500'; }
+                      else if (o.orderType === 'exchange_cloning' && o.cloningStatus === 'cloning_in_progress') { _urgencyLevel = 2; _urgencyLabel = 'Clonage en cours'; _urgencyClass = 'text-purple-500'; }
+                      else if (o.statusBadge && o.statusBadge.label === 'En attente paiement') { _urgencyLevel = 3; _urgencyLabel = 'Attente paiement'; _urgencyClass = 'text-amber-500'; }
+                    %>
+                    <% if (_urgencyLevel < 4) { %>
+                      <span class="material-symbols-outlined text-base <%= _urgencyClass %>" title="<%= _urgencyLabel %>">
+                        <%= _urgencyLevel <= 1 ? 'priority_high' : 'radio_button_checked' %>
+                      </span>
+                    <% } else { %>
+                      <span class="text-slate-200">&mdash;</span>
+                    <% } %>
                   </td>
                   <td class="px-6 py-4 text-right">
                     <div class="flex items-center justify-end gap-1">
@@ -318,6 +470,21 @@
       document.addEventListener('DOMContentLoaded', revealPage);
     } else {
       revealPage();
+    }
+
+    // Show/hide cloning status filter based on order type
+    var otSelect = document.getElementById('orderTypeFilter');
+    var csSelect = document.getElementById('cloningStatusFilter');
+    if (otSelect && csSelect) {
+      function toggleCloningFilter() {
+        if (otSelect.value === 'exchange_cloning') {
+          csSelect.classList.remove('hidden');
+        } else {
+          csSelect.classList.add('hidden');
+          csSelect.value = '';
+        }
+      }
+      otSelect.addEventListener('change', toggleCloningFilter);
     }
   })();
 </script>

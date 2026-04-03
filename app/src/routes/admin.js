@@ -206,6 +206,9 @@ router.get('/api/clients/search', requireAdminAuth, adminController.getAdminClie
 router.post('/api/clients', requireAdminAuth, adminController.postAdminCreateClientApi);
 router.post('/api/commandes/manuelle', requireAdminAuth, adminController.postAdminCreateManualOrder);
 router.post('/api/commandes/:orderId/valider-brouillon', requireAdminAuth, adminController.postAdminValidateDraftOrder);
+router.get('/api/commandes/:orderId/timeline', requireAdminAuth, adminController.getAdminOrderTimelineApi);
+router.post('/api/commandes/:orderId/advance', requireAdminAuth, adminController.postAdminAdvanceOrder);
+router.get('/api/alerts', requireAdminAuth, adminController.getAdminAlertsApi);
 
 router.get('/clients', requireAdminAuth, adminController.getAdminClientsPage);
 router.get('/clients/:userId', requireAdminAuth, adminController.getAdminClientDetailPage);

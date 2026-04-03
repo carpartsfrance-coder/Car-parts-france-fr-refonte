@@ -35,6 +35,15 @@ const STATUS_MAP = {
   livree: 'delivered',
   annulee: 'cancelled',
   draft: 'draft',           // inchangé
+  // New statuses that may already exist but miss orderType
+  paid: 'paid',
+  pending_payment: 'pending_payment',
+  processing: 'processing',
+  shipped: 'shipped',
+  delivered: 'delivered',
+  completed: 'completed',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
 };
 
 // Map ancien statusHistory entry → nouveau
