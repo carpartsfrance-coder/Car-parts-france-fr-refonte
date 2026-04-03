@@ -674,6 +674,26 @@ async function getOrderDetailPage(req, res, next) {
             uploadedAt: labelDoc.uploadedAt ? formatDateTimeFR(labelDoc.uploadedAt) : null,
           };
         })(),
+        returnLabel: (() => {
+          const docs = Array.isArray(order.documents) ? order.documents : [];
+          const labelDoc = docs.find(d => d && d.docType === 'bon_retour' && d.storedPath);
+          if (!labelDoc) return null;
+          return {
+            originalName: labelDoc.originalName || 'Bon de retour.pdf',
+            url: `/compte/commandes/${encodeURIComponent(String(order._id))}/documents/${encodeURIComponent(String(labelDoc._id))}`,
+            uploadedAt: labelDoc.uploadedAt ? formatDateTimeFR(labelDoc.uploadedAt) : null,
+          };
+        })(),
+        shippingLabel: (() => {
+          const docs = Array.isArray(order.documents) ? order.documents : [];
+          const labelDoc = docs.find(d => d && d.docType === 'etiquette_envoi' && d.storedPath);
+          if (!labelDoc) return null;
+          return {
+            originalName: labelDoc.originalName || 'Étiquette d\'envoi.pdf',
+            url: `/compte/commandes/${encodeURIComponent(String(order._id))}/documents/${encodeURIComponent(String(labelDoc._id))}`,
+            uploadedAt: labelDoc.uploadedAt ? formatDateTimeFR(labelDoc.uploadedAt) : null,
+          };
+        })(),
         total: formatEuro(totalCents),
         totalCents,
         ht: formatEuro(htCents),
