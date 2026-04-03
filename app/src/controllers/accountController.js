@@ -665,14 +665,27 @@ async function getOrderDetailPage(req, res, next) {
         cloningTracking: order.cloningTracking || { carrier: '', trackingNumber: '', trackingUrl: '' },
         cloningFailureNote: order.cloningFailureNote || '',
         cloningLabel: (() => {
+          // Check direct documents first
           const docs = Array.isArray(order.documents) ? order.documents : [];
           const labelDoc = docs.find(d => d && d.docType === 'recuperation_clonage' && d.storedPath);
-          if (!labelDoc) return null;
-          return {
-            originalName: labelDoc.originalName || 'Étiquette de récupération.pdf',
-            url: `/compte/commandes/${encodeURIComponent(String(order._id))}/documents/${encodeURIComponent(String(labelDoc._id))}`,
-            uploadedAt: labelDoc.uploadedAt ? formatDateTimeFR(labelDoc.uploadedAt) : null,
-          };
+          if (labelDoc) {
+            return {
+              originalName: labelDoc.originalName || 'Étiquette de récupération.pdf',
+              url: `/compte/commandes/${encodeURIComponent(String(order._id))}/documents/${encodeURIComponent(String(labelDoc._id))}`,
+              uploadedAt: labelDoc.uploadedAt ? formatDateTimeFR(labelDoc.uploadedAt) : null,
+            };
+          }
+          // Fallback: check shipments with label "Récupération clonage"
+          const shipments = Array.isArray(order.shipments) ? order.shipments : [];
+          const shipment = shipments.find(s => s && s.label && (s.label.toLowerCase().includes('cupération clonage') || s.label.toLowerCase().includes('recuperation clonage')) && s.document && s.document.storedPath);
+          if (shipment) {
+            return {
+              originalName: shipment.document.originalName || 'Étiquette de récupération.pdf',
+              url: `/compte/commandes/${encodeURIComponent(String(order._id))}/shipment-doc/${encodeURIComponent(String(shipment._id))}`,
+              uploadedAt: shipment.document.uploadedAt ? formatDateTimeFR(shipment.document.uploadedAt) : (shipment.createdAt ? formatDateTimeFR(shipment.createdAt) : null),
+            };
+          }
+          return null;
         })(),
         returnLabel: (() => {
           const docs = Array.isArray(order.documents) ? order.documents : [];
@@ -2702,6 +2715,35 @@ async function getOrderDocumentForClient(req, res, next) {
   }
 }
 
+async function getOrderShipmentDocForClient(req, res, next) {
+  try {
+    const sessionUser = req.session.user;
+    const { orderId, shipmentId } = req.params;
+
+    if (!sessionUser || !sessionUser._id) return res.redirect('/compte');
+    if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(shipmentId)) {
+      return res.status(404).send('Document introuvable.');
+    }
+
+    const order = await Order.findOne({ _id: orderId, userId: sessionUser._id }).select('shipments').lean();
+    if (!order) return res.status(404).send('Commande introuvable.');
+
+    const shipment = Array.isArray(order.shipments)
+      ? order.shipments.find((s) => s && String(s._id) === String(shipmentId) && s.document && s.document.storedPath)
+      : null;
+
+    if (!shipment) return res.status(404).send('Document introuvable.');
+    if (!fs.existsSync(shipment.document.storedPath)) return res.status(404).send('Fichier introuvable.');
+
+    const filename = shipment.document.originalName || 'document.pdf';
+    res.setHeader('Content-Type', shipment.document.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    fs.createReadStream(shipment.document.storedPath).pipe(res);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   getAccount,
   setAccountType,
@@ -2730,4 +2772,5 @@ module.exports = {
   getInvoicesPage,
   getGaragePage,
   getOrderDocumentForClient,
+  getOrderShipmentDocForClient,
 };

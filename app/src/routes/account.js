@@ -43,6 +43,7 @@ router.get('/commandes/:orderId', requireAuth, accountController.getOrderDetailP
 router.get('/commandes/:orderId/suivi', requireAuth, accountController.getOrderTrackingPage);
 router.get('/commandes/:orderId/facture.pdf', requireAuth, accountController.getOrderInvoicePdf);
 router.get('/commandes/:orderId/documents/:docId', requireAuth, accountController.getOrderDocumentForClient);
+router.get('/commandes/:orderId/shipment-doc/:shipmentId', requireAuth, accountController.getOrderShipmentDocForClient);
 router.post('/commandes/:orderId/racheter', requireAuth, accountController.postRepurchaseOrder);
 router.get('/factures', requireAuth, accountController.getInvoicesPage);
 router.get('/garage', requireAuth, accountController.getGaragePage);
