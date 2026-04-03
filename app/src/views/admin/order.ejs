@@ -290,7 +290,7 @@
 
                 <!-- Changement manuel (avancé) -->
                 <div class="mt-6">
-                  <button type="button" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition" onclick="document.getElementById('manual-status-section').classList.toggle('hidden')">
+                  <button type="button" id="toggle-manual-status-btn" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition cursor-pointer" style="position:relative;z-index:5;">
                     <span class="material-symbols-outlined" style="font-size:14px">tune</span>
                     Changement manuel de statut (avancé)
                   </button>
@@ -1326,6 +1326,18 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 (function() {
   var orderId = '<%= order.id %>';
+
+  // Toggle manual status section
+  var toggleBtn = document.getElementById('toggle-manual-status-btn');
+  var manualSection = document.getElementById('manual-status-section');
+  if (toggleBtn && manualSection) {
+    toggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      manualSection.classList.toggle('hidden');
+    });
+  }
+
   var container = document.getElementById('timeline-container');
   if (!container) return;
 
