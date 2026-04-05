@@ -68,6 +68,19 @@
           </div>
         <% } %>
 
+        <div class="mt-8 max-w-3xl">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div class="font-black text-slate-900">Notifications SMS</div>
+            <div class="mt-1 text-sm text-slate-600">Recevez des SMS de suivi pour vos commandes.</div>
+            <div class="mt-4">
+              <label class="flex items-start gap-3">
+                <input class="mt-1 rounded border-slate-300 text-primary focus:ring-primary" name="smsOptIn" type="checkbox" value="true" <%= form && form.smsOptIn ? 'checked' : '' %> />
+                <span class="text-sm text-slate-700">J'accepte de recevoir des SMS de suivi (expedition, livraison, rappels consigne).</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div class="mt-8 max-w-xl">
           <button class="w-full rounded-xl bg-primary text-white px-5 py-3 font-black hover:bg-red-700 transition" type="submit">Enregistrer</button>
           <% if (!dbConnected) { %>

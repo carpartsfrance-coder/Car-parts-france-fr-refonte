@@ -101,6 +101,17 @@ const emailSentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const smsSentSchema = new mongoose.Schema(
+  {
+    type: { type: String, required: true, trim: true },
+    sentAt: { type: Date, required: true },
+    recipientPhone: { type: String, default: '', trim: true },
+    status: { type: String, enum: ['sent', 'failed'], default: 'sent' },
+    reason: { type: String, default: '', trim: true },
+  },
+  { _id: false }
+);
+
 const orderDocumentSchema = new mongoose.Schema(
   {
     docType: {
@@ -226,6 +237,7 @@ const orderSchema = new mongoose.Schema(
       statusChangeSentAt: { type: Date, default: null },
     },
     emailsSent: { type: [emailSentSchema], default: [] },
+    smsSent: { type: [smsSentSchema], default: [] },
     consigne: {
       lines: { type: [consigneLineSchema], default: [] },
     },

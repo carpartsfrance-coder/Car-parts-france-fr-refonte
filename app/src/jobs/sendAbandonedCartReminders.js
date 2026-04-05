@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 
 const AbandonedCart = require('../models/AbandonedCart');
+const User = require('../models/User');
 const { sendAbandonedCartReminder } = require('../services/emailService');
+const smsService = require('../services/smsService');
 
 const MAX_EMAILS_PER_RUN = 50;
 const RATE_LIMIT_MS = 200; // 200ms between each email
@@ -130,6 +132,15 @@ async function sendAbandonedCartReminders() {
         });
 
         if (result && result.ok) {
+          // Send SMS only on first reminder (avoid spam)
+          if (reminderNumber === 1 && cart.userId) {
+            try {
+              const smsUser = await User.findById(cart.userId).select('_id smsOptIn addresses').lean();
+              if (smsUser) {
+                smsService.sendAbandonedCartSms({ cart, user: smsUser }).catch(() => {});
+              }
+            } catch (_) { /* non-blocking */ }
+          }
           // Update cart status
           await AbandonedCart.updateOne(
             { _id: cart._id },

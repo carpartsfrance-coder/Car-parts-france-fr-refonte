@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const emailService = require('../services/emailService');
+const smsService = require('../services/smsService');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -46,11 +47,12 @@ async function sendConsigneReminders() {
   for (const order of soonOrders) {
     try {
       if (!order || !order.userId) continue;
-      const user = await User.findById(order.userId).select('_id email firstName').lean();
+      const user = await User.findById(order.userId).select('_id email firstName smsOptIn').lean();
       if (!user || !user.email) continue;
 
       const sent = await emailService.sendConsigneReminderSoonEmail({ order, user });
       emailService.logEmailSent({ orderId: order._id, emailType: 'consigne_reminder_soon', recipientEmail: user.email, result: sent });
+      smsService.sendConsigneReminderSoonSms({ order, user }).catch(() => {});
       if (sent && sent.ok) {
         await Order.updateOne(
           { _id: order._id, $or: [{ 'notifications.consigneReminderSoonSentAt': { $exists: false } }, { 'notifications.consigneReminderSoonSentAt': null }] },
@@ -82,11 +84,12 @@ async function sendConsigneReminders() {
   for (const order of overdueOrders) {
     try {
       if (!order || !order.userId) continue;
-      const user = await User.findById(order.userId).select('_id email firstName').lean();
+      const user = await User.findById(order.userId).select('_id email firstName smsOptIn').lean();
       if (!user || !user.email) continue;
 
       const sent = await emailService.sendConsigneOverdueEmail({ order, user });
       emailService.logEmailSent({ orderId: order._id, emailType: 'consigne_overdue', recipientEmail: user.email, result: sent });
+      smsService.sendConsigneOverdueSms({ order, user }).catch(() => {});
       if (sent && sent.ok) {
         await Order.updateOne(
           { _id: order._id, $or: [{ 'notifications.consigneOverdueSentAt': { $exists: false } }, { 'notifications.consigneOverdueSentAt': null }] },

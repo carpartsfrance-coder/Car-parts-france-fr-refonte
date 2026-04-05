@@ -2593,6 +2593,7 @@ async function getProfile(req, res, next) {
         email: user.email || '',
         companyName: user.companyName || '',
         siret: user.siret || '',
+        smsOptIn: Boolean(user.smsOptIn),
       },
     });
   } catch (err) {
@@ -2613,6 +2614,7 @@ async function postProfile(req, res, next) {
     const lastName = typeof req.body.lastName === 'string' ? req.body.lastName.trim() : '';
     const companyName = typeof req.body.companyName === 'string' ? req.body.companyName.trim() : '';
     const siret = typeof req.body.siret === 'string' ? req.body.siret.trim() : '';
+    const smsOptIn = req.body.smsOptIn === 'true' || req.body.smsOptIn === true;
 
     const form = {
       accountType: sessionUser.accountType === 'pro' ? 'pro' : 'particulier',
@@ -2621,6 +2623,7 @@ async function postProfile(req, res, next) {
       email: sessionUser.email || '',
       companyName,
       siret,
+      smsOptIn,
     };
 
     if (!dbConnected) {
@@ -2650,6 +2653,17 @@ async function postProfile(req, res, next) {
       });
     }
 
+    // Detect SMS opt-in change for RGPD consent tracking
+    const currentUser = await User.findById(sessionUser._id).select('smsOptIn').lean();
+    const smsFields = { smsOptIn };
+    if (currentUser && Boolean(currentUser.smsOptIn) !== smsOptIn) {
+      if (smsOptIn) {
+        smsFields.smsOptInAt = new Date();
+      } else {
+        smsFields.smsOptOutAt = new Date();
+      }
+    }
+
     const updated = await User.findByIdAndUpdate(
       sessionUser._id,
       {
@@ -2658,6 +2672,7 @@ async function postProfile(req, res, next) {
           lastName,
           companyName: form.accountType === 'pro' ? companyName : '',
           siret: form.accountType === 'pro' ? siret : '',
+          ...smsFields,
         },
       },
       { new: true }
