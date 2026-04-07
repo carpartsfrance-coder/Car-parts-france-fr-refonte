@@ -18,6 +18,7 @@ const InternalNote = require('../models/InternalNote');
 
 const track17 = require('../services/track17');
 const emailService = require('../services/emailService');
+const smsService = require('../services/smsService');
 const invoiceSettings = require('../services/invoiceSettings');
 const siteSettings = require('../services/siteSettings');
 const productOptions = require('../services/productOptions');
@@ -424,6 +425,7 @@ async function postAdminMarkOrderConsigneReceived(req, res, next) {
         if (user && user.email) {
           const sent = await emailService.sendConsigneReceivedEmail({ order: refreshed, user });
           emailService.logEmailSent({ orderId: refreshed._id, emailType: 'consigne_received', recipientEmail: user.email, result: sent });
+          smsService.sendConsigneReceivedSms({ order: refreshed, user }).catch(() => {});
           if (sent && sent.ok) {
             await Order.updateOne(
               {
@@ -2419,7 +2421,7 @@ async function getAdminOrderDetailPage(req, res, next) {
 
     const user = orderDoc.userId
       ? await User.findById(orderDoc.userId)
-          .select('_id accountType firstName lastName email companyName')
+          .select('_id accountType firstName lastName email companyName smsOptIn smsOptInAt')
           .lean()
       : null;
 
@@ -2674,6 +2676,8 @@ async function getAdminOrderDetailPage(req, res, next) {
         statusHistory,
         customer,
         customerEmail: user && user.email ? user.email : '',
+        customerSmsOptIn: user && user.smsOptIn ? true : false,
+        customerSmsOptInAt: user && user.smsOptInAt ? formatDateTimeFR(user.smsOptInAt) : '',
         accountType: orderDoc.accountType,
         vehicle: orderDoc.vehicle
           ? {
@@ -2739,6 +2743,31 @@ async function getAdminOrderDetailPage(req, res, next) {
                 recipientEmail: e.recipientEmail || '',
                 status: e.status || 'sent',
                 reason: e.reason || '',
+              };
+            })
+          : [],
+        smsSent: Array.isArray(orderDoc.smsSent)
+          ? orderDoc.smsSent.map((s) => {
+              const smsTypeLabels = {
+                order_confirmation: 'Confirmation commande',
+                shipment_tracking: 'Suivi expédition',
+                delivery_confirmed: 'Livraison confirmée',
+                consigne_reminder_soon: 'Rappel consigne',
+                consigne_overdue: 'Consigne en retard',
+                consigne_received: 'Consigne reçue',
+                status_change: 'Changement statut',
+                cloning_label_sent: 'Étiquette clonage',
+                cloning_piece_received: 'Pièce reçue (clonage)',
+                cloning_cloning_done: 'Clonage terminé',
+                cloning_cloning_failed: 'Clonage échoué',
+              };
+              return {
+                type: s.type || '',
+                typeLabel: smsTypeLabels[s.type] || s.type || '—',
+                sentAt: formatDateTimeFR(s.sentAt),
+                recipientPhone: s.recipientPhone || '',
+                status: s.status || 'sent',
+                reason: s.reason || '',
               };
             })
           : [],
@@ -2854,6 +2883,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
             if (user && user.email) {
               const sent = await emailService.sendConsigneStartEmail({ order: refreshed, user });
               emailService.logEmailSent({ orderId: refreshed._id, emailType: 'consigne_start', recipientEmail: user.email, result: sent });
+              smsService.sendConsigneReminderSoonSms({ order: refreshed, user }).catch(() => {});
               if (sent && sent.ok) {
                 await Order.updateOne(
                   {
@@ -2882,6 +2912,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
             if (user && user.email) {
               const sent = await emailService.sendDeliveryConfirmedEmail({ order: refreshed, user });
               emailService.logEmailSent({ orderId: refreshed._id, emailType: 'delivery_confirmed', recipientEmail: user.email, result: sent });
+              smsService.sendDeliveryConfirmedSms({ order: refreshed, user }).catch(() => {});
               if (sent && sent.ok) {
                 await Order.updateOne(
                   {
@@ -2914,6 +2945,7 @@ async function postAdminUpdateOrderStatus(req, res, next) {
               message: 'Votre commande a été validée et va être préparée dans les meilleurs délais.',
             });
             emailService.logEmailSent({ orderId: existing._id, emailType: 'status_change', recipientEmail: user.email, result: sent });
+            smsService.sendOrderStatusChangeSms({ order: existing, user, newStatus: status }).catch(() => {});
             if (sent && sent.ok) {
               await Order.updateOne(
                 { _id: existing._id },
@@ -3152,7 +3184,7 @@ async function postAdminAddOrderShipment(req, res, next) {
           && existing.notifications.shipmentTrackingNumbersSent.includes(trackingNumber);
 
         if (!alreadySent && existing.userId) {
-          const user = await User.findById(existing.userId).select('_id email firstName').lean();
+          const user = await User.findById(existing.userId).select('_id email firstName smsOptIn').lean();
           if (user && user.email) {
             const sent = await emailService.sendShipmentTrackingEmail({
               order: { _id: existing._id, number: existing.number },
@@ -3160,6 +3192,7 @@ async function postAdminAddOrderShipment(req, res, next) {
               shipment: { label, carrier, trackingNumber },
             });
             emailService.logEmailSent({ orderId: existing._id, emailType: 'shipment_tracking', recipientEmail: user.email, result: sent });
+            smsService.sendShipmentTrackingSms({ order: existing, user, shipment: { label, carrier, trackingNumber } }).catch(() => {});
 
             if (sent && sent.ok) {
               await Order.updateOne(
@@ -3237,6 +3270,7 @@ async function postAdminAddOrderShipment(req, res, next) {
                 user: clientUser,
                 labelPdfBuffer,
               });
+              smsService.sendCloningStepSms({ order: orderForClonage.toObject ? orderForClonage.toObject() : orderForClonage, user: clientUser, step: 'label_sent' }).catch(() => {});
               cloningEmailSent = true;
             }
           } catch (emailErr) {
@@ -3436,6 +3470,7 @@ async function postAdminUploadOrderDocument(req, res, next) {
                 user: clientUser,
                 labelPdfBuffer: Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes),
               });
+              smsService.sendCloningStepSms({ order: orderForClonage.toObject ? orderForClonage.toObject() : orderForClonage, user: clientUser, step: 'label_sent' }).catch(() => {});
               emailSent = true;
             }
           } catch (emailErr) {
@@ -8467,6 +8502,7 @@ async function postAdminCreateManualOrder(req, res) {
     if (initialStatus !== 'draft' && body.sendConfirmationEmail && typeof emailService.sendOrderConfirmationEmail === 'function') {
       try {
         await emailService.sendOrderConfirmationEmail({ order: created, user });
+        smsService.sendOrderConfirmationSms({ order: created, user }).catch(() => {});
       } catch (emailErr) {
         /* Non-blocking — order is already created */
       }
@@ -8541,6 +8577,7 @@ async function postAdminValidateDraftOrder(req, res) {
         const user = orderDoc.userId ? await User.findById(orderDoc.userId).lean() : null;
         if (user) {
           await emailService.sendOrderConfirmationEmail({ order: orderDoc.toObject(), user });
+          smsService.sendOrderConfirmationSms({ order: orderDoc.toObject(), user }).catch(() => {});
         }
       } catch (emailErr) { /* non-blocking */ }
     }
@@ -8862,13 +8899,17 @@ async function postAdminAdvanceOrder(req, res) {
     const emailStep = emailStepMap[action];
     if (emailStep && order.userId) {
       try {
-        const clientUser = await User.findById(order.userId).select('_id email firstName').lean();
+        const clientUser = await User.findById(order.userId).select('_id email firstName smsOptIn').lean();
         if (clientUser && clientUser.email) {
           await emailService.sendCloningStepEmail({
             order: order.toObject ? order.toObject() : order,
             user: clientUser,
             step: emailStep,
           });
+          const smsStepMap = { piece_received: 'piece_received', cloning_done: 'cloning_done', cloning_failed: 'cloning_failed' };
+          if (smsStepMap[emailStep]) {
+            smsService.sendCloningStepSms({ order: order.toObject ? order.toObject() : order, user: clientUser, step: smsStepMap[emailStep] }).catch(() => {});
+          }
         }
       } catch (emailErr) {
         console.error('[advance-email] Erreur envoi email clonage:', emailErr && emailErr.message ? emailErr.message : emailErr);

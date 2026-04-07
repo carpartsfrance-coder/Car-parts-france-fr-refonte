@@ -10,6 +10,7 @@ const scalapay = require('../services/scalapay');
 const promoCodes = require('../services/promoCodes');
 const pricing = require('../services/pricing');
 const emailService = require('../services/emailService');
+const smsService = require('../services/smsService');
 const productOptions = require('../services/productOptions');
 const { getShippingMethods } = require('../services/shippingPricing');
 const { getLegalPageBySlug } = require('../services/legalPages');
@@ -538,10 +539,11 @@ async function applyMolliePaymentToOrder(order, payment) {
         && refreshed.notifications.orderConfirmationSentAt;
 
       if (!alreadySent) {
-        const user = await User.findById(refreshed.userId).select('_id email firstName').lean();
+        const user = await User.findById(refreshed.userId).select('_id email firstName smsOptIn').lean();
         if (user && user.email) {
           const sent = await emailService.sendOrderConfirmationEmail({ order: refreshed, user });
           emailService.logEmailSent({ orderId: refreshed._id, emailType: 'order_confirmation', recipientEmail: user.email, result: sent });
+          smsService.sendOrderConfirmationSms({ order: refreshed, user }).catch(() => {});
           if (sent && sent.ok) {
             await Order.updateOne(
               {
@@ -636,10 +638,11 @@ async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatu
         && refreshed.notifications.orderConfirmationSentAt;
 
       if (!alreadySent) {
-        const user = await User.findById(refreshed.userId).select('_id email firstName').lean();
+        const user = await User.findById(refreshed.userId).select('_id email firstName smsOptIn').lean();
         if (user && user.email) {
           const sent = await emailService.sendOrderConfirmationEmail({ order: refreshed, user });
           emailService.logEmailSent({ orderId: refreshed._id, emailType: 'order_confirmation', recipientEmail: user.email, result: sent });
+          smsService.sendOrderConfirmationSms({ order: refreshed, user }).catch(() => {});
           if (sent && sent.ok) {
             await Order.updateOne(
               {
@@ -1399,6 +1402,7 @@ async function postPayment(req, res, next) {
 
     const selectedPaymentMethod = getTrimmedString(req.body && req.body.paymentMethod);
     const acceptCgv = isTruthyFormValue(req.body && req.body.acceptCgv);
+    const smsOptIn = isTruthyFormValue(req.body && req.body.smsOptIn);
 
     const vehicleIdentifierTypeRaw = getTrimmedString(req.body && req.body.vehicleIdentifierType);
     const vehicleIdentifierType = vehicleIdentifierTypeRaw === 'vin' ? 'vin' : 'plate';
@@ -1802,6 +1806,19 @@ async function postPayment(req, res, next) {
     }
 
     await reserveOrderStockIfNeeded(created, productById);
+
+    // Persist SMS opt-in preference on user (with RGPD consent date)
+    if (user && user._id) {
+      try {
+        const smsUpdate = { smsOptIn };
+        if (smsOptIn) {
+          smsUpdate.smsOptInAt = new Date();
+        } else {
+          smsUpdate.smsOptOutAt = new Date();
+        }
+        await User.updateOne({ _id: user._id }, { $set: smsUpdate });
+      } catch (_) { /* non-blocking */ }
+    }
 
     if (promo && promo._id) {
       try {

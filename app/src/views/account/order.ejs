@@ -493,4 +493,50 @@
   </div>
 </main>
 
+<% if (order.statusKey === 'paid' || order.statusKey === 'processing' || order.statusKey === 'shipped' || order.statusKey === 'delivered' || order.statusKey === 'completed') { %>
+<script>
+(function() {
+  // Ne fire qu'une seule fois par commande via sessionStorage
+  var purchaseKey = 'cpf_purchase_tracked_<%= order.id %>';
+  if (window.sessionStorage) {
+    try {
+      if (sessionStorage.getItem(purchaseKey)) return;
+      sessionStorage.setItem(purchaseKey, '1');
+    } catch(e) {}
+  }
+
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ ecommerce: null });
+
+  window.dataLayer.push({
+    event: 'purchase',
+    ecommerce: {
+      transaction_id: '<%= order.number %>',
+      value: <%= (order.totalCents / 100).toFixed(2) %>,
+      tax: <%= (order.vatCents / 100).toFixed(2) %>,
+      shipping: <%= (order.shippingCostCents / 100).toFixed(2) %>,
+      currency: '<%= order.currency || "EUR" %>',
+      items: [
+        <% if (order.items && order.items.length) { %>
+          <% order.items.forEach(function(it, idx) { %>
+            {
+              item_id: '<%= (it.sku || it.productId || "").replace(/\x27/g, "\\\'" ) %>',
+              item_name: '<%= (it.name || "").replace(/\x27/g, "\\\'" ) %>',
+              price: <%= it.unitPriceCents ? (it.unitPriceCents / 100).toFixed(2) : 0 %>,
+              quantity: <%= it.quantity || 1 %>
+            }<%= idx < order.items.length - 1 ? ',' : '' %>
+          <% }); %>
+        <% } %>
+      ]
+    },
+    value: <%= (order.totalCents / 100).toFixed(2) %>,
+    tax: <%= (order.vatCents / 100).toFixed(2) %>,
+    shipping: <%= (order.shippingCostCents / 100).toFixed(2) %>,
+    currency: '<%= order.currency || "EUR" %>',
+    transaction_id: '<%= order.number %>'
+  });
+})();
+</script>
+<% } %>
+
 <%- include('../partials/footer') %>
