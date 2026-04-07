@@ -39,6 +39,13 @@ const savSettingsSchema = new mongoose.Schema(
       { pieceType: 'cardan', days: 5 },
       { pieceType: 'autre', days: 5 },
     ] },
+    integrations: {
+      slackWebhookUrl: { type: String, trim: true, default: '' },
+      slackChannel: { type: String, trim: true, default: '#sav' },
+      googleReviewsUrl: { type: String, trim: true, default: '' },
+      whatsappEnabled: { type: Boolean, default: false },
+      qontoEnabled: { type: Boolean, default: false },
+    },
     automationRules: { type: [automationRuleSchema], default: () => [
       { key: 'relance_1', enabled: true, daysThreshold: 7, description: "Si statut = en_attente_documents et derniere_communication > N jours → email de relance et passage en relance_1" },
       { key: 'relance_2', enabled: true, daysThreshold: 5, description: "Si statut = relance_1 sans réponse depuis N jours → email final et passage en relance_2" },

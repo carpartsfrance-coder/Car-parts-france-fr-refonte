@@ -151,6 +151,9 @@ publicRouter.post('/tickets', async (req, res) => {
     ticket.addMessage('client', 'interne', 'Ticket créé via formulaire public');
     await ticket.save();
 
+    // 4.3 Slack : nouveau ticket
+    try { require('../../services/slackNotifier').notifyTicketCreated(ticket); } catch (_) {}
+
     // Génère le PDF d'acceptation CGV horodaté + envoie le mail de confirmation
     // (best-effort, n'échoue jamais le ticket si le mail/PDF plante)
     try {
@@ -425,10 +428,53 @@ adminRouter.post('/tickets/:numero/assign', async (req, res) => {
     }
     await ticket.save();
     audit.log({ req, action: 'sav.assign', entityType: 'sav_ticket', entityId: ticket.numero, before, after: { assignedToUserId: ticket.assignedToUserId, assignedToName: ticket.assignedToName } });
+    if (ticket.assignedToName) {
+      try { require('../../services/slackNotifier').notifyTicketAssigned(ticket); } catch (_) {}
+    }
     return ok(res, { numero: ticket.numero, assignedToName: ticket.assignedToName });
   } catch (err) {
     return fail(res, err.message, 500);
   }
+});
+
+// GET /admin/api/sav/tickets/:numero/whatsapp-fournisseur/preview
+// → renvoie le texte WhatsApp prêt + URL wa.me + script client final
+adminRouter.get('/tickets/:numero/whatsapp-fournisseur/preview', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero }).lean();
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const wa = require('../../services/whatsappFournisseur');
+    const phone = (req.query.phone || (ticket.fournisseur && ticket.fournisseur.contact) || '').toString();
+    return ok(res, wa.preview(ticket, phone));
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /admin/api/sav/tickets/:numero/whatsapp-fournisseur/send
+// body { phone, parsedReply (facultatif) }
+adminRouter.post('/tickets/:numero/whatsapp-fournisseur/send', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const wa = require('../../services/whatsappFournisseur');
+    const phone = (req.body.phone || (ticket.fournisseur && ticket.fournisseur.contact) || '').toString();
+    let result = { sent: false };
+    if (wa.isConfigured()) {
+      result = await wa.sendReal(ticket, phone);
+    } else {
+      // Mode dev : on ne peut pas envoyer, on retourne juste le wa.me
+      result = wa.preview(ticket, phone);
+    }
+    ticket.fournisseur = ticket.fournisseur || {};
+    if (!ticket.fournisseur.dateEnvoi) ticket.fournisseur.dateEnvoi = new Date();
+    if (req.body.parsedReply) {
+      ticket.fournisseur.reponse = String(req.body.parsedReply).slice(0, 4000);
+      ticket.fournisseur.dateRetour = new Date();
+    }
+    ticket.addMessage('admin', 'interne', `Dossier WhatsApp envoyé au fournisseur (${phone || '—'})`);
+    await ticket.save();
+    audit.log({ req, action: 'sav.whatsapp_fournisseur', entityType: 'sav_ticket', entityId: ticket.numero, after: { phone } });
+    return ok(res, { result, fournisseur: ticket.fournisseur });
+  } catch (err) { return fail(res, err.message, 500); }
 });
 
 // POST /admin/api/sav/tickets/:numero/fournisseur — mettre à jour fournisseur
@@ -535,11 +581,43 @@ adminRouter.post('/settings', async (req, res) => {
     const before = s.toObject();
     if (Array.isArray(req.body.slaPerPiece)) s.slaPerPiece = req.body.slaPerPiece;
     if (Array.isArray(req.body.automationRules)) s.automationRules = req.body.automationRules;
+    if (req.body.integrations && typeof req.body.integrations === 'object') {
+      s.integrations = Object.assign(s.integrations || {}, req.body.integrations);
+    }
     await s.save();
     audit.log({ req, action: 'sav.settings.update', entityType: 'sav_settings', entityId: 'global', before, after: s.toObject() });
     return ok(res, s.toObject());
   } catch (err) {
     return fail(res, err.message, 500);
+  }
+});
+
+// Slash command Slack : POST publique (pas d'auth Bearer)
+// Format Slack : application/x-www-form-urlencoded { command, text, user_id, user_name, response_url, ... }
+publicRouter.post('/slack/command', express.urlencoded({ extended: false }), async (req, res) => {
+  try {
+    // Validation simple : un secret partagé optionnel
+    const expected = (process.env.SLACK_COMMAND_SECRET || '').trim();
+    if (expected && (req.headers['x-slack-secret'] || '') !== expected) {
+      return res.status(401).json({ text: 'Non autorisé' });
+    }
+    const { command, text, user_name } = req.body || {};
+    // /sav-prendre <numero>
+    if (!text) return res.json({ text: 'Usage : /sav-prendre <numero>' });
+    const numero = String(text).trim().split(/\s+/)[0];
+    const ticket = await SavTicket.findOne({ numero });
+    if (!ticket) return res.json({ text: `Ticket ${numero} introuvable.` });
+    ticket.assignedToName = user_name || 'slack';
+    ticket.assignedAt = new Date();
+    ticket.addMessage('admin', 'interne', `Ticket pris en charge depuis Slack par ${user_name || 'inconnu'}`);
+    await ticket.save();
+    audit.log({ action: 'sav.assign.slack', userEmail: 'slack:' + (user_name || ''), entityType: 'sav_ticket', entityId: ticket.numero });
+    return res.json({
+      response_type: 'in_channel',
+      text: `✅ ${user_name || 'Vous'} a pris en charge le ticket *${numero}*`,
+    });
+  } catch (err) {
+    return res.json({ text: 'Erreur serveur : ' + err.message });
   }
 });
 
@@ -553,6 +631,178 @@ adminRouter.post('/automations/run', async (req, res) => {
   } catch (err) {
     return fail(res, err.message, 500);
   }
+});
+
+// ============================================================
+// 4.5 ANALYTICS SAV
+// ============================================================
+
+// GET /admin/api/sav/analytics
+adminRouter.get('/analytics', async (req, res) => {
+  try {
+    const STATUTS_CLOS = ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'];
+
+    // 1) Nb SAV par mois sur 12 mois
+    const start12 = new Date(); start12.setMonth(start12.getMonth() - 11); start12.setDate(1); start12.setHours(0,0,0,0);
+    const monthly = await SavTicket.aggregate([
+      { $match: { createdAt: { $gte: start12 } } },
+      { $group: { _id: { y: { $year: '$createdAt' }, m: { $month: '$createdAt' } }, count: { $sum: 1 } } },
+      { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ]);
+    const monthLabels = []; const monthCounts = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(start12); d.setMonth(start12.getMonth() + i);
+      const y = d.getFullYear(); const m = d.getMonth() + 1;
+      monthLabels.push(`${String(m).padStart(2,'0')}/${String(y).slice(2)}`);
+      const f = monthly.find((x) => x._id.y === y && x._id.m === m);
+      monthCounts.push(f ? f.count : 0);
+    }
+
+    // 2) Top 5 pièces SAV
+    const topPieces = await SavTicket.aggregate([
+      { $group: { _id: '$pieceType', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]);
+
+    // 3) Taux défaut produit par fournisseur (camembert)
+    const fournisseurStats = await SavTicket.aggregate([
+      { $match: { 'fournisseur.nom': { $exists: true, $ne: '' }, 'analyse.conclusion': { $exists: true } } },
+      {
+        $group: {
+          _id: '$fournisseur.nom',
+          total: { $sum: 1 },
+          defauts: { $sum: { $cond: [{ $eq: ['$analyse.conclusion', 'defaut_produit'] }, 1, 0] } },
+        },
+      },
+    ]);
+    const fournisseurChart = fournisseurStats.map((f) => ({
+      nom: f._id,
+      total: f.total,
+      defauts: f.defauts,
+      taux: f.total > 0 ? Math.round((f.defauts / f.total) * 100) : 0,
+    })).sort((a, b) => b.total - a.total);
+
+    // 4) Temps moyen résolution par type de pièce
+    const tousResolus = await SavTicket.find({ statut: { $in: STATUTS_CLOS } })
+      .select('pieceType createdAt updatedAt').lean();
+    const sumByType = {};
+    tousResolus.forEach((t) => {
+      const days = (new Date(t.updatedAt || t.createdAt) - new Date(t.createdAt)) / (1000 * 60 * 60 * 24);
+      sumByType[t.pieceType] = sumByType[t.pieceType] || { sum: 0, count: 0 };
+      sumByType[t.pieceType].sum += Math.max(0, days);
+      sumByType[t.pieceType].count += 1;
+    });
+    const avgByType = Object.keys(sumByType).map((k) => ({
+      pieceType: k,
+      avgDays: Math.round((sumByType[k].sum / sumByType[k].count) * 10) / 10,
+      count: sumByType[k].count,
+    })).sort((a, b) => b.count - a.count);
+
+    // 5) Coûts SAV (garantie + remboursement) vs CA récupéré (149€)
+    const [paid149, resolus] = await Promise.all([
+      SavTicket.countDocuments({ 'paiements.facture149.status': 'payee' }),
+      SavTicket.find({ statut: 'resolu_garantie', 'resolution.montant': { $gt: 0 } }).select('resolution.montant').lean(),
+    ]);
+    const caRecupere = paid149 * 149;
+    const coutGarantie = resolus.reduce((acc, t) => acc + (t.resolution && t.resolution.montant || 0), 0);
+
+    // 6) Taux de récidive (clients ayant > 1 ticket)
+    const clientGroups = await SavTicket.aggregate([
+      { $match: { 'client.email': { $exists: true, $ne: '' } } },
+      { $group: { _id: '$client.email', count: { $sum: 1 } } },
+    ]);
+    const totalClients = clientGroups.length;
+    const recidivistes = clientGroups.filter((c) => c.count > 1).length;
+    const tauxRecidive = totalClients > 0 ? Math.round((recidivistes / totalClients) * 100) : 0;
+
+    // 7) Map France : agrégation par département depuis le code postal du garage adresse (best effort)
+    // → on prend les 2 premiers chiffres de la portion numérique trouvée dans garage.adresse
+    const allTickets = await SavTicket.find({ 'garage.adresse': { $exists: true, $ne: '' } }).select('garage.adresse').lean();
+    const deptCounts = {};
+    allTickets.forEach((t) => {
+      const m = (t.garage && t.garage.adresse || '').match(/\b(\d{5})\b/);
+      if (m) {
+        const dept = m[1].slice(0, 2);
+        deptCounts[dept] = (deptCounts[dept] || 0) + 1;
+      }
+    });
+    const departments = Object.entries(deptCounts)
+      .map(([dept, count]) => ({ dept, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 30);
+
+    return ok(res, {
+      monthly: { labels: monthLabels, counts: monthCounts },
+      topPieces,
+      fournisseur: fournisseurChart,
+      avgByType,
+      financier: { caRecupere, coutGarantie, balance: caRecupere - coutGarantie, paid149, garantieCount: resolus.length },
+      recidive: { totalClients, recidivistes, tauxRecidive },
+      departments,
+    });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/analytics.csv — export Excel-friendly (CSV BOM UTF-8)
+adminRouter.get('/analytics.csv', async (req, res) => {
+  try {
+    const tickets = await SavTicket.find({}).sort({ createdAt: -1 }).limit(10000).lean();
+    const head = [
+      'numero','createdAt','statut','pieceType','client_email','client_nom',
+      'vin','immatriculation','marque','modele','annee','kilometrage',
+      'assigne','sla_limite','conclusion_analyse','facture149_status','facture149_montant',
+      'fournisseur_nom','fournisseur_rma','reviewNote',
+    ];
+    const rows = tickets.map((t) => {
+      const v = t.vehicule || {}; const f = t.fournisseur || {}; const r = t.reviewFeedback || {};
+      const p149 = (t.paiements && t.paiements.facture149) || {};
+      return [
+        t.numero,
+        new Date(t.createdAt).toISOString(),
+        t.statut, t.pieceType,
+        (t.client && t.client.email) || '',
+        (t.client && t.client.nom) || '',
+        v.vin || '', v.immatriculation || '', v.marque || '', v.modele || '', v.annee || '', v.kilometrage || '',
+        t.assignedToName || '',
+        (t.sla && t.sla.dateLimite) ? new Date(t.sla.dateLimite).toISOString() : '',
+        (t.analyse && t.analyse.conclusion) || '',
+        p149.status || '',
+        p149.status === 'payee' ? '149' : '',
+        f.nom || '', f.rmaNumero || '',
+        r.note || '',
+      ];
+    });
+    function csvCell(v) {
+      const s = String(v == null ? '' : v).replace(/"/g, '""');
+      return /[",\n;]/.test(s) ? '"' + s + '"' : s;
+    }
+    const csv = [head.join(';'), ...rows.map((r) => r.map(csvCell).join(';'))].join('\n');
+    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="sav-analytics-${Date.now()}.csv"`);
+    return res.end('\ufeff' + csv);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/reputation — KPIs feedback + liste privée
+adminRouter.get('/reputation', async (req, res) => {
+  try {
+    const [sent, completed, redirected, allCompleted, privateOnes] = await Promise.all([
+      SavTicket.countDocuments({ 'reviewFeedback.sentAt': { $exists: true } }),
+      SavTicket.countDocuments({ 'reviewFeedback.completedAt': { $exists: true } }),
+      SavTicket.countDocuments({ 'reviewFeedback.redirectedToGoogle': true }),
+      SavTicket.find({ 'reviewFeedback.note': { $exists: true, $gt: 0 } }).select('reviewFeedback').lean(),
+      SavTicket.find({ 'reviewFeedback.completedAt': { $exists: true }, 'reviewFeedback.note': { $lt: 4 } })
+        .sort({ 'reviewFeedback.completedAt': -1 }).limit(50).select('numero reviewFeedback').lean(),
+    ]);
+    const sumNote = allCompleted.reduce((a, t) => a + (t.reviewFeedback && t.reviewFeedback.note || 0), 0);
+    const avgNote = allCompleted.length ? Math.round((sumNote / allCompleted.length) * 10) / 10 : 0;
+    return ok(res, { sent, completed, redirected, avgNote, privateFeedbacks: privateOnes });
+  } catch (err) { return fail(res, err.message, 500); }
 });
 
 // GET /admin/api/sav/audit — consultation logs filtrable
@@ -626,6 +876,22 @@ adminRouter.post('/tickets/:numero/diagnostic', async (req, res) => {
     ticket.changerStatut('analyse_terminee', 'admin');
     await ticket.save();
     audit.log({ req, action: 'sav.diagnostic', entityType: 'sav_ticket', entityId: ticket.numero, after: { conclusion: ticket.analyse.conclusion } });
+
+    // 4.1 — Si conclusion ≠ défaut produit, déclencher facturation Qonto + Mollie + mail client
+    if (conclusion !== 'defaut_produit') {
+      try {
+        const ms = require('../../services/mollieService');
+        ms.createQontoAndMollieAndNotify(ticket.numero).catch((e) => {
+          console.error('[sav-api] facturation auto fail', e.message);
+        });
+      } catch (e) {
+        console.error('[sav-api] facturation require fail', e.message);
+      }
+    } else {
+      // 4.3 — Notif Slack défaut produit
+      try { require('../../services/slackNotifier').notifyDefautProduit(ticket); } catch (_) {}
+    }
+
     return ok(res, { numero: ticket.numero, analyse: ticket.analyse });
   } catch (err) {
     return fail(res, err.message, 500);
