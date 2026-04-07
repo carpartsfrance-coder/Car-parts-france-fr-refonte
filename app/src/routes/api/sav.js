@@ -98,6 +98,25 @@ publicRouter.post('/mollie-webhook', express.urlencoded({ extended: false }), as
 });
 
 // POST /api/sav/tickets — création
+// GET /api/sav/satisfaction/:numero — page publique de notation post-clôture (NPS/CSAT)
+publicRouter.get('/satisfaction/:numero', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero }).select('numero reviewFeedback client.nom');
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const note = parseInt(req.query.note, 10);
+    if (note >= 1 && note <= 5) {
+      ticket.reviewFeedback = ticket.reviewFeedback || {};
+      ticket.reviewFeedback.note = note;
+      ticket.reviewFeedback.completedAt = new Date();
+      if (note >= 4) ticket.reviewFeedback.redirectedToGoogle = true;
+      await ticket.save();
+    }
+    return ok(res, { numero: ticket.numero, note: ticket.reviewFeedback && ticket.reviewFeedback.note });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
 publicRouter.post('/tickets', async (req, res) => {
   try {
     const body = req.body || {};
@@ -297,8 +316,14 @@ adminRouter.use(requireAdminToken);
 adminRouter.get('/tickets', async (req, res) => {
   try {
     const q = {};
-    if (req.query.statut) q.statut = req.query.statut;
-    if (req.query.pieceType) q.pieceType = req.query.pieceType;
+    if (req.query.statut) {
+      const arr = String(req.query.statut).split(',').filter(Boolean);
+      q.statut = arr.length > 1 ? { $in: arr } : arr[0];
+    }
+    if (req.query.pieceType) {
+      const arr = String(req.query.pieceType).split(',').filter(Boolean);
+      q.pieceType = arr.length > 1 ? { $in: arr } : arr[0];
+    }
     if (req.query.assignedToUserId) {
       if (req.query.assignedToUserId === '__none__') {
         q.assignedToUserId = { $in: [null, undefined] };
@@ -357,8 +382,14 @@ adminRouter.get('/tickets', async (req, res) => {
 adminRouter.get('/tickets.csv', async (req, res) => {
   try {
     const q = {};
-    if (req.query.statut) q.statut = req.query.statut;
-    if (req.query.pieceType) q.pieceType = req.query.pieceType;
+    if (req.query.statut) {
+      const arr = String(req.query.statut).split(',').filter(Boolean);
+      q.statut = arr.length > 1 ? { $in: arr } : arr[0];
+    }
+    if (req.query.pieceType) {
+      const arr = String(req.query.pieceType).split(',').filter(Boolean);
+      q.pieceType = arr.length > 1 ? { $in: arr } : arr[0];
+    }
     if (req.query.assignedToUserId) q.assignedToUserId = req.query.assignedToUserId;
     if (req.query.sla_depasse === 'true') q['sla.dateLimite'] = { $lt: new Date() };
     const tickets = await SavTicket.find(q).sort({ createdAt: -1 }).limit(5000).lean();
@@ -1018,12 +1049,65 @@ adminRouter.post('/tickets/:numero/rapport-pdf', async (req, res) => {
     const reportPdf = require('../../services/savReportPdf');
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
-    const url = await reportPdf.generateAnalysisReport(ticket);
+    const template = (req.body && req.body.template) || (req.query && req.query.template) || 'client';
+    const url = await reportPdf.generateAnalysisReport(ticket, { template });
     ticket.analyse = ticket.analyse || {};
-    ticket.analyse.rapport = url;
-    ticket.addMessage('admin', 'interne', `Rapport PDF généré : ${url}`);
+    if (template === 'client') ticket.analyse.rapport = url;
+    ticket.addMessage('admin', 'interne', `Rapport PDF (${template}) généré : ${url}`);
     await ticket.save();
-    return ok(res, { url });
+    return ok(res, { url, template });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets — création interne (commercial au téléphone, etc.)
+adminRouter.post('/tickets', async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.pieceType) return fail(res, 'pieceType requis');
+    if (!b.client || !b.client.email) return fail(res, 'client.email requis');
+    if (!b.client.nom) b.client.nom = b.client.email.split('@')[0];
+    const ticket = new SavTicket({
+      pieceType: b.pieceType,
+      referencePiece: b.referencePiece,
+      numeroCommande: b.numeroCommande,
+      vehicule: b.vehicule || {},
+      client: b.client,
+      diagnostic: { description: b.description || '' },
+      statut: 'pre_qualification',
+      workflow: { track: 'retour_systematique', etape: 'pre_qualification' },
+    });
+    ticket.addMessage('admin', 'interne', 'Ticket créé depuis le back-office par un agent');
+    await ticket.save();
+    return ok(res, { numero: ticket.numero, statut: ticket.statut }, 201);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/message-templates — bibliothèque de modèles de réponse
+adminRouter.get('/message-templates', (_req, res) => {
+  const templates = [
+    { key: 'piece_recue', title: 'Pièce reçue atelier', icon: 'inventory_2', body: 'Bonjour {client_prenom},\n\nNous avons bien reçu votre pièce à l\'atelier. Notre équipe technique va procéder au diagnostic sur banc dans les prochains jours ouvrés.\n\nNous reviendrons vers vous dès que l\'analyse sera terminée.\n\nCordialement,\nL\'équipe SAV CarParts France' },
+    { key: 'diag_positif', title: 'Diagnostic positif (garantie)', icon: 'verified', body: 'Bonjour {client_prenom},\n\nL\'analyse de votre {piece_type} est terminée. Nous avons effectivement constaté un défaut produit pris en charge au titre de notre garantie.\n\nNous procédons à un échange standard, expédition sous 48h ouvrées.\n\nVous recevrez un numéro de suivi dès expédition.\n\nCordialement,\nL\'équipe SAV CarParts France' },
+    { key: 'diag_negatif', title: 'Diagnostic négatif (non défectueux)', icon: 'cancel', body: 'Bonjour {client_prenom},\n\nL\'analyse de votre {piece_type} est terminée. Après tests complets sur banc dédié, votre pièce est conforme aux valeurs constructeur et ne présente pas de défaut.\n\nConformément à nos CGV SAV, le forfait d\'analyse de 149 € TTC est dû. Un lien de paiement sécurisé vous sera envoyé séparément.\n\nVous trouverez en pièce jointe le rapport d\'analyse complet.\n\nCordialement,\nL\'équipe SAV CarParts France' },
+    { key: 'mauvais_montage', title: 'Mauvais montage détecté', icon: 'build', body: 'Bonjour {client_prenom},\n\nL\'analyse de votre {piece_type} est terminée. Les tests ont révélé des traces de mauvais montage (absence de réglage base, serrages non conformes) qui excluent la prise en charge sous garantie.\n\nConformément à nos CGV SAV, le forfait d\'analyse de 149 € TTC est dû. Un lien de paiement sécurisé vous sera envoyé séparément.\n\nLe rapport détaillé est joint à ce message.\n\nCordialement,\nL\'équipe SAV CarParts France' },
+    { key: 'relance_docs', title: 'Relance documents manquants', icon: 'campaign', body: 'Bonjour {client_prenom},\n\nAfin de pouvoir traiter votre dossier SAV n° {numero}, nous vous invitons à nous transmettre les documents suivants :\n\n• Facture de montage du garage\n• Photos du compteur kilométrique\n• Confirmation du réglage de base effectué\n\nSans ces éléments, nous ne pourrons pas poursuivre la prise en charge.\n\nMerci pour votre retour rapide,\nL\'équipe SAV CarParts France' },
+    { key: 'etiquette_retour', title: 'Étiquette de retour envoyée', icon: 'local_shipping', body: 'Bonjour {client_prenom},\n\nVous trouverez ci-joint l\'étiquette prépayée pour nous retourner votre {piece_type}.\n\nMerci de :\n• Emballer soigneusement la pièce (carton + calage)\n• Coller l\'étiquette bien visible\n• Déposer le colis en point relais ou bureau de poste\n\nDès réception à l\'atelier, nous démarrerons l\'analyse.\n\nCordialement,\nL\'équipe SAV CarParts France' },
+  ];
+  return ok(res, { templates });
+});
+
+// GET /admin/api/sav/report-templates — liste + summary de chaque template
+adminRouter.get('/report-templates', (_req, res) => {
+  try {
+    const reportPdf = require('../../services/savReportPdf');
+    const list = Object.keys(reportPdf.TEMPLATES).map((key) => ({
+      key,
+      ...reportPdf.getTemplateSummary(key),
+    }));
+    return ok(res, { templates: list });
   } catch (err) {
     return fail(res, err.message, 500);
   }

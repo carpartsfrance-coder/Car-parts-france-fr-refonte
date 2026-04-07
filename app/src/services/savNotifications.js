@@ -85,6 +85,36 @@ async function notifyTicketCreated(ticket) {
 }
 
 async function notifyStatusChange(ticket, nouveauStatut) {
+  // Hook satisfaction : à la clôture, marque sentAt et envoie l'email NPS
+  const CLOTURE = ['clos', 'resolu_garantie', 'resolu_facture'];
+  if (CLOTURE.includes(nouveauStatut) && ticket && (!ticket.reviewFeedback || !ticket.reviewFeedback.sentAt)) {
+    try {
+      ticket.reviewFeedback = ticket.reviewFeedback || {};
+      ticket.reviewFeedback.sentAt = new Date();
+      const subject = `Votre avis sur le SAV CarParts France — ${ticket.numero}`;
+      const baseUrl = process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr';
+      const link = (n) => `${baseUrl}/sav/satisfaction/${ticket.numero}?note=${n}`;
+      const html = `
+        <p>Bonjour ${(ticket.client && ticket.client.nom) || ''},</p>
+        <p>Votre dossier SAV <strong>${ticket.numero}</strong> est désormais clôturé.</p>
+        <p>Comment évalueriez-vous notre prise en charge ?</p>
+        <p style="text-align:center;font-size:24px;">
+          <a href="${link(1)}">😞</a> &nbsp;
+          <a href="${link(2)}">😕</a> &nbsp;
+          <a href="${link(3)}">😐</a> &nbsp;
+          <a href="${link(4)}">🙂</a> &nbsp;
+          <a href="${link(5)}">😄</a>
+        </p>
+        <p style="text-align:center;color:#64748b;font-size:12px;">1 = Très insatisfait · 5 = Très satisfait</p>
+        <p>Merci pour votre retour, il nous aide à progresser.</p>
+        <p>L'équipe SAV CarParts France</p>
+      `;
+      sendEmail({ toEmail: ticket.client && ticket.client.email, subject, html, text: stripHtml(html) }).catch(() => {});
+      log(`SEND satisfaction → ${ticket.client && ticket.client.email} ticket=${ticket.numero}`);
+    } catch (e) {
+      log(`ERROR satisfaction ticket=${ticket && ticket.numero} ${e.message}`);
+    }
+  }
   if (!STATUT_TO_TEMPLATE[nouveauStatut]) {
     log(`NOOP statut=${nouveauStatut} ticket=${ticket && ticket.numero} (pas de template)`);
     return { ok: false, reason: 'no_template' };

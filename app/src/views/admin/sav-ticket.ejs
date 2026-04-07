@@ -27,7 +27,7 @@
         <div class="min-w-0">
           <div class="flex items-center gap-2">
             <h1 class="text-lg font-mono font-bold text-slate-900 truncate"><%= numero %></h1>
-            <button type="button" id="sav-copy-numero" data-copy="<%= numero %>" title="Copier le numéro"
+            <button type="button" id="sav-copy-numero" data-copy="<%= numero %>" title="Copier le numéro" aria-label="Copier le numéro de ticket"
               class="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition">
               <span class="material-symbols-outlined" style="font-size:16px;">content_copy</span>
             </button>
@@ -111,6 +111,16 @@
                 <div class="text-2xl font-bold text-slate-900" data-kpi="relances">—</div>
                 <div class="text-xs text-slate-500 mt-0.5">Relances client</div>
               </div>
+            </div>
+
+            <!-- Objectifs SLA (jalons métier) -->
+            <div class="mb-4">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined text-slate-500 text-base">flag</span>
+                <h3 class="text-sm font-semibold text-slate-700">Objectifs SLA</h3>
+                <span class="text-[11px] text-slate-400">· basé sur la date d'ouverture, jours ouvrés</span>
+              </div>
+              <div id="sav-sla-objectives" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
             </div>
 
             <!-- 4 cards résumé -->
@@ -228,11 +238,32 @@
                 <input type="hidden" name="html" id="sav-msg-html">
               </div>
 
-              <!-- Preview -->
-              <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <div class="text-xs font-semibold text-emerald-800 mb-1">Aperçu (variables remplacées en temps réel)</div>
-                <div id="sav-msg-preview" class="text-sm text-slate-800"></div>
-              </div>
+              <!-- Aperçu email type Gmail -->
+              <details class="rounded-xl border border-slate-300 bg-white" open>
+                <summary class="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 flex items-center gap-1.5 select-none border-b border-slate-200">
+                  <span class="material-symbols-outlined text-base" aria-hidden="true">visibility</span>
+                  Aperçu de l'email final (variables remplacées)
+                </summary>
+                <div class="p-4 bg-slate-50">
+                  <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden max-w-2xl mx-auto">
+                    <div class="px-4 py-2 border-b border-slate-100 bg-slate-50 text-[11px] text-slate-600 space-y-0.5">
+                      <div class="flex"><span class="font-semibold w-16">De :</span><span>SAV CarParts France &lt;sav@carpartsfrance.fr&gt;</span></div>
+                      <div class="flex"><span class="font-semibold w-16">À :</span><span id="sav-preview-to">—</span></div>
+                      <div class="flex"><span class="font-semibold w-16">Objet :</span><span id="sav-preview-subject" class="font-semibold text-slate-900">—</span></div>
+                      <div class="flex"><span class="font-semibold w-16">Réf. :</span><span id="sav-preview-ref" class="font-mono text-[10px]">—</span></div>
+                    </div>
+                    <div class="p-4 text-sm text-slate-800">
+                      <div id="sav-msg-preview"></div>
+                      <hr class="my-4 border-slate-200">
+                      <div class="text-xs text-slate-500 leading-relaxed">
+                        <div class="font-semibold text-slate-700">L'équipe SAV CarParts France</div>
+                        <div>sav@carpartsfrance.fr · 04 65 84 54 88</div>
+                        <div><a href="https://www.carpartsfrance.fr" class="text-primary">www.carpartsfrance.fr</a></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
 
               <!-- Indicateur brouillon + raccourcis -->
               <div class="flex items-center justify-between text-xs text-slate-500">
@@ -268,10 +299,28 @@
           <!-- Tab Diagnostic — Wizard 4 étapes -->
           <section class="sav-tabpanel hidden p-5" data-tab-panel="diagnostic" id="panel-diagnostic" role="tabpanel" aria-labelledby="tab-diagnostic" tabindex="0">
             <div id="sav-diag-wizard">
-              <!-- Indicateur étape -->
-              <div class="flex items-center justify-between mb-2">
+              <!-- Stepper visuel 4 étapes -->
+              <ol class="sav-diag-stepper" role="list">
+                <li class="sav-diag-step-pill is-current" data-diag-pill="1">
+                  <span class="sav-diag-step-pill__num">1</span>
+                  <span class="sav-diag-step-pill__label">Mesures</span>
+                </li>
+                <li class="sav-diag-step-pill" data-diag-pill="2">
+                  <span class="sav-diag-step-pill__num">2</span>
+                  <span class="sav-diag-step-pill__label">Codes défaut</span>
+                </li>
+                <li class="sav-diag-step-pill" data-diag-pill="3">
+                  <span class="sav-diag-step-pill__num">3</span>
+                  <span class="sav-diag-step-pill__label">Médias</span>
+                </li>
+                <li class="sav-diag-step-pill" data-diag-pill="4">
+                  <span class="sav-diag-step-pill__num">4</span>
+                  <span class="sav-diag-step-pill__label">Conclusion</span>
+                </li>
+              </ol>
+              <div class="flex items-center justify-between mb-2 mt-1">
                 <div class="text-xs font-semibold text-slate-600">Étape <span data-diag-current>1</span>/4 · <span data-diag-step-label>Mesures</span></div>
-                <div class="text-xs text-slate-400">Diagnostic complet</div>
+                <div class="text-xs text-slate-400">Progression : <span data-diag-pct>25</span>%</div>
               </div>
               <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-5">
                 <div data-diag-progress class="h-full bg-primary transition-all" style="width:25%"></div>
@@ -281,19 +330,35 @@
               <div class="sav-diag-step" data-diag-step="1">
                 <h3 class="text-sm font-semibold text-slate-800 mb-3">Mesures banc</h3>
                 <div class="grid grid-cols-2 gap-3">
-                  <label class="block text-[13px] font-medium text-slate-600">Pression hydraulique (bar)
-                    <input data-diag-field="pressionHydraulique" type="number" step="0.1" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  <label class="block text-[13px] font-medium text-slate-600">Pression hydraulique
+                    <div class="sav-input-wrap mt-1">
+                      <input data-diag-field="pressionHydraulique" type="number" step="0.1" min="0" max="15" placeholder="ex : 4.5"
+                             class="sav-input w-full rounded-xl border border-slate-300 px-2 py-2 text-sm pr-12">
+                      <span class="sav-input-suffix">bar</span>
+                    </div>
+                    <div class="sav-field-hint">Plage normale : 3,5 – 6 bar</div>
+                    <div class="sav-field-error hidden" data-diag-error="pressionHydraulique"></div>
                   </label>
                   <label class="block text-[13px] font-medium text-slate-600">Fuite interne
                     <select data-diag-field="fuiteInterne" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
                       <option value="">—</option><option value="non">Non</option><option value="legere">Légère</option><option value="significative">Significative</option>
                     </select>
                   </label>
-                  <label class="block text-[13px] font-medium text-slate-600">Température avant (°C)
-                    <input data-diag-field="temperatureAvant" type="number" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  <label class="block text-[13px] font-medium text-slate-600">Température avant
+                    <div class="sav-input-wrap mt-1">
+                      <input data-diag-field="temperatureAvant" type="number" min="-20" max="150" placeholder="ex : 25"
+                             class="sav-input w-full rounded-xl border border-slate-300 px-2 py-2 text-sm pr-12">
+                      <span class="sav-input-suffix">°C</span>
+                    </div>
+                    <div class="sav-field-hint">Ambiante : ~20–30 °C</div>
                   </label>
-                  <label class="block text-[13px] font-medium text-slate-600">Température après (°C)
-                    <input data-diag-field="temperatureApres" type="number" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  <label class="block text-[13px] font-medium text-slate-600">Température après
+                    <div class="sav-input-wrap mt-1">
+                      <input data-diag-field="temperatureApres" type="number" min="-20" max="150" placeholder="ex : 85"
+                             class="sav-input w-full rounded-xl border border-slate-300 px-2 py-2 text-sm pr-12">
+                      <span class="sav-input-suffix">°C</span>
+                    </div>
+                    <div class="sav-field-hint">En fonctionnement : 70–95 °C</div>
                   </label>
                 </div>
               </div>
@@ -303,13 +368,15 @@
                 <h3 class="text-sm font-semibold text-slate-800 mb-3">Codes défaut</h3>
                 <div class="space-y-3">
                   <label class="block text-[13px] font-medium text-slate-600">Codes avant reset
-                    <input data-diag-field="codesAvantReset" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="P0741, P189C">
+                    <input data-diag-field="codesAvantReset" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="ex : P0741, P189C">
+                    <div class="sav-field-hint">Format OBD2 : lettre + 4 chiffres/lettres, séparés par virgule</div>
                   </label>
                   <label class="block text-[13px] font-medium text-slate-600">Codes après reset
-                    <input data-diag-field="codesApresReset" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono">
+                    <input data-diag-field="codesApresReset" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="ex : aucun / P189C">
+                    <div class="sav-field-hint">Codes qui reviennent après effacement — les plus significatifs</div>
                   </label>
                   <label class="block text-[13px] font-medium text-slate-600">Codes défaut généraux
-                    <input data-diag-field="codesDefaut" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="P173E, P0841">
+                    <input data-diag-field="codesDefaut" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="ex : P173E, P0841">
                   </label>
                 </div>
               </div>
@@ -319,13 +386,14 @@
                 <h3 class="text-sm font-semibold text-slate-800 mb-3">Médias</h3>
                 <div class="space-y-3">
                   <label class="block text-[13px] font-medium text-slate-600">URL vidéo
-                    <input data-diag-field="videoUrl" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                    <input data-diag-field="videoUrl" type="url" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm" placeholder="https://…">
+                    <div class="sav-field-hint">Lien YouTube, Vimeo ou WeTransfer</div>
                   </label>
                   <label class="block text-[13px] font-medium text-slate-600">URL courbe banc
-                    <input data-diag-field="courbeBancUrl" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                    <input data-diag-field="courbeBancUrl" type="url" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm" placeholder="https://…">
                   </label>
                   <label class="block text-[13px] font-medium text-slate-600">URL rapport PDF
-                    <input data-diag-field="rapport" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                    <input data-diag-field="rapport" type="url" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm" placeholder="https://…">
                   </label>
                 </div>
               </div>
@@ -490,8 +558,24 @@
       </button>
       <aside id="sav-bottom-panel" class="sav-bottom-actions__panel space-y-4 lg:sticky lg:top-[88px] self-start">
 
+        <!-- Next best action : bouton primaire contextualisé -->
+        <section class="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-white p-4">
+          <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-bold text-primary mb-2">
+            <span class="material-symbols-outlined" style="font-size:14px;">rocket_launch</span>
+            Action suivante
+          </div>
+          <div id="sav-next-action">
+            <div class="sav-skeleton sav-skeleton--line" style="height: 42px; width: 100%;"></div>
+          </div>
+          <div id="sav-next-action-hint" class="mt-2 text-[11px] text-slate-500"></div>
+        </section>
+
         <section class="rounded-2xl border border-slate-200 bg-white p-4">
-          <h2 class="text-sm font-semibold text-slate-700 mb-3">Actions rapides</h2>
+          <details class="group" open>
+            <summary class="flex items-center justify-between cursor-pointer list-none select-none mb-3">
+              <h2 class="text-sm font-semibold text-slate-700">Toutes les actions</h2>
+              <span class="material-symbols-outlined text-slate-400 transition-transform group-open:rotate-180" style="font-size:18px;">expand_more</span>
+            </summary>
           <div id="sav-actions" class="space-y-4">
 
             <!-- Phase Réception -->
@@ -567,6 +651,8 @@
                 </button>
               </div>
             </details>
+          </div>
+          </details>
 
           </div>
         </section>
@@ -581,6 +667,35 @@
     </div>
   </div>
 </main>
+
+<!-- Modale rapport PDF : choix template + preview -->
+<div id="sav-pdf-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-pdf-modal-title">
+  <div class="bg-white rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b border-slate-200">
+      <h3 id="sav-pdf-modal-title" class="text-lg font-semibold flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">picture_as_pdf</span>
+        Générer un rapport PDF
+      </h3>
+      <button type="button" data-close-pdf aria-label="Fermer la modale"
+        class="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+    </div>
+    <div class="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-[280px_1fr]">
+      <aside class="border-r border-slate-200 p-4 overflow-y-auto bg-slate-50">
+        <div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">1 · Choisir un template</div>
+        <div class="space-y-2" data-pdf-templates>
+          <div class="text-sm text-slate-400">Chargement…</div>
+        </div>
+        <div class="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">2 · Contenu inclus</div>
+        <div data-pdf-summary class="rounded-xl border border-slate-200 bg-white p-3"></div>
+        <button type="button" data-pdf-generate class="mt-4 w-full btn btn-primary">Générer & prévisualiser</button>
+      </aside>
+      <div class="p-4 overflow-hidden flex flex-col">
+        <div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">3 · Aperçu</div>
+        <div data-pdf-preview class="flex-1 rounded-xl border border-dashed border-slate-200 bg-slate-50 min-h-[400px] flex flex-col"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modale assignation -->
 <div id="sav-assign-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-assign-modal-title">
@@ -666,6 +781,6 @@
 </div>
 
 <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
-<script src="/js/sav-labels.js?v=1" defer></script>
-<script src="/js/sav-admin.js?v=5" defer></script>
+<script src="/js/sav-labels.js?v=3" defer></script>
+<script src="/js/sav-admin.js?v=11" defer></script>
 <%- include('./partials/footer') %>

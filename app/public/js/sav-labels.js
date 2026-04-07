@@ -35,7 +35,7 @@
     retour_demande: 'bg-cyan-100 text-cyan-800',
     en_transit_retour: 'bg-cyan-100 text-cyan-800',
     recu_atelier: 'bg-blue-100 text-blue-800',
-    en_analyse: 'bg-violet-100 text-violet-800',
+    en_analyse: 'bg-violet-200 text-violet-900',
     analyse_terminee: 'bg-amber-100 text-amber-800',
     en_attente_decision_client: 'bg-orange-100 text-orange-800',
     en_attente_fournisseur: 'bg-purple-100 text-purple-800',
