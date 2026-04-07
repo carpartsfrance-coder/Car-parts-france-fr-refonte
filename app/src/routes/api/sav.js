@@ -3,6 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const SavTicket = require('../../models/SavTicket');
+const SavSettings = require('../../models/SavSettings');
+const AdminUser = require('../../models/AdminUser');
+const AuditLog = require('../../models/AuditLog');
+const audit = require('../../services/auditLogger');
 
 const router = express.Router();
 
@@ -286,21 +290,281 @@ publicRouter.post('/tickets/:numero/messages', async (req, res) => {
 const adminRouter = express.Router();
 adminRouter.use(requireAdminToken);
 
-// GET /admin/api/sav/tickets — liste filtrable
+// GET /admin/api/sav/tickets — liste filtrable, paginée, triée
 adminRouter.get('/tickets', async (req, res) => {
   try {
     const q = {};
     if (req.query.statut) q.statut = req.query.statut;
     if (req.query.pieceType) q.pieceType = req.query.pieceType;
+    if (req.query.assignedToUserId) q.assignedToUserId = req.query.assignedToUserId;
     if (req.query.sla_depasse === 'true') {
       q['sla.dateLimite'] = { $lt: new Date() };
-      q.statut = q.statut || { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture'] };
+      q.statut = q.statut || { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'] };
     }
-    const tickets = await SavTicket.find(q)
-      .sort({ createdAt: -1 })
-      .limit(Math.min(parseInt(req.query.limit, 10) || 50, 200))
+    if (req.query.search) {
+      const s = String(req.query.search).trim();
+      if (s) {
+        q.$or = [
+          { numero: new RegExp(s, 'i') },
+          { 'client.email': new RegExp(s, 'i') },
+          { 'client.nom': new RegExp(s, 'i') },
+          { 'vehicule.vin': new RegExp(s, 'i') },
+          { 'vehicule.immatriculation': new RegExp(s, 'i') },
+          { numeroCommande: new RegExp(s, 'i') },
+        ];
+      }
+    }
+
+    // Tri
+    const sortField = String(req.query.sort || 'createdAt');
+    const sortDir = String(req.query.dir || 'desc') === 'asc' ? 1 : -1;
+    const sortMap = {
+      numero: 'numero',
+      client: 'client.email',
+      pieceType: 'pieceType',
+      statut: 'statut',
+      sla: 'sla.dateLimite',
+      createdAt: 'createdAt',
+      assignedTo: 'assignedToName',
+    };
+    const sort = { [sortMap[sortField] || 'createdAt']: sortDir };
+
+    // Pagination
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage, 10) || 20));
+    const skip = (page - 1) * perPage;
+
+    const [tickets, total] = await Promise.all([
+      SavTicket.find(q).sort(sort).skip(skip).limit(perPage).lean(),
+      SavTicket.countDocuments(q),
+    ]);
+    return ok(res, { count: tickets.length, total, page, perPage, totalPages: Math.ceil(total / perPage), tickets });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/tickets.csv — export CSV (filtré, sans pagination)
+adminRouter.get('/tickets.csv', async (req, res) => {
+  try {
+    const q = {};
+    if (req.query.statut) q.statut = req.query.statut;
+    if (req.query.pieceType) q.pieceType = req.query.pieceType;
+    if (req.query.assignedToUserId) q.assignedToUserId = req.query.assignedToUserId;
+    if (req.query.sla_depasse === 'true') q['sla.dateLimite'] = { $lt: new Date() };
+    const tickets = await SavTicket.find(q).sort({ createdAt: -1 }).limit(5000).lean();
+    const head = ['numero','createdAt','statut','pieceType','client_email','client_nom','vin','immatriculation','vehicule','assigne','sla_limite'];
+    const rows = tickets.map((t) => [
+      t.numero,
+      new Date(t.createdAt).toISOString(),
+      t.statut,
+      t.pieceType,
+      (t.client && t.client.email) || '',
+      (t.client && t.client.nom) || '',
+      (t.vehicule && t.vehicule.vin) || '',
+      (t.vehicule && t.vehicule.immatriculation) || '',
+      [(t.vehicule && t.vehicule.marque) || '', (t.vehicule && t.vehicule.modele) || '', (t.vehicule && t.vehicule.annee) || ''].filter(Boolean).join(' '),
+      t.assignedToName || '',
+      (t.sla && t.sla.dateLimite) ? new Date(t.sla.dateLimite).toISOString() : '',
+    ]);
+    function csvCell(v) {
+      const s = String(v == null ? '' : v).replace(/"/g, '""');
+      return /[",\n;]/.test(s) ? '"' + s + '"' : s;
+    }
+    const csv = [head.join(';'), ...rows.map((r) => r.map(csvCell).join(';'))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="sav-tickets-${Date.now()}.csv"`);
+    return res.end('\ufeff' + csv);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/team — liste des admins (pour assignation)
+adminRouter.get('/team', async (req, res) => {
+  try {
+    const users = await AdminUser.find({ isActive: true })
+      .select('firstName lastName email role')
+      .sort({ firstName: 1 })
       .lean();
-    return ok(res, { count: tickets.length, tickets });
+    return ok(res, { users });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/assign — assigner ticket
+adminRouter.post('/tickets/:numero/assign', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const before = { assignedToUserId: ticket.assignedToUserId, assignedToName: ticket.assignedToName };
+    const userId = (req.body && req.body.userId) || null;
+    if (!userId) {
+      ticket.assignedToUserId = null;
+      ticket.assignedToName = null;
+      ticket.assignedAt = null;
+      ticket.addMessage('admin', 'interne', 'Ticket désassigné');
+    } else {
+      const user = await AdminUser.findById(userId).lean();
+      if (!user) return fail(res, 'Utilisateur inconnu', 404);
+      ticket.assignedToUserId = user._id;
+      ticket.assignedToName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      ticket.assignedAt = new Date();
+      ticket.addMessage('admin', 'interne', `Ticket assigné à ${ticket.assignedToName}`);
+      // Mail à l'assigné (best-effort)
+      try {
+        const { sendEmail } = require('../../services/emailService');
+        sendEmail({
+          toEmail: user.email,
+          subject: `[SAV] Ticket ${ticket.numero} vous est assigné`,
+          html: `<p>Bonjour ${user.firstName || ''},</p><p>Le ticket SAV <strong>${ticket.numero}</strong> vous a été assigné.</p><p><a href="${process.env.SITE_URL || ''}/admin/sav/tickets/${ticket.numero}">Ouvrir le ticket</a></p>`,
+          text: `Le ticket ${ticket.numero} vous a été assigné. ${process.env.SITE_URL || ''}/admin/sav/tickets/${ticket.numero}`,
+        }).catch(() => {});
+      } catch (_) {}
+    }
+    await ticket.save();
+    audit.log({ req, action: 'sav.assign', entityType: 'sav_ticket', entityId: ticket.numero, before, after: { assignedToUserId: ticket.assignedToUserId, assignedToName: ticket.assignedToName } });
+    return ok(res, { numero: ticket.numero, assignedToName: ticket.assignedToName });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/fournisseur — mettre à jour fournisseur
+adminRouter.post('/tickets/:numero/fournisseur', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const before = JSON.parse(JSON.stringify(ticket.fournisseur || {}));
+    const f = req.body || {};
+    ticket.fournisseur = ticket.fournisseur || {};
+    ['nom','contact','rmaNumero','transporteur','colisNumero','trackingUrl','rapportUrl','reponse'].forEach((k) => {
+      if (f[k] != null) ticket.fournisseur[k] = String(f[k]);
+    });
+    if (f.coutAnalyse != null) ticket.fournisseur.coutAnalyse = Number(f.coutAnalyse) || 0;
+    if (f.coutRefacture != null) ticket.fournisseur.coutRefacture = Number(f.coutRefacture) || 0;
+    if (f.dateEnvoi) ticket.fournisseur.dateEnvoi = new Date(f.dateEnvoi);
+    if (f.dateRetour) ticket.fournisseur.dateRetour = new Date(f.dateRetour);
+    if (f.changeStatutToEnAttente) ticket.changerStatut('en_attente_fournisseur', 'admin');
+    await ticket.save();
+    audit.log({ req, action: 'sav.fournisseur', entityType: 'sav_ticket', entityId: ticket.numero, before, after: ticket.fournisseur });
+    return ok(res, { numero: ticket.numero, fournisseur: ticket.fournisseur });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/diagnostic-enrichi — diagnostic banc enrichi
+adminRouter.post('/tickets/:numero/diagnostic-enrichi', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const body = req.body || {};
+    ticket.diagnosticEnrichi = ticket.diagnosticEnrichi || {};
+    if (body.mesures) ticket.diagnosticEnrichi.mesures = Object.assign(ticket.diagnosticEnrichi.mesures || {}, body.mesures);
+    if (body.avis2eTechnicienTexte != null) ticket.diagnosticEnrichi.avis2eTechnicienTexte = String(body.avis2eTechnicienTexte);
+    if (body.videoUrl) ticket.diagnosticEnrichi.videoUrl = String(body.videoUrl);
+    if (body.courbeBancUrl) ticket.diagnosticEnrichi.courbeBancUrl = String(body.courbeBancUrl);
+
+    // Score risque calculé : symptômes (5pts/symptome, max 40) + mesures (jusqu'à 60)
+    const sympts = (ticket.diagnostic && ticket.diagnostic.symptomes) || [];
+    let score = Math.min(40, sympts.length * 5);
+    const m = ticket.diagnosticEnrichi.mesures || {};
+    if (typeof m.pressionHydraulique === 'number' && m.pressionHydraulique < 5) score += 20;
+    if (m.fuiteInterne && m.fuiteInterne.toLowerCase() !== 'non') score += 15;
+    if ((m.codesAvantReset || []).length > 0) score += 10;
+    if ((m.codesApresReset || []).length > 0) score += 15;
+    ticket.diagnosticEnrichi.scoreCalcule = Math.min(100, score);
+
+    await ticket.save();
+    audit.log({ req, action: 'sav.diag.enrichi', entityType: 'sav_ticket', entityId: ticket.numero, after: { score: ticket.diagnosticEnrichi.scoreCalcule } });
+    return ok(res, { numero: ticket.numero, diagnosticEnrichi: ticket.diagnosticEnrichi });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/communication — envoyer un message client (email/whatsapp/interne)
+// Note : WhatsApp non câblé dans cette release, le canal whatsapp est loggé "envoyé" uniquement
+adminRouter.post('/tickets/:numero/communication', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const { canal, sujet, contenu, html } = req.body || {};
+    if (!canal || !contenu) return fail(res, 'canal et contenu requis');
+
+    if (canal === 'email') {
+      try {
+        const { sendEmail } = require('../../services/emailService');
+        const stripped = String(html || contenu).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        await sendEmail({
+          toEmail: ticket.client && ticket.client.email,
+          subject: sujet || `[SAV ${ticket.numero}]`,
+          html: html || `<p>${stripped}</p>`,
+          text: stripped,
+        });
+      } catch (e) {
+        console.error('[sav-comm email]', e.message);
+      }
+    }
+
+    ticket.addMessage('admin', canal, contenu);
+    await ticket.save();
+    audit.log({ req, action: 'sav.comm.' + canal, entityType: 'sav_ticket', entityId: ticket.numero });
+    return ok(res, { numero: ticket.numero });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/settings — récupérer paramètres
+adminRouter.get('/settings', async (req, res) => {
+  try {
+    const s = await SavSettings.getSingleton();
+    return ok(res, s.toObject());
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/settings — sauver paramètres
+adminRouter.post('/settings', async (req, res) => {
+  try {
+    const s = await SavSettings.getSingleton();
+    const before = s.toObject();
+    if (Array.isArray(req.body.slaPerPiece)) s.slaPerPiece = req.body.slaPerPiece;
+    if (Array.isArray(req.body.automationRules)) s.automationRules = req.body.automationRules;
+    await s.save();
+    audit.log({ req, action: 'sav.settings.update', entityType: 'sav_settings', entityId: 'global', before, after: s.toObject() });
+    return ok(res, s.toObject());
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/automations/run — déclencher manuellement le moteur
+adminRouter.post('/automations/run', async (req, res) => {
+  try {
+    const auto = require('../../services/savAutomations');
+    const summary = await auto.runRules();
+    audit.log({ req, action: 'sav.automations.run', entityType: 'sav_settings', entityId: 'global', after: summary });
+    return ok(res, summary);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/audit — consultation logs filtrable
+adminRouter.get('/audit', async (req, res) => {
+  try {
+    const q = {};
+    if (req.query.action) q.action = new RegExp(req.query.action, 'i');
+    if (req.query.userEmail) q.userEmail = new RegExp(req.query.userEmail, 'i');
+    if (req.query.entityId) q.entityId = req.query.entityId;
+    const limit = Math.min(500, parseInt(req.query.limit, 10) || 100);
+    const items = await AuditLog.find(q).sort({ createdAt: -1 }).limit(limit).lean();
+    return ok(res, { items });
   } catch (err) {
     return fail(res, err.message, 500);
   }
@@ -324,9 +588,10 @@ adminRouter.patch('/tickets/:numero/statut', async (req, res) => {
     if (!statut) return fail(res, 'statut requis');
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const before = { statut: ticket.statut };
     ticket.changerStatut(statut, auteur || 'admin');
     await ticket.save();
-    // TODO Phase 4 : déclencher email auto selon statut
+    audit.log({ req, action: 'sav.statut', entityType: 'sav_ticket', entityId: ticket.numero, before, after: { statut: ticket.statut } });
     return ok(res, { numero: ticket.numero, statut: ticket.statut });
   } catch (err) {
     return fail(res, err.message, 500);
@@ -360,6 +625,7 @@ adminRouter.post('/tickets/:numero/diagnostic', async (req, res) => {
     }
     ticket.changerStatut('analyse_terminee', 'admin');
     await ticket.save();
+    audit.log({ req, action: 'sav.diagnostic', entityType: 'sav_ticket', entityId: ticket.numero, after: { conclusion: ticket.analyse.conclusion } });
     return ok(res, { numero: ticket.numero, analyse: ticket.analyse });
   } catch (err) {
     return fail(res, err.message, 500);
@@ -380,6 +646,7 @@ adminRouter.post('/tickets/:numero/resolution', async (req, res) => {
         : 'resolu_facture';
     ticket.changerStatut(nouveauStatut, 'admin');
     await ticket.save();
+    audit.log({ req, action: 'sav.resolution', entityType: 'sav_ticket', entityId: ticket.numero, after: ticket.resolution });
     return ok(res, { numero: ticket.numero, resolution: ticket.resolution, statut: ticket.statut });
   } catch (err) {
     return fail(res, err.message, 500);
@@ -406,6 +673,7 @@ adminRouter.post('/tickets/:numero/facturer-149', async (req, res) => {
   try {
     const mollieService = require('../../services/mollieService');
     const result = await mollieService.createPayment149(req.params.numero);
+    audit.log({ req, action: 'sav.facturer149', entityType: 'sav_ticket', entityId: req.params.numero, after: { mollieId: result && result.mollieId } });
     return ok(res, { numero: req.params.numero, ...result });
   } catch (err) {
     const code = /interdite/.test(err.message) ? 409 : 500;
@@ -430,7 +698,7 @@ adminRouter.post('/tickets/:numero/rapport-pdf', async (req, res) => {
   }
 });
 
-// GET /admin/api/sav/dashboard
+// GET /admin/api/sav/dashboard — KPI étendus + chart 12 mois
 adminRouter.get('/dashboard', async (req, res) => {
   try {
     const now = new Date();
@@ -438,31 +706,119 @@ adminRouter.get('/dashboard', async (req, res) => {
       'ouvert',
       'pre_qualification',
       'en_attente_documents',
+      'relance_1',
+      'relance_2',
       'retour_demande',
       'en_transit_retour',
       'recu_atelier',
       'en_analyse',
       'analyse_terminee',
       'en_attente_decision_client',
+      'en_attente_fournisseur',
     ];
-    const [ouverts, slaDepasse, total, defautProduit, factures] = await Promise.all([
+    const STATUTS_CLOS = ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'];
+
+    const [
+      ouverts,
+      enAttenteDoc,
+      enAnalyse,
+      slaDepasse,
+      total,
+      defautProduit,
+      facturesPayees,
+      facturesImpayees,
+      mesTickets,
+      tousResolus,
+    ] = await Promise.all([
       SavTicket.countDocuments({ statut: { $in: STATUTS_ACTIFS } }),
+      SavTicket.countDocuments({ statut: { $in: ['en_attente_documents', 'relance_1', 'relance_2'] } }),
+      SavTicket.countDocuments({ statut: 'en_analyse' }),
       SavTicket.countDocuments({
         statut: { $in: STATUTS_ACTIFS },
         'sla.dateLimite': { $lt: now },
       }),
-      SavTicket.countDocuments({ 'analyse.conclusion': { $exists: true } }),
+      SavTicket.countDocuments({ 'analyse.conclusion': { $exists: true, $ne: null } }),
       SavTicket.countDocuments({ 'analyse.conclusion': 'defaut_produit' }),
       SavTicket.countDocuments({ 'paiements.facture149.status': 'payee' }),
+      SavTicket.countDocuments({ 'paiements.facture149.status': 'impayee' }),
+      // Mes tickets : on regarde le query param userId si fourni
+      req.query.userId ? SavTicket.countDocuments({ assignedToUserId: req.query.userId, statut: { $in: STATUTS_ACTIFS } }) : Promise.resolve(0),
+      SavTicket.find({ statut: { $in: STATUTS_CLOS }, createdAt: { $gte: new Date(Date.now() - 365 * 24 * 3600 * 1000) } })
+        .select('createdAt updatedAt statut')
+        .lean(),
     ]);
+
+    // Temps moyen de résolution (jours) sur les tickets clos cette année
+    let avgResolutionDays = 0;
+    if (tousResolus.length) {
+      const sum = tousResolus.reduce((acc, t) => {
+        const start = new Date(t.createdAt).getTime();
+        const end = new Date(t.updatedAt || t.createdAt).getTime();
+        return acc + Math.max(0, (end - start) / (1000 * 60 * 60 * 24));
+      }, 0);
+      avgResolutionDays = Math.round((sum / tousResolus.length) * 10) / 10;
+    }
     const tauxDefautProduit = total > 0 ? Math.round((defautProduit / total) * 100) : 0;
-    const caRecupere = factures * 149;
+    const caRecupere = facturesPayees * 149;
+    const caPerdu = facturesImpayees * 149;
+
+    // SAV récurrents fournisseur : nombre de tickets pour le même VIN > 1
+    let savRecurrents = 0;
+    try {
+      const groups = await SavTicket.aggregate([
+        { $match: { 'vehicule.vin': { $exists: true, $ne: null, $ne: '' } } },
+        { $group: { _id: '$vehicule.vin', count: { $sum: 1 } } },
+        { $match: { count: { $gt: 1 } } },
+        { $count: 'recurrents' },
+      ]);
+      savRecurrents = (groups[0] && groups[0].recurrents) || 0;
+    } catch (_) {}
+
+    // Chart 12 mois : ouverts vs clos par mois
+    const monthsBack = 12;
+    const start = new Date();
+    start.setMonth(start.getMonth() - (monthsBack - 1));
+    start.setDate(1); start.setHours(0, 0, 0, 0);
+    const monthly = await SavTicket.aggregate([
+      { $match: { createdAt: { $gte: start } } },
+      {
+        $group: {
+          _id: { y: { $year: '$createdAt' }, m: { $month: '$createdAt' } },
+          ouverts: { $sum: 1 },
+          clos: {
+            $sum: { $cond: [{ $in: ['$statut', STATUTS_CLOS] }, 1, 0] },
+          },
+        },
+      },
+      { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ]);
+    const labels = [];
+    const ouvertsArr = [];
+    const closArr = [];
+    for (let i = 0; i < monthsBack; i++) {
+      const d = new Date(start);
+      d.setMonth(start.getMonth() + i);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      labels.push(`${String(m).padStart(2, '0')}/${String(y).slice(2)}`);
+      const found = monthly.find((x) => x._id.y === y && x._id.m === m);
+      ouvertsArr.push(found ? found.ouverts : 0);
+      closArr.push(found ? found.clos : 0);
+    }
+
     return ok(res, {
-      ouverts,
-      sla_depasse: slaDepasse,
-      total_analyses: total,
+      ouverts: ouverts || 0,
+      en_attente_doc: enAttenteDoc || 0,
+      en_analyse: enAnalyse || 0,
+      sla_depasse: slaDepasse || 0,
+      total_analyses: total || 0,
       taux_defaut_produit: tauxDefautProduit,
       ca_recupere: caRecupere,
+      ca_perdu: caPerdu,
+      avg_resolution_days: avgResolutionDays,
+      sav_recurrents: savRecurrents,
+      mes_tickets: mesTickets || 0,
+      chart: { labels, ouverts: ouvertsArr, clos: closArr },
     });
   } catch (err) {
     return fail(res, err.message, 500);
