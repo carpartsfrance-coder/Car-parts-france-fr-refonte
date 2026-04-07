@@ -5,6 +5,7 @@ const { sendAbandonedCartReminders } = require('./sendAbandonedCartReminders');
 const { expireDraftOrders } = require('./expireDraftOrders');
 const { checkOrderAlerts } = require('./checkOrderAlerts');
 const { sendConsigneReminders } = require('./sendConsigneReminders');
+const { checkSavSlaEscalation, runSavDailyReminders, runSavAutomations } = require('./savCronJobs');
 
 function startScheduler() {
   // Detect abandoned carts every hour (at minute 0)
@@ -57,7 +58,38 @@ function startScheduler() {
     }
   });
 
+  // SAV — escalade SLA toutes les heures (minute 15)
+  cron.schedule('15 * * * *', async () => {
+    console.log('[scheduler] SAV: vérification SLA...');
+    try {
+      const r = await checkSavSlaEscalation();
+      console.log('[scheduler] SAV SLA:', r);
+    } catch (err) {
+      console.error('[scheduler] Erreur SAV SLA:', err.message || err);
+    }
+  });
+
+  // SAV — moteur d'automatisations toutes les 30 min
+  cron.schedule('25,55 * * * *', async () => {
+    try {
+      await runSavAutomations();
+    } catch (err) {
+      console.error('[scheduler] Erreur SAV automations:', err.message || err);
+    }
+  });
+
+  // SAV — relances quotidiennes 09:05
+  cron.schedule('5 9 * * *', async () => {
+    console.log('[scheduler] SAV: relances quotidiennes...');
+    try {
+      await runSavDailyReminders();
+    } catch (err) {
+      console.error('[scheduler] Erreur SAV relances:', err.message || err);
+    }
+  });
+
   console.log('[scheduler] CRON paniers abandonnés programmé (détection :00, relances :05)');
+  console.log('[scheduler] CRON SAV programmé (SLA :15, relances 09:05)');
   console.log('[scheduler] CRON alertes commandes programmé (:10)');
   console.log('[scheduler] CRON relances consigne programmé (09:00 quotidien)');
   console.log('[scheduler] CRON expiration brouillons programmé (03:00 quotidien)');

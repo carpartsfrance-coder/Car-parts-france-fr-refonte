@@ -1,6 +1,7 @@
 const express = require('express');
 
 const accountController = require('../controllers/accountController');
+const accountSavController = require('../controllers/accountSavController');
 
 const router = express.Router();
 
@@ -47,5 +48,15 @@ router.get('/commandes/:orderId/shipment-doc/:shipmentId', requireAuth, accountC
 router.post('/commandes/:orderId/racheter', requireAuth, accountController.postRepurchaseOrder);
 router.get('/factures', requireAuth, accountController.getInvoicesPage);
 router.get('/garage', requireAuth, accountController.getGaragePage);
+
+// SAV — espace client
+router.get('/sav', requireAuth, accountSavController.getSavList);
+router.get('/sav/:numero', requireAuth, accountSavController.getSavDetail);
+router.post('/sav/:numero/messages', requireAuth, accountSavController.postSavMessage);
+
+// RGPD
+router.get('/rgpd', requireAuth, accountSavController.getRgpdPage);
+router.get('/rgpd/export.json', requireAuth, accountSavController.getRgpdExport);
+router.post('/rgpd/supprimer-sav', requireAuth, accountSavController.postRgpdDeleteSav);
 
 module.exports = router;

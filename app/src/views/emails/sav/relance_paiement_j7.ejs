@@ -1,0 +1,6 @@
+<% const body = `
+  <p>Bonjour,</p>
+  <p>Petit rappel concernant votre dossier <strong>${ticket.numero}</strong> : nous n'avons pas encore reçu le règlement du forfait analyse de <strong>149 € TTC</strong>.</p>
+  <p>Vous pouvez régler en quelques clics depuis votre espace de suivi. Si vous rencontrez la moindre difficulté, répondez simplement à cet email — nous sommes là pour vous aider.</p>
+` %>
+<%- include('./_layout', { ticket: ticket, subject: 'Rappel — Forfait analyse 149€', body: body }) %>

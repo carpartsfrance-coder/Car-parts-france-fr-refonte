@@ -106,6 +106,10 @@
           <span class="sidebar-link-text">Expédition</span>
         </a>
       <% } %>
+      <a class="sidebar-link <%= activeKey === 'sav' ? 'sidebar-link--active' : '' %>" href="/admin/sav" title="SAV">
+        <span class="material-symbols-outlined">build_circle</span>
+        <span class="sidebar-link-text flex-1">SAV</span>
+      </a>
       <a class="sidebar-link <%= activeKey === 'returns' ? 'sidebar-link--active' : '' %>" href="/admin/retours" title="Consignes & retours">
         <span class="material-symbols-outlined">assignment_return</span>
         <span class="sidebar-link-text flex-1">Consignes & retours</span>

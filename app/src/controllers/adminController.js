@@ -748,7 +748,9 @@ function getAdminRoleLabel(role) {
 function renderAdminLoginPage(res, { status = 200, dbConnected, errorMessage, successMessage, email, returnTo, legacyCreds } = {}) {
   const safeCreds = legacyCreds || getAdminCredentials();
   const showDevFallback = !dbConnected && safeCreds.isDevFallback;
-  const isDevMode = process.env.NODE_ENV !== 'production';
+  // Strict : on n'affiche les comptes de test QUE si NODE_ENV === 'development'.
+  // Toute autre valeur (production, staging, undefined) → bloc masqué.
+  const isDevMode = process.env.NODE_ENV === 'development';
   return res.status(status).render('admin/login', {
     title: 'Admin - Connexion',
     dbConnected,
@@ -1640,8 +1642,19 @@ async function postAdminLogin(req, res) {
   const returnTo = getSafeReturnTo(req.body.returnTo) || '/admin';
 
   const ip = getClientIp(req);
+  const userAgent = (req.headers && req.headers['user-agent']) || '';
+
+  // Log des tentatives (best-effort, jamais bloquant)
+  function logAttempt(success, reason) {
+    try {
+      const AdminLoginAttempt = require('../models/AdminLoginAttempt');
+      AdminLoginAttempt.create({ email, ip, userAgent, success, reason }).catch(() => {});
+    } catch (_) {}
+  }
+
   const honeypot = getTrimmedString(req.body && req.body.website);
   if (honeypot) {
+    logAttempt(false, 'honeypot');
     return renderAdminLoginPage(res, {
       status: 401,
       dbConnected,
@@ -1652,12 +1665,14 @@ async function postAdminLogin(req, res) {
     });
   }
 
-  const limit = consumeRateLimit(ADMIN_LOGIN_BUCKETS, ip, { limit: 20, windowMs: 10 * 60 * 1000 });
+  // Rate limit serré : 5 tentatives / 15 min / IP
+  const limit = consumeRateLimit(ADMIN_LOGIN_BUCKETS, ip, { limit: 5, windowMs: 15 * 60 * 1000 });
   if (limit.limited) {
+    logAttempt(false, 'rate_limited');
     return renderAdminLoginPage(res, {
       status: 429,
       dbConnected,
-      errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
+      errorMessage: 'Trop de tentatives de connexion (max 5 toutes les 15 minutes). Réessayez plus tard.',
       email,
       returnTo,
       legacyCreds: creds,
@@ -1665,6 +1680,7 @@ async function postAdminLogin(req, res) {
   }
 
   if (!email || !password) {
+    logAttempt(false, 'missing_fields');
     return renderAdminLoginPage(res, {
       status: 400,
       dbConnected,
@@ -1686,6 +1702,7 @@ async function postAdminLogin(req, res) {
     }
 
     if (!adminUser) {
+      logAttempt(false, 'bad_credentials');
       return renderAdminLoginPage(res, {
         status: 401,
         dbConnected,
@@ -1696,7 +1713,22 @@ async function postAdminLogin(req, res) {
       });
     }
 
+    logAttempt(true, 'ok_db');
     const sessionAdmin = adminUsers.sanitizeAdminForSession(adminUser);
+
+    // 2FA : si activée → on stocke un état pending et on redirige vers la page OTP
+    if (adminUser.twoFactorEnabled && adminUser.twoFactorSecret) {
+      req.session.adminPending2fa = {
+        adminUserId: String(adminUser._id),
+        sessionAdmin,
+        returnTo,
+        startedAt: Date.now(),
+      };
+      return req.session.save(() => res.redirect('/admin/connexion/2fa'));
+    }
+
+    // 2FA obligatoire pour les owners (configuration recommandée) — si pas encore activée,
+    // on connecte normalement mais on flag pour rappel sur le profil.
 
     if (req.session && typeof req.session.regenerate === 'function') {
       return req.session.regenerate((err) => {
@@ -1725,6 +1757,7 @@ async function postAdminLogin(req, res) {
     : password === normalizeEnvString(creds.password);
 
   if (email !== creds.email || !passwordOk) {
+    logAttempt(false, 'bad_credentials_fallback');
     return renderAdminLoginPage(res, {
       status: 401,
       dbConnected,
@@ -1735,6 +1768,7 @@ async function postAdminLogin(req, res) {
     });
   }
 
+  logAttempt(true, 'ok_fallback');
   const fallbackAdmin = { email, role: ROLES.OWNER };
 
   req.session.admin = fallbackAdmin;
@@ -8891,9 +8925,172 @@ async function postAdminAdvanceOrder(req, res) {
   }
 }
 
+// ============================================================
+// 2FA TOTP — login second step + profile management
+// ============================================================
+const twoFactorService = require('../services/twoFactorService');
+
+function getAdminLogin2fa(req, res) {
+  const pending = req.session && req.session.adminPending2fa;
+  if (!pending) return res.redirect('/admin/connexion');
+  return res.render('admin/login-2fa', {
+    title: 'Vérification 2FA',
+    errorMessage: req.session.adminLogin2faError || null,
+    returnTo: pending.returnTo || '/admin',
+  });
+}
+
+async function postAdminLogin2fa(req, res) {
+  const pending = req.session && req.session.adminPending2fa;
+  if (!pending) return res.redirect('/admin/connexion');
+  // Expire après 5 min
+  if (Date.now() - pending.startedAt > 5 * 60 * 1000) {
+    delete req.session.adminPending2fa;
+    return res.redirect('/admin/connexion');
+  }
+  const code = String((req.body && req.body.code) || '').trim();
+  if (!code) {
+    req.session.adminLogin2faError = 'Code requis.';
+    return res.redirect('/admin/connexion/2fa');
+  }
+  try {
+    const adminUser = await AdminUser.findById(pending.adminUserId);
+    if (!adminUser) return res.redirect('/admin/connexion');
+    let ok = twoFactorService.verify(adminUser.twoFactorSecret, code, 1);
+    if (!ok) {
+      // Tentative avec code de secours
+      const consumed = twoFactorService.consumeBackupCode(adminUser.twoFactorBackupCodes || [], code);
+      if (consumed.ok) {
+        adminUser.twoFactorBackupCodes = consumed.remaining;
+        await adminUser.save();
+        ok = true;
+      }
+    }
+    if (!ok) {
+      req.session.adminLogin2faError = 'Code invalide.';
+      try { require('../services/auditLogger').log({ req, action: 'admin.2fa.failed', entityType: 'admin_user', entityId: String(adminUser._id) }); } catch (_) {}
+      return res.redirect('/admin/connexion/2fa');
+    }
+    // Succès : on connecte
+    const sessionAdmin = pending.sessionAdmin;
+    const returnTo = pending.returnTo || '/admin';
+    delete req.session.adminPending2fa;
+    delete req.session.adminLogin2faError;
+    try { require('../services/auditLogger').log({ req, action: 'admin.2fa.success', entityType: 'admin_user', entityId: String(adminUser._id) }); } catch (_) {}
+
+    if (req.session && typeof req.session.regenerate === 'function') {
+      return req.session.regenerate((err) => {
+        if (err) return res.redirect('/admin/connexion');
+        req.session.admin = sessionAdmin;
+        return req.session.save(() => res.redirect(returnTo));
+      });
+    }
+    req.session.admin = sessionAdmin;
+    return req.session.save(() => res.redirect(returnTo));
+  } catch (e) {
+    console.error('[2fa] postLogin', e.message);
+    req.session.adminLogin2faError = 'Erreur serveur.';
+    return res.redirect('/admin/connexion/2fa');
+  }
+}
+
+async function getAdminProfileSecurity(req, res) {
+  const sess = req.session && req.session.admin;
+  if (!sess || !sess.adminUserId) return res.redirect('/admin/connexion');
+  const user = await AdminUser.findById(sess.adminUserId).lean();
+  if (!user) return res.redirect('/admin/connexion');
+  const flash = req.session.profileSecurityFlash || null;
+  delete req.session.profileSecurityFlash;
+  const setupSecret = req.session.adminPendingTotpSecret || null;
+  const otpauthUrl = setupSecret ? twoFactorService.otpauthUrl({ secret: setupSecret, label: user.email }) : null;
+  const backupCodes = req.session.adminTotpBackupCodes || null;
+  delete req.session.adminTotpBackupCodes;
+  return res.render('admin/profile-security', {
+    title: 'Sécurité — Mon profil',
+    twoFactorEnabled: !!user.twoFactorEnabled,
+    twoFactorActivatedAt: user.twoFactorActivatedAt,
+    currentRole: user.role,
+    setupSecret,
+    otpauthUrl,
+    backupCodes,
+    flashMessage: flash && flash.message,
+    flashType: flash && flash.type,
+  });
+}
+
+async function postSetupTwoFactor(req, res) {
+  const sess = req.session && req.session.admin;
+  if (!sess || !sess.adminUserId) return res.redirect('/admin/connexion');
+  const secret = twoFactorService.generateSecret();
+  req.session.adminPendingTotpSecret = secret;
+  return res.redirect('/admin/profil/securite');
+}
+
+async function postConfirmTwoFactor(req, res) {
+  const sess = req.session && req.session.admin;
+  if (!sess || !sess.adminUserId) return res.redirect('/admin/connexion');
+  const secret = String((req.body && req.body.secret) || req.session.adminPendingTotpSecret || '');
+  const code = String((req.body && req.body.code) || '').trim();
+  if (!secret || !twoFactorService.verify(secret, code, 1)) {
+    req.session.profileSecurityFlash = { type: 'error', message: 'Code invalide. Vérifiez votre application 2FA et réessayez.' };
+    return res.redirect('/admin/profil/securite');
+  }
+  const backups = twoFactorService.generateBackupCodes(8);
+  await AdminUser.updateOne(
+    { _id: sess.adminUserId },
+    {
+      $set: {
+        twoFactorEnabled: true,
+        twoFactorSecret: secret,
+        twoFactorBackupCodes: backups,
+        twoFactorActivatedAt: new Date(),
+      },
+    }
+  );
+  delete req.session.adminPendingTotpSecret;
+  req.session.adminTotpBackupCodes = backups;
+  req.session.profileSecurityFlash = { type: 'success', message: '2FA activée. Conservez vos codes de secours en lieu sûr.' };
+  try { require('../services/auditLogger').log({ req, action: 'admin.2fa.enabled', entityType: 'admin_user', entityId: String(sess.adminUserId) }); } catch (_) {}
+  return res.redirect('/admin/profil/securite');
+}
+
+async function postDisableTwoFactor(req, res) {
+  const sess = req.session && req.session.admin;
+  if (!sess || !sess.adminUserId) return res.redirect('/admin/connexion');
+  const password = String((req.body && req.body.password) || '');
+  if (!password) {
+    req.session.profileSecurityFlash = { type: 'error', message: 'Mot de passe requis.' };
+    return res.redirect('/admin/profil/securite');
+  }
+  try {
+    await ensureAdminUserStoreReady();
+    const ok = await adminUsers.authenticateAdminUser({ email: sess.email, password });
+    if (!ok) {
+      req.session.profileSecurityFlash = { type: 'error', message: 'Mot de passe incorrect.' };
+      return res.redirect('/admin/profil/securite');
+    }
+    await AdminUser.updateOne(
+      { _id: sess.adminUserId },
+      { $set: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [], twoFactorActivatedAt: null } }
+    );
+    req.session.profileSecurityFlash = { type: 'success', message: '2FA désactivée.' };
+    try { require('../services/auditLogger').log({ req, action: 'admin.2fa.disabled', entityType: 'admin_user', entityId: String(sess.adminUserId) }); } catch (_) {}
+  } catch (e) {
+    console.error('[2fa] disable', e.message);
+    req.session.profileSecurityFlash = { type: 'error', message: 'Erreur serveur.' };
+  }
+  return res.redirect('/admin/profil/securite');
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
+  getAdminLogin2fa,
+  postAdminLogin2fa,
+  getAdminProfileSecurity,
+  postSetupTwoFactor,
+  postConfirmTwoFactor,
+  postDisableTwoFactor,
   postAdminLogout,
   getAdminResetPassword,
   postAdminResetPassword,

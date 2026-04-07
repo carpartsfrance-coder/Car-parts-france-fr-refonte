@@ -1,0 +1,15 @@
+<% const body = `
+  <p>Bonjour <strong>${(ticket.client && ticket.client.nom) || ''}</strong>,</p>
+  <p>Nous avons bien enregistré votre demande SAV. <strong>Vous n'avez rien à payer à cette étape.</strong></p>
+  <p><strong>Prochaine étape :</strong> vous trouverez en pièce jointe votre <strong>bon de retour offert</strong> à imprimer et coller sur le colis.</p>
+  <div style="margin:18px 0;padding:14px;background:#f8fafc;border-left:4px solid #ec1313;border-radius:8px;font-size:14px;">
+    <strong>Pour rappel, voici comment ça se passe :</strong>
+    <ul style="margin:8px 0 0 18px;padding:0;">
+      <li>Si l'analyse confirme un défaut produit : <strong>0 €</strong>, échange ou remboursement intégral.</li>
+      <li>Si la pièce n'est pas défectueuse : forfait <strong>149 € TTC</strong> d'analyse.</li>
+      <li>Retour vers nous : offert. Retour vers vous en cas d'analyse négative : 25 €.</li>
+    </ul>
+  </div>
+  <p>Réponse garantie sous <strong>5 jours ouvrés</strong> après réception de votre pièce.</p>
+` %>
+<%- include('./_layout', { ticket: ticket, subject: 'Votre demande SAV est enregistrée', body: body }) %>

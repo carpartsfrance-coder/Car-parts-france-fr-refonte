@@ -1,0 +1,11 @@
+<% const body = `
+  <p>Bonjour,</p>
+  <p><strong>Bonne nouvelle :</strong> notre analyse confirme un <strong>défaut produit</strong>. Nous prenons votre dossier en charge à 100 %.</p>
+  <p>Vous n'avez <strong>rien à payer</strong>. Vous pouvez choisir :</p>
+  <ul>
+    <li><strong>Échange</strong> : nous vous envoyons une nouvelle pièce reconditionnée et testée.</li>
+    <li><strong>Remboursement intégral</strong> : nous vous remboursons sous 5 jours ouvrés.</li>
+  </ul>
+  <p>Répondez à cet email avec votre choix, nous nous occupons du reste. Le retour est offert.</p>
+` %>
+<%- include('./_layout', { ticket: ticket, subject: 'Bonne nouvelle : défaut produit confirmé', body: body }) %>

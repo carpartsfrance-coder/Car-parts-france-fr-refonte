@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-lc", "export PATH=/usr/local/bin:$PATH && cd app && npm run dev"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

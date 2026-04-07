@@ -13,6 +13,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const adminController = require('../controllers/adminController');
+const savAdminController = require('../controllers/savAdminController');
 const abandonedCartAdminController = require('../controllers/abandonedCartAdminController');
 const orderEmailAdminController = require('../controllers/orderEmailAdminController');
 const internalNoteAdminController = require('../controllers/internalNoteAdminController');
@@ -107,6 +108,8 @@ function requireAbility(ability) {
 
 router.get('/connexion', adminController.getAdminLogin);
 router.post('/connexion', adminController.postAdminLogin);
+router.get('/connexion/2fa', adminController.getAdminLogin2fa);
+router.post('/connexion/2fa', adminController.postAdminLogin2fa);
 router.post('/deconnexion', adminController.postAdminLogout);
 
 router.get('/reinitialiser', adminController.getAdminResetPassword);
@@ -131,6 +134,21 @@ router.use(async (req, res, next) => {
 });
 
 router.get('/', requireAdminAuth, adminController.getAdminDashboard);
+
+router.get('/sav', requireAdminAuth, savAdminController.getSavDashboard);
+router.get('/sav/tickets', requireAdminAuth, savAdminController.getSavTickets);
+router.get('/sav/tickets/:numero', requireAdminAuth, savAdminController.getSavTicketDetail);
+router.get('/parametres/sav', requireAdminAuth, savAdminController.getSavSettings);
+router.get('/parametres/audit', requireAdminAuth, savAdminController.getAuditLog);
+router.get('/parametres/integrations', requireAdminAuth, savAdminController.getIntegrations);
+router.get('/sav/analytics', requireAdminAuth, savAdminController.getAnalytics);
+router.get('/analytics/reputation', requireAdminAuth, savAdminController.getReputation);
+
+// Profil - Sécurité (2FA)
+router.get('/profil/securite', requireAdminAuth, adminController.getAdminProfileSecurity);
+router.post('/profil/securite/2fa/setup', requireAdminAuth, adminController.postSetupTwoFactor);
+router.post('/profil/securite/2fa/confirm', requireAdminAuth, adminController.postConfirmTwoFactor);
+router.post('/profil/securite/2fa/disable', requireAdminAuth, adminController.postDisableTwoFactor);
 
 router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashboard);
 router.post('/analytics/synonyme', requireAdminAuth, analyticsController.postAddSynonym);

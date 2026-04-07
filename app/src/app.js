@@ -158,6 +158,30 @@ const adminLoginLimiter = rateLimit({
 });
 app.use('/admin/connexion', adminLoginLimiter);
 
+// Headers de sécurité sur toutes les routes /admin
+app.use('/admin', (req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // CSP basique : pas d'iframe, scripts/styles uniquement self + inline (Tailwind/EJS),
+  // images self/data/https (pour les uploads et thumbnails).
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "img-src 'self' data: https:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "script-src 'self' 'unsafe-inline'",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ')
+  );
+  next();
+});
+
 const secureCookieFromEnv =
   process.env.SESSION_COOKIE_SECURE === 'true'
     ? true
@@ -179,6 +203,7 @@ const legalRouter = require('./routes/legal');
 const blogRouter = require('./routes/blog');
 const adminRouter = require('./routes/admin');
 const mediaRouter = require('./routes/media');
+const savApi = require('./routes/api/sav');
 const seoController = require('./controllers/seoController');
 const analyticsController = require('./controllers/analyticsController');
 const siteSettings = require('./services/siteSettings');
@@ -356,6 +381,10 @@ const staticOptions = isProd
 
 app.use(express.static(path.join(__dirname, '..', 'public'), staticOptions));
 
+// SAV : exposition statique des PDF de rapports et docs uploadés
+app.use('/uploads/sav-reports', express.static(path.join(__dirname, '..', '..', 'uploads', 'sav-reports')));
+app.use('/uploads/sav', express.static(path.join(__dirname, '..', '..', 'uploads', 'sav')));
+
 // WordPress -> Node.js 301 redirects (SEO migration)
 app.use(wpRedirects);
 
@@ -364,6 +393,14 @@ app.use(i18nMiddleware);
 
 // Analytics tracking endpoint (public, no auth)
 app.post('/api/analytics/track', analyticsController.postTrackEvent);
+
+// SAV API (REST JSON)
+app.use('/api/sav', savApi.publicRouter);
+app.use('/admin/api/sav', savApi.adminRouter);
+
+// i18n SAV : injecte tSav() et savLocale dans toutes les vues
+const i18nSav = require('./services/i18nSav');
+app.use(i18nSav.middleware());
 
 // French routes (default)
 app.use('/', indexRouter);

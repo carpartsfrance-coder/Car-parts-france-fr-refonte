@@ -1,0 +1,86 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/sav.css?v=4">
+<%- include('../partials/header') %>
+
+<main class="flex-1">
+  <div class="mx-auto max-w-[1440px] px-4 md:px-10 py-6 sm:py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+      <aside class="lg:col-span-3">
+        <%- include('./_sidebar', { active: 'sav' }) %>
+      </aside>
+
+      <section class="lg:col-span-9 space-y-6">
+
+        <a href="/compte/sav" class="text-sm text-slate-500 hover:text-slate-900">← Mes demandes SAV</a>
+
+        <% if (!ticket) { %>
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+            <h1 class="text-xl font-bold">Dossier introuvable</h1>
+            <p class="mt-2 text-sm">Ce dossier n'existe pas ou n'est pas associé à votre compte.</p>
+          </div>
+        <% } else {
+             var sm = STATUTS_LABELS[ticket.statut] || [ticket.statut, 'bg-slate-100 text-slate-700']; %>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-5">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div class="text-xs uppercase tracking-wide text-slate-400">Dossier SAV</div>
+                <div class="text-2xl font-bold font-mono text-slate-900"><%= ticket.numero %></div>
+                <div class="mt-1 text-sm text-slate-600"><%= ticket.pieceType %><% if (ticket.numeroCommande) { %> · Commande <%= ticket.numeroCommande %><% } %></div>
+              </div>
+              <span class="px-3 py-1 rounded-full text-xs font-semibold <%= sm[1] %>"><%= sm[0] %></span>
+            </div>
+          </div>
+
+          <% if (ticket.vehicule && (ticket.vehicule.vin || ticket.vehicule.marque)) { %>
+            <div class="rounded-2xl border border-slate-200 bg-white p-5">
+              <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Véhicule</h2>
+              <div class="text-sm text-slate-700 space-y-1">
+                <% if (ticket.vehicule.marque || ticket.vehicule.modele) { %><div><%= [ticket.vehicule.marque, ticket.vehicule.modele, ticket.vehicule.annee].filter(Boolean).join(' ') %></div><% } %>
+                <% if (ticket.vehicule.vin) { %><div><strong>VIN&nbsp;:</strong> <span class="font-mono"><%= ticket.vehicule.vin %></span></div><% } %>
+                <% if (ticket.vehicule.immatriculation) { %><div><strong>Plaque&nbsp;:</strong> <%= ticket.vehicule.immatriculation %></div><% } %>
+                <% if (ticket.vehicule.kilometrage) { %><div><strong>Kilométrage&nbsp;:</strong> <%= ticket.vehicule.kilometrage %> km</div><% } %>
+              </div>
+            </div>
+          <% } %>
+
+          <!-- Timeline -->
+          <div class="rounded-2xl border border-slate-200 bg-white p-5">
+            <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Suivi du dossier</h2>
+            <% var publicMsgs = (ticket.messages || []).filter(function(m){ return m.canal !== 'interne'; }); %>
+            <% if (!publicMsgs.length) { %>
+              <p class="text-sm text-slate-500">Aucun événement public pour le moment.</p>
+            <% } else { %>
+              <div class="sav-client-timeline">
+                <% publicMsgs.slice().reverse().forEach(function(m) { %>
+                  <div class="sav-client-timeline__item">
+                    <div class="sav-client-timeline__dot"></div>
+                    <div class="sav-client-timeline__date"><%= new Date(m.date).toLocaleString('fr-FR') %> · <%= m.canal %> · <%= m.auteur %></div>
+                    <div class="sav-client-timeline__msg"><%= m.contenu %></div>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+
+          <!-- Réponse client -->
+          <div class="rounded-2xl border border-slate-200 bg-white p-5">
+            <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Ajouter un message</h2>
+            <form method="POST" action="/compte/sav/<%= encodeURIComponent(ticket.numero) %>/messages" class="space-y-3">
+              <textarea name="contenu" rows="3" required maxlength="2000"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        placeholder="Posez votre question ou ajoutez une précision…"></textarea>
+              <button class="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-4 py-2.5">
+                <span class="material-symbols-outlined">send</span>
+                Envoyer
+              </button>
+            </form>
+          </div>
+
+        <% } %>
+      </section>
+    </div>
+  </div>
+</main>
+
+<%- include('../partials/footer') %>
