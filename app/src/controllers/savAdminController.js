@@ -5,6 +5,7 @@ function baseLocals(req, extra) {
     {
       title: 'SAV — Admin CarParts France',
       isOwner: req.session && req.session.admin && req.session.admin.role === 'owner',
+      currentAdmin: (req.session && req.session.admin) || null,
       // Le token Bearer pour les fetch côté navigateur — exposé seulement à un admin authentifié
       savApiToken: process.env.SAV_API_TOKEN || '',
     },
@@ -25,4 +26,12 @@ exports.getSavTicketDetail = (req, res) => {
     'admin/sav-ticket',
     baseLocals(req, { numero: req.params.numero })
   );
+};
+
+exports.getSavSettings = (req, res) => {
+  res.render('admin/sav-settings', baseLocals(req, { title: 'Paramètres SAV — Admin' }));
+};
+
+exports.getAuditLog = (req, res) => {
+  res.render('admin/audit-log', baseLocals(req, { title: 'Journal d\'audit — Admin' }));
 };

@@ -2,149 +2,372 @@
 <link rel="stylesheet" href="/css/sav.css">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
-<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>">
-  <div class="px-6 lg:px-10 py-6">
+<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
 
-    <a href="/admin/sav/tickets" class="text-sm text-slate-500 hover:text-slate-900">← Retour à la liste</a>
-
-    <!-- En-tête -->
-    <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-premium">
-      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Ticket SAV</div>
-          <div class="text-2xl font-bold font-mono text-slate-900"><%= numero %></div>
-          <div class="mt-2 text-sm text-slate-600" id="sav-header-meta">Chargement…</div>
+  <!-- HEADER STICKY -->
+  <header class="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 lg:px-10 py-3">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3 min-w-0">
+        <a href="/admin/sav/tickets" class="text-slate-500 hover:text-slate-900 text-sm">←</a>
+        <div class="min-w-0">
+          <div class="font-mono font-bold text-slate-900 truncate"><%= numero %></div>
+          <div id="sav-header-meta" class="text-xs text-slate-500 truncate">Chargement…</div>
         </div>
-        <div class="flex items-center gap-3">
-          <div id="sav-sla-badge" class="sav-sla-badge sav-sla-badge--ok">SLA —</div>
-          <div id="sav-statut-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">—</div>
-        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <div id="sav-sla-badge" class="sav-sla-badge sav-sla-badge--ok">SLA —</div>
+        <div id="sav-statut-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">—</div>
+        <button type="button" id="sav-assign-btn" class="px-3 py-1 rounded-lg text-xs border border-slate-300 hover:border-primary hover:text-primary">
+          <span class="material-symbols-outlined text-xs align-middle">person_add</span>
+          <span id="sav-assign-label">Assigner</span>
+        </button>
+        <button type="button" id="sav-help-btn" title="Raccourcis clavier" class="w-7 h-7 rounded-full border border-slate-300 hover:border-primary text-slate-500 hover:text-primary text-xs font-bold">?</button>
       </div>
     </div>
+  </header>
 
-    <div id="sav-detail-error" class="hidden mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
+  <div class="px-6 lg:px-10 py-6">
+    <div id="sav-detail-error" class="hidden mt-2 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
 
-    <!-- Bloc Informations du dossier (rendu par sav-admin.js) -->
-    <section class="mt-6">
-      <h2 class="text-lg font-semibold text-slate-900 mb-3">Informations du dossier</h2>
-      <div id="sav-dossier" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div class="text-sm text-slate-500 col-span-full">Chargement…</div>
+    <!-- LAYOUT 2 COLONNES -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- COLONNE PRINCIPALE -->
+      <div class="lg:col-span-2 space-y-4">
+
+        <!-- Onglets -->
+        <div class="rounded-2xl border border-slate-200 bg-white">
+          <nav class="flex gap-1 px-3 pt-3 border-b border-slate-100 overflow-x-auto" role="tablist">
+            <% const tabs = [
+              ['apercu','Aperçu','dashboard'],
+              ['historique','Historique','timeline'],
+              ['documents','Documents','folder'],
+              ['communications','Communications','forum'],
+              ['diagnostic','Diagnostic banc','science'],
+              ['fournisseur','Fournisseur','local_shipping'],
+            ]; %>
+            <% tabs.forEach(function(t, i){ %>
+              <button type="button" role="tab" data-tab="<%= t[0] %>" class="sav-tab <%= i === 0 ? 'is-active' : '' %>">
+                <span class="material-symbols-outlined text-base"><%= t[2] %></span>
+                <%= t[1] %>
+              </button>
+            <% }); %>
+          </nav>
+
+          <!-- Tab Aperçu (dossier) -->
+          <section class="sav-tabpanel p-5" data-tab-panel="apercu">
+            <div id="sav-dossier" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="text-sm text-slate-500 col-span-full">Chargement…</div>
+            </div>
+          </section>
+
+          <!-- Tab Historique -->
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="historique">
+            <div class="sav-timeline" id="sav-timeline">
+              <div class="text-sm text-slate-500">Chargement…</div>
+            </div>
+          </section>
+
+          <!-- Tab Documents -->
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="documents">
+            <div id="sav-documents" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div class="text-sm text-slate-500 col-span-full">Aucun document.</div>
+            </div>
+          </section>
+
+          <!-- Tab Communications (avec WYSIWYG vanilla + templates + variables) -->
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="communications">
+            <div id="sav-messages" class="space-y-3 mb-4 max-h-72 overflow-y-auto"></div>
+
+            <form id="sav-msg-form" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <select name="canal" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                  <option value="email">📧 email</option>
+                  <option value="whatsapp">💬 whatsapp (note)</option>
+                  <option value="tel">📞 tel (note)</option>
+                  <option value="interne">🔒 note interne</option>
+                </select>
+                <select id="sav-template" class="rounded-xl border border-slate-300 px-3 py-2 text-sm sm:col-span-2">
+                  <option value="">— Template —</option>
+                  <option value="reception">Pièce reçue à l'atelier</option>
+                  <option value="analyse_ok">Défaut produit confirmé</option>
+                  <option value="analyse_neg">Pas de défaut produit (149€)</option>
+                  <option value="relance_doc">Relance documents manquants</option>
+                  <option value="rdv">Proposition de RDV</option>
+                </select>
+              </div>
+
+              <input type="text" name="sujet" placeholder="Sujet (email)" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+
+              <!-- Mini WYSIWYG -->
+              <div class="rounded-xl border border-slate-300">
+                <div class="flex items-center gap-1 border-b border-slate-200 px-2 py-1 bg-slate-50 text-xs">
+                  <button type="button" data-cmd="bold" class="px-2 py-1 hover:bg-white rounded font-bold">B</button>
+                  <button type="button" data-cmd="italic" class="px-2 py-1 hover:bg-white rounded italic">I</button>
+                  <button type="button" data-cmd="insertUnorderedList" class="px-2 py-1 hover:bg-white rounded">• Liste</button>
+                  <button type="button" data-cmd="insertOrderedList" class="px-2 py-1 hover:bg-white rounded">1. Num</button>
+                  <button type="button" data-cmd-link class="px-2 py-1 hover:bg-white rounded">🔗 Lien</button>
+                  <span class="ml-auto text-slate-400 text-[10px]">Variables : {client_prenom} {ticket_numero} {piece_type} {garage_nom}</span>
+                </div>
+                <div id="sav-msg-editor" contenteditable="true" class="min-h-[120px] px-3 py-2 text-sm focus:outline-none" data-placeholder="Tapez votre message…"></div>
+                <input type="hidden" name="contenu" id="sav-msg-contenu">
+                <input type="hidden" name="html" id="sav-msg-html">
+              </div>
+
+              <!-- Preview -->
+              <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div class="text-xs font-semibold text-emerald-800 mb-1">Aperçu (variables remplacées en temps réel)</div>
+                <div id="sav-msg-preview" class="text-sm text-slate-800"></div>
+              </div>
+
+              <button class="btn btn-primary" type="submit">
+                <span class="material-symbols-outlined text-base mr-1">send</span>
+                Envoyer
+              </button>
+            </form>
+          </section>
+
+          <!-- Tab Diagnostic enrichi -->
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="diagnostic">
+
+            <form id="sav-diag-form" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Conclusion</label>
+                <select name="conclusion" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                  <option value="">— Choisir —</option>
+                  <option value="defaut_produit">Défaut produit (garantie)</option>
+                  <option value="mauvais_montage">Mauvais montage</option>
+                  <option value="usure_normale">Usure normale</option>
+                  <option value="non_defectueux">Non défectueux</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Codes défaut</label>
+                  <input name="codesDefaut" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="P173E, P0841…">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1">Score risque (0-100, calculé)</label>
+                  <input name="scoreRisque" type="number" min="0" max="100" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">URL rapport PDF</label>
+                <input name="rapport" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+              </div>
+              <button class="btn btn-primary" type="submit">Enregistrer le diagnostic</button>
+            </form>
+
+            <hr class="my-5 border-slate-200">
+
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">Diagnostic banc enrichi</h3>
+            <form id="sav-diag-enrichi-form" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Pression hydraulique (bar)</label>
+                  <input name="pressionHydraulique" type="number" step="0.1" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Fuite interne</label>
+                  <select name="fuiteInterne" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                    <option value="">—</option>
+                    <option value="non">Non</option>
+                    <option value="legere">Légère</option>
+                    <option value="significative">Significative</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Température avant (°C)</label>
+                  <input name="temperatureAvant" type="number" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Température après (°C)</label>
+                  <input name="temperatureApres" type="number" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Codes avant reset (séparés virgule)</label>
+                  <input name="codesAvantReset" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm" placeholder="P0741, P189C">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Codes après reset</label>
+                  <input name="codesApresReset" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600">URL vidéo (mp4 ≤100 Mo, à uploader puis coller le lien)</label>
+                <input name="videoUrl" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600">URL courbe banc</label>
+                <input name="courbeBancUrl" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600">Avis 2e technicien</label>
+                <textarea name="avis2eTechnicienTexte" rows="2" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"></textarea>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="text-xs text-slate-500">Score auto : <strong id="sav-diag-score">—</strong> / 100</div>
+                <button type="submit" class="btn btn-secondary text-sm">Sauvegarder</button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Tab Fournisseur -->
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="fournisseur">
+            <form id="sav-fourn-form" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Nom fournisseur</label>
+                  <input name="nom" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Contact (mail / nom)</label>
+                  <input name="contact" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">N° RMA fournisseur</label>
+                  <input name="rmaNumero" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Transporteur</label>
+                  <select name="transporteur" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                    <option value="">—</option>
+                    <option value="chronopost">Chronopost</option>
+                    <option value="colissimo">Colissimo</option>
+                    <option value="ups">UPS</option>
+                    <option value="dhl">DHL</option>
+                    <option value="other">Autre</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">N° colis</label>
+                  <input name="colisNumero" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">URL tracking</label>
+                  <input name="trackingUrl" type="url" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Date envoi</label>
+                  <input name="dateEnvoi" type="date" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Date retour</label>
+                  <input name="dateRetour" type="date" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Coût analyse fournisseur (€)</label>
+                  <input name="coutAnalyse" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600">Coût refacturé client (€)</label>
+                  <input name="coutRefacture" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-medium text-slate-600">URL rapport fournisseur</label>
+                  <input name="rapportUrl" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-medium text-slate-600">Réponse / commentaire</label>
+                  <textarea name="reponse" rows="3" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"></textarea>
+                </div>
+              </div>
+
+              <label class="flex items-center gap-2 text-xs">
+                <input type="checkbox" name="changeStatutToEnAttente" class="rounded text-primary">
+                Passer le ticket en statut « En attente fournisseur »
+              </label>
+
+              <div class="flex items-center gap-2">
+                <button class="btn btn-primary" type="submit">Sauvegarder fournisseur</button>
+                <button type="button" id="sav-fourn-track" class="btn btn-secondary">Ouvrir le tracking ↗</button>
+              </div>
+            </form>
+          </section>
+
+        </div>
       </div>
-    </section>
 
-    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- COLONNE SIDEBAR STICKY -->
+      <aside class="space-y-4 lg:sticky lg:top-[88px] self-start">
 
-      <!-- Colonne principale -->
-      <div class="lg:col-span-2 space-y-6">
-
-        <!-- Timeline -->
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-4">Historique</h2>
-          <div class="sav-timeline" id="sav-timeline">
-            <div class="text-sm text-slate-500">Chargement…</div>
-          </div>
-        </section>
-
-        <!-- Documents -->
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-4">Documents</h2>
-          <div id="sav-documents" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div class="text-sm text-slate-500 col-span-full">Aucun document.</div>
-          </div>
-        </section>
-
-        <!-- Messages -->
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-4">Communications</h2>
-          <div id="sav-messages" class="space-y-3 mb-4 max-h-80 overflow-y-auto"></div>
-          <form id="sav-msg-form" class="space-y-2">
-            <div class="flex gap-2">
-              <select name="canal" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="email">email</option>
-                <option value="whatsapp">whatsapp</option>
-                <option value="tel">tel</option>
-                <option value="interne">interne</option>
-              </select>
-              <select id="sav-template" class="rounded-xl border border-slate-300 px-3 py-2 text-sm flex-1">
-                <option value="">— Template —</option>
-                <option value="reception">Pièce reçue à l'atelier</option>
-                <option value="analyse_ok">Bonne nouvelle : défaut produit confirmé</option>
-                <option value="analyse_neg">Rapport d'analyse : pas de défaut produit</option>
-                <option value="relance_doc">Relance documents manquants</option>
-              </select>
-            </div>
-            <textarea name="contenu" rows="3" required placeholder="Contenu du message…"
-                      class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"></textarea>
-            <button class="btn btn-primary" type="submit">Envoyer</button>
-          </form>
-        </section>
-
-        <!-- Diagnostic banc -->
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-4">Diagnostic banc (technicien)</h2>
-          <form id="sav-diag-form" class="space-y-3">
-            <div>
-              <label class="block text-sm font-medium text-slate-700">Codes défaut</label>
-              <input name="codesDefaut" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="P173E, P0841…">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-700">Score risque (0-100)</label>
-              <input name="scoreRisque" type="number" min="0" max="100" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-700">URL rapport PDF</label>
-              <input name="rapport" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-700">Conclusion</label>
-              <select name="conclusion" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="">— Choisir —</option>
-                <option value="defaut_produit">Défaut produit (garantie)</option>
-                <option value="mauvais_montage">Mauvais montage</option>
-                <option value="usure_normale">Usure normale</option>
-                <option value="non_defectueux">Non défectueux</option>
-              </select>
-            </div>
-            <button class="btn btn-primary" type="submit">Enregistrer le diagnostic</button>
-          </form>
-        </section>
-
-      </div>
-
-      <!-- Sidebar actions -->
-      <aside class="space-y-6">
-
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-3">Actions</h2>
+        <section class="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 class="text-sm font-semibold text-slate-700 mb-3">Actions rapides</h2>
           <div class="space-y-2" id="sav-actions">
-            <button class="btn btn-secondary w-full" data-action-statut="recu_atelier">Pièce reçue atelier</button>
-            <button class="btn btn-secondary w-full" data-action-statut="en_analyse">Démarrer l'analyse</button>
-            <button class="btn btn-secondary w-full text-emerald-700" data-action-resolution="echange">Valider défaut → échange</button>
-            <button class="btn btn-secondary w-full text-emerald-700" data-action-resolution="remboursement">Valider défaut → remboursement</button>
-            <button class="btn btn-secondary w-full text-amber-700" data-action-statut="analyse_terminee">Conclure analyse négative</button>
-            <button class="btn btn-secondary w-full" data-action-facturer>Facturer 149€ (Mollie)</button>
-            <button class="btn btn-secondary w-full" data-action-pdf>Générer rapport PDF</button>
-            <button class="btn btn-secondary w-full" data-action-statut="clos">Clôturer le ticket</button>
+            <button class="btn btn-secondary w-full text-sm" data-action-statut="recu_atelier">Pièce reçue atelier</button>
+            <button class="btn btn-secondary w-full text-sm" data-action-statut="en_analyse">Démarrer l'analyse</button>
+            <button class="btn btn-secondary w-full text-sm text-emerald-700" data-action-resolution="echange">Défaut → échange</button>
+            <button class="btn btn-secondary w-full text-sm text-emerald-700" data-action-resolution="remboursement">Défaut → remboursement</button>
+            <button class="btn btn-secondary w-full text-sm" data-action-statut="analyse_terminee">Conclure analyse négative</button>
+            <button class="btn btn-secondary w-full text-sm" data-action-pdf>Générer rapport PDF</button>
+
+            <div class="border-t border-slate-100 my-2 pt-2"></div>
+            <div class="text-[10px] uppercase tracking-wide text-red-500 font-bold mb-1">Zone d'actions destructives</div>
+            <button class="btn btn-secondary w-full text-sm text-red-700 border-red-200 hover:bg-red-50" data-confirm="Facturer 149 € au client ? Cette action déclenche un lien de paiement Mollie." data-action-facturer>Facturer 149 € (Mollie)</button>
+            <button class="btn btn-secondary w-full text-sm text-red-700 border-red-200 hover:bg-red-50" data-confirm="Clôturer définitivement ce ticket ?" data-action-statut="clos">Clôturer le ticket</button>
+            <button class="btn btn-secondary w-full text-sm text-red-700 border-red-200 hover:bg-red-50" data-confirm="Refuser la demande SAV ? Le client recevra un email." data-action-statut="refuse">Refuser la demande</button>
           </div>
-          <p class="mt-3 text-xs text-slate-500">Raccourcis : <kbd class="px-1 border rounded">s</kbd> changer statut · <kbd class="px-1 border rounded">e</kbd> éditer diagnostic</p>
         </section>
 
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-3">Paiement 149€</h2>
+        <section class="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 class="text-sm font-semibold text-slate-700 mb-2">Paiement 149€</h2>
           <div id="sav-paiement" class="text-sm text-slate-700">—</div>
         </section>
-
-        <section class="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 class="text-lg font-semibold text-slate-900 mb-3">Fournisseur</h2>
-          <div id="sav-fournisseur" class="text-sm text-slate-700">—</div>
-        </section>
-
       </aside>
 
     </div>
   </div>
 </main>
 
+<!-- Modale assignation -->
+<div id="sav-assign-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-lg font-semibold">Assigner le ticket</h3>
+      <button type="button" data-close-assign class="text-slate-400 hover:text-slate-700 text-2xl">×</button>
+    </div>
+    <select id="sav-assign-select" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+      <option value="">— Personne (désassigner) —</option>
+    </select>
+    <button type="button" id="sav-assign-confirm" class="mt-4 btn btn-primary w-full">Confirmer</button>
+  </div>
+</div>
+
+<!-- Modale confirmation actions destructives -->
+<div id="sav-confirm-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+    <div class="flex items-start gap-3">
+      <span class="material-symbols-outlined text-red-600 text-3xl">warning</span>
+      <div class="flex-1">
+        <h3 class="text-lg font-semibold">Confirmer l'action</h3>
+        <p id="sav-confirm-text" class="mt-1 text-sm text-slate-600">Êtes-vous sûr ?</p>
+      </div>
+    </div>
+    <div class="mt-5 flex justify-end gap-2">
+      <button type="button" id="sav-confirm-cancel" class="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium">Annuler</button>
+      <button type="button" id="sav-confirm-ok" class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale aide raccourcis -->
+<div id="sav-kbd-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold">Raccourcis clavier</h3>
+      <button type="button" data-close-kbd class="text-slate-400 text-2xl leading-none">×</button>
+    </div>
+    <ul class="text-sm space-y-2">
+      <li class="flex justify-between"><span>Aller à l'onglet 1-6</span><span><kbd class="px-2 py-0.5 rounded border bg-slate-50">1-6</kbd></span></li>
+      <li class="flex justify-between"><span>Diagnostic (focus conclusion)</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">e</kbd></li>
+      <li class="flex justify-between"><span>Statut suivant</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">s</kbd></li>
+      <li class="flex justify-between"><span>Assigner</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">a</kbd></li>
+      <li class="flex justify-between"><span>Cette aide</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">?</kbd></li>
+      <li class="flex justify-between"><span>Fermer une modale</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">Esc</kbd></li>
+    </ul>
+  </div>
+</div>
+
 <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
-<script src="/js/sav-admin.js" defer></script>
+<script src="/js/sav-admin.js?v=4" defer></script>
 <%- include('./partials/footer') %>

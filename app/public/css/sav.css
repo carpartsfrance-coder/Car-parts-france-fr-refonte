@@ -506,3 +506,45 @@
 }
 .sav-client-timeline__date { font-size: 11px; color: #64748b; }
 .sav-client-timeline__msg { font-size: 14px; color: #0f172a; margin-top: 2px; }
+
+/* ====================================================================== */
+/* === Onglets fiche admin ============================================ */
+/* ====================================================================== */
+
+.sav-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border: none; background: transparent;
+  color: #64748b;
+  font-size: 13px; font-weight: 600;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.sav-tab:hover { color: #0f172a; background: #f8fafc; }
+.sav-tab.is-active {
+  color: #ec1313;
+  border-bottom-color: #ec1313;
+}
+.sav-tabpanel { animation: sav-fadein .2s ease; }
+@keyframes sav-fadein { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+
+/* Pulse row pour SLA dépassé / proche dépassement */
+.sav-pulse-row {
+  animation: sav-pulse-bg 2s ease-in-out infinite;
+}
+@keyframes sav-pulse-bg {
+  0%, 100% { background: transparent; }
+  50%      { background: rgba(239,68,68,.06); }
+}
+
+/* Timeline dot variant auto */
+.sav-timeline__dot--auto { background: #f97316 !important; }
+
+/* contenteditable placeholder */
+[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}

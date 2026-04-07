@@ -2,23 +2,31 @@
 <link rel="stylesheet" href="/css/sav.css">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
-<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>">
-  <div class="px-6 lg:px-10 py-8">
+<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
+  <div class="px-6 lg:px-10 py-6">
 
-    <div class="flex items-start justify-between gap-4 mb-6">
+    <div class="flex items-start justify-between gap-4 mb-4">
       <div>
         <div class="text-2xl md:text-3xl font-semibold text-slate-900">Tickets SAV</div>
-        <div class="mt-1 text-sm text-slate-500">Liste filtrable — j/k pour naviguer, Entrée pour ouvrir</div>
+        <div class="mt-1 text-xs text-slate-500">Raccourcis : <kbd class="px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50">j</kbd>/<kbd class="px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50">k</kbd> nav · <kbd class="px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50">↵</kbd> ouvrir · <kbd class="px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50">/</kbd> recherche · <kbd class="px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50">?</kbd> aide</div>
       </div>
-      <a href="/admin/sav" class="btn btn-secondary">← Dashboard</a>
+      <div class="flex items-center gap-2">
+        <a id="sav-export-csv" href="#" class="btn btn-secondary"><span class="material-symbols-outlined mr-1 text-base">download</span>Export CSV</a>
+        <a href="/admin/sav" class="btn btn-secondary">← Dashboard</a>
+      </div>
     </div>
 
-    <!-- Filtres -->
-    <form id="sav-filters" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-      <input type="text" name="search" placeholder="N° / email / VIN" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+    <!-- Filtres + recherche -->
+    <form id="sav-filters" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+      <div class="lg:col-span-2 relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+        <input id="sav-search" type="text" name="search" placeholder="N°, email, VIN, plaque…" autocomplete="off"
+               class="w-full rounded-xl border border-slate-300 pl-9 pr-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20">
+        <div id="sav-search-suggest" class="hidden absolute z-30 left-0 right-0 top-full mt-1 rounded-xl border border-slate-200 bg-white shadow-lg max-h-72 overflow-y-auto"></div>
+      </div>
       <select name="statut" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
         <option value="">Tous statuts</option>
-        <% ['ouvert','pre_qualification','en_attente_documents','retour_demande','en_transit_retour','recu_atelier','en_analyse','analyse_terminee','en_attente_decision_client','resolu_garantie','resolu_facture','clos','refuse'].forEach(function(s){ %>
+        <% ['ouvert','pre_qualification','en_attente_documents','relance_1','relance_2','retour_demande','en_transit_retour','recu_atelier','en_analyse','analyse_terminee','en_attente_decision_client','en_attente_fournisseur','resolu_garantie','resolu_facture','clos','clos_sans_reponse','refuse'].forEach(function(s){ %>
           <option value="<%= s %>"><%= s %></option>
         <% }); %>
       </select>
@@ -31,8 +39,25 @@
       <label class="flex items-center gap-2 text-sm">
         <input type="checkbox" name="sla_depasse" value="true" class="rounded text-primary"> SLA dépassé
       </label>
-      <button type="submit" class="btn btn-primary">Filtrer</button>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="assignedToMe" value="true" class="rounded text-primary"> Mes tickets
+      </label>
     </form>
+
+    <!-- Bulk actions bar (visible si sélection) -->
+    <div id="sav-bulk-bar" class="hidden mb-3 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
+      <span class="font-semibold"><span id="sav-bulk-count">0</span> ticket(s) sélectionné(s)</span>
+      <select id="sav-bulk-statut" class="rounded-lg border border-slate-300 px-2 py-1 text-xs">
+        <option value="">— Statut —</option>
+        <% ['en_analyse','recu_atelier','en_attente_documents','clos','refuse'].forEach(function(s){ %>
+          <option value="<%= s %>"><%= s %></option>
+        <% }); %>
+      </select>
+      <button type="button" id="sav-bulk-statut-apply" class="rounded-lg bg-primary text-white px-3 py-1 text-xs font-semibold">Appliquer</button>
+      <select id="sav-bulk-assign" class="rounded-lg border border-slate-300 px-2 py-1 text-xs"></select>
+      <button type="button" id="sav-bulk-assign-apply" class="rounded-lg bg-slate-900 text-white px-3 py-1 text-xs font-semibold">Assigner</button>
+      <button type="button" id="sav-bulk-export" class="ml-auto rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold">Exporter sélection</button>
+    </div>
 
     <div id="sav-tickets-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 mb-3"></div>
 
@@ -40,22 +65,51 @@
       <table class="w-full text-sm">
         <thead class="bg-slate-50 text-left">
           <tr>
-            <th class="px-4 py-3 font-semibold text-slate-600">N°</th>
-            <th class="px-4 py-3 font-semibold text-slate-600">Client</th>
-            <th class="px-4 py-3 font-semibold text-slate-600">Pièce</th>
-            <th class="px-4 py-3 font-semibold text-slate-600">Véhicule</th>
-            <th class="px-4 py-3 font-semibold text-slate-600">Statut</th>
-            <th class="px-4 py-3 font-semibold text-slate-600">SLA</th>
-            <th class="px-4 py-3 font-semibold text-slate-600">Ouvert le</th>
+            <th class="px-3 py-3 w-8"><input type="checkbox" id="sav-bulk-all" class="rounded"></th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="numero">N° <span class="text-slate-300" data-sort-icon="numero">⇅</span></th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="client">Client</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="pieceType">Pièce</th>
+            <th class="px-3 py-3 font-semibold text-slate-600">Véhicule</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="assignedTo">Assigné</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="statut">Statut</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="sla">SLA</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="createdAt">Ouvert le</th>
           </tr>
         </thead>
         <tbody id="sav-tickets-tbody" class="divide-y divide-slate-100">
-          <tr><td colspan="7" class="px-4 py-10 text-center text-slate-500">Chargement…</td></tr>
+          <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Chargement…</td></tr>
         </tbody>
       </table>
+
+      <div class="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-600">
+        <span id="sav-pagination-info">—</span>
+        <div class="flex items-center gap-2">
+          <button type="button" id="sav-page-prev" class="px-2 py-1 rounded border border-slate-300 disabled:opacity-50 hover:bg-white">‹ Précédent</button>
+          <span id="sav-page-current">1</span> / <span id="sav-page-total">1</span>
+          <button type="button" id="sav-page-next" class="px-2 py-1 rounded border border-slate-300 disabled:opacity-50 hover:bg-white">Suivant ›</button>
+        </div>
+      </div>
     </div>
   </div>
 </main>
 
-<script src="/js/sav-admin.js" defer></script>
+<!-- Modale d'aide raccourcis clavier -->
+<div id="sav-kbd-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold">Raccourcis clavier</h3>
+      <button type="button" data-close-kbd class="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+    </div>
+    <ul class="text-sm space-y-2">
+      <li class="flex justify-between"><span>Naviguer dans la liste</span><span><kbd class="px-2 py-0.5 rounded border bg-slate-50">j</kbd> / <kbd class="px-2 py-0.5 rounded border bg-slate-50">k</kbd></span></li>
+      <li class="flex justify-between"><span>Ouvrir le ticket sélectionné</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">↵</kbd></li>
+      <li class="flex justify-between"><span>Focus recherche</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">/</kbd></li>
+      <li class="flex justify-between"><span>Cette aide</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">?</kbd></li>
+      <li class="flex justify-between"><span>Cocher / décocher la ligne</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">x</kbd></li>
+      <li class="flex justify-between"><span>Fermer une modale</span><kbd class="px-2 py-0.5 rounded border bg-slate-50">Esc</kbd></li>
+    </ul>
+  </div>
+</div>
+
+<script src="/js/sav-admin.js?v=4" defer></script>
 <%- include('./partials/footer') %>

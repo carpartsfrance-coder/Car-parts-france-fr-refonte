@@ -108,6 +108,8 @@ function requireAbility(ability) {
 
 router.get('/connexion', adminController.getAdminLogin);
 router.post('/connexion', adminController.postAdminLogin);
+router.get('/connexion/2fa', adminController.getAdminLogin2fa);
+router.post('/connexion/2fa', adminController.postAdminLogin2fa);
 router.post('/deconnexion', adminController.postAdminLogout);
 
 router.get('/reinitialiser', adminController.getAdminResetPassword);
@@ -136,6 +138,14 @@ router.get('/', requireAdminAuth, adminController.getAdminDashboard);
 router.get('/sav', requireAdminAuth, savAdminController.getSavDashboard);
 router.get('/sav/tickets', requireAdminAuth, savAdminController.getSavTickets);
 router.get('/sav/tickets/:numero', requireAdminAuth, savAdminController.getSavTicketDetail);
+router.get('/parametres/sav', requireAdminAuth, savAdminController.getSavSettings);
+router.get('/parametres/audit', requireAdminAuth, savAdminController.getAuditLog);
+
+// Profil - Sécurité (2FA)
+router.get('/profil/securite', requireAdminAuth, adminController.getAdminProfileSecurity);
+router.post('/profil/securite/2fa/setup', requireAdminAuth, adminController.postSetupTwoFactor);
+router.post('/profil/securite/2fa/confirm', requireAdminAuth, adminController.postConfirmTwoFactor);
+router.post('/profil/securite/2fa/disable', requireAdminAuth, adminController.postDisableTwoFactor);
 
 router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashboard);
 router.post('/analytics/synonyme', requireAdminAuth, analyticsController.postAddSynonym);
