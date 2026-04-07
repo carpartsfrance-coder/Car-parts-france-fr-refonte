@@ -28,7 +28,7 @@
     "reset_done": "Formulaire réinitialisé"
   },
   "step1": {
-    "title": "Retrouvons votre commande",
+    "title": "Quelle commande ?",
     "logged_in_intro": "Sélectionnez la commande concernée.",
     "guest_intro": "Indiquez l'email utilisé lors de l'achat et votre numéro de commande.",
     "no_orders": "Aucune commande éligible (payée, < 24 mois) trouvée.",
@@ -38,6 +38,7 @@
   "step2": {
     "title": "Votre pièce et son montage",
     "subtitle": "On en a besoin pour démarrer le diagnostic.",
+    "page_subtitle_short": "On en a besoin pour démarrer le diagnostic.",
     "piece_type": "Type de pièce",
     "piece_type_placeholder": "— Sélectionner —",
     "montage_date": "Date du montage",
@@ -51,8 +52,8 @@
     "reglage_help_body": "Sans le réglage de base après remplacement, la mécatronique apprend de mauvais points et tombe en mode dégradé."
   },
   "step3": {
-    "title": "Que se passe-t-il avec votre pièce ?",
-    "subtitle": "Plus vous êtes précis, plus l'analyse sera rapide.",
+    "title": "Décrivez le problème",
+    "subtitle": "Plus c'est précis, plus l'analyse va vite.",
     "symptoms_legend": "Symptômes observés",
     "obd_label": "Codes défaut OBD (format P0741)",
     "obd_placeholder": "Tapez un code puis Entrée…",
