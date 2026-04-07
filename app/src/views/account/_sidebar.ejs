@@ -28,6 +28,14 @@
       Paramètres
     </a>
 
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'sav' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/sav">
+      <span class="material-symbols-outlined">build_circle</span>
+      Mes SAV
+    </a>
+    <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'rgpd' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/rgpd">
+      <span class="material-symbols-outlined">verified_user</span>
+      Mes données (RGPD)
+    </a>
     <a class="flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl whitespace-nowrap <%= activeKey === 'securite' ? 'bg-primary/10 text-primary text-xs sm:text-sm font-bold' : 'hover:bg-slate-50 transition text-xs sm:text-sm font-semibold text-slate-600' %>" href="/compte/securite">
       <span class="material-symbols-outlined">lock</span>
       Sécurité

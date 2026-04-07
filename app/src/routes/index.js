@@ -44,6 +44,7 @@ router.get('/legal/cgv-sav', (req, res) => {
 });
 router.post('/sav/check-commande', savController.postCheckCommande);
 router.get('/sav/suivi/:numero', savController.getSuivi);
+router.get('/sav/confirmation/:numero', savController.getConfirmation);
 
 router.get('/faq', (req, res) => {
   res.render('faq/index', {
