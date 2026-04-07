@@ -2,18 +2,31 @@
 <link rel="stylesheet" href="/css/sav.css?v=4">
 <%- include('../partials/header') %>
 
+<a href="#sav-form" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">
+  <%= tSav('common.skip_to_main') %>
+</a>
+
 <%
   // Étapes du wizard (titres pour stepper + récapitulatif)
   const STEPS = [
-    { i: 1, label: 'Commande' },
-    { i: 2, label: 'Pièce' },
-    { i: 3, label: 'Symptômes' },
-    { i: 4, label: 'Documents' },
-    { i: 5, label: 'Engagement' },
-    { i: 6, label: 'Récapitulatif' },
+    { i: 1, label: tSav('wizard.step_labels.1') },
+    { i: 2, label: tSav('wizard.step_labels.2') },
+    { i: 3, label: tSav('wizard.step_labels.3') },
+    { i: 4, label: tSav('wizard.step_labels.4') },
+    { i: 5, label: tSav('wizard.step_labels.5') },
+    { i: 6, label: tSav('wizard.step_labels.6') },
   ];
   const TOTAL = STEPS.length;
 %>
+
+<!-- Switcher de langue (lien) -->
+<div class="sav-module max-w-2xl mx-auto px-4 sm:px-6 pt-3 text-right text-xs">
+  <% if (savLocale === 'fr') { %>
+    <a href="?lang=en" class="text-slate-500 hover:text-primary">🇬🇧 English</a>
+  <% } else { %>
+    <a href="?lang=fr" class="text-slate-500 hover:text-primary">🇫🇷 Français</a>
+  <% } %>
+</div>
 
 <main class="sav-module flex-1 bg-background-light text-slate-900">
   <div class="mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12">
@@ -22,10 +35,8 @@
       <div class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 mb-3">
         <span class="material-symbols-rounded text-primary text-3xl" aria-hidden="true">build_circle</span>
       </div>
-      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Ouvrir une demande SAV</h1>
-      <p class="mt-2 text-sm sm:text-base text-slate-600">
-        Quelques étapes pour démarrer. <strong>Vous ne payez rien à l'ouverture.</strong>
-      </p>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight"><%= tSav('wizard.page_title') %></h1>
+      <p class="mt-2 text-sm sm:text-base text-slate-600"><%- tSav('wizard.page_subtitle') %></p>
     </header>
 
     <!-- Stepper desktop (numéros + barres + labels) -->
@@ -62,8 +73,8 @@
     <div id="sav-restore-banner" class="hidden mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 flex items-start gap-2">
       <span class="material-symbols-rounded" aria-hidden="true">restore</span>
       <div class="flex-1">
-        <strong>Brouillon restauré.</strong> Vos réponses ont été récupérées. Merci de redéposer vos documents (ils ne sont pas conservés).
-        <button type="button" id="sav-reset-btn" class="ml-2 underline font-semibold">Recommencer à zéro</button>
+        <strong><%= tSav('wizard.draft_restored') %></strong> <%= tSav('wizard.draft_restored_hint') %>
+        <button type="button" id="sav-reset-btn" class="ml-2 underline font-semibold"><%= tSav('wizard.reset_button') %></button>
       </div>
     </div>
 
@@ -473,7 +484,8 @@
     </form>
   </div>
 
-  <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
+  <div class="sav-toast-root" id="sav-toast-root" aria-live="polite" aria-atomic="true"></div>
+  <div id="sav-form-status" class="sr-only" role="status" aria-live="polite"></div>
 </main>
 
 <!-- browser-image-compression UMD via CDN (compression auto > 2 Mo) -->

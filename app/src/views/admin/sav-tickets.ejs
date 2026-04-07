@@ -62,7 +62,8 @@
     <div id="sav-tickets-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 mb-3"></div>
 
     <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      <table class="w-full text-sm">
+      <!-- Vue table desktop / tablet -->
+      <table class="w-full text-sm hidden md:table">
         <thead class="bg-slate-50 text-left">
           <tr>
             <th class="px-3 py-3 w-8"><input type="checkbox" id="sav-bulk-all" class="rounded"></th>
@@ -80,6 +81,11 @@
           <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Chargement…</td></tr>
         </tbody>
       </table>
+
+      <!-- Vue cards mobile -->
+      <div id="sav-tickets-cards" class="md:hidden divide-y divide-slate-100">
+        <div class="p-4 text-center text-sm text-slate-500">Chargement…</div>
+      </div>
 
       <div class="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-600">
         <span id="sav-pagination-info">—</span>

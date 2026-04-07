@@ -230,6 +230,29 @@
           updatePagination(data);
           return;
         }
+        // Vue cards mobile (rendue en parallèle au tbody desktop)
+        var cardsBox = document.getElementById('sav-tickets-cards');
+        if (cardsBox) {
+          cardsBox.innerHTML = list.map(function (t) {
+            var sla2 = slaState(t.sla && t.sla.dateLimite);
+            var v2 = t.vehicule || {};
+            var vstr2 = [v2.marque, v2.modele].filter(Boolean).join(' ') + (v2.annee ? ' ' + v2.annee : '');
+            return '<a href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '" class="block p-4 hover:bg-slate-50 ' + (sla2.cls === 'late' ? 'sav-pulse-row' : '') + '">' +
+              '<div class="flex items-center justify-between mb-1">' +
+                '<span class="font-mono font-bold text-sm">' + escapeHtml(t.numero) + '</span>' +
+                '<span class="sav-sla-badge sav-sla-badge--' + sla2.cls + '">' + sla2.label + '</span>' +
+              '</div>' +
+              '<div class="text-xs text-slate-700 truncate">' + escapeHtml((t.client && t.client.email) || '') + '</div>' +
+              '<div class="mt-1 flex items-center gap-2 flex-wrap">' + pieceBadge(t.pieceType) +
+                '<span class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100">' + escapeHtml(t.statut) + '</span>' +
+              '</div>' +
+              (vstr2 ? '<div class="mt-1 text-[11px] text-slate-500">🚗 ' + escapeHtml(vstr2) + (v2.vin ? ' · ' + escapeHtml(v2.vin) : '') + '</div>' : '') +
+              (t.assignedToName ? '<div class="mt-1 text-[11px] text-slate-500 flex items-center gap-1">' + avatar(t.assignedToName) + escapeHtml(t.assignedToName) + '</div>' : '') +
+              '<div class="mt-1 text-[10px] text-slate-400">' + new Date(t.createdAt).toLocaleDateString('fr-FR') + '</div>' +
+            '</a>';
+          }).join('') || '<div class="p-6 text-center text-slate-500 text-sm">Aucun ticket.</div>';
+        }
+
         tbody.innerHTML = list.map(function (t, i) {
           var sla = slaState(t.sla && t.sla.dateLimite);
           var rowPulse = sla.cls === 'late' || (sla.remainingMs != null && sla.remainingMs < 24 * 3600 * 1000) ? 'sav-pulse-row' : '';

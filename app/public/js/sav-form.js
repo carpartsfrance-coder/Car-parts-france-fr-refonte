@@ -147,14 +147,29 @@
   function setError(name, msg) {
     var inputs = form.querySelectorAll('[name="' + name + '"], #' + name);
     var p = form.querySelector('[data-error-for="' + name + '"]');
+    var errorId = 'err-' + name;
     inputs.forEach(function (input) {
       input.classList.toggle('sav-input--invalid', !!msg);
       input.classList.toggle('sav-input--valid', !msg && input.value);
+      // a11y : annonce l'état + lie le champ au message d'erreur
+      if (msg) {
+        input.setAttribute('aria-invalid', 'true');
+        input.setAttribute('aria-describedby', errorId);
+      } else {
+        input.removeAttribute('aria-invalid');
+        input.removeAttribute('aria-describedby');
+      }
     });
     if (p) {
-      p.innerHTML = msg ? '<span class="material-symbols-rounded text-base align-middle">warning</span> ' + escapeHtml(msg) : '';
+      p.id = errorId;
+      p.setAttribute('role', 'alert');
+      p.setAttribute('aria-live', 'polite');
+      p.innerHTML = msg ? '<span class="material-symbols-rounded text-base align-middle" aria-hidden="true">warning</span> ' + escapeHtml(msg) : '';
       p.classList.toggle('hidden', !msg);
     }
+    // Annonce globale dans le live region status
+    var status = document.getElementById('sav-form-status');
+    if (status && msg) status.textContent = name + ' : ' + msg;
   }
 
   // VIN sans I, O, Q ; 17 caractères alphanumériques
