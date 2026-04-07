@@ -57,10 +57,14 @@ const savTicketSchema = new mongoose.Schema(
     vehicule: {
       marque: { type: String, trim: true },
       modele: { type: String, trim: true },
+      annee: { type: Number, min: 1980, max: 2100 },
       motorisation: { type: String, trim: true },
+      boite: { type: String, trim: true },
       vin: { type: String, trim: true, uppercase: true, index: true },
       immatriculation: { type: String, trim: true, uppercase: true },
       kilometrage: { type: Number, min: 0 },
+      // True si confirmé par lookup externe (skip pour l'instant — toujours false)
+      verifie: { type: Boolean, default: false },
     },
 
     client: {
@@ -83,6 +87,8 @@ const savTicketSchema = new mongoose.Schema(
       photosObd: [{ type: String, trim: true }],
       confirmationReglageBase: { type: String, trim: true },
       photosVisuelles: [{ type: String, trim: true }],
+      photoCompteur: { type: String, trim: true },
+      bonGarantie: { type: String, trim: true }, // optionnel
     },
 
     // Liste enrichie (nouveaux uploads). Conserve méta pour affichage admin.
@@ -111,9 +117,18 @@ const savTicketSchema = new mongoose.Schema(
     },
 
     cgvAcceptance: {
+      version: { type: String, trim: true }, // ex "cgv-sav-v2-2026-04"
+      acceptedAt: { type: Date },
+      ip: { type: String, trim: true },
+      userAgent: { type: String, trim: true },
+      pdfUrl: { type: String, trim: true }, // PDF horodaté de l'acceptation
+    },
+
+    rgpdAcceptance: {
       version: { type: String, trim: true },
       acceptedAt: { type: Date },
       ip: { type: String, trim: true },
+      userAgent: { type: String, trim: true },
     },
 
     workflow: {

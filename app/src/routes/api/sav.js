@@ -108,6 +108,7 @@ publicRouter.post('/tickets', async (req, res) => {
       req.ip ||
       (req.connection && req.connection.remoteAddress) ||
       '';
+    const userAgent = (req.headers['user-agent'] || '').toString().slice(0, 500);
 
     const ticket = new SavTicket({
       pieceType: body.pieceType,
@@ -122,11 +123,22 @@ publicRouter.post('/tickets', async (req, res) => {
       montage: body.montage || {},
       cgvAcceptance: body.cgvAcceptance
         ? {
-            version: body.cgvAcceptance.version || 'v1',
+            version: body.cgvAcceptance.version || 'cgv-sav-v2-2026-04',
             acceptedAt: body.cgvAcceptance.acceptedAt
               ? new Date(body.cgvAcceptance.acceptedAt)
               : new Date(),
             ip: clientIp,
+            userAgent,
+          }
+        : undefined,
+      rgpdAcceptance: body.rgpdAcceptance
+        ? {
+            version: body.rgpdAcceptance.version || 'rgpd-v1-2026-04',
+            acceptedAt: body.rgpdAcceptance.acceptedAt
+              ? new Date(body.rgpdAcceptance.acceptedAt)
+              : new Date(),
+            ip: clientIp,
+            userAgent,
           }
         : undefined,
       statut: 'pre_qualification',
@@ -134,6 +146,29 @@ publicRouter.post('/tickets', async (req, res) => {
     });
     ticket.addMessage('client', 'interne', 'Ticket créé via formulaire public');
     await ticket.save();
+
+    // Génère le PDF d'acceptation CGV horodaté + envoie le mail de confirmation
+    // (best-effort, n'échoue jamais le ticket si le mail/PDF plante)
+    try {
+      const cgvPdf = require('../../services/savCgvPdf');
+      const url = await cgvPdf.generateCgvAcceptance(ticket);
+      ticket.cgvAcceptance = ticket.cgvAcceptance || {};
+      ticket.cgvAcceptance.pdfUrl = url;
+      await ticket.save();
+    } catch (e) {
+      console.error('[sav] CGV PDF échec', e && e.message);
+    }
+    try {
+      const notif = require('../../services/savNotifications');
+      if (typeof notif.sendConfirmationToClient === 'function') {
+        notif.sendConfirmationToClient(ticket).catch((e) => {
+          console.error('[sav] mail confirmation échec', e && e.message);
+        });
+      }
+    } catch (e) {
+      console.error('[sav] notif require échec', e && e.message);
+    }
+
     return ok(res, { numero: ticket.numero, statut: ticket.statut, sla: ticket.sla }, 201);
   } catch (err) {
     return fail(res, err.message, 500);

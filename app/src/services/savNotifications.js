@@ -151,11 +151,52 @@ async function notifyInternalEscalation(ticket, motif) {
   }
 }
 
+// ============================================================
+// Confirmation client (post-création) avec PDF CGV horodaté joint
+// ============================================================
+async function sendConfirmationToClient(ticket) {
+  if (!ticket || !ticket.client || !ticket.client.email) {
+    return { ok: false, reason: 'no_email' };
+  }
+  try {
+    const html = await renderTemplate('confirmation_client', { ticket });
+    const subject = `Votre demande SAV ${ticket.numero} est bien enregistrée`;
+    const attachments = [];
+    // Joindre le PDF d'acceptation CGV s'il existe (créé juste avant l'envoi)
+    try {
+      const cgvPdf = require('./savCgvPdf');
+      const buf = await cgvPdf.getCgvAcceptanceBuffer(ticket);
+      if (buf && buf.length) {
+        attachments.push({
+          filename: `Acceptation-CGV-SAV-${ticket.numero}.pdf`,
+          content: buf.toString('base64'),
+          disposition: 'attachment',
+        });
+      }
+    } catch (e) {
+      log(`WARN cgv pdf attach ticket=${ticket.numero} ${e.message}`);
+    }
+    const res = await sendEmail({
+      toEmail: ticket.client.email,
+      subject,
+      html,
+      text: stripHtml(html),
+      attachments,
+    });
+    log(`SEND confirmation_client → ${ticket.client.email} ticket=${ticket.numero} ok=${!!(res && res.ok)} attach=${attachments.length}`);
+    return res;
+  } catch (err) {
+    log(`ERROR confirmation_client ticket=${ticket && ticket.numero} ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+}
+
 module.exports = {
   notifyTicketCreated,
   notifyStatusChange,
   notifyRelancePaiement,
   notifyRelanceDocuments,
   notifyInternalEscalation,
+  sendConfirmationToClient,
   STATUT_TO_TEMPLATE,
 };
