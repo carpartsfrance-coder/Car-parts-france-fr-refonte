@@ -2,6 +2,7 @@ const express = require('express');
 
 const aboutController = require('../controllers/aboutController');
 const homeController = require('../controllers/homeController');
+const savController = require('../controllers/savController');
 const productController = require('../controllers/productController');
 const contactController = require('../controllers/contactController');
 const legacyRedirectController = require('../controllers/legacyRedirectController');
@@ -25,6 +26,24 @@ router.post('/devis', (req, res, next) => {
 });
 
 router.get('/notre-histoire', aboutController.getAboutPage);
+
+router.get('/sav', savController.getSavHome);
+router.get('/sav/notre-engagement', (req, res) => {
+  res.render('sav-engagement', {
+    title: 'Notre engagement SAV — CarParts France',
+    metaDescription: 'Transparence, banc dédié, réponse sous 5 jours, équité. Découvrez notre engagement Service Après-Vente.',
+    canonicalUrl: `${process.env.SITE_URL || 'https://www.carpartsfrance.fr'}/sav/notre-engagement`,
+  });
+});
+router.get('/legal/cgv-sav', (req, res) => {
+  res.render('legal/cgv-sav', {
+    title: 'CGV SAV — CarParts France',
+    metaDescription: 'Conditions générales du Service Après-Vente CarParts France.',
+    canonicalUrl: `${process.env.SITE_URL || 'https://www.carpartsfrance.fr'}/legal/cgv-sav`,
+  });
+});
+router.post('/sav/check-commande', savController.postCheckCommande);
+router.get('/sav/suivi/:numero', savController.getSuivi);
 
 router.get('/faq', (req, res) => {
   res.render('faq/index', {

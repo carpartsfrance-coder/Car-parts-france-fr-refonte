@@ -13,6 +13,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const adminController = require('../controllers/adminController');
+const savAdminController = require('../controllers/savAdminController');
 const abandonedCartAdminController = require('../controllers/abandonedCartAdminController');
 const orderEmailAdminController = require('../controllers/orderEmailAdminController');
 const internalNoteAdminController = require('../controllers/internalNoteAdminController');
@@ -131,6 +132,10 @@ router.use(async (req, res, next) => {
 });
 
 router.get('/', requireAdminAuth, adminController.getAdminDashboard);
+
+router.get('/sav', requireAdminAuth, savAdminController.getSavDashboard);
+router.get('/sav/tickets', requireAdminAuth, savAdminController.getSavTickets);
+router.get('/sav/tickets/:numero', requireAdminAuth, savAdminController.getSavTicketDetail);
 
 router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashboard);
 router.post('/analytics/synonyme', requireAdminAuth, analyticsController.postAddSynonym);

@@ -179,6 +179,7 @@ const legalRouter = require('./routes/legal');
 const blogRouter = require('./routes/blog');
 const adminRouter = require('./routes/admin');
 const mediaRouter = require('./routes/media');
+const savApi = require('./routes/api/sav');
 const seoController = require('./controllers/seoController');
 const analyticsController = require('./controllers/analyticsController');
 const siteSettings = require('./services/siteSettings');
@@ -356,6 +357,10 @@ const staticOptions = isProd
 
 app.use(express.static(path.join(__dirname, '..', 'public'), staticOptions));
 
+// SAV : exposition statique des PDF de rapports et docs uploadés
+app.use('/uploads/sav-reports', express.static(path.join(__dirname, '..', '..', 'uploads', 'sav-reports')));
+app.use('/uploads/sav', express.static(path.join(__dirname, '..', '..', 'uploads', 'sav')));
+
 // WordPress -> Node.js 301 redirects (SEO migration)
 app.use(wpRedirects);
 
@@ -364,6 +369,10 @@ app.use(i18nMiddleware);
 
 // Analytics tracking endpoint (public, no auth)
 app.post('/api/analytics/track', analyticsController.postTrackEvent);
+
+// SAV API (REST JSON)
+app.use('/api/sav', savApi.publicRouter);
+app.use('/admin/api/sav', savApi.adminRouter);
 
 // French routes (default)
 app.use('/', indexRouter);

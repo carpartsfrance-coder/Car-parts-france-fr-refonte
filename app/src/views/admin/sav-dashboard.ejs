@@ -1,0 +1,57 @@
+<%- include('./partials/head') %>
+<link rel="stylesheet" href="/css/sav.css">
+<%- include('./partials/sidebar', { active: 'sav' }) %>
+
+<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>">
+  <div class="px-6 lg:px-10 py-8">
+
+    <div class="flex items-start justify-between gap-4 mb-6">
+      <div>
+        <div class="text-2xl md:text-3xl font-semibold text-slate-900">SAV — Tableau de bord</div>
+        <div class="mt-1 text-sm text-slate-500">État en temps réel des dossiers SAV</div>
+      </div>
+      <a href="/admin/sav/tickets" class="btn btn-primary">
+        <span class="material-symbols-outlined mr-2 text-base">list_alt</span>
+        Voir tous les tickets
+      </a>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4" id="sav-kpi-grid">
+      <% const kpis = [
+        { key:'ouverts',           label:'Ouverts',         icon:'inbox',          color:'sky' },
+        { key:'en_attente_doc',    label:'Attente docs',    icon:'pending_actions',color:'amber' },
+        { key:'en_analyse',        label:'En analyse',      icon:'science',        color:'violet' },
+        { key:'sla_depasse',       label:'SLA dépassé',     icon:'alarm',          color:'red' },
+        { key:'ca_recupere',       label:'CA récupéré (mois)', icon:'euro',        color:'emerald', isMoney:true },
+        { key:'taux_defaut',       label:'% défaut produit',icon:'verified',       color:'slate', isPct:true },
+      ]; %>
+      <% kpis.forEach(function(k){ %>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-premium" data-kpi="<%= k.key %>">
+          <div class="flex items-center gap-2 text-<%= k.color %>-600">
+            <span class="material-symbols-outlined text-base"><%= k.icon %></span>
+            <span class="text-xs font-semibold uppercase tracking-wide"><%= k.label %></span>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-slate-900" data-kpi-value>—</div>
+        </div>
+      <% }); %>
+    </div>
+
+    <!-- État loading / error -->
+    <div id="sav-dashboard-error" class="hidden mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"></div>
+
+    <!-- SLA dépassés table -->
+    <div class="mt-8 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-900">Dossiers à traiter en priorité</h2>
+        <a href="/admin/sav/tickets?sla_depasse=true" class="text-sm text-primary hover:underline">Voir tout →</a>
+      </div>
+      <div id="sav-priority-list" class="divide-y divide-slate-100">
+        <div class="px-5 py-8 text-center text-sm text-slate-500">Chargement…</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="/js/sav-admin.js" defer></script>
+<%- include('./partials/footer') %>

@@ -1,0 +1,18 @@
+<% const body = `
+  <p>Bonjour,</p>
+  <p>Notre analyse sur banc est terminée. <strong>La pièce ne présente pas de défaut produit</strong>. Vous trouverez le rapport complet en pièce jointe (et bientôt sur votre espace de suivi).</p>
+  <p>Conformément à nos conditions, le forfait d'analyse de <strong>149 € TTC</strong> s'applique.</p>
+  <p><strong>Voici vos options :</strong></p>
+  <ul>
+    <li><strong>Récupérer votre pièce</strong> : 25 € de frais de retour.</li>
+    <li><strong>Abandonner la pièce</strong> : nous nous en occupons, aucun frais de retour.</li>
+  </ul>
+  <p style="margin:18px 0;">
+    <a href="${(typeof process !== 'undefined' && process.env && process.env.SITE_URL) || ''}/sav/suivi/${ticket.numero}"
+       style="display:inline-block;background:#ec1313;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;">
+      Régler le forfait analyse 149 €
+    </a>
+  </p>
+  <p style="font-size:13px;color:#64748b;">Nous restons à votre disposition pour répondre à toute question sur le rapport.</p>
+` %>
+<%- include('./_layout', { ticket: ticket, subject: 'Rapport d\'analyse de votre pièce', body: body }) %>

@@ -1,0 +1,142 @@
+<%- include('./partials/head') %>
+<link rel="stylesheet" href="/css/sav.css">
+<%- include('./partials/sidebar', { active: 'sav' }) %>
+
+<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>">
+  <div class="px-6 lg:px-10 py-6">
+
+    <a href="/admin/sav/tickets" class="text-sm text-slate-500 hover:text-slate-900">← Retour à la liste</a>
+
+    <!-- En-tête -->
+    <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-premium">
+      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Ticket SAV</div>
+          <div class="text-2xl font-bold font-mono text-slate-900"><%= numero %></div>
+          <div class="mt-2 text-sm text-slate-600" id="sav-header-meta">Chargement…</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="sav-sla-badge" class="sav-sla-badge sav-sla-badge--ok">SLA —</div>
+          <div id="sav-statut-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sav-detail-error" class="hidden mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
+
+    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Colonne principale -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Timeline -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-4">Historique</h2>
+          <div class="sav-timeline" id="sav-timeline">
+            <div class="text-sm text-slate-500">Chargement…</div>
+          </div>
+        </section>
+
+        <!-- Documents -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-4">Documents</h2>
+          <div id="sav-documents" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div class="text-sm text-slate-500 col-span-full">Aucun document.</div>
+          </div>
+        </section>
+
+        <!-- Messages -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-4">Communications</h2>
+          <div id="sav-messages" class="space-y-3 mb-4 max-h-80 overflow-y-auto"></div>
+          <form id="sav-msg-form" class="space-y-2">
+            <div class="flex gap-2">
+              <select name="canal" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                <option value="email">email</option>
+                <option value="whatsapp">whatsapp</option>
+                <option value="tel">tel</option>
+                <option value="interne">interne</option>
+              </select>
+              <select id="sav-template" class="rounded-xl border border-slate-300 px-3 py-2 text-sm flex-1">
+                <option value="">— Template —</option>
+                <option value="reception">Pièce reçue à l'atelier</option>
+                <option value="analyse_ok">Bonne nouvelle : défaut produit confirmé</option>
+                <option value="analyse_neg">Rapport d'analyse : pas de défaut produit</option>
+                <option value="relance_doc">Relance documents manquants</option>
+              </select>
+            </div>
+            <textarea name="contenu" rows="3" required placeholder="Contenu du message…"
+                      class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"></textarea>
+            <button class="btn btn-primary" type="submit">Envoyer</button>
+          </form>
+        </section>
+
+        <!-- Diagnostic banc -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-4">Diagnostic banc (technicien)</h2>
+          <form id="sav-diag-form" class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Codes défaut</label>
+              <input name="codesDefaut" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="P173E, P0841…">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Score risque (0-100)</label>
+              <input name="scoreRisque" type="number" min="0" max="100" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">URL rapport PDF</label>
+              <input name="rapport" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Conclusion</label>
+              <select name="conclusion" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                <option value="">— Choisir —</option>
+                <option value="defaut_produit">Défaut produit (garantie)</option>
+                <option value="mauvais_montage">Mauvais montage</option>
+                <option value="usure_normale">Usure normale</option>
+                <option value="non_defectueux">Non défectueux</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit">Enregistrer le diagnostic</button>
+          </form>
+        </section>
+
+      </div>
+
+      <!-- Sidebar actions -->
+      <aside class="space-y-6">
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-3">Actions</h2>
+          <div class="space-y-2" id="sav-actions">
+            <button class="btn btn-secondary w-full" data-action-statut="recu_atelier">Pièce reçue atelier</button>
+            <button class="btn btn-secondary w-full" data-action-statut="en_analyse">Démarrer l'analyse</button>
+            <button class="btn btn-secondary w-full text-emerald-700" data-action-resolution="echange">Valider défaut → échange</button>
+            <button class="btn btn-secondary w-full text-emerald-700" data-action-resolution="remboursement">Valider défaut → remboursement</button>
+            <button class="btn btn-secondary w-full text-amber-700" data-action-statut="analyse_terminee">Conclure analyse négative</button>
+            <button class="btn btn-secondary w-full" data-action-facturer>Facturer 149€ (Mollie)</button>
+            <button class="btn btn-secondary w-full" data-action-pdf>Générer rapport PDF</button>
+            <button class="btn btn-secondary w-full" data-action-statut="clos">Clôturer le ticket</button>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">Raccourcis : <kbd class="px-1 border rounded">s</kbd> changer statut · <kbd class="px-1 border rounded">e</kbd> éditer diagnostic</p>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-3">Paiement 149€</h2>
+          <div id="sav-paiement" class="text-sm text-slate-700">—</div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 class="text-lg font-semibold text-slate-900 mb-3">Fournisseur</h2>
+          <div id="sav-fournisseur" class="text-sm text-slate-700">—</div>
+        </section>
+
+      </aside>
+
+    </div>
+  </div>
+</main>
+
+<div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
+<script src="/js/sav-admin.js" defer></script>
+<%- include('./partials/footer') %>
