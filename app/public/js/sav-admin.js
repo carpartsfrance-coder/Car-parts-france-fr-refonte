@@ -165,6 +165,7 @@
         }
         ticket = res.j.data;
         renderHeader();
+        renderDossier();
         renderTimeline();
         renderDocuments();
         renderMessages();
@@ -204,20 +205,162 @@
       }).join('');
     }
 
+    function fmtSize(n) {
+      if (!n && n !== 0) return '';
+      if (n < 1024) return n + ' o';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' Ko';
+      return (n / (1024 * 1024)).toFixed(2) + ' Mo';
+    }
+
+    function kindLabel(k) {
+      return ({
+        factureMontage: 'Facture garage',
+        photoObd: 'Lecture OBD',
+        photoPiece: 'Photo pièce installée',
+        confirmationReglageBase: 'Réglage de base',
+        autre: 'Document',
+      })[k] || (k || 'Document');
+    }
+
+    function isImage(d) {
+      if (d.mime && /^image\//i.test(d.mime)) return true;
+      return /\.(png|jpe?g|gif|webp|avif|heic)$/i.test(d.url || '');
+    }
+
     function renderDocuments() {
       var box = document.getElementById('sav-documents');
+      // Source principale : documentsList enrichie. Fallback : champs legacy.
       var docs = [];
-      var d = ticket.documents || {};
-      if (d.factureMontage) docs.push({ label: 'Facture montage', url: d.factureMontage });
-      (d.photosObd || []).forEach(function (u, i) { docs.push({ label: 'OBD ' + (i + 1), url: u }); });
-      if (d.confirmationReglageBase) docs.push({ label: 'Réglage base', url: d.confirmationReglageBase });
-      (d.photosVisuelles || []).forEach(function (u, i) { docs.push({ label: 'Photo ' + (i + 1), url: u }); });
-      if (!docs.length) { box.innerHTML = '<div class="text-sm text-slate-500 col-span-full">Aucun document.</div>'; return; }
+      if (Array.isArray(ticket.documentsList) && ticket.documentsList.length) {
+        docs = ticket.documentsList.slice();
+      } else {
+        var d = ticket.documents || {};
+        if (d.factureMontage) docs.push({ kind: 'factureMontage', url: d.factureMontage });
+        (d.photosObd || []).forEach(function (u) { docs.push({ kind: 'photoObd', url: u }); });
+        if (d.confirmationReglageBase) docs.push({ kind: 'confirmationReglageBase', url: d.confirmationReglageBase });
+        (d.photosVisuelles || []).forEach(function (u) { docs.push({ kind: 'photoPiece', url: u }); });
+      }
+
+      if (!docs.length) {
+        box.innerHTML =
+          '<div class="col-span-full flex flex-col items-center justify-center py-10 text-center text-slate-500">' +
+            '<span class="material-symbols-outlined text-5xl text-slate-300">folder_off</span>' +
+            '<div class="mt-2 text-sm font-medium">Le client n\'a encore déposé aucun document</div>' +
+            '<div class="text-xs text-slate-400">Facture garage et photo de la pièce sont obligatoires.</div>' +
+          '</div>';
+        return;
+      }
+
       box.innerHTML = docs.map(function (x) {
-        return '<a target="_blank" href="' + escapeHtml(x.url) + '" class="block rounded-xl border border-slate-200 p-2 hover:border-primary">' +
-          '<div class="text-xs font-medium text-slate-600 truncate">' + escapeHtml(x.label) + '</div>' +
-          '<div class="mt-1 text-[10px] text-slate-400 truncate">' + escapeHtml(x.url) + '</div></a>';
+        var img = isImage(x);
+        var thumb = img
+          ? '<div class="aspect-video w-full overflow-hidden rounded-lg bg-slate-100"><img src="' + escapeHtml(x.url) + '" alt="" loading="lazy" class="w-full h-full object-cover"></div>'
+          : '<div class="aspect-video w-full flex items-center justify-center rounded-lg bg-slate-100 text-slate-400"><span class="material-symbols-outlined text-5xl">picture_as_pdf</span></div>';
+        var name = escapeHtml(x.originalName || (x.url || '').split('/').pop() || 'document');
+        var meta = [];
+        if (x.size) meta.push(fmtSize(x.size));
+        if (x.uploadedAt) meta.push(new Date(x.uploadedAt).toLocaleDateString('fr-FR'));
+        return (
+          '<div class="rounded-xl border border-slate-200 p-2 flex flex-col gap-2 bg-white">' +
+            thumb +
+            '<div class="text-xs font-semibold text-slate-700 truncate" title="' + name + '">' + escapeHtml(kindLabel(x.kind)) + '</div>' +
+            '<div class="text-[11px] text-slate-500 truncate" title="' + name + '">' + name + '</div>' +
+            (meta.length ? '<div class="text-[10px] text-slate-400">' + escapeHtml(meta.join(' · ')) + '</div>' : '') +
+            '<div class="flex gap-1 mt-auto">' +
+              '<a href="' + escapeHtml(x.url) + '" target="_blank" rel="noopener" class="flex-1 text-center text-[11px] rounded-lg border border-slate-200 px-2 py-1 hover:bg-slate-50">Ouvrir</a>' +
+              '<a href="' + escapeHtml(x.url) + '" download class="flex-1 text-center text-[11px] rounded-lg bg-slate-900 text-white px-2 py-1 hover:bg-slate-700">Télécharger</a>' +
+            '</div>' +
+          '</div>'
+        );
       }).join('');
+    }
+
+    function renderDossier() {
+      var box = document.getElementById('sav-dossier');
+      if (!box) return;
+      var t = ticket || {};
+      var v = t.vehicule || {};
+      var g = t.garage || {};
+      var m = t.montage || {};
+      var diag = t.diagnostic || {};
+      var cgv = t.cgvAcceptance || {};
+
+      var commandeBlock = '';
+      if (t.numeroCommande) {
+        commandeBlock =
+          '<a href="/admin/commandes/' + encodeURIComponent(t.numeroCommande) + '" class="text-primary underline font-mono">' +
+          escapeHtml(t.numeroCommande) + '</a>' +
+          (t.dateAchat ? ' · ' + new Date(t.dateAchat).toLocaleDateString('fr-FR') : '');
+      } else commandeBlock = '<span class="text-slate-400">—</span>';
+
+      var vehiculeBlock = [
+        v.vin ? '<div><strong>VIN&nbsp;:</strong> <span class="font-mono">' + escapeHtml(v.vin) + '</span></div>' : '',
+        v.immatriculation ? '<div><strong>Plaque&nbsp;:</strong> ' + escapeHtml(v.immatriculation) + '</div>' : '',
+        (v.marque || v.modele) ? '<div>' + escapeHtml([v.marque, v.modele, v.annee].filter(Boolean).join(' ')) + '</div>' : '',
+        v.kilometrage ? '<div>' + escapeHtml(v.kilometrage) + ' km</div>' : '',
+      ].filter(Boolean).join('') || '<span class="text-slate-400">Non renseigné</span>';
+
+      var montageBlock = [
+        m.date ? '<div><strong>Date&nbsp;:</strong> ' + new Date(m.date).toLocaleDateString('fr-FR') + '</div>' : '',
+        g.nom ? '<div><strong>Garage&nbsp;:</strong> ' + escapeHtml(g.nom) + '</div>' : '',
+        g.adresse ? '<div class="text-xs text-slate-500">' + escapeHtml(g.adresse) + '</div>' : '',
+        m.reglageBase ? '<div><strong>Réglage de base&nbsp;:</strong> <span class="px-1.5 py-0.5 rounded text-xs ' +
+          (m.reglageBase === 'oui' ? 'bg-emerald-100 text-emerald-800'
+          : m.reglageBase === 'non' ? 'bg-red-100 text-red-800'
+          : 'bg-amber-100 text-amber-800') + '">' + escapeHtml(m.reglageBase) + '</span></div>' : '',
+      ].filter(Boolean).join('') || '<span class="text-slate-400">Non renseigné</span>';
+
+      var symptomesBlock = (diag.symptomes && diag.symptomes.length)
+        ? diag.symptomes.map(function (s) {
+            return '<span class="inline-block px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-900 mr-1 mb-1">' + escapeHtml(s) + '</span>';
+          }).join('')
+        : '<span class="text-slate-400 text-sm">Aucun symptôme coché</span>';
+
+      var codesBlock = (diag.codesDefaut && diag.codesDefaut.length)
+        ? diag.codesDefaut.map(function (c) {
+            return '<span class="inline-block px-2 py-0.5 rounded text-xs bg-slate-900 text-white font-mono mr-1 mb-1">' + escapeHtml(c) + '</span>';
+          }).join('')
+        : '<span class="text-slate-400 text-sm">Aucun</span>';
+
+      var descrBlock = diag.description
+        ? '<blockquote class="border-l-4 border-primary/40 bg-slate-50 px-3 py-2 text-sm italic text-slate-700">' + escapeHtml(diag.description) + '</blockquote>'
+        : '<span class="text-slate-400 text-sm">Pas de description libre</span>';
+
+      var cgvBlock = cgv.acceptedAt
+        ? '<div class="text-xs text-slate-600">Version <strong>' + escapeHtml(cgv.version || 'v1') + '</strong> · ' +
+          new Date(cgv.acceptedAt).toLocaleString('fr-FR') +
+          (cgv.ip ? ' · IP <span class="font-mono">' + escapeHtml(cgv.ip) + '</span>' : '') + '</div>'
+        : '<span class="text-slate-400 text-xs">Non horodaté</span>';
+
+      box.innerHTML =
+        '<details open class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">Commande liée</summary>' +
+          '<div class="mt-2 text-sm">' + commandeBlock + '</div>' +
+        '</details>' +
+        '<details open class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">Véhicule</summary>' +
+          '<div class="mt-2 text-sm space-y-1">' + vehiculeBlock + '</div>' +
+        '</details>' +
+        '<details open class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">Montage</summary>' +
+          '<div class="mt-2 text-sm space-y-1">' + montageBlock + '</div>' +
+        '</details>' +
+        '<details open class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">Symptômes</summary>' +
+          '<div class="mt-2">' + symptomesBlock + '</div>' +
+        '</details>' +
+        '<details class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">Codes défaut OBD</summary>' +
+          '<div class="mt-2">' + codesBlock + '</div>' +
+        '</details>' +
+        '<details class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">Description du client</summary>' +
+          '<div class="mt-2">' + descrBlock + '</div>' +
+        '</details>' +
+        '<details class="rounded-xl border border-slate-200 bg-white p-4">' +
+          '<summary class="cursor-pointer text-sm font-semibold text-slate-700">CGV SAV</summary>' +
+          '<div class="mt-2">' + cgvBlock + '</div>' +
+        '</details>';
     }
 
     function renderMessages() {

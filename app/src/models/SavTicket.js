@@ -85,11 +85,35 @@ const savTicketSchema = new mongoose.Schema(
       photosVisuelles: [{ type: String, trim: true }],
     },
 
+    // Liste enrichie (nouveaux uploads). Conserve méta pour affichage admin.
+    documentsList: [
+      {
+        kind: { type: String, trim: true },          // factureMontage|photoObd|photoPiece|autre
+        url: { type: String, trim: true, required: true },
+        originalName: { type: String, trim: true },
+        size: { type: Number, min: 0 },              // octets
+        mime: { type: String, trim: true },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+
     diagnostic: {
       symptomes: [{ type: String, trim: true }],
       codesDefaut: [{ type: String, trim: true }],
       scoreRisque: { type: Number, min: 0, max: 100, default: 0 },
       redFlags: [{ type: String, trim: true }],
+      description: { type: String, trim: true }, // texte libre client
+    },
+
+    montage: {
+      date: { type: Date },
+      reglageBase: { type: String, enum: ['oui', 'non', 'inconnu'] },
+    },
+
+    cgvAcceptance: {
+      version: { type: String, trim: true },
+      acceptedAt: { type: Date },
+      ip: { type: String, trim: true },
     },
 
     workflow: {

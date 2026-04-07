@@ -224,6 +224,58 @@
   form.addEventListener('change', saveDraft);
   restoreDraft();
 
+  // -------- Bouton "Recommencer à zéro" avec modale de confirmation --------
+  function resetWizard() {
+    clearDraft();
+    try { form.reset(); } catch (_) {}
+    // Vide aussi les fichiers et les indicateurs visuels
+    $$('input', form).forEach(function (el) {
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+      else if (el.type !== 'submit' && el.type !== 'button') el.value = '';
+    });
+    $$('textarea, select', form).forEach(function (el) { el.value = ''; });
+    $$('.sav-dropzone').forEach(function (lbl) {
+      lbl.classList.remove('sav-dropzone--has-file');
+      var span = lbl.querySelector('[data-filename]');
+      if (span) span.textContent = '';
+    });
+    $$('[data-error-for]', form).forEach(function (p) { p.classList.add('hidden'); p.textContent = ''; });
+    var alert = document.getElementById('reglageBaseAlert');
+    if (alert) alert.classList.add('hidden');
+    var banner = document.getElementById('sav-restore-banner');
+    if (banner) banner.classList.add('hidden');
+    showStep(1);
+    toast('Formulaire réinitialisé', 'success');
+  }
+
+  var resetBtn = document.getElementById('sav-reset-btn');
+  var resetModal = document.getElementById('sav-reset-modal');
+  var resetConfirm = document.getElementById('sav-reset-confirm');
+  var resetCancel = document.getElementById('sav-reset-cancel');
+  function openResetModal() {
+    if (!resetModal) return;
+    resetModal.classList.remove('hidden');
+    resetModal.classList.add('flex');
+    if (resetCancel) resetCancel.focus();
+  }
+  function closeResetModal() {
+    if (!resetModal) return;
+    resetModal.classList.add('hidden');
+    resetModal.classList.remove('flex');
+  }
+  if (resetBtn) resetBtn.addEventListener('click', openResetModal);
+  if (resetCancel) resetCancel.addEventListener('click', closeResetModal);
+  if (resetConfirm) resetConfirm.addEventListener('click', function () {
+    closeResetModal();
+    resetWizard();
+  });
+  if (resetModal) resetModal.addEventListener('click', function (e) {
+    if (e.target === resetModal) closeResetModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && resetModal && !resetModal.classList.contains('hidden')) closeResetModal();
+  });
+
   // Affichage du nom de fichier dans les dropzones
   $$('input[type="file"]').forEach(function (input) {
     input.addEventListener('change', function () {
@@ -249,21 +301,52 @@
       lbl.textContent = 'Envoi en cours…';
       sp.classList.remove('hidden');
 
+      var emailVal = $('#email').value.trim();
+      var radioMode = !!form.querySelector('input[type="radio"][name="numeroCommande"]');
+      var numeroCmd = radioMode
+        ? ((form.querySelector('input[name="numeroCommande"]:checked') || {}).value || '')
+        : $('#numeroCommande').value.trim();
+      var reglageBaseVal = (form.querySelector('input[name="reglageBase"]:checked') || {}).value || '';
+
       var payload = {
         pieceType: $('#pieceType').value,
-        numeroCommande: $('#numeroCommande').value.trim(),
+        numeroCommande: numeroCmd,
         dateAchat: orderInfo && orderInfo.dateCommande,
-        client: { nom: ($('#clientNom') && $('#clientNom').value) || '', email: $('#email').value.trim() },
+        client: { nom: ($('#clientNom') && $('#clientNom').value) || '', email: emailVal },
         vehicule: {
           vin: $('#vin').value.trim().toUpperCase(),
           immatriculation: $('#immatriculation').value.trim().toUpperCase(),
         },
         garage: { nom: $('#garageNom').value.trim() },
+        montage: {
+          date: $('#dateMontage') ? $('#dateMontage').value : undefined,
+          reglageBase: reglageBaseVal,
+        },
         diagnostic: {
           symptomes: $$('input[name="symptomes"]:checked').map(function (i) { return i.value; }),
           codesDefaut: $('#codesDefaut').value.split(/[,\s]+/).filter(Boolean),
+          description: ($('#description') && $('#description').value.trim()) || '',
+        },
+        cgvAcceptance: {
+          version: 'v1',
+          acceptedAt: new Date().toISOString(),
         },
       };
+
+      function uploadOne(numero, inputEl, kind) {
+        var f = inputEl && inputEl.files && inputEl.files[0];
+        if (!f) return Promise.resolve();
+        var fd = new FormData();
+        fd.append('document', f);
+        fd.append('email', emailVal);
+        fd.append('kind', kind);
+        return fetch('/api/sav/tickets/' + encodeURIComponent(numero) + '/documents', {
+          method: 'POST',
+          body: fd,
+        }).then(function (r) {
+          if (!r.ok) throw new Error('upload échoué (' + kind + ')');
+        });
+      }
 
       var resetBtn = function () {
         btn.disabled = false; lbl.textContent = 'Envoyer ma demande'; sp.classList.add('hidden');
@@ -285,11 +368,23 @@
           resetBtn();
           return;
         }
-        clearDraft();
-        toast('Votre demande est enregistrée. Redirection…', 'success');
-        setTimeout(function () {
-          window.location.href = '/sav/suivi/' + encodeURIComponent(res.j.data.numero);
-        }, 800);
+        var numero = res.j.data.numero;
+        // Upload des fichiers obligatoires (facture garage + photo pièce + photo OBD)
+        Promise.all([
+          uploadOne(numero, $('#factureGarage'), 'factureMontage'),
+          uploadOne(numero, $('#photoPiece'), 'photoPiece'),
+          uploadOne(numero, $('#photoObd'), 'photoObd'),
+        ]).then(function () {
+          clearDraft();
+          toast('Votre demande est enregistrée. Redirection…', 'success');
+          setTimeout(function () {
+            window.location.href = '/sav/suivi/' + encodeURIComponent(numero);
+          }, 800);
+        }).catch(function (err) {
+          console.error('[SAV] upload échec', err);
+          toast("Ticket créé mais l'envoi des documents a échoué. Contactez sav@carpartsfrance.fr.", 'error');
+          resetBtn();
+        });
       }).catch(function (err) {
         console.error('[SAV] exception', err);
         toast('Erreur réseau : ' + (err && err.message ? err.message : 'inconnue'), 'error');

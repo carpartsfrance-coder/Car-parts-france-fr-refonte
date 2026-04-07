@@ -103,6 +103,12 @@ publicRouter.post('/tickets', async (req, res) => {
     if (!body.client.nom) body.client.nom = body.client.email.split('@')[0];
     if (!body.pieceType) return fail(res, 'pieceType requis');
 
+    const clientIp =
+      (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
+      req.ip ||
+      (req.connection && req.connection.remoteAddress) ||
+      '';
+
     const ticket = new SavTicket({
       pieceType: body.pieceType,
       referencePiece: body.referencePiece,
@@ -113,6 +119,16 @@ publicRouter.post('/tickets', async (req, res) => {
       client: body.client,
       garage: body.garage || {},
       diagnostic: body.diagnostic || {},
+      montage: body.montage || {},
+      cgvAcceptance: body.cgvAcceptance
+        ? {
+            version: body.cgvAcceptance.version || 'v1',
+            acceptedAt: body.cgvAcceptance.acceptedAt
+              ? new Date(body.cgvAcceptance.acceptedAt)
+              : new Date(),
+            ip: clientIp,
+          }
+        : undefined,
       statut: 'pre_qualification',
       workflow: { track: body.track || 'retour_systematique', etape: 'pre_qualification' },
     });
@@ -177,12 +193,29 @@ publicRouter.post(
       const url = `/uploads/sav/${ticket.numero}/${safeName}`;
 
       const kind = (req.body.kind || 'autre').trim();
+      if (!ticket.documents) ticket.documents = {};
       if (kind === 'factureMontage') ticket.documents.factureMontage = url;
-      else if (kind === 'photoObd') ticket.documents.photosObd.push(url);
-      else if (kind === 'confirmationReglageBase') ticket.documents.confirmationReglageBase = url;
-      else ticket.documents.photosVisuelles.push(url);
+      else if (kind === 'photoObd') {
+        ticket.documents.photosObd = ticket.documents.photosObd || [];
+        ticket.documents.photosObd.push(url);
+      } else if (kind === 'confirmationReglageBase') {
+        ticket.documents.confirmationReglageBase = url;
+      } else {
+        ticket.documents.photosVisuelles = ticket.documents.photosVisuelles || [];
+        ticket.documents.photosVisuelles.push(url);
+      }
 
-      ticket.addMessage('client', 'interne', `Document uploadé (${kind}) : ${url}`);
+      ticket.documentsList = ticket.documentsList || [];
+      ticket.documentsList.push({
+        kind,
+        url,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mime: req.file.mimetype,
+        uploadedAt: new Date(),
+      });
+
+      ticket.addMessage('client', 'interne', `Document uploadé (${kind}) : ${req.file.originalname} (${req.file.size} octets)`);
       await ticket.save();
       return ok(res, { url, kind });
     } catch (err) {

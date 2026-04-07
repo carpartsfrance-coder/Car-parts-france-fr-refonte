@@ -29,7 +29,24 @@
       <span class="material-symbols-rounded" aria-hidden="true">restore</span>
       <div class="flex-1">
         <strong>Brouillon restauré.</strong> Vos réponses ont été récupérées. Merci de redéposer vos documents (ils ne sont pas conservés).
-        <button type="button" class="ml-2 underline" onclick="try{localStorage.removeItem('sav:draft:v1')}catch(_){};location.reload()">Recommencer à zéro</button>
+        <button type="button" id="sav-reset-btn" class="ml-2 underline font-semibold">Recommencer à zéro</button>
+      </div>
+    </div>
+
+    <!-- Modale de confirmation reset -->
+    <div id="sav-reset-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-reset-title">
+      <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-rounded text-amber-600 text-3xl" aria-hidden="true">warning</span>
+          <div class="flex-1">
+            <h3 id="sav-reset-title" class="text-lg font-semibold text-slate-900">Recommencer à zéro&nbsp;?</h3>
+            <p class="mt-1 text-sm text-slate-600">Supprimer toutes vos réponses et recommencer&nbsp;? Cette action est irréversible.</p>
+          </div>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" id="sav-reset-cancel" class="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50">Annuler</button>
+          <button type="button" id="sav-reset-confirm" class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700">Tout effacer</button>
+        </div>
       </div>
     </div>
 
