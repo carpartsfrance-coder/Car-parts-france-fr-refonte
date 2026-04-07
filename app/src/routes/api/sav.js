@@ -299,7 +299,13 @@ adminRouter.get('/tickets', async (req, res) => {
     const q = {};
     if (req.query.statut) q.statut = req.query.statut;
     if (req.query.pieceType) q.pieceType = req.query.pieceType;
-    if (req.query.assignedToUserId) q.assignedToUserId = req.query.assignedToUserId;
+    if (req.query.assignedToUserId) {
+      if (req.query.assignedToUserId === '__none__') {
+        q.assignedToUserId = { $in: [null, undefined] };
+      } else {
+        q.assignedToUserId = req.query.assignedToUserId;
+      }
+    }
     if (req.query.sla_depasse === 'true') {
       q['sla.dateLimite'] = { $lt: new Date() };
       q.statut = q.statut || { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'] };

@@ -1137,3 +1137,63 @@
   .sav-stepper__list { width: 100%; min-width: 0; }
   .sav-stepper__bar { flex: 1 1 auto; }
 }
+
+/* =====================================================================
+   Tickets table — scroll horizontal + colonnes sticky (desktop/tablet)
+   ===================================================================== */
+.sav-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.sav-tickets-table {
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.sav-tickets-table thead th,
+.sav-tickets-table tbody td {
+  background-clip: padding-box;
+}
+.sav-tickets-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 2;
+}
+/* Colonnes sticky : checkbox + N° à gauche, Statut + SLA à droite */
+@media (min-width: 1024px) {
+  .sav-tickets-table .sav-col-sticky-l {
+    position: sticky; left: 0; background: #fff; z-index: 1;
+  }
+  .sav-tickets-table .sav-col-sticky-l2 {
+    position: sticky; left: 40px; background: #fff; z-index: 1;
+    box-shadow: 1px 0 0 #e2e8f0;
+  }
+  .sav-tickets-table .sav-col-sticky-r2 {
+    position: sticky; right: 120px; background: #fff; z-index: 1;
+  }
+  .sav-tickets-table .sav-col-sticky-r {
+    position: sticky; right: 0; background: #fff; z-index: 1;
+    box-shadow: -1px 0 0 #e2e8f0;
+  }
+  .sav-tickets-table tr:hover .sav-col-sticky-l,
+  .sav-tickets-table tr:hover .sav-col-sticky-l2,
+  .sav-tickets-table tr:hover .sav-col-sticky-r,
+  .sav-tickets-table tr:hover .sav-col-sticky-r2 { background: #f8fafc; }
+  .sav-tickets-table thead th.sav-col-sticky-l,
+  .sav-tickets-table thead th.sav-col-sticky-l2,
+  .sav-tickets-table thead th.sav-col-sticky-r,
+  .sav-tickets-table thead th.sav-col-sticky-r2 { background: #f8fafc; z-index: 3; }
+}
+
+/* Stepper : date sous chaque étape franchie */
+.sav-stepper__date {
+  display: block;
+  font-size: 10px;
+  color: var(--sav-slate-500, #64748b);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Zone dangereuse collapsible */
+.sav-danger-zone[aria-expanded="false"] + .sav-danger-zone-body { display: none; }

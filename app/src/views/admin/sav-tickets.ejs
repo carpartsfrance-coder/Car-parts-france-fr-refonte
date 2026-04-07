@@ -26,15 +26,31 @@
       </div>
       <select name="statut" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
         <option value="">Tous statuts</option>
-        <% ['ouvert','pre_qualification','en_attente_documents','relance_1','relance_2','retour_demande','en_transit_retour','recu_atelier','en_analyse','analyse_terminee','en_attente_decision_client','en_attente_fournisseur','resolu_garantie','resolu_facture','clos','clos_sans_reponse','refuse'].forEach(function(s){ %>
-          <option value="<%= s %>"><%= s %></option>
+        <% const STATUT_LIST_FR = {
+          ouvert:'Ouvert', pre_qualification:'Pré-qualification', en_attente_documents:'En attente de documents',
+          relance_1:'Relance 1', relance_2:'Relance 2', retour_demande:'Retour demandé', en_transit_retour:'En transit retour',
+          recu_atelier:'Reçu atelier', en_analyse:'En analyse', analyse_terminee:'Analyse terminée',
+          en_attente_decision_client:'Attente décision client', en_attente_fournisseur:'Attente fournisseur',
+          resolu_garantie:'Résolu (garantie)', resolu_facture:'Résolu (facturé)', clos:'Clôturé',
+          clos_sans_reponse:'Clos (sans réponse)', refuse:'Refusé'
+        }; Object.keys(STATUT_LIST_FR).forEach(function(s){ %>
+          <option value="<%= s %>"><%= STATUT_LIST_FR[s] %></option>
         <% }); %>
       </select>
       <select name="pieceType" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
         <option value="">Tous types</option>
-        <% ['mecatronique_dq200','mecatronique_dq250','mecatronique_dq381','mecatronique_dq500','boite_transfert','pont','differentiel','haldex','reducteur','cardan','autre'].forEach(function(t){ %>
-          <option value="<%= t %>"><%= t %></option>
+        <% const PIECE_LIST_FR = {
+          mecatronique_dq200:'Mécatronique DQ200', mecatronique_dq250:'Mécatronique DQ250',
+          mecatronique_dq381:'Mécatronique DQ381', mecatronique_dq500:'Mécatronique DQ500',
+          boite_transfert:'Boîte de transfert', pont:'Pont', differentiel:'Différentiel',
+          haldex:'Haldex', reducteur:'Réducteur', cardan:'Cardan', autre:'Autre'
+        }; Object.keys(PIECE_LIST_FR).forEach(function(t){ %>
+          <option value="<%= t %>"><%= PIECE_LIST_FR[t] %></option>
         <% }); %>
+      </select>
+      <select name="assignedToUserId" id="sav-filter-assignee" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <option value="">Assigné : tous</option>
+        <option value="__none__">Non assigné</option>
       </select>
       <label class="flex items-center gap-2 text-sm">
         <input type="checkbox" name="sla_depasse" value="true" class="rounded text-primary"> SLA dépassé
@@ -44,14 +60,28 @@
       </label>
     </form>
 
+    <!-- Toggle vue table / kanban -->
+    <div class="flex items-center justify-between mb-3">
+      <div class="inline-flex rounded-xl border border-slate-300 bg-white text-sm overflow-hidden">
+        <button type="button" id="sav-view-table" class="px-3 py-1.5 font-semibold bg-primary text-white" data-view="table">
+          <span class="material-symbols-outlined text-base align-middle mr-1">table_rows</span>Table
+        </button>
+        <button type="button" id="sav-view-kanban" class="px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50" data-view="kanban">
+          <span class="material-symbols-outlined text-base align-middle mr-1">view_column</span>Kanban
+        </button>
+      </div>
+    </div>
+
     <!-- Bulk actions bar (visible si sélection) -->
     <div id="sav-bulk-bar" class="hidden mb-3 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
       <span class="font-semibold"><span id="sav-bulk-count">0</span> ticket(s) sélectionné(s)</span>
       <select id="sav-bulk-statut" class="rounded-lg border border-slate-300 px-2 py-1 text-xs">
         <option value="">— Statut —</option>
-        <% ['en_analyse','recu_atelier','en_attente_documents','clos','refuse'].forEach(function(s){ %>
-          <option value="<%= s %>"><%= s %></option>
-        <% }); %>
+        <option value="recu_atelier">Reçu atelier</option>
+        <option value="en_analyse">En analyse</option>
+        <option value="en_attente_documents">En attente de documents</option>
+        <option value="clos">Clôturé</option>
+        <option value="refuse">Refusé</option>
       </select>
       <button type="button" id="sav-bulk-statut-apply" class="rounded-lg bg-primary text-white px-3 py-1 text-xs font-semibold">Appliquer</button>
       <select id="sav-bulk-assign" class="rounded-lg border border-slate-300 px-2 py-1 text-xs"></select>
@@ -61,19 +91,20 @@
 
     <div id="sav-tickets-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 mb-3"></div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      <!-- Vue table desktop / tablet -->
-      <table class="w-full text-sm hidden md:table">
+    <div id="sav-tickets-wrap" class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      <!-- Vue table desktop / tablet (scrollable horizontalement) -->
+      <div class="hidden md:block sav-table-scroll">
+      <table class="w-full text-sm sav-tickets-table">
         <thead class="bg-slate-50 text-left">
           <tr>
-            <th class="px-3 py-3 w-8"><input type="checkbox" id="sav-bulk-all" class="rounded"></th>
-            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="numero">N° <span class="text-slate-300" data-sort-icon="numero">⇅</span></th>
+            <th class="px-3 py-3 w-8 sav-col-sticky-l"><input type="checkbox" id="sav-bulk-all" class="rounded"></th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none sav-col-sticky-l2" data-sort="numero">N° <span class="text-slate-300" data-sort-icon="numero">⇅</span></th>
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="client">Client</th>
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="pieceType">Pièce</th>
             <th class="px-3 py-3 font-semibold text-slate-600">Véhicule</th>
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="assignedTo">Assigné</th>
-            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="statut">Statut</th>
-            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="sla">SLA</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none sav-col-sticky-r2" data-sort="statut">Statut</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none sav-col-sticky-r" data-sort="sla">SLA</th>
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="createdAt">Ouvert le</th>
           </tr>
         </thead>
@@ -81,6 +112,12 @@
           <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Chargement…</td></tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- Vue Kanban (desktop) -->
+      <div id="sav-kanban" class="hidden p-4 overflow-x-auto">
+        <div id="sav-kanban-columns" class="flex gap-3 min-w-max"></div>
+      </div>
 
       <!-- Vue cards mobile -->
       <div id="sav-tickets-cards" class="md:hidden divide-y divide-slate-100">
@@ -117,5 +154,6 @@
   </div>
 </div>
 
-<script src="/js/sav-admin.js?v=4" defer></script>
+<script src="/js/sav-labels.js?v=1" defer></script>
+<script src="/js/sav-admin.js?v=5" defer></script>
 <%- include('./partials/footer') %>

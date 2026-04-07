@@ -167,9 +167,16 @@
     cardan: 'bg-rose-100 text-rose-800',
     autre: 'bg-slate-100 text-slate-700',
   };
+  var LBL = (window.SAV_LABELS || {});
+  function labelStatut(s) { return (LBL.statutLabel && LBL.statutLabel(s)) || s || '—'; }
+  function labelPiece(t)  { return (LBL.pieceLabel  && LBL.pieceLabel(t))  || t || '—'; }
+  function classStatut(s) { return (LBL.statutClass && LBL.statutClass(s)) || 'bg-slate-100 text-slate-700'; }
   function pieceBadge(t) {
     var cls = PIECE_COLORS[t] || PIECE_COLORS.autre;
-    return '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ' + cls + '">' + escapeHtml(t || '—') + '</span>';
+    return '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ' + cls + '">' + escapeHtml(labelPiece(t)) + '</span>';
+  }
+  function statutBadge(s) {
+    return '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ' + classStatut(s) + '">' + escapeHtml(labelStatut(s)) + '</span>';
   }
 
   function avatar(name) {
@@ -184,9 +191,16 @@
   function slaState(d) {
     if (!d) return { cls: 'ok', label: '—', remainingMs: null };
     var diff = new Date(d) - Date.now();
-    if (diff < 0) return { cls: 'late', label: 'dépassé', remainingMs: diff };
-    if (diff < 24 * 3600 * 1000) return { cls: 'warn', label: '< 24h', remainingMs: diff };
-    return { cls: 'ok', label: Math.round(diff / (24 * 3600 * 1000)) + 'j', remainingMs: diff };
+    if (diff < 0) {
+      var daysLate = Math.ceil(-diff / (24 * 3600 * 1000));
+      return { cls: 'late', label: 'Dépassé ' + daysLate + 'j', remainingMs: diff };
+    }
+    if (diff < 24 * 3600 * 1000) {
+      var h = Math.max(1, Math.floor(diff / (3600 * 1000)));
+      return { cls: 'warn', label: h + 'h restantes', remainingMs: diff };
+    }
+    var days = Math.round(diff / (24 * 3600 * 1000));
+    return { cls: 'ok', label: days + 'j restants', remainingMs: diff };
   }
 
   // ============================================================
@@ -273,7 +287,7 @@
       box.innerHTML = list.map(function (t) {
         return '<a class="flex items-center justify-between px-5 py-3 hover:bg-slate-50 sav-pulse-row" href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '">' +
           '<div><div class="font-mono text-sm font-semibold text-slate-900">' + escapeHtml(t.numero) + '</div>' +
-          '<div class="text-xs text-slate-500">' + escapeHtml(t.client && t.client.email) + ' · ' + escapeHtml(t.pieceType) + '</div></div>' +
+          '<div class="text-xs text-slate-500">' + escapeHtml((t.client && t.client.email) || '') + ' · ' + escapeHtml(labelPiece(t.pieceType)) + '</div></div>' +
           '<div class="sav-sla-badge sav-sla-badge--late">en retard</div></a>';
       }).join('');
     });
@@ -333,7 +347,7 @@
               '</div>' +
               '<div class="text-xs text-slate-700 truncate">' + escapeHtml((t.client && t.client.email) || '') + '</div>' +
               '<div class="mt-1 flex items-center gap-2 flex-wrap">' + pieceBadge(t.pieceType) +
-                '<span class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100">' + escapeHtml(t.statut) + '</span>' +
+                statutBadge(t.statut) +
               '</div>' +
               (vstr2 ? '<div class="mt-1 text-[11px] text-slate-500">🚗 ' + escapeHtml(vstr2) + (v2.vin ? ' · ' + escapeHtml(v2.vin) : '') + '</div>' : '') +
               (t.assignedToName ? '<div class="mt-1 text-[11px] text-slate-500 flex items-center gap-1">' + avatar(t.assignedToName) + escapeHtml(t.assignedToName) + '</div>' : '') +
@@ -347,15 +361,18 @@
           var rowPulse = sla.cls === 'late' || (sla.remainingMs != null && sla.remainingMs < 24 * 3600 * 1000) ? 'sav-pulse-row' : '';
           var v = t.vehicule || {};
           var vstr = [v.marque, v.modele].filter(Boolean).join(' ') + (v.annee ? ' ' + v.annee : '');
+          var assignHtml = t.assignedToName
+            ? '<div class="flex items-center gap-1">' + avatar(t.assignedToName) + '<span class="text-[11px] truncate max-w-[110px]">' + escapeHtml(t.assignedToName) + '</span></div>'
+            : '<span class="text-[11px] text-slate-400 italic">Non assigné</span>';
           return '<tr class="hover:bg-slate-50 cursor-pointer ' + rowPulse + '" data-row="' + i + '" data-numero="' + escapeHtml(t.numero) + '">' +
-            '<td class="px-3 py-2"><input type="checkbox" class="rounded sav-row-cb" data-numero="' + escapeHtml(t.numero) + '" ' + (selected.has(t.numero) ? 'checked' : '') + '></td>' +
-            '<td class="px-3 py-2 font-mono text-xs font-semibold">' + escapeHtml(t.numero) + '</td>' +
-            '<td class="px-3 py-2"><div class="text-xs">' + escapeHtml((t.client && t.client.nom) || '') + '</div><div class="text-[10px] text-slate-500">' + escapeHtml((t.client && t.client.email) || '') + '</div></td>' +
+            '<td class="px-3 py-2 sav-col-sticky-l"><input type="checkbox" class="rounded sav-row-cb" data-numero="' + escapeHtml(t.numero) + '" ' + (selected.has(t.numero) ? 'checked' : '') + '></td>' +
+            '<td class="px-3 py-2 font-mono text-xs font-semibold sav-col-sticky-l2">' + escapeHtml(t.numero) + '</td>' +
+            '<td class="px-3 py-2"><div class="text-xs font-medium">' + escapeHtml((t.client && t.client.nom) || '') + '</div><div class="text-[10px] text-slate-500">' + escapeHtml((t.client && t.client.email) || '') + '</div></td>' +
             '<td class="px-3 py-2">' + pieceBadge(t.pieceType) + '</td>' +
             '<td class="px-3 py-2 text-xs">' + (vstr ? escapeHtml(vstr) : '<span class="text-slate-400">—</span>') + (v.vin ? '<div class="text-[10px] font-mono text-slate-400">' + escapeHtml(v.vin) + '</div>' : '') + '</td>' +
-            '<td class="px-3 py-2"><div class="flex items-center gap-1">' + avatar(t.assignedToName) + '<span class="text-[11px]">' + escapeHtml(t.assignedToName || '—') + '</span></div></td>' +
-            '<td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-100">' + escapeHtml(t.statut) + '</span></td>' +
-            '<td class="px-3 py-2"><span class="sav-sla-badge sav-sla-badge--' + sla.cls + '">' + sla.label + '</span></td>' +
+            '<td class="px-3 py-2">' + assignHtml + '</td>' +
+            '<td class="px-3 py-2 sav-col-sticky-r2">' + statutBadge(t.statut) + '</td>' +
+            '<td class="px-3 py-2 sav-col-sticky-r"><span class="sav-sla-badge sav-sla-badge--' + sla.cls + '" title="' + (t.sla && t.sla.dateLimite ? escapeHtml(new Date(t.sla.dateLimite).toLocaleString('fr-FR')) : '') + '">' + sla.label + '</span></td>' +
             '<td class="px-3 py-2 text-xs text-slate-500">' + new Date(t.createdAt).toLocaleDateString('fr-FR') + '</td>' +
           '</tr>';
         }).join('');
@@ -483,7 +500,7 @@
       window.open('/admin/api/sav/tickets.csv?' + buildQs().toString(), '_blank');
     });
 
-    // Charge équipe pour bulk assign
+    // Charge équipe pour bulk assign + filtre assigné
     api('/team').then(function (res) {
       if (!res.ok || !res.j.success) return;
       teamCache = res.j.data.users || [];
@@ -492,7 +509,67 @@
         ba.innerHTML = '<option value="">— Assigner à —</option>' +
           teamCache.map(function (u) { return '<option value="' + u._id + '">' + escapeHtml((u.firstName || '') + ' ' + (u.lastName || '')) + '</option>'; }).join('');
       }
+      var fa = document.getElementById('sav-filter-assignee');
+      if (fa) {
+        var current = fa.value;
+        fa.innerHTML = '<option value="">Assigné : tous</option>' +
+          '<option value="__none__">Non assigné</option>' +
+          teamCache.map(function (u) { return '<option value="' + u._id + '">' + escapeHtml((u.firstName || '') + ' ' + (u.lastName || '')) + '</option>'; }).join('');
+        fa.value = current;
+      }
     });
+
+    // Vue Table / Kanban toggle
+    var viewMode = 'table';
+    var btnTable = document.getElementById('sav-view-table');
+    var btnKanban = document.getElementById('sav-view-kanban');
+    var tableBox = document.querySelector('.sav-table-scroll');
+    var kanbanBox = document.getElementById('sav-kanban');
+    function applyView() {
+      var isKan = viewMode === 'kanban';
+      if (tableBox) tableBox.classList.toggle('hidden', isKan);
+      if (kanbanBox) kanbanBox.classList.toggle('hidden', !isKan);
+      if (btnTable) {
+        btnTable.className = 'px-3 py-1.5 font-semibold ' + (!isKan ? 'bg-primary text-white' : 'text-slate-700 hover:bg-slate-50');
+      }
+      if (btnKanban) {
+        btnKanban.className = 'px-3 py-1.5 font-semibold ' + (isKan ? 'bg-primary text-white' : 'text-slate-700 hover:bg-slate-50');
+      }
+      if (isKan) loadKanban();
+    }
+    if (btnTable) btnTable.addEventListener('click', function () { viewMode = 'table'; applyView(); });
+    if (btnKanban) btnKanban.addEventListener('click', function () { viewMode = 'kanban'; applyView(); });
+
+    function loadKanban() {
+      var host = document.getElementById('sav-kanban-columns');
+      if (!host) return;
+      host.innerHTML = '<div class="text-slate-500 text-sm p-4">Chargement…</div>';
+      var qs = buildQs();
+      qs.set('perPage', '200');
+      api('/tickets?' + qs.toString()).then(function (res) {
+        if (!res.ok || !res.j.success) { host.innerHTML = '<div class="text-red-600 text-sm p-4">Erreur de chargement.</div>'; return; }
+        var list = (res.j.data && res.j.data.tickets) || [];
+        var cols = (window.SAV_LABELS && window.SAV_LABELS.KANBAN_COLUMNS) || [];
+        host.innerHTML = cols.map(function (col) {
+          var tickets = list.filter(function (t) { return col.statuts.indexOf(t.statut) !== -1; });
+          var cards = tickets.map(function (t) {
+            var sla2 = slaState(t.sla && t.sla.dateLimite);
+            var pulse = sla2.cls === 'late' ? 'sav-pulse-row' : '';
+            return '<a href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '" class="block rounded-xl border border-slate-200 bg-white hover:border-primary hover:shadow-sm p-3 text-xs ' + pulse + '">' +
+              '<div class="flex items-center justify-between gap-1 mb-1"><span class="font-mono font-bold text-[11px]">' + escapeHtml(t.numero) + '</span>' +
+              '<span class="sav-sla-badge sav-sla-badge--' + sla2.cls + '">' + sla2.label + '</span></div>' +
+              '<div class="truncate font-medium">' + escapeHtml((t.client && t.client.nom) || (t.client && t.client.email) || '—') + '</div>' +
+              '<div class="mt-1">' + pieceBadge(t.pieceType) + '</div>' +
+              (t.assignedToName ? '<div class="mt-1 flex items-center gap-1 text-slate-500">' + avatar(t.assignedToName) + '<span>' + escapeHtml(t.assignedToName) + '</span></div>' : '<div class="mt-1 text-slate-400 italic">Non assigné</div>') +
+            '</a>';
+          }).join('') || '<div class="text-[11px] text-slate-400 italic px-1">Vide</div>';
+          return '<div class="flex-shrink-0 w-64 rounded-2xl bg-slate-50 border border-slate-200 p-3">' +
+            '<div class="flex items-center justify-between mb-2"><h3 class="text-xs font-bold uppercase tracking-wide text-slate-700">' + escapeHtml(col.label) + '</h3><span class="text-[10px] bg-white border border-slate-200 rounded-full px-2 py-0.5 font-semibold">' + tickets.length + '</span></div>' +
+            '<div class="space-y-2">' + cards + '</div>' +
+          '</div>';
+        }).join('');
+      });
+    }
 
     // Raccourcis clavier
     var kbdModal = document.getElementById('sav-kbd-modal');
@@ -572,6 +649,28 @@
       { key: 'cloture',    label: 'Clôturé',             statuts: ['clos'] }
     ];
 
+    // Extrait les dates de changement de statut depuis l'historique messages
+    function buildStageDates() {
+      var dates = {};
+      var msgs = (ticket && ticket.messages) || [];
+      // Par défaut : date de création → étape 0
+      if (ticket && ticket.createdAt) dates[STEPPER_STAGES[0].key] = ticket.createdAt;
+      msgs.forEach(function (m) {
+        var c = m && m.contenu;
+        if (!c) return;
+        var match = String(c).match(/Changement de statut[^→]*→\s*([a-z_0-9]+)/i);
+        if (!match) return;
+        var newStatut = match[1];
+        for (var k = 0; k < STEPPER_STAGES.length; k++) {
+          if (STEPPER_STAGES[k].statuts.indexOf(newStatut) !== -1) {
+            dates[STEPPER_STAGES[k].key] = m.date || dates[STEPPER_STAGES[k].key];
+            break;
+          }
+        }
+      });
+      return dates;
+    }
+
     function renderStepper(statut) {
       var host = document.getElementById('sav-stepper');
       if (!host) return;
@@ -580,6 +679,7 @@
         if (STEPPER_STAGES[i].statuts.indexOf(statut) !== -1) { idx = i; break; }
       }
       if (idx === -1) idx = 0;
+      var stageDates = buildStageDates();
       var html = '<ol class="sav-stepper__list">';
       for (var j = 0; j < STEPPER_STAGES.length; j++) {
         var st = STEPPER_STAGES[j];
@@ -587,9 +687,11 @@
         var icon = state === 'done'
           ? '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.8 3.8 6.8-6.8a1 1 0 0 1 1.4 0z" clip-rule="evenodd"/></svg>'
           : '<span>' + (j + 1) + '</span>';
+        var d = stageDates[st.key];
+        var dateHtml = (state !== 'todo' && d) ? '<span class="sav-stepper__date">' + new Date(d).toLocaleDateString('fr-FR') + '</span>' : '';
         html += '<li class="sav-stepper__step sav-stepper__step--' + state + '" aria-current="' + (state === 'current' ? 'step' : 'false') + '">'
               +   '<span class="sav-stepper__bullet">' + icon + '</span>'
-              +   '<span class="sav-stepper__label">' + escapeHtml(st.label) + '</span>'
+              +   '<span class="sav-stepper__label">' + escapeHtml(st.label) + dateHtml + '</span>'
               + '</li>';
         if (j < STEPPER_STAGES.length - 1) {
           var barState = j < idx ? 'done' : 'todo';
@@ -649,8 +751,8 @@
 
       var sb = document.getElementById('sav-statut-badge');
       if (sb) {
-        sb.textContent = t.statut || '—';
-        sb.className = 'px-3 py-1 rounded-full text-xs font-semibold ' + statutBadgeClass(t.statut);
+        sb.textContent = labelStatut(t.statut);
+        sb.className = 'px-3 py-1 rounded-full text-xs font-semibold ' + classStatut(t.statut);
       }
 
       var main = document.querySelector('main.sav-module');
@@ -751,7 +853,7 @@
       // --- Card 3 : Pièce SAV ---
       var p = t.piece || {};
       var pieceBody = [
-        p.reference ? '<div class="font-mono text-slate-900">' + escapeHtml(p.reference) + '</div>' : (t.pieceType ? '<div class="font-medium text-slate-900">' + escapeHtml(t.pieceType) + '</div>' : ''),
+        p.reference ? '<div class="font-mono text-slate-900">' + escapeHtml(p.reference) + '</div>' : (t.pieceType ? '<div class="font-medium text-slate-900">' + escapeHtml(labelPiece(t.pieceType)) + '</div>' : ''),
         p.designation ? '<div>' + escapeHtml(p.designation) + '</div>' : '',
         (p.prixHT != null) ? '<div><span class="text-slate-500">Prix HT&nbsp;:</span> ' + Number(p.prixHT).toFixed(2) + ' €</div>' : '',
         p.url ? '<div class="pt-2"><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 text-xs hover:border-primary hover:text-primary">Fiche produit</a></div>' : '',
