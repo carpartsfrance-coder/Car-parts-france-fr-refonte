@@ -25,12 +25,20 @@ exports.getSavHome = async (req, res) => {
         .limit(30)
         .select('number createdAt items totalCents status')
         .lean();
-      eligibleOrders = orders.map((o) => ({
-        number: o.number,
-        date: o.createdAt,
-        label: (o.items || []).slice(0, 2).map((i) => i.name).join(', ').slice(0, 80),
-        status: o.status,
-      }));
+      eligibleOrders = orders.map((o) => {
+        const items = Array.isArray(o.items) ? o.items : [];
+        const first = items[0] || {};
+        return {
+          number: o.number,
+          date: o.createdAt,
+          label: items.slice(0, 2).map((i) => i.name).join(', ').slice(0, 120),
+          firstItemName: first.name || '',
+          firstItemImage: first.image || first.imageUrl || (Array.isArray(first.images) && first.images[0]) || '',
+          itemsCount: items.length,
+          totalCents: o.totalCents || 0,
+          status: o.status,
+        };
+      });
     } catch (_) {}
   }
   res.render('sav/index', {
@@ -98,5 +106,31 @@ exports.getSuivi = async (req, res) => {
     ...baseLocals(req),
     title: `Suivi de votre demande ${numero} — CarParts France`,
     numero,
+  });
+};
+
+// GET /sav/confirmation/:numero — page de confirmation post-création
+exports.getConfirmation = async (req, res) => {
+  const numero = req.params.numero;
+  let ticket = null;
+  try {
+    ticket = await SavTicket.findOne({ numero }).lean();
+  } catch (_) {}
+  if (!ticket) {
+    return res.status(404).render('sav/confirmation', {
+      ...baseLocals(req),
+      title: 'Confirmation introuvable',
+      numero,
+      ticket: null,
+      currentUser: req.session && req.session.user,
+    });
+  }
+  res.render('sav/confirmation', {
+    ...baseLocals(req),
+    title: `Confirmation de votre demande ${numero} — CarParts France`,
+    metaRobots: 'noindex, nofollow',
+    numero,
+    ticket,
+    currentUser: req.session && req.session.user,
   });
 };

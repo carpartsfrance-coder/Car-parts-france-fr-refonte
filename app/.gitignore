@@ -20,7 +20,8 @@ coverage/
 *.pem
 *.key
 
-public/css/
+public/css/*
+!public/css/sav.css
 
 public/uploads/
 !public/uploads/**/.gitkeep

@@ -1,0 +1,508 @@
+/* ==========================================================================
+   SAV module — styles spécifiques (cohérents avec Tailwind du site principal)
+   Doc : /docs/sav-design-system.md
+   N'introduit AUCUNE couleur ni typo qui n'existe pas déjà côté tailwind.
+   ========================================================================== */
+
+/* ---------- Stepper (formulaire multi-étapes) ---------- */
+
+.sav-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+.sav-stepper__step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: #64748b; /* slate-500 */
+  text-align: center;
+}
+.sav-stepper__bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 9999px;
+  background: #e5e7eb; /* border-light */
+  transition: background-color 200ms ease;
+}
+.sav-stepper__step--done .sav-stepper__bar,
+.sav-stepper__step--current .sav-stepper__bar {
+  background: #ec1313; /* primary */
+}
+.sav-stepper__step--current {
+  color: #1a1a1a; /* dark-grey */
+  font-weight: 600;
+}
+
+/* ---------- Timeline verticale (suivi client) ---------- */
+
+.sav-timeline {
+  position: relative;
+  padding-left: 1.75rem;
+}
+.sav-timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.6rem;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  width: 2px;
+  background: #e5e7eb;
+  border-radius: 2px;
+}
+.sav-timeline__item {
+  position: relative;
+  padding-bottom: 1.25rem;
+}
+.sav-timeline__item:last-child {
+  padding-bottom: 0;
+}
+.sav-timeline__dot {
+  position: absolute;
+  left: -1.55rem;
+  top: 0.25rem;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #e5e7eb;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #e5e7eb;
+}
+.sav-timeline__dot--fait {
+  background: #059669; /* emerald-600 */
+  box-shadow: 0 0 0 1px #059669;
+}
+.sav-timeline__dot--en_cours {
+  background: #ec1313;
+  box-shadow: 0 0 0 1px #ec1313;
+  animation: sav-pulse 1.6s ease-in-out infinite;
+}
+.sav-timeline__dot--bloc {
+  background: #d97706; /* amber-600 */
+  box-shadow: 0 0 0 1px #d97706;
+}
+
+@keyframes sav-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.18); opacity: 0.75; }
+}
+
+/* ---------- Badge SLA ---------- */
+
+.sav-sla-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+}
+.sav-sla-badge--ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+.sav-sla-badge--warn {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.sav-sla-badge--late {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+/* ---------- Carte de statut client (hero) ---------- */
+
+.sav-status-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.05),
+              0 15px 30px -10px rgba(0, 0, 0, 0.03);
+}
+@media (min-width: 640px) {
+  .sav-status-card { padding: 1.75rem; }
+}
+
+/* ---------- Drop-zone upload ---------- */
+
+.sav-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  min-height: 140px;
+  border: 2px dashed #cbd5e1; /* slate-300 */
+  border-radius: 0.75rem;
+  background: #f8fafc; /* slate-50 */
+  color: #475569;     /* slate-600 */
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms, background-color 150ms;
+}
+.sav-dropzone:hover,
+.sav-dropzone:focus-within {
+  border-color: #ec1313;
+  background: #fef2f2;
+}
+.sav-dropzone--has-file {
+  border-style: solid;
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+/* ---------- Toast ---------- */
+
+.sav-toast-root {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: calc(100% - 2rem);
+  max-width: 420px;
+  pointer-events: none;
+}
+@media (min-width: 768px) {
+  .sav-toast-root {
+    left: auto;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    transform: none;
+  }
+}
+.sav-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.18);
+  font-size: 0.875rem;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.sav-toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sav-toast--success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.sav-toast--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+/* ---------- Étapes formulaire (visibilité) ---------- */
+
+.sav-form-step { display: none; }
+.sav-form-step--active { display: block; }
+
+/* ---------- Focus visible global SAV ---------- */
+
+.sav-module :focus-visible {
+  outline: 2px solid #ec1313;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ---------- Responsive sanity check (mobile-first) ---------- */
+/* 360px : tout doit tenir, padding réduit */
+@media (max-width: 380px) {
+  .sav-stepper__step { font-size: 0.6875rem; }
+  .sav-status-card { padding: 1rem; }
+}
+
+/* ====================================================================== */
+/* === STEPPER v2 (style Stripe / Typeform) ============================ */
+/* ====================================================================== */
+
+.sav-stepper-v2 { width: 100%; }
+.sav-stepper-v2__list {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  list-style: none;
+  margin: 0; padding: 0;
+  gap: 0;
+}
+.sav-stepper-v2__item {
+  position: relative;
+  flex: 1 1 0;
+  text-align: center;
+  min-width: 0;
+}
+.sav-stepper-v2__circle {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 9999px;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  font-weight: 700; font-size: 14px;
+  cursor: default;
+  transition: all .2s ease;
+}
+.sav-stepper-v2__check {
+  display: none;
+  font-size: 20px;
+}
+.sav-stepper-v2__num { display: inline; }
+.sav-stepper-v2__bar {
+  position: absolute;
+  top: 17px; left: 50%; right: -50%;
+  height: 3px;
+  background: #e2e8f0;
+  z-index: 1;
+}
+.sav-stepper-v2__label {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* États */
+.sav-stepper-v2__item.is-current .sav-stepper-v2__circle {
+  border-color: #ec1313;
+  background: #ec1313;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(236,19,19,0.18);
+  animation: sav-stepper-pulse 1.6s ease-in-out infinite;
+}
+.sav-stepper-v2__item.is-current .sav-stepper-v2__label {
+  color: #ec1313;
+  font-weight: 700;
+}
+.sav-stepper-v2__item.is-done .sav-stepper-v2__circle {
+  border-color: #ec1313;
+  background: #ec1313;
+  color: #fff;
+}
+.sav-stepper-v2__item.is-done .sav-stepper-v2__num { display: none; }
+.sav-stepper-v2__item.is-done .sav-stepper-v2__check { display: inline; }
+.sav-stepper-v2__item.is-done .sav-stepper-v2__bar { background: #ec1313; }
+.sav-stepper-v2__item.is-clickable .sav-stepper-v2__circle { cursor: pointer; }
+.sav-stepper-v2__item.is-clickable .sav-stepper-v2__circle:hover { transform: translateY(-1px); }
+
+@keyframes sav-stepper-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(236,19,19,0.18); }
+  50%      { box-shadow: 0 0 0 7px rgba(236,19,19,0.10); }
+}
+
+/* ====================================================================== */
+/* === Validation inline =============================================== */
+/* ====================================================================== */
+
+.sav-input--invalid {
+  border-color: #ef4444 !important;
+  background: #fef2f2;
+}
+.sav-input--valid {
+  border-color: #10b981 !important;
+}
+.sav-input--valid:not(textarea):not(select) {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2310b981'><path d='M16.704 5.295a1 1 0 010 1.41l-7.5 7.5a1 1 0 01-1.41 0l-3.5-3.5a1 1 0 011.41-1.41L8.5 12.085l6.795-6.79a1 1 0 011.41 0z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px 18px;
+  padding-right: 38px;
+}
+.sav-cta--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ====================================================================== */
+/* === Sélection commande (cards) ====================================== */
+/* ====================================================================== */
+
+.sav-order-card {
+  display: grid;
+  grid-template-columns: 18px 64px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  cursor: pointer;
+  background: #fff;
+  transition: all .15s ease;
+}
+.sav-order-card:hover { border-color: #ec1313; box-shadow: 0 4px 14px rgba(0,0,0,.04); }
+.sav-order-card:has(.sav-order-card__radio:checked) {
+  border-color: #ec1313;
+  background: rgba(236,19,19,.05);
+  box-shadow: 0 0 0 1px #ec1313;
+}
+.sav-order-card__radio { accent-color: #ec1313; width: 18px; height: 18px; }
+.sav-order-card__thumb {
+  width: 64px; height: 64px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+.sav-order-card__thumb--placeholder {
+  display: flex; align-items: center; justify-content: center;
+}
+.sav-order-card__body { min-width: 0; }
+
+/* ====================================================================== */
+/* === Drag & drop fichiers ============================================ */
+/* ====================================================================== */
+
+.sav-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 28px 16px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.sav-drop:hover { border-color: #ec1313; background: #fff5f5; }
+.sav-drop.is-drop {
+  border-color: #ec1313;
+  background: #fee2e2;
+  transform: scale(1.01);
+}
+.sav-file-item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+.sav-file-item__thumb {
+  width: 56px; height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f1f5f9;
+}
+.sav-file-item__thumb--icon {
+  display: flex; align-items: center; justify-content: center;
+  color: #94a3b8;
+}
+.sav-file-item__body { min-width: 0; }
+.sav-file-item__name { font-size: 13px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sav-file-item__meta { font-size: 11px; color: #64748b; }
+.sav-file-item__progress { margin-top: 4px; height: 4px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.sav-file-item__bar { height: 100%; background: #ec1313; width: 0%; transition: width .25s ease; }
+.sav-file-item__actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.sav-file-item__kind {
+  font-size: 11px; padding: 4px 6px;
+  border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+}
+.sav-file-item__rm {
+  width: 24px; height: 24px;
+  border-radius: 999px;
+  background: #fee2e2; color: #b91c1c;
+  font-weight: 700; line-height: 1;
+  border: none; cursor: pointer;
+}
+
+/* ====================================================================== */
+/* === Codes OBD multi-tags ============================================ */
+/* ====================================================================== */
+
+.sav-tagbox {
+  background: #fff;
+  transition: border-color .15s ease;
+}
+.sav-tagbox:focus-within { border-color: #ec1313; box-shadow: 0 0 0 3px rgba(236,19,19,.18); }
+.sav-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #0f172a; color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; font-weight: 600;
+  padding: 4px 8px; border-radius: 8px;
+}
+.sav-tag--bad { background: #b91c1c; }
+.sav-tag__rm {
+  background: transparent; border: none;
+  color: #fff; font-size: 14px; line-height: 1;
+  cursor: pointer; padding: 0 0 0 2px;
+}
+.sav-suggest {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: #f1f5f9; color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px; padding: 2px 6px; cursor: pointer;
+}
+.sav-suggest:hover { background: #e2e8f0; }
+
+/* ====================================================================== */
+/* === Récapitulatif (étape 6) ========================================= */
+/* ====================================================================== */
+
+.sav-recap__section {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px 16px;
+}
+.sav-recap__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.sav-recap__head h3 { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
+.sav-recap__edit {
+  font-size: 12px; font-weight: 600;
+  color: #ec1313; background: transparent; border: none; cursor: pointer; text-decoration: underline;
+}
+.sav-recap__body { font-size: 13px; color: #1e293b; line-height: 1.5; }
+.sav-recap__body > div { margin-top: 2px; }
+
+/* ====================================================================== */
+/* === Timeline client (mon-compte/sav) ================================ */
+/* ====================================================================== */
+
+.sav-client-timeline { position: relative; padding-left: 28px; }
+.sav-client-timeline::before {
+  content: ''; position: absolute; left: 12px; top: 0; bottom: 0;
+  width: 2px; background: linear-gradient(to bottom, #ec1313, #cbd5e1);
+}
+.sav-client-timeline__item { position: relative; padding-bottom: 18px; }
+.sav-client-timeline__dot {
+  position: absolute; left: -22px; top: 4px;
+  width: 14px; height: 14px; border-radius: 999px;
+  background: #ec1313; border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #ec1313;
+}
+.sav-client-timeline__date { font-size: 11px; color: #64748b; }
+.sav-client-timeline__msg { font-size: 14px; color: #0f172a; margin-top: 2px; }

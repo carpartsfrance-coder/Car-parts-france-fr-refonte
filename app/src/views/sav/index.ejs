@@ -1,6 +1,19 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/sav.css">
+<link rel="stylesheet" href="/css/sav.css?v=4">
 <%- include('../partials/header') %>
+
+<%
+  // Étapes du wizard (titres pour stepper + récapitulatif)
+  const STEPS = [
+    { i: 1, label: 'Commande' },
+    { i: 2, label: 'Pièce' },
+    { i: 3, label: 'Symptômes' },
+    { i: 4, label: 'Documents' },
+    { i: 5, label: 'Engagement' },
+    { i: 6, label: 'Récapitulatif' },
+  ];
+  const TOTAL = STEPS.length;
+%>
 
 <main class="sav-module flex-1 bg-background-light text-slate-900">
   <div class="mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12">
@@ -15,15 +28,36 @@
       </p>
     </header>
 
-    <!-- Stepper -->
-    <nav class="sav-stepper mb-8" role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" id="sav-progress">
-      <% [1,2,3,4,5].forEach(function(i) { %>
-        <div class="sav-stepper__step <%= i === 1 ? 'sav-stepper__step--current' : '' %>" data-step-indicator="<%= i %>">
-          <div class="sav-stepper__bar"></div>
-          <span><%= ['Commande','Pièce','Symptômes','Documents','Engagement'][i-1] %></span>
-        </div>
-      <% }) %>
+    <!-- Stepper desktop (numéros + barres + labels) -->
+    <nav class="sav-stepper-v2 hidden sm:block mb-2" role="progressbar" aria-valuemin="1" aria-valuemax="<%= TOTAL %>" aria-valuenow="1" id="sav-progress">
+      <ol class="sav-stepper-v2__list">
+        <% STEPS.forEach(function(s, idx) { %>
+          <li class="sav-stepper-v2__item <%= s.i === 1 ? 'is-current' : '' %>"
+              data-step-indicator="<%= s.i %>"
+              data-clickable="<%= s.i === 1 ? 'false' : 'false' %>">
+            <button type="button" class="sav-stepper-v2__circle" aria-label="Étape <%= s.i %> : <%= s.label %>" data-go-step="<%= s.i %>">
+              <span class="sav-stepper-v2__num"><%= s.i %></span>
+              <span class="sav-stepper-v2__check material-symbols-rounded" aria-hidden="true">check</span>
+            </button>
+            <span class="sav-stepper-v2__label"><%= s.label %></span>
+            <% if (idx < STEPS.length - 1) { %>
+              <span class="sav-stepper-v2__bar" aria-hidden="true"></span>
+            <% } %>
+          </li>
+        <% }) %>
+      </ol>
     </nav>
+
+    <!-- Stepper mobile compact -->
+    <div class="sm:hidden mb-4">
+      <div class="flex items-center justify-between text-xs font-medium text-slate-600 mb-1">
+        <span><span id="sav-mobile-current">1</span> / <%= TOTAL %> — <span id="sav-mobile-label">Commande</span></span>
+        <span class="text-primary font-bold"><span id="sav-mobile-pct">17</span> %</span>
+      </div>
+      <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+        <div id="sav-mobile-bar" class="h-full bg-primary transition-all" style="width: 17%"></div>
+      </div>
+    </div>
 
     <div id="sav-restore-banner" class="hidden mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 flex items-start gap-2">
       <span class="material-symbols-rounded" aria-hidden="true">restore</span>
@@ -33,7 +67,7 @@
       </div>
     </div>
 
-    <!-- Modale de confirmation reset -->
+    <!-- Modale reset -->
     <div id="sav-reset-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-reset-title">
       <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
         <div class="flex items-start gap-3">
@@ -52,40 +86,79 @@
 
     <form id="sav-form" class="space-y-6" novalidate>
 
-      <!-- ============== ÉTAPE 1 : Identification commande ============== -->
+      <!-- ============== ÉTAPE 1 : Commande ============== -->
       <section class="sav-form-step sav-form-step--active sav-status-card" data-step="1" aria-labelledby="step1-title">
         <h2 id="step1-title" class="text-lg font-semibold mb-1">1. Retrouvons votre commande</h2>
 
         <% if (currentUser) { %>
-          <p class="text-sm text-slate-600 mb-4">Bonjour <strong><%= currentUser.firstName || currentUser.email %></strong>, sélectionnez la commande concernée.</p>
+          <p class="text-sm text-slate-600 mb-3">Bonjour <strong><%= currentUser.firstName || currentUser.email %></strong>, sélectionnez la commande concernée.</p>
           <input type="hidden" id="email" name="email" value="<%= currentUser.email %>">
           <input type="hidden" id="clientNom" name="clientNom" value="<%= [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || currentUser.email %>">
 
           <% if (!eligibleOrders || eligibleOrders.length === 0) { %>
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               Aucune commande éligible (payée, &lt; 24 mois) trouvée sur votre compte.
-              Si vous pensez qu'il s'agit d'une erreur, écrivez-nous à <a class="underline" href="mailto:sav@carpartsfrance.fr">sav@carpartsfrance.fr</a>.
+              <button type="button" class="mt-2 underline" id="sav-orders-manual-toggle">Saisir manuellement le numéro</button>
             </div>
           <% } else { %>
-            <div class="space-y-2" role="radiogroup" aria-label="Commandes éligibles">
+            <!-- Recherche -->
+            <label class="relative block mb-3">
+              <span class="sr-only">Rechercher une commande</span>
+              <span class="material-symbols-rounded absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">search</span>
+              <input id="sav-orders-search" type="search" placeholder="Rechercher par n° ou nom de produit…"
+                     class="w-full rounded-xl border border-slate-300 pl-10 pr-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20">
+            </label>
+
+            <div class="space-y-2 max-h-[440px] overflow-y-auto pr-1" role="radiogroup" aria-label="Commandes éligibles" id="sav-orders-list">
               <% eligibleOrders.forEach(function(o) { %>
-                <label class="flex items-start gap-3 rounded-xl border border-slate-300 p-3 cursor-pointer hover:border-primary has-[:checked]:border-primary has-[:checked]:bg-primary/5 transition-colors">
-                  <input type="radio" name="numeroCommande" value="<%= o.number %>" class="mt-1 accent-primary" required>
-                  <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-slate-900"><%= o.number %></div>
-                    <div class="text-xs text-slate-500"><%= new Date(o.date).toLocaleDateString('fr-FR') %></div>
-                    <% if (o.label) { %><div class="text-sm text-slate-700 truncate"><%= o.label %></div><% } %>
+                <label class="sav-order-card group" data-order-number="<%= o.number %>" data-order-search="<%= ((o.number || '') + ' ' + (o.label || '')).toLowerCase() %>">
+                  <input type="radio" name="numeroCommande" value="<%= o.number %>" class="sav-order-card__radio" required>
+                  <% if (o.firstItemImage) { %>
+                    <img src="<%= o.firstItemImage %>" alt="" loading="lazy" class="sav-order-card__thumb">
+                  <% } else { %>
+                    <div class="sav-order-card__thumb sav-order-card__thumb--placeholder">
+                      <span class="material-symbols-rounded text-slate-400" aria-hidden="true">inventory_2</span>
+                    </div>
+                  <% } %>
+                  <div class="sav-order-card__body">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <span class="font-mono font-bold text-slate-900 truncate"><%= o.number %></span>
+                      <% if (o.totalCents) { %>
+                        <span class="text-sm font-semibold text-slate-700 whitespace-nowrap"><%= (o.totalCents/100).toFixed(2).replace('.', ',') %> €</span>
+                      <% } %>
+                    </div>
+                    <div class="text-xs text-slate-500"><%= new Date(o.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) %></div>
+                    <% if (o.label) { %>
+                      <div class="text-sm text-slate-700 truncate"><%= o.label %></div>
+                    <% } %>
+                    <% const statusMap = {
+                         paid: ['Payée','bg-emerald-100 text-emerald-800'],
+                         processing: ['En préparation','bg-sky-100 text-sky-800'],
+                         shipped: ['Expédiée','bg-violet-100 text-violet-800'],
+                         delivered: ['Livrée','bg-emerald-100 text-emerald-800'],
+                         completed: ['Terminée','bg-emerald-100 text-emerald-800'],
+                       }; const sm = statusMap[o.status] || [o.status,'bg-slate-100 text-slate-700']; %>
+                    <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold <%= sm[1] %>"><%= sm[0] %></span>
                   </div>
                 </label>
               <% }) %>
+              <div id="sav-orders-empty" class="hidden text-center text-sm text-slate-500 py-6">Aucune commande ne correspond.</div>
             </div>
+            <button type="button" id="sav-orders-manual-toggle" class="mt-3 text-sm text-primary underline">Je ne trouve pas ma commande</button>
             <p class="sav-error mt-2 text-sm text-red-600 hidden" data-error-for="numeroCommande"></p>
           <% } %>
+
+          <!-- Saisie manuelle (cas invité / téléphone), masquée par défaut -->
+          <div id="sav-manual-block" class="hidden mt-4 space-y-3 rounded-xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-sm text-slate-700"><strong>Saisie manuelle.</strong> Indiquez l'email utilisé lors de l'achat et le numéro de commande.</p>
+            <input id="emailManual" name="emailManual" type="email" placeholder="vous@exemple.com" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base">
+            <input id="numeroCommandeManual" name="numeroCommandeManual" type="text" placeholder="CP2026-XXXX" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base">
+          </div>
         <% } else { %>
           <div class="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-slate-700 flex items-center gap-2">
             <span class="material-symbols-rounded text-primary" aria-hidden="true">account_circle</span>
             <span>Vous avez un compte&nbsp;?
-              <a href="/login?redirect=%2Fsav" class="font-semibold text-primary underline">Connectez-vous</a>
+              <a href="/compte/connexion?redirect=%2Fsav" class="font-semibold text-primary underline">Connectez-vous</a>
               pour retrouver vos commandes automatiquement.</span>
           </div>
           <p class="text-sm text-slate-600 mb-4">Indiquez l'email utilisé lors de l'achat et votre numéro de commande.</p>
@@ -94,30 +167,30 @@
             <div>
               <label for="email" class="block text-sm font-medium text-slate-700 mb-1">Email de la commande</label>
               <input id="email" name="email" type="email" autocomplete="email" required
-                     class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] focus:border-primary focus:ring-2 focus:ring-primary/20"
+                     class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] focus:border-primary focus:ring-2 focus:ring-primary/20"
                      placeholder="vous@exemple.com">
               <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="email"></p>
             </div>
             <div>
               <label for="numeroCommande" class="block text-sm font-medium text-slate-700 mb-1">Numéro de commande</label>
               <input id="numeroCommande" name="numeroCommande" type="text" required
-                     class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] focus:border-primary focus:ring-2 focus:ring-primary/20"
-                     placeholder="CPF-2025-XXXX">
+                     class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] focus:border-primary focus:ring-2 focus:ring-primary/20"
+                     placeholder="CP2026-XXXX">
               <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="numeroCommande"></p>
             </div>
           </div>
         <% } %>
 
         <div class="mt-6 flex justify-end">
-          <button type="button" data-action="next" data-validate-step="1"
-                  class="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-colors">
+          <button type="button" data-action="next" data-validate-step="1" data-tooltip="Sélectionnez d'abord votre commande"
+                  class="sav-cta inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
             Continuer
             <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
           </button>
         </div>
       </section>
 
-      <!-- ============== ÉTAPE 2 : Pré-qualification ============== -->
+      <!-- ============== ÉTAPE 2 : Pièce + montage ============== -->
       <section class="sav-form-step sav-status-card" data-step="2" aria-labelledby="step2-title" hidden>
         <h2 id="step2-title" class="text-lg font-semibold mb-1">2. Votre pièce et son montage</h2>
         <p class="text-sm text-slate-600 mb-4">Ces informations sont indispensables pour démarrer l'analyse.</p>
@@ -125,8 +198,7 @@
         <div class="space-y-4">
           <div>
             <label for="pieceType" class="block text-sm font-medium text-slate-700 mb-1">Type de pièce</label>
-            <select id="pieceType" name="pieceType" required
-                    class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] bg-white">
+            <select id="pieceType" name="pieceType" required class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] bg-white">
               <option value="">— Sélectionner —</option>
               <option value="mecatronique_dq200">Mécatronique DQ200</option>
               <option value="mecatronique_dq250">Mécatronique DQ250</option>
@@ -145,20 +217,23 @@
 
           <div>
             <label for="dateMontage" class="block text-sm font-medium text-slate-700 mb-1">Date du montage</label>
-            <input id="dateMontage" name="dateMontage" type="date" required
-                   class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]">
+            <input id="dateMontage" name="dateMontage" type="date" required class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]">
             <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="dateMontage"></p>
           </div>
 
           <div>
             <label for="garageNom" class="block text-sm font-medium text-slate-700 mb-1">Nom du garage qui a effectué le montage</label>
-            <input id="garageNom" name="garageNom" type="text" required
-                   class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]">
+            <input id="garageNom" name="garageNom" type="text" required class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]">
             <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="garageNom"></p>
           </div>
 
+          <div>
+            <label for="garageAdresse" class="block text-sm font-medium text-slate-700 mb-1">Adresse du garage <span class="text-slate-400">(facultatif)</span></label>
+            <input id="garageAdresse" name="garageAdresse" type="text" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]">
+          </div>
+
           <fieldset class="rounded-xl border border-slate-200 p-4">
-            <legend class="px-2 text-sm font-medium text-slate-700">Le réglage de base a-t-il été effectué après le montage ?</legend>
+            <legend class="px-2 text-sm font-medium text-slate-700">Le réglage de base a-t-il été effectué après le montage&nbsp;?</legend>
             <div class="mt-2 space-y-2">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="reglageBase" value="oui" class="text-primary focus:ring-primary">
@@ -173,17 +248,40 @@
                 <span>Je ne sais pas</span>
               </label>
             </div>
-            <div id="reglageBaseAlert" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="alert">
-              <strong>Le réglage de base est obligatoire</strong> après montage d'une mécatronique.
-              Demandez à votre garage de l'effectuer avant de poursuivre. Sans cette étape, votre demande ne pourra pas être traitée.
+
+            <!-- Encart pédagogique (visible si non / inconnu) -->
+            <div id="reglageBaseHelp" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-3">
+              <div class="font-semibold flex items-center gap-2">
+                <span class="material-symbols-rounded" aria-hidden="true">info</span>
+                Pourquoi le réglage de base est indispensable
+              </div>
+              <p>Sans le réglage de base via VCDS/ODIS après remplacement, la mécatronique apprend de mauvais points de patinage et finit par tomber en mode dégradé. <strong>9 retours sur 10 sans réglage de base ne sont pas couverts en garantie.</strong></p>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <a href="https://www.youtube.com/results?search_query=VCDS+r%C3%A9glage+de+base+m%C3%A9catronique+DQ200" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
+                  ▶ Voir un tuto VCDS
+                </a>
+                <a href="https://www.google.com/maps/search/garage+specialiste+vag+VCDS+pres+de+chez+moi" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
+                  📍 Trouver un garage VAG
+                </a>
+                <a href="https://wa.me/33000000000" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
+                  💬 SAV WhatsApp
+                </a>
+              </div>
+              <button type="button" id="sav-pause-draft-btn" class="w-full text-sm font-semibold rounded-lg bg-amber-700 text-white px-4 py-2 hover:bg-amber-800">
+                J'ai fait le réglage de base, je reviens
+              </button>
+            </div>
+
+            <div id="reglageBaseAlert" class="mt-3 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              <strong>Confirmation requise.</strong> Cochez "Oui" une fois le réglage effectué pour pouvoir continuer.
             </div>
           </fieldset>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-2">
           <button type="button" data-action="prev" class="text-slate-600 hover:text-slate-900 font-medium">← Retour</button>
-          <button type="button" data-action="next" data-validate-step="2"
-                  class="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
+          <button type="button" data-action="next" data-validate-step="2" data-tooltip="Renseignez la pièce, la date et le garage"
+                  class="sav-cta inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
             Continuer
             <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
           </button>
@@ -192,7 +290,7 @@
 
       <!-- ============== ÉTAPE 3 : Symptômes ============== -->
       <section class="sav-form-step sav-status-card" data-step="3" aria-labelledby="step3-title" hidden>
-        <h2 id="step3-title" class="text-lg font-semibold mb-1">3. Que se passe-t-il avec votre pièce ?</h2>
+        <h2 id="step3-title" class="text-lg font-semibold mb-1">3. Que se passe-t-il avec votre pièce&nbsp;?</h2>
         <p class="text-sm text-slate-600 mb-4">Plus vous êtes précis, plus l'analyse sur banc sera rapide.</p>
 
         <fieldset class="space-y-2 mb-4">
@@ -207,89 +305,106 @@
         </fieldset>
 
         <div class="space-y-4">
+          <!-- Codes défaut OBD : input multi-tags -->
           <div>
-            <label for="codesDefaut" class="block text-sm font-medium text-slate-700 mb-1">Codes défaut OBD</label>
-            <textarea id="codesDefaut" name="codesDefaut" rows="3"
-                      class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base"
-                      placeholder="Ex : P173E, P0841…"></textarea>
+            <label for="obdInput" class="block text-sm font-medium text-slate-700 mb-1">Codes défaut OBD <span class="text-slate-400">(format P0741)</span></label>
+            <div id="obdTagBox" class="sav-tagbox flex flex-wrap items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 min-h-[48px]">
+              <input id="obdInput" type="text" autocomplete="off" placeholder="Tapez un code puis Entrée…" class="flex-1 min-w-[120px] outline-none text-sm">
+            </div>
+            <input type="hidden" id="codesDefaut" name="codesDefaut" value="">
+            <p class="text-xs text-slate-500 mt-1">Suggestions fréquentes : <span id="obdSuggest" class="space-x-1"></span></p>
+            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="codesDefaut"></p>
           </div>
+
           <div>
-            <label for="photoObd" class="block text-sm font-medium text-slate-700 mb-1">Photo de la lecture OBD <span class="text-red-600">*</span></label>
-            <label class="sav-dropzone" for="photoObd">
-              <span class="material-symbols-rounded text-3xl" aria-hidden="true">add_a_photo</span>
-              <span class="text-sm">Touchez pour ajouter une photo (min 1)</span>
-              <span class="text-xs text-slate-500" data-filename></span>
-            </label>
-            <input id="photoObd" name="photoObd" type="file" accept="image/*" class="sr-only" required>
-            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="photoObd"></p>
-          </div>
-          <div>
-            <label for="description" class="block text-sm font-medium text-slate-700 mb-1">Décrivez ce que vous constatez</label>
-            <textarea id="description" name="description" rows="4"
-                      class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base"
-                      placeholder="Quand cela arrive, depuis quand, dans quelles conditions…"></textarea>
+            <label for="description" class="block text-sm font-medium text-slate-700 mb-1">Décrivez ce que vous constatez <span class="text-red-600">*</span></label>
+            <textarea id="description" name="description" rows="4" required minlength="20"
+                      class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base"
+                      placeholder="Quand cela arrive, depuis quand, dans quelles conditions… (20 caractères minimum)"></textarea>
+            <div class="flex justify-between text-xs mt-1">
+              <p class="sav-error text-red-600 hidden" data-error-for="description"></p>
+              <span class="text-slate-400 ml-auto"><span id="descCount">0</span> / 20</span>
+            </div>
           </div>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-2">
           <button type="button" data-action="prev" class="text-slate-600 hover:text-slate-900 font-medium">← Retour</button>
-          <button type="button" data-action="next" data-validate-step="3"
-                  class="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
+          <button type="button" data-action="next" data-validate-step="3" data-tooltip="Décrivez vos symptômes (au moins 20 caractères)"
+                  class="sav-cta inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
             Continuer
             <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
           </button>
         </div>
       </section>
 
-      <!-- ============== ÉTAPE 4 : Documents ============== -->
+      <!-- ============== ÉTAPE 4 : Documents + véhicule ============== -->
       <section class="sav-form-step sav-status-card" data-step="4" aria-labelledby="step4-title" hidden>
-        <h2 id="step4-title" class="text-lg font-semibold mb-1">4. Les documents indispensables</h2>
+        <h2 id="step4-title" class="text-lg font-semibold mb-1">4. Documents et véhicule</h2>
         <p class="text-sm text-slate-600 mb-4">Sans ces documents, nous ne pouvons pas démarrer l'analyse.</p>
 
+        <!-- Drop unique -->
         <div class="space-y-4">
           <div>
-            <label for="factureGarage" class="block text-sm font-medium text-slate-700 mb-1">Facture du garage de montage <span class="text-red-600">*</span></label>
-            <label class="sav-dropzone" for="factureGarage">
-              <span class="material-symbols-rounded text-3xl" aria-hidden="true">description</span>
-              <span class="text-sm">PDF ou photo de la facture</span>
-              <span class="text-xs text-slate-500" data-filename></span>
-            </label>
-            <input id="factureGarage" name="factureGarage" type="file" accept="application/pdf,image/*" class="sr-only" required>
-            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="factureGarage"></p>
+            <div class="block text-sm font-medium text-slate-700 mb-1">Vos fichiers (facture, photos pièce, photo OBD, photo compteur, bon garantie)</div>
+            <div id="sav-drop" class="sav-drop" tabindex="0" aria-label="Zone de dépôt de fichiers">
+              <input id="sav-file-input" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/heic,image/heif" class="sr-only">
+              <span class="material-symbols-rounded text-4xl text-primary" aria-hidden="true">cloud_upload</span>
+              <div class="mt-1 text-sm font-semibold text-slate-700">Glissez vos fichiers ici ou cliquez pour parcourir</div>
+              <div class="text-xs text-slate-500">PDF, JPG, PNG, HEIC · 10 Mo max par fichier · 5 fichiers max</div>
+            </div>
+            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="files"></p>
+            <ul id="sav-file-list" class="mt-3 space-y-2"></ul>
           </div>
 
-          <div>
-            <label for="photoPiece" class="block text-sm font-medium text-slate-700 mb-1">Photo de la pièce installée <span class="text-red-600">*</span></label>
-            <label class="sav-dropzone" for="photoPiece">
-              <span class="material-symbols-rounded text-3xl" aria-hidden="true">photo_camera</span>
-              <span class="text-sm">Pièce visible sur le véhicule</span>
-              <span class="text-xs text-slate-500" data-filename></span>
-            </label>
-            <input id="photoPiece" name="photoPiece" type="file" accept="image/*" class="sr-only" required>
-            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="photoPiece"></p>
-          </div>
+          <!-- Catégorisation rapide après dépôt : pour chaque fichier on tagge son "kind" -->
+          <p class="text-xs text-slate-500">Vous pourrez catégoriser chaque fichier (facture / photo pièce / OBD / compteur / bon garantie) directement dans la liste ci-dessus.</p>
 
-          <p class="text-sm text-slate-600 mb-2">VIN <strong>ou</strong> plaque — un seul des deux suffit.</p>
+          <hr class="border-slate-200">
+
+          <p class="text-sm text-slate-700"><strong>Véhicule.</strong> VIN <em>ou</em> plaque suffit ; les autres champs sont optionnels mais accélèrent le traitement.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label for="vin" class="block text-sm font-medium text-slate-700 mb-1">VIN (17 caractères)</label>
-              <input id="vin" name="vin" type="text" maxlength="17"
-                     class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base uppercase">
+              <input id="vin" name="vin" type="text" maxlength="17" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base uppercase">
               <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="vin"></p>
             </div>
             <div>
               <label for="immatriculation" class="block text-sm font-medium text-slate-700 mb-1">Immatriculation</label>
-              <input id="immatriculation" name="immatriculation" type="text"
-                     class="w-full rounded-xl border border-slate-300 px-4 py-3 text-base uppercase">
+              <input id="immatriculation" name="immatriculation" type="text" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base uppercase" placeholder="AA-123-AA">
               <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="immatriculation"></p>
             </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label for="vMarque" class="block text-xs font-medium text-slate-700 mb-1">Marque</label>
+              <input id="vMarque" name="vMarque" type="text" class="sav-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label for="vModele" class="block text-xs font-medium text-slate-700 mb-1">Modèle</label>
+              <input id="vModele" name="vModele" type="text" class="sav-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label for="vAnnee" class="block text-xs font-medium text-slate-700 mb-1">Année</label>
+              <input id="vAnnee" name="vAnnee" type="number" min="1980" max="2099" class="sav-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label for="vMotor" class="block text-xs font-medium text-slate-700 mb-1">Motorisation</label>
+              <input id="vMotor" name="vMotor" type="text" placeholder="2.0 TDI 150" class="sav-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+          </div>
+
+          <div>
+            <label for="kilometrage" class="block text-sm font-medium text-slate-700 mb-1">Kilométrage actuel</label>
+            <input id="kilometrage" name="kilometrage" type="number" min="0" max="1500000" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base" placeholder="ex: 145000">
           </div>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-2">
           <button type="button" data-action="prev" class="text-slate-600 hover:text-slate-900 font-medium">← Retour</button>
-          <button type="button" data-action="next" data-validate-step="4"
-                  class="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
+          <button type="button" data-action="next" data-validate-step="4" data-tooltip="Ajoutez la facture garage, une photo de la pièce installée et la photo du compteur"
+                  class="sav-cta inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
             Continuer
             <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
           </button>
@@ -305,29 +420,50 @@
           <p class="font-semibold text-slate-900">Une analyse sur banc est nécessaire pour diagnostiquer votre pièce.</p>
           <ul class="space-y-2">
             <li class="flex gap-2"><span class="material-symbols-rounded text-emerald-600 text-base mt-0.5" aria-hidden="true">check_circle</span><span><strong>Si l'analyse confirme un défaut produit :</strong> 0 € pour vous, échange ou remboursement intégral, retour offert.</span></li>
-            <li class="flex gap-2"><span class="material-symbols-rounded text-amber-600 text-base mt-0.5" aria-hidden="true">euro</span><span><strong>Si l'analyse conclut à un mauvais montage, une usure normale ou une pièce non défectueuse :</strong> facture de 149 € TTC à votre charge.</span></li>
-            <li class="flex gap-2"><span class="material-symbols-rounded text-sky-600 text-base mt-0.5" aria-hidden="true">payments</span><span><strong>Vous ne payez RIEN à l'ouverture</strong> de votre demande.</span></li>
-            <li class="flex gap-2"><span class="material-symbols-rounded text-sky-600 text-base mt-0.5" aria-hidden="true">local_shipping</span><span><strong>Retour vers nous : offert.</strong></span></li>
-            <li class="flex gap-2"><span class="material-symbols-rounded text-amber-600 text-base mt-0.5" aria-hidden="true">local_shipping</span><span><strong>Retour vers vous en cas d'analyse négative : 25 € TTC.</strong></span></li>
+            <li class="flex gap-2"><span class="material-symbols-rounded text-amber-600 text-base mt-0.5" aria-hidden="true">euro</span><span><strong>Mauvais montage / usure / non défectueux :</strong> 149 € TTC à votre charge.</span></li>
+            <li class="flex gap-2"><span class="material-symbols-rounded text-sky-600 text-base mt-0.5" aria-hidden="true">payments</span><span>Vous ne payez <strong>RIEN</strong> à l'ouverture.</span></li>
           </ul>
         </div>
 
         <div class="mt-5 space-y-3">
           <label class="flex items-start gap-3 cursor-pointer">
-            <input id="cgvSav" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
-            <span class="text-sm">J'ai lu et j'accepte les <a href="/legal/cgv-sav" target="_blank" class="text-primary underline">conditions générales du SAV</a>.</span>
+            <input id="cgvSav" name="cgvSav" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
+            <span class="text-sm">J'ai lu et j'accepte les <a href="/legal/cgv-sav" target="_blank" class="text-primary underline">conditions générales du SAV</a> (version <strong>cgv-sav-v2-2026-04</strong>).</span>
           </label>
           <label class="flex items-start gap-3 cursor-pointer">
-            <input id="accept149" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
+            <input id="accept149" name="accept149" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
             <span class="text-sm">J'accepte que <strong>149 € TTC</strong> me soient facturés <strong>uniquement</strong> si l'analyse conclut que la pièce n'est pas défectueuse.</span>
+          </label>
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input id="rgpdSav" name="rgpdSav" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
+            <span class="text-sm">
+              J'accepte le traitement de mes données personnelles aux fins du traitement de ma demande SAV
+              (<a href="/compte/rgpd" target="_blank" class="text-primary underline">politique RGPD</a>).
+            </span>
           </label>
           <p class="sav-error text-sm text-red-600 hidden" data-error-for="acceptances"></p>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-2">
           <button type="button" data-action="prev" class="text-slate-600 hover:text-slate-900 font-medium">← Retour</button>
+          <button type="button" data-action="next" data-validate-step="5" data-tooltip="Cochez les 3 cases pour continuer"
+                  class="sav-cta inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px]">
+            Voir le récapitulatif
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ============== ÉTAPE 6 : Récapitulatif ============== -->
+      <section class="sav-form-step sav-status-card" data-step="6" aria-labelledby="step6-title" hidden>
+        <h2 id="step6-title" class="text-lg font-semibold mb-1">6. Récapitulatif avant envoi</h2>
+        <p class="text-sm text-slate-600 mb-4">Vérifiez vos réponses. Vous pouvez modifier chaque section.</p>
+        <div id="sav-recap" class="space-y-3"></div>
+
+        <div class="mt-6 flex items-center justify-between gap-2">
+          <button type="button" data-action="prev" class="text-slate-600 hover:text-slate-900 font-medium">← Retour</button>
           <button type="submit" id="sav-submit"
-                  class="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
+                  class="sav-cta inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3 min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
             <span data-submit-label>Envoyer ma demande</span>
             <span class="material-symbols-rounded animate-spin hidden" data-submit-spinner aria-hidden="true">progress_activity</span>
           </button>
@@ -340,6 +476,8 @@
   <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
 </main>
 
-<script src="/js/sav-form.js?v=3" defer></script>
+<!-- browser-image-compression UMD via CDN (compression auto > 2 Mo) -->
+<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js" defer></script>
+<script src="/js/sav-form.js?v=4" defer></script>
 
 <%- include('../partials/footer') %>
