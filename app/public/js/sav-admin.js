@@ -296,8 +296,9 @@
       var vehiculeBlock = [
         v.vin ? '<div><strong>VIN&nbsp;:</strong> <span class="font-mono">' + escapeHtml(v.vin) + '</span></div>' : '',
         v.immatriculation ? '<div><strong>Plaque&nbsp;:</strong> ' + escapeHtml(v.immatriculation) + '</div>' : '',
-        (v.marque || v.modele) ? '<div>' + escapeHtml([v.marque, v.modele, v.annee].filter(Boolean).join(' ')) + '</div>' : '',
-        v.kilometrage ? '<div>' + escapeHtml(v.kilometrage) + ' km</div>' : '',
+        (v.marque || v.modele) ? '<div><strong>Modèle&nbsp;:</strong> ' + escapeHtml([v.marque, v.modele, v.annee].filter(Boolean).join(' ')) + '</div>' : '',
+        v.motorisation ? '<div><strong>Motorisation&nbsp;:</strong> ' + escapeHtml(v.motorisation) + '</div>' : '',
+        v.kilometrage ? '<div><strong>Kilométrage&nbsp;:</strong> ' + escapeHtml(v.kilometrage) + ' km</div>' : '',
       ].filter(Boolean).join('') || '<span class="text-slate-400">Non renseigné</span>';
 
       var montageBlock = [
@@ -318,7 +319,7 @@
 
       var codesBlock = (diag.codesDefaut && diag.codesDefaut.length)
         ? diag.codesDefaut.map(function (c) {
-            return '<span class="inline-block px-2 py-0.5 rounded text-xs bg-slate-900 text-white font-mono mr-1 mb-1">' + escapeHtml(c) + '</span>';
+            return '<button type="button" data-copy-code="' + escapeHtml(c) + '" class="inline-block px-2 py-0.5 rounded text-xs bg-slate-900 text-white font-mono mr-1 mb-1 hover:bg-primary cursor-pointer" title="Cliquer pour copier">' + escapeHtml(c) + '</button>';
           }).join('')
         : '<span class="text-slate-400 text-sm">Aucun</span>';
 
@@ -326,10 +327,16 @@
         ? '<blockquote class="border-l-4 border-primary/40 bg-slate-50 px-3 py-2 text-sm italic text-slate-700">' + escapeHtml(diag.description) + '</blockquote>'
         : '<span class="text-slate-400 text-sm">Pas de description libre</span>';
 
+      var rgpd = t.rgpdAcceptance || {};
       var cgvBlock = cgv.acceptedAt
-        ? '<div class="text-xs text-slate-600">Version <strong>' + escapeHtml(cgv.version || 'v1') + '</strong> · ' +
-          new Date(cgv.acceptedAt).toLocaleString('fr-FR') +
-          (cgv.ip ? ' · IP <span class="font-mono">' + escapeHtml(cgv.ip) + '</span>' : '') + '</div>'
+        ? '<div class="text-xs text-slate-700 space-y-0.5">' +
+          '<div>Version CGV : <strong>' + escapeHtml(cgv.version || 'v1') + '</strong></div>' +
+          '<div>Acceptée : ' + new Date(cgv.acceptedAt).toLocaleString('fr-FR') + '</div>' +
+          (cgv.ip ? '<div>IP : <span class="font-mono">' + escapeHtml(cgv.ip) + '</span></div>' : '') +
+          (cgv.userAgent ? '<div class="text-[10px] text-slate-500 truncate">UA : ' + escapeHtml((cgv.userAgent || '').slice(0, 80)) + '</div>' : '') +
+          (cgv.pdfUrl ? '<div class="mt-1"><a href="' + escapeHtml(cgv.pdfUrl) + '" target="_blank" rel="noopener" class="text-primary underline">📄 Télécharger le justificatif PDF</a></div>' : '') +
+          (rgpd.acceptedAt ? '<div class="mt-2 pt-2 border-t border-slate-100"><strong>RGPD :</strong> accepté le ' + new Date(rgpd.acceptedAt).toLocaleString('fr-FR') + (rgpd.version ? ' (' + escapeHtml(rgpd.version) + ')' : '') + '</div>' : '') +
+          '</div>'
         : '<span class="text-slate-400 text-xs">Non horodaté</span>';
 
       box.innerHTML =
@@ -487,6 +494,15 @@
       if (e.target.matches('input,textarea,select')) return;
       if (e.key === 's') { document.querySelector('[data-action-statut]').focus(); }
       if (e.key === 'e') { document.querySelector('#sav-diag-form [name="conclusion"]').focus(); }
+    });
+
+    // Clic copier code OBD
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-copy-code]');
+      if (!b) return;
+      var code = b.getAttribute('data-copy-code');
+      if (navigator.clipboard) navigator.clipboard.writeText(code).then(function () { toast(code + ' copié', 'success'); });
+      else toast(code, 'success');
     });
 
     loadTicket();
