@@ -531,6 +531,65 @@ adminRouter.post('/tickets/:numero/diagnostic-enrichi', async (req, res) => {
   }
 });
 
+// POST /admin/api/sav/tickets/:numero/diagnostic-complet — wizard 4 étapes en un seul payload
+adminRouter.post('/tickets/:numero/diagnostic-complet', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const b = req.body || {};
+
+    // Étape 1 — Mesures
+    ticket.diagnosticEnrichi = ticket.diagnosticEnrichi || {};
+    ticket.diagnosticEnrichi.mesures = Object.assign(ticket.diagnosticEnrichi.mesures || {}, {
+      pressionHydraulique: b.pressionHydraulique != null ? Number(b.pressionHydraulique) : undefined,
+      temperatureAvant: b.temperatureAvant != null ? Number(b.temperatureAvant) : undefined,
+      temperatureApres: b.temperatureApres != null ? Number(b.temperatureApres) : undefined,
+      fuiteInterne: b.fuiteInterne || undefined,
+      codesAvantReset: Array.isArray(b.codesAvantReset) ? b.codesAvantReset : (b.codesAvantReset || '').toString().split(/[,\s]+/).filter(Boolean),
+      codesApresReset: Array.isArray(b.codesApresReset) ? b.codesApresReset : (b.codesApresReset || '').toString().split(/[,\s]+/).filter(Boolean),
+    });
+
+    // Étape 2 — Codes défaut généraux
+    ticket.diagnostic = ticket.diagnostic || {};
+    if (b.codesDefaut) {
+      ticket.diagnostic.codesDefaut = Array.isArray(b.codesDefaut) ? b.codesDefaut : (b.codesDefaut || '').toString().split(/[,\s]+/).filter(Boolean);
+    }
+
+    // Étape 3 — Médias
+    if (b.videoUrl) ticket.diagnosticEnrichi.videoUrl = String(b.videoUrl);
+    if (b.courbeBancUrl) ticket.diagnosticEnrichi.courbeBancUrl = String(b.courbeBancUrl);
+
+    // Étape 4 — Conclusion
+    ticket.analyse = ticket.analyse || {};
+    if (b.conclusion) ticket.analyse.conclusion = b.conclusion;
+    if (b.rapport) ticket.analyse.rapport = b.rapport;
+    if (b.avis2eTechnicienTexte != null) ticket.diagnosticEnrichi.avis2eTechnicienTexte = String(b.avis2eTechnicienTexte);
+
+    // Score calculé serveur-side
+    const sympts = (ticket.diagnostic && ticket.diagnostic.symptomes) || [];
+    let score = Math.min(40, sympts.length * 5);
+    const m = ticket.diagnosticEnrichi.mesures || {};
+    if (typeof m.pressionHydraulique === 'number' && m.pressionHydraulique < 5) score += 20;
+    if (m.fuiteInterne && String(m.fuiteInterne).toLowerCase() !== 'non') score += 15;
+    if ((m.codesAvantReset || []).length > 0) score += 10;
+    if ((m.codesApresReset || []).length > 0) score += 15;
+    score = Math.min(100, score);
+    ticket.diagnosticEnrichi.scoreCalcule = score;
+    ticket.diagnostic.scoreRisque = score;
+
+    if (b.conclusion) {
+      ticket.analyse.facture149 = { status: b.conclusion === 'defaut_produit' ? 'na' : 'a_facturer' };
+      ticket.changerStatut('analyse_terminee', 'admin');
+    }
+
+    await ticket.save();
+    audit.log({ req, action: 'sav.diagnostic.complet', entityType: 'sav_ticket', entityId: ticket.numero, after: { conclusion: ticket.analyse && ticket.analyse.conclusion, score } });
+    return ok(res, { numero: ticket.numero, scoreCalcule: score, diagnosticEnrichi: ticket.diagnosticEnrichi, analyse: ticket.analyse });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
 // POST /admin/api/sav/tickets/:numero/communication — envoyer un message client (email/whatsapp/interne)
 // Note : WhatsApp non câblé dans cette release, le canal whatsapp est loggé "envoyé" uniquement
 adminRouter.post('/tickets/:numero/communication', async (req, res) => {

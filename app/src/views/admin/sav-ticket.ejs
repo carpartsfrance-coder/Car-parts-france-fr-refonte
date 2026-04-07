@@ -2,29 +2,62 @@
 <link rel="stylesheet" href="/css/sav.css">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
-<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
+<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-statut="" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
 
   <!-- HEADER STICKY -->
   <header class="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 lg:px-10 py-3">
-    <div class="flex items-center justify-between gap-4 flex-wrap">
-      <div class="flex items-center gap-3 min-w-0">
-        <a href="/admin/sav/tickets" class="text-slate-500 hover:text-slate-900 text-sm">←</a>
+    <!-- Breadcrumb -->
+    <nav aria-label="Fil d'Ariane" class="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
+      <a href="/admin" class="hover:text-slate-900">Admin</a>
+      <span class="text-slate-300">/</span>
+      <a href="/admin/sav" class="hover:text-slate-900">SAV</a>
+      <span class="text-slate-300">/</span>
+      <a href="/admin/sav/tickets" class="hover:text-slate-900">Tickets</a>
+      <span class="text-slate-300">/</span>
+      <span class="font-mono text-slate-700"><%= numero %></span>
+    </nav>
+
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <!-- Bloc gauche : retour + titre + meta -->
+      <div class="flex items-start gap-3 min-w-0 flex-1">
+        <a href="/admin/sav/tickets" title="Retour à la liste" aria-label="Retour à la liste des tickets"
+           class="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition">
+          <span class="material-symbols-outlined" style="font-size:20px;" aria-hidden="true">arrow_back</span>
+        </a>
         <div class="min-w-0">
-          <div class="font-mono font-bold text-slate-900 truncate"><%= numero %></div>
-          <div id="sav-header-meta" class="text-xs text-slate-500 truncate">Chargement…</div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-mono font-bold text-slate-900 truncate"><%= numero %></h1>
+            <button type="button" id="sav-copy-numero" data-copy="<%= numero %>" title="Copier le numéro"
+              class="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition">
+              <span class="material-symbols-outlined" style="font-size:16px;">content_copy</span>
+            </button>
+          </div>
+          <div id="sav-header-meta" class="mt-1 flex flex-col gap-1.5 text-xs text-slate-500" aria-busy="true">
+            <span class="sav-skeleton sav-skeleton--line" style="width:200px;"></span>
+            <span class="sav-skeleton sav-skeleton--line" style="width:200px;"></span>
+          </div>
         </div>
       </div>
-      <div class="flex items-center gap-2 flex-wrap">
-        <div id="sav-sla-badge" class="sav-sla-badge sav-sla-badge--ok">SLA —</div>
+
+      <!-- Bloc droit : SLA + statut + assigné + help -->
+      <div class="flex items-center gap-2 flex-wrap shrink-0">
+        <div id="sav-sla-badge" class="sav-sla-badge sav-sla-badge--ok inline-flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px;">schedule</span>
+          <span>SLA —</span>
+        </div>
         <div id="sav-statut-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">—</div>
-        <button type="button" id="sav-assign-btn" class="px-3 py-1 rounded-lg text-xs border border-slate-300 hover:border-primary hover:text-primary">
-          <span class="material-symbols-outlined text-xs align-middle">person_add</span>
+        <button type="button" id="sav-assign-btn" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs border border-slate-300 hover:border-primary hover:text-primary transition">
+          <span id="sav-assign-avatar" class="hidden w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold items-center justify-center"></span>
+          <span class="material-symbols-outlined" id="sav-assign-icon" style="font-size:14px;">person_add</span>
           <span id="sav-assign-label">Assigner</span>
         </button>
-        <button type="button" id="sav-help-btn" title="Raccourcis clavier" class="w-7 h-7 rounded-full border border-slate-300 hover:border-primary text-slate-500 hover:text-primary text-xs font-bold">?</button>
+        <button type="button" id="sav-help-btn" title="Raccourcis clavier" aria-label="Afficher les raccourcis clavier" class="w-7 h-7 rounded-full border border-slate-300 hover:border-primary text-slate-500 hover:text-primary text-xs font-bold">?</button>
       </div>
     </div>
   </header>
+
+  <!-- STEPPER CYCLE SAV -->
+  <nav id="sav-stepper" class="sav-stepper" aria-label="Cycle de vie du ticket SAV"></nav>
 
   <div class="px-6 lg:px-10 py-6">
     <div id="sav-detail-error" class="hidden mt-2 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
@@ -47,55 +80,136 @@
               ['fournisseur','Fournisseur','local_shipping'],
             ]; %>
             <% tabs.forEach(function(t, i){ %>
-              <button type="button" role="tab" data-tab="<%= t[0] %>" class="sav-tab <%= i === 0 ? 'is-active' : '' %>">
+              <button type="button" role="tab"
+                      id="tab-<%= t[0] %>"
+                      data-tab="<%= t[0] %>"
+                      aria-controls="panel-<%= t[0] %>"
+                      aria-selected="<%= i === 0 ? 'true' : 'false' %>"
+                      tabindex="<%= i === 0 ? '0' : '-1' %>"
+                      class="sav-tab <%= i === 0 ? 'is-active' : '' %>">
                 <span class="material-symbols-outlined text-base"><%= t[2] %></span>
-                <%= t[1] %>
+                <span class="sav-tab__label"><%= t[1] %></span>
+                <span class="sav-tab__count hidden" data-tab-count="<%= t[0] %>"></span>
+                <span class="sav-tab__dot hidden bg-red-500 w-2 h-2 rounded-full" data-tab-dot="<%= t[0] %>" aria-hidden="true"></span>
               </button>
             <% }); %>
           </nav>
 
           <!-- Tab Aperçu (dossier) -->
-          <section class="sav-tabpanel p-5" data-tab-panel="apercu">
-            <div id="sav-dossier" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="text-sm text-slate-500 col-span-full">Chargement…</div>
+          <section class="sav-tabpanel p-5" data-tab-panel="apercu" id="panel-apercu" role="tabpanel" aria-labelledby="tab-apercu" tabindex="0">
+            <!-- Mini KPIs -->
+            <div id="sav-apercu-kpis" class="grid grid-cols-3 gap-3 mb-4">
+              <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
+                <div class="text-2xl font-bold text-slate-900" data-kpi="duree">—</div>
+                <div class="text-xs text-slate-500 mt-0.5">Jours ouvrés</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
+                <div class="text-2xl font-bold text-slate-900" data-kpi="messages">—</div>
+                <div class="text-xs text-slate-500 mt-0.5">Messages</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
+                <div class="text-2xl font-bold text-slate-900" data-kpi="relances">—</div>
+                <div class="text-xs text-slate-500 mt-0.5">Relances client</div>
+              </div>
+            </div>
+
+            <!-- 4 cards résumé -->
+            <div id="sav-dossier" class="grid grid-cols-1 sm:grid-cols-2 gap-4" aria-busy="true">
+              <% for (var _si = 0; _si < 4; _si++) { %>
+              <div class="sav-skeleton-card">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="sav-skeleton sav-skeleton--circle" style="width:18px;height:18px;"></span>
+                  <span class="sav-skeleton sav-skeleton--title" style="width:40%;"></span>
+                </div>
+                <span class="sav-skeleton sav-skeleton--line" style="width:85%;"></span>
+                <span class="sav-skeleton sav-skeleton--line" style="width:70%;"></span>
+                <span class="sav-skeleton sav-skeleton--line" style="width:55%;"></span>
+              </div>
+              <% } %>
             </div>
           </section>
 
           <!-- Tab Historique -->
-          <section class="sav-tabpanel hidden p-5" data-tab-panel="historique">
-            <div class="sav-timeline" id="sav-timeline">
-              <div class="text-sm text-slate-500">Chargement…</div>
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="historique" id="panel-historique" role="tabpanel" aria-labelledby="tab-historique" tabindex="0">
+            <div id="sav-timeline-filters" class="flex flex-wrap gap-2 mb-4">
+              <% const _flt = [
+                ['all','Tous'],['message','Messages'],['statut','Statuts'],
+                ['systeme','Système'],['fournisseur','Fournisseur'],['diagnostic','Diagnostic']
+              ]; %>
+              <% _flt.forEach(function(f){ %>
+                <button type="button" data-tl-filter="<%= f[0] %>"
+                  class="sav-tl-chip<%= f[0]==='all' ? ' is-active' : '' %>"><%= f[1] %></button>
+              <% }); %>
+            </div>
+            <div class="sav-timeline" id="sav-timeline" aria-busy="true">
+              <% for (var _ti = 0; _ti < 5; _ti++) { %>
+              <div class="flex items-start gap-3 mb-4">
+                <span class="sav-skeleton sav-skeleton--circle shrink-0" style="width:32px;height:32px;"></span>
+                <div class="flex-1 space-y-2">
+                  <span class="sav-skeleton sav-skeleton--line" style="width:30%;"></span>
+                  <span class="sav-skeleton sav-skeleton--line" style="width:85%;"></span>
+                  <span class="sav-skeleton sav-skeleton--line" style="width:60%;"></span>
+                </div>
+              </div>
+              <% } %>
             </div>
           </section>
 
           <!-- Tab Documents -->
-          <section class="sav-tabpanel hidden p-5" data-tab-panel="documents">
-            <div id="sav-documents" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div class="text-sm text-slate-500 col-span-full">Aucun document.</div>
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="documents" id="panel-documents" role="tabpanel" aria-labelledby="tab-documents" tabindex="0">
+            <div id="sav-documents" class="grid grid-cols-2 sm:grid-cols-3 gap-3" aria-busy="true">
+              <% for (var _di = 0; _di < 6; _di++) { %>
+              <span class="sav-skeleton sav-skeleton--thumb"></span>
+              <% } %>
             </div>
           </section>
 
           <!-- Tab Communications (avec WYSIWYG vanilla + templates + variables) -->
-          <section class="sav-tabpanel hidden p-5" data-tab-panel="communications">
-            <div id="sav-messages" class="space-y-3 mb-4 max-h-72 overflow-y-auto"></div>
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="communications" id="panel-communications" role="tabpanel" aria-labelledby="tab-communications" tabindex="0">
+            <div id="sav-messages" class="space-y-3 mb-4 max-h-[600px] overflow-y-auto pr-1"></div>
 
             <form id="sav-msg-form" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <select name="canal" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                  <option value="email">📧 email</option>
-                  <option value="whatsapp">💬 whatsapp (note)</option>
-                  <option value="tel">📞 tel (note)</option>
-                  <option value="interne">🔒 note interne</option>
-                </select>
-                <select id="sav-template" class="rounded-xl border border-slate-300 px-3 py-2 text-sm sm:col-span-2">
-                  <option value="">— Template —</option>
-                  <option value="reception">Pièce reçue à l'atelier</option>
-                  <option value="analyse_ok">Défaut produit confirmé</option>
-                  <option value="analyse_neg">Pas de défaut produit (149€)</option>
-                  <option value="relance_doc">Relance documents manquants</option>
-                  <option value="rdv">Proposition de RDV</option>
-                </select>
+              <!-- Pill toggle canaux -->
+              <div id="sav-canal-pills" class="flex flex-wrap gap-2" role="radiogroup" aria-label="Canal">
+                <button type="button" data-canal="email" class="sav-canal-pill sav-canal-pill--email is-active" role="radio" aria-checked="true">
+                  <span class="material-symbols-outlined" style="font-size:16px;">mail</span><span>Email</span>
+                </button>
+                <button type="button" data-canal="whatsapp" class="sav-canal-pill sav-canal-pill--whatsapp" role="radio" aria-checked="false">
+                  <span class="material-symbols-outlined" style="font-size:16px;">chat</span><span>WhatsApp</span>
+                </button>
+                <button type="button" data-canal="tel" class="sav-canal-pill sav-canal-pill--tel" role="radio" aria-checked="false">
+                  <span class="material-symbols-outlined" style="font-size:16px;">call</span><span>Téléphone</span>
+                </button>
+                <button type="button" data-canal="interne" class="sav-canal-pill sav-canal-pill--interne" role="radio" aria-checked="false">
+                  <span class="material-symbols-outlined" style="font-size:16px;">lock</span><span>Note interne</span>
+                </button>
               </div>
+              <input type="hidden" name="canal" id="sav-canal-input" value="email">
+
+              <!-- Templates en chips -->
+              <div id="sav-templates-chips" class="flex flex-wrap gap-2">
+                <% const _tpls = [
+                  ['reception','Pièce reçue à l\'atelier','inventory'],
+                  ['analyse_ok','Défaut produit confirmé','verified'],
+                  ['analyse_neg','Pas de défaut (149€)','euro'],
+                  ['relance_doc','Relance documents','description'],
+                  ['rdv','Proposition de RDV','event'],
+                ]; %>
+                <% _tpls.forEach(function(t){ %>
+                  <button type="button" data-template="<%= t[0] %>" title="<%= t[1] %>" class="sav-tpl-chip">
+                    <span class="material-symbols-outlined" style="font-size:14px;"><%= t[2] %></span>
+                    <span><%= t[1] %></span>
+                  </button>
+                <% }); %>
+              </div>
+              <select id="sav-template" class="hidden">
+                <option value=""></option>
+                <option value="reception"></option>
+                <option value="analyse_ok"></option>
+                <option value="analyse_neg"></option>
+                <option value="relance_doc"></option>
+                <option value="rdv"></option>
+              </select>
 
               <input type="text" name="sujet" placeholder="Sujet (email)" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
 
@@ -120,171 +234,246 @@
                 <div id="sav-msg-preview" class="text-sm text-slate-800"></div>
               </div>
 
-              <button class="btn btn-primary" type="submit">
-                <span class="material-symbols-outlined text-base mr-1">send</span>
-                Envoyer
-              </button>
+              <!-- Indicateur brouillon + raccourcis -->
+              <div class="flex items-center justify-between text-xs text-slate-500">
+                <div id="sav-draft-status">&nbsp;</div>
+                <div><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">⌘ ↵</kbd> envoyer · <kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">⌘ S</kbd> sauver brouillon</div>
+              </div>
+
+              <!-- Split button -->
+              <div class="flex items-center gap-1">
+                <button class="btn btn-primary inline-flex items-center" type="submit" data-send-action="send">
+                  <span class="material-symbols-outlined text-base mr-1">send</span>
+                  Envoyer
+                </button>
+                <div class="relative">
+                  <button type="button" id="sav-send-more" class="btn btn-primary px-2" aria-haspopup="menu" aria-expanded="false" title="Plus d'actions">
+                    <span class="material-symbols-outlined text-base">arrow_drop_down</span>
+                  </button>
+                  <div id="sav-send-menu" class="hidden absolute right-0 mt-1 w-72 rounded-xl border border-slate-200 bg-white shadow-lg z-20 py-1" role="menu">
+                    <button type="button" data-send-action="send_and_status" data-next-statut="analyse_terminee" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2">
+                      <span class="material-symbols-outlined" style="font-size:16px;">flag</span>
+                      Envoyer et passer en « Analyse terminée »
+                    </button>
+                    <button type="button" data-send-action="save_draft" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2">
+                      <span class="material-symbols-outlined" style="font-size:16px;">save</span>
+                      Sauver brouillon
+                    </button>
+                  </div>
+                </div>
+              </div>
             </form>
           </section>
 
-          <!-- Tab Diagnostic enrichi -->
-          <section class="sav-tabpanel hidden p-5" data-tab-panel="diagnostic">
+          <!-- Tab Diagnostic — Wizard 4 étapes -->
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="diagnostic" id="panel-diagnostic" role="tabpanel" aria-labelledby="tab-diagnostic" tabindex="0">
+            <div id="sav-diag-wizard">
+              <!-- Indicateur étape -->
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs font-semibold text-slate-600">Étape <span data-diag-current>1</span>/4 · <span data-diag-step-label>Mesures</span></div>
+                <div class="text-xs text-slate-400">Diagnostic complet</div>
+              </div>
+              <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-5">
+                <div data-diag-progress class="h-full bg-primary transition-all" style="width:25%"></div>
+              </div>
 
-            <form id="sav-diag-form" class="space-y-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Conclusion</label>
-                <select name="conclusion" required class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                  <option value="">— Choisir —</option>
-                  <option value="defaut_produit">Défaut produit (garantie)</option>
-                  <option value="mauvais_montage">Mauvais montage</option>
-                  <option value="usure_normale">Usure normale</option>
-                  <option value="non_defectueux">Non défectueux</option>
-                </select>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-600 mb-1">Codes défaut</label>
-                  <input name="codesDefaut" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="P173E, P0841…">
+              <!-- Étape 1 : Mesures -->
+              <div class="sav-diag-step" data-diag-step="1">
+                <h3 class="text-sm font-semibold text-slate-800 mb-3">Mesures banc</h3>
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="block text-[13px] font-medium text-slate-600">Pression hydraulique (bar)
+                    <input data-diag-field="pressionHydraulique" type="number" step="0.1" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Fuite interne
+                    <select data-diag-field="fuiteInterne" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                      <option value="">—</option><option value="non">Non</option><option value="legere">Légère</option><option value="significative">Significative</option>
+                    </select>
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Température avant (°C)
+                    <input data-diag-field="temperatureAvant" type="number" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Température après (°C)
+                    <input data-diag-field="temperatureApres" type="number" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
                 </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-600 mb-1">Score risque (0-100, calculé)</label>
-                  <input name="scoreRisque" type="number" min="0" max="100" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                </div>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">URL rapport PDF</label>
-                <input name="rapport" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-              </div>
-              <button class="btn btn-primary" type="submit">Enregistrer le diagnostic</button>
-            </form>
 
-            <hr class="my-5 border-slate-200">
+              <!-- Étape 2 : Codes défaut -->
+              <div class="sav-diag-step hidden" data-diag-step="2">
+                <h3 class="text-sm font-semibold text-slate-800 mb-3">Codes défaut</h3>
+                <div class="space-y-3">
+                  <label class="block text-[13px] font-medium text-slate-600">Codes avant reset
+                    <input data-diag-field="codesAvantReset" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="P0741, P189C">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Codes après reset
+                    <input data-diag-field="codesApresReset" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Codes défaut généraux
+                    <input data-diag-field="codesDefaut" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm font-mono" placeholder="P173E, P0841">
+                  </label>
+                </div>
+              </div>
 
-            <h3 class="text-sm font-semibold text-slate-700 mb-3">Diagnostic banc enrichi</h3>
-            <form id="sav-diag-enrichi-form" class="space-y-3">
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Pression hydraulique (bar)</label>
-                  <input name="pressionHydraulique" type="number" step="0.1" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Fuite interne</label>
-                  <select name="fuiteInterne" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                    <option value="">—</option>
-                    <option value="non">Non</option>
-                    <option value="legere">Légère</option>
-                    <option value="significative">Significative</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Température avant (°C)</label>
-                  <input name="temperatureAvant" type="number" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Température après (°C)</label>
-                  <input name="temperatureApres" type="number" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Codes avant reset (séparés virgule)</label>
-                  <input name="codesAvantReset" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm" placeholder="P0741, P189C">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Codes après reset</label>
-                  <input name="codesApresReset" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+              <!-- Étape 3 : Médias -->
+              <div class="sav-diag-step hidden" data-diag-step="3">
+                <h3 class="text-sm font-semibold text-slate-800 mb-3">Médias</h3>
+                <div class="space-y-3">
+                  <label class="block text-[13px] font-medium text-slate-600">URL vidéo
+                    <input data-diag-field="videoUrl" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">URL courbe banc
+                    <input data-diag-field="courbeBancUrl" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">URL rapport PDF
+                    <input data-diag-field="rapport" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
                 </div>
               </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600">URL vidéo (mp4 ≤100 Mo, à uploader puis coller le lien)</label>
-                <input name="videoUrl" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+
+              <!-- Étape 4 : Conclusion -->
+              <div class="sav-diag-step hidden" data-diag-step="4">
+                <h3 class="text-sm font-semibold text-slate-800 mb-3">Conclusion</h3>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 mb-4 text-center">
+                  <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Score de risque</div>
+                  <div class="text-4xl font-bold text-primary mt-1" data-diag-score-display>—</div>
+                  <div class="text-xs text-slate-400">/ 100 · calculé automatiquement</div>
+                </div>
+                <div class="space-y-3">
+                  <label class="block text-[13px] font-medium text-slate-600">Conclusion
+                    <select data-diag-field="conclusion" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                      <option value="">— Choisir —</option>
+                      <option value="defaut_produit">Défaut produit (garantie)</option>
+                      <option value="mauvais_montage">Mauvais montage</option>
+                      <option value="usure_normale">Usure normale</option>
+                      <option value="non_defectueux">Non défectueux</option>
+                    </select>
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Avis 2e technicien
+                    <textarea data-diag-field="avis2eTechnicienTexte" rows="2" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm"></textarea>
+                  </label>
+                </div>
               </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600">URL courbe banc</label>
-                <input name="courbeBancUrl" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
+
+              <!-- Navigation -->
+              <div class="flex items-center justify-between mt-5">
+                <button type="button" id="sav-diag-prev" class="px-3 py-1.5 rounded-xl text-sm border border-slate-300 hover:bg-slate-50" disabled>← Précédent</button>
+                <button type="button" id="sav-diag-next" class="px-3 py-1.5 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800">Suivant →</button>
+                <button type="button" id="sav-diag-save" class="hidden btn btn-primary">Enregistrer le diagnostic</button>
               </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600">Avis 2e technicien</label>
-                <textarea name="avis2eTechnicienTexte" rows="2" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"></textarea>
-              </div>
-              <div class="flex items-center justify-between">
-                <div class="text-xs text-slate-500">Score auto : <strong id="sav-diag-score">—</strong> / 100</div>
-                <button type="submit" class="btn btn-secondary text-sm">Sauvegarder</button>
-              </div>
-            </form>
+            </div>
+
+            <!-- Forms legacy conservés cachés pour rétrocompat sélecteurs JS -->
+            <form id="sav-diag-form" class="hidden"></form>
+            <form id="sav-diag-enrichi-form" class="hidden">__LEGACY__</form>
           </section>
 
           <!-- Tab Fournisseur -->
-          <section class="sav-tabpanel hidden p-5" data-tab-panel="fournisseur">
-            <form id="sav-fourn-form" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Nom fournisseur</label>
-                  <input name="nom" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Contact (mail / nom)</label>
-                  <input name="contact" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">N° RMA fournisseur</label>
-                  <input name="rmaNumero" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Transporteur</label>
-                  <select name="transporteur" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                    <option value="">—</option>
-                    <option value="chronopost">Chronopost</option>
-                    <option value="colissimo">Colissimo</option>
-                    <option value="ups">UPS</option>
-                    <option value="dhl">DHL</option>
-                    <option value="other">Autre</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">N° colis</label>
-                  <input name="colisNumero" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">URL tracking</label>
-                  <input name="trackingUrl" type="url" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Date envoi</label>
-                  <input name="dateEnvoi" type="date" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Date retour</label>
-                  <input name="dateRetour" type="date" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Coût analyse fournisseur (€)</label>
-                  <input name="coutAnalyse" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-slate-600">Coût refacturé client (€)</label>
-                  <input name="coutRefacture" type="number" step="0.01" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div class="sm:col-span-2">
-                  <label class="block text-xs font-medium text-slate-600">URL rapport fournisseur</label>
-                  <input name="rapportUrl" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm">
-                </div>
-                <div class="sm:col-span-2">
-                  <label class="block text-xs font-medium text-slate-600">Réponse / commentaire</label>
-                  <textarea name="reponse" rows="3" class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm"></textarea>
-                </div>
+          <section class="sav-tabpanel hidden p-5" data-tab-panel="fournisseur" id="panel-fournisseur" role="tabpanel" aria-labelledby="tab-fournisseur" tabindex="0">
+            <!-- Hero CTA WhatsApp -->
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 mb-5 flex items-center gap-4">
+              <div class="flex-1">
+                <button type="button" id="sav-fourn-whatsapp" class="btn btn-primary text-base py-3 px-5 inline-flex items-center gap-2">
+                  <span class="material-symbols-outlined">chat</span>
+                  📲 Envoyer le dossier au fournisseur via WhatsApp
+                </button>
+                <div class="mt-1.5 text-xs text-emerald-700">Génère un message pré-rempli et ouvre wa.me</div>
               </div>
+            </div>
 
-              <label class="flex items-center gap-2 text-xs">
-                <input type="checkbox" name="changeStatutToEnAttente" class="rounded text-primary">
-                Passer le ticket en statut « En attente fournisseur »
+            <form id="sav-fourn-form" class="space-y-4">
+              <!-- Toggle statut "En attente fournisseur" -->
+              <label class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div>
+                  <div class="text-sm font-semibold text-slate-800">Passer en attente fournisseur</div>
+                  <div class="text-xs text-slate-500">Le ticket bascule en statut « en_attente_fournisseur »</div>
+                </div>
+                <span class="sav-switch">
+                  <input type="checkbox" name="changeStatutToEnAttente">
+                  <span class="sav-switch__slider"></span>
+                </span>
               </label>
 
-              <div class="flex items-center gap-2 flex-wrap">
-                <button class="btn btn-primary" type="submit">Sauvegarder fournisseur</button>
+              <!-- Section 1 : Identité fournisseur -->
+              <details open data-fourn-section="identite" class="rounded-xl border border-slate-200 bg-white">
+                <summary class="cursor-pointer flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700">
+                  <span class="material-symbols-outlined text-slate-500" style="font-size:18px;">badge</span>
+                  Identité fournisseur
+                </summary>
+                <div class="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label class="block text-[13px] font-medium text-slate-600">Nom fournisseur
+                    <input name="nom" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Contact (mail / nom)
+                    <input name="contact" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600 sm:col-span-2">N° RMA fournisseur
+                    <input name="rmaNumero" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                </div>
+              </details>
+
+              <!-- Section 2 : Expédition -->
+              <details data-fourn-section="expedition" class="rounded-xl border border-slate-200 bg-white">
+                <summary class="cursor-pointer flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700">
+                  <span class="material-symbols-outlined text-slate-500" style="font-size:18px;">local_shipping</span>
+                  Expédition
+                </summary>
+                <div class="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label class="block text-[13px] font-medium text-slate-600">Transporteur
+                    <select name="transporteur" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                      <option value="">—</option><option value="chronopost">Chronopost</option><option value="colissimo">Colissimo</option><option value="ups">UPS</option><option value="dhl">DHL</option><option value="other">Autre</option>
+                    </select>
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">N° colis
+                    <input name="colisNumero" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600 sm:col-span-2">URL tracking
+                    <input name="trackingUrl" type="url" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Date envoi
+                    <input name="dateEnvoi" type="date" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Date retour
+                    <input name="dateRetour" type="date" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                </div>
+              </details>
+
+              <!-- Section 3 : Coûts -->
+              <details data-fourn-section="couts" class="rounded-xl border border-slate-200 bg-white">
+                <summary class="cursor-pointer flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700">
+                  <span class="material-symbols-outlined text-slate-500" style="font-size:18px;">euro</span>
+                  Coûts
+                </summary>
+                <div class="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label class="block text-[13px] font-medium text-slate-600">Coût analyse fournisseur (€)
+                    <input name="coutAnalyse" type="number" step="0.01" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Coût refacturé client (€)
+                    <input name="coutRefacture" type="number" step="0.01" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                </div>
+              </details>
+
+              <!-- Section 4 : Documents & réponse -->
+              <details data-fourn-section="docs" class="rounded-xl border border-slate-200 bg-white">
+                <summary class="cursor-pointer flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-700">
+                  <span class="material-symbols-outlined text-slate-500" style="font-size:18px;">description</span>
+                  Documents &amp; réponse
+                </summary>
+                <div class="px-4 pb-4 space-y-3">
+                  <label class="block text-[13px] font-medium text-slate-600">URL rapport fournisseur
+                    <input name="rapportUrl" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm">
+                  </label>
+                  <label class="block text-[13px] font-medium text-slate-600">Réponse / commentaire
+                    <textarea name="reponse" rows="3" class="mt-1 w-full rounded-xl border border-slate-300 px-2 py-2 text-sm"></textarea>
+                  </label>
+                </div>
+              </details>
+
+              <div class="flex items-center justify-end gap-2 flex-wrap">
                 <button type="button" id="sav-fourn-track" class="btn btn-secondary">Ouvrir le tracking ↗</button>
-                <button type="button" id="sav-fourn-whatsapp" class="btn btn-secondary text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-                  <span class="material-symbols-outlined text-base mr-1">chat</span>
-                  Envoyer dossier au fournisseur (WhatsApp)
-                </button>
+                <button class="btn btn-secondary" type="submit">Sauvegarder fournisseur</button>
               </div>
             </form>
           </section>
@@ -293,23 +482,88 @@
       </div>
 
       <!-- COLONNE SIDEBAR STICKY -->
-      <aside class="space-y-4 lg:sticky lg:top-[88px] self-start">
+      <div class="sav-bottom-actions">
+      <button type="button" id="sav-bottom-toggle" class="sav-bottom-actions__btn lg:hidden" aria-expanded="false" aria-controls="sav-bottom-panel">
+        <span class="material-symbols-outlined" style="font-size:18px;">bolt</span>
+        <span class="flex-1 text-left">Actions</span>
+        <span class="sav-bottom-actions__chev material-symbols-outlined" aria-hidden="true">expand_less</span>
+      </button>
+      <aside id="sav-bottom-panel" class="sav-bottom-actions__panel space-y-4 lg:sticky lg:top-[88px] self-start">
 
         <section class="rounded-2xl border border-slate-200 bg-white p-4">
           <h2 class="text-sm font-semibold text-slate-700 mb-3">Actions rapides</h2>
-          <div class="space-y-2" id="sav-actions">
-            <button class="btn btn-secondary w-full text-sm" data-action-statut="recu_atelier">Pièce reçue atelier</button>
-            <button class="btn btn-secondary w-full text-sm" data-action-statut="en_analyse">Démarrer l'analyse</button>
-            <button class="btn btn-secondary w-full text-sm text-emerald-700" data-action-resolution="echange">Défaut → échange</button>
-            <button class="btn btn-secondary w-full text-sm text-emerald-700" data-action-resolution="remboursement">Défaut → remboursement</button>
-            <button class="btn btn-secondary w-full text-sm" data-action-statut="analyse_terminee">Conclure analyse négative</button>
-            <button class="btn btn-secondary w-full text-sm" data-action-pdf>Générer rapport PDF</button>
+          <div id="sav-actions" class="space-y-4">
 
-            <div class="border-t border-slate-100 my-2 pt-2"></div>
-            <div class="text-[10px] uppercase tracking-wide text-red-500 font-bold mb-1">Zone d'actions destructives</div>
-            <button class="btn btn-secondary w-full text-sm text-red-700 border-red-200 hover:bg-red-50" data-confirm="Facturer 149 € au client ? Cette action déclenche un lien de paiement Mollie." data-action-facturer>Facturer 149 € (Mollie)</button>
-            <button class="btn btn-secondary w-full text-sm text-red-700 border-red-200 hover:bg-red-50" data-confirm="Clôturer définitivement ce ticket ?" data-action-statut="clos">Clôturer le ticket</button>
-            <button class="btn btn-secondary w-full text-sm text-red-700 border-red-200 hover:bg-red-50" data-confirm="Refuser la demande SAV ? Le client recevra un email." data-action-statut="refuse">Refuser la demande</button>
+            <!-- Phase Réception -->
+            <div>
+              <div class="text-[10px] uppercase tracking-wide font-bold text-slate-400 mb-1.5">Phase Réception</div>
+              <div class="space-y-2">
+                <button class="btn btn-secondary w-full text-sm inline-flex items-center justify-start gap-2" data-action-statut="recu_atelier">
+                  <span class="material-symbols-outlined" style="font-size:16px;">inventory_2</span>
+                  Pièce reçue atelier
+                </button>
+              </div>
+            </div>
+
+            <!-- Phase Analyse -->
+            <div>
+              <div class="text-[10px] uppercase tracking-wide font-bold text-slate-400 mb-1.5">Phase Analyse</div>
+              <div class="space-y-2">
+                <button class="btn btn-secondary w-full text-sm inline-flex items-center justify-start gap-2" data-action-statut="en_analyse">
+                  <span class="material-symbols-outlined" style="font-size:16px;">science</span>
+                  Démarrer l'analyse
+                </button>
+                <button class="btn btn-secondary w-full text-sm inline-flex items-center justify-start gap-2" data-action-statut="analyse_terminee">
+                  <span class="material-symbols-outlined" style="font-size:16px;">fact_check</span>
+                  Conclure analyse négative
+                </button>
+                <button class="btn btn-secondary w-full text-sm inline-flex items-center justify-start gap-2" data-action-pdf>
+                  <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span>
+                  Générer rapport PDF
+                </button>
+              </div>
+            </div>
+
+            <!-- Phase Résolution -->
+            <div>
+              <div class="text-[10px] uppercase tracking-wide font-bold text-slate-400 mb-1.5">Phase Résolution</div>
+              <div class="space-y-2">
+                <button class="btn btn-secondary w-full text-sm text-emerald-700 inline-flex items-center justify-start gap-2" data-action-resolution="echange">
+                  <span class="material-symbols-outlined" style="font-size:16px;">swap_horiz</span>
+                  Défaut → échange
+                </button>
+                <button class="btn btn-secondary w-full text-sm text-emerald-700 inline-flex items-center justify-start gap-2" data-action-resolution="remboursement">
+                  <span class="material-symbols-outlined" style="font-size:16px;">payments</span>
+                  Défaut → remboursement
+                </button>
+              </div>
+            </div>
+
+            <!-- Zone dangereuse -->
+            <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+              <div class="flex items-center gap-1.5 text-red-700 font-bold text-xs uppercase tracking-wide mb-2">
+                <span class="material-symbols-outlined" style="font-size:16px;">warning</span>
+                Zone dangereuse
+              </div>
+              <div class="space-y-2">
+                <button class="btn w-full text-sm bg-white text-red-700 border border-red-300 hover:bg-red-100 hover:border-red-400 inline-flex items-center justify-start gap-2"
+                  data-confirm="Facturer 149 € au client ? Cette action déclenche un lien de paiement Mollie." data-action-facturer>
+                  <span class="material-symbols-outlined" style="font-size:16px;">euro</span>
+                  Facturer 149 € (Mollie)
+                </button>
+                <button class="btn w-full text-sm bg-white text-red-700 border border-red-300 hover:bg-red-100 hover:border-red-400 inline-flex items-center justify-start gap-2"
+                  data-confirm="Clôturer définitivement ce ticket ?" data-action-statut="clos">
+                  <span class="material-symbols-outlined" style="font-size:16px;">lock</span>
+                  Clôturer le ticket
+                </button>
+                <button class="btn w-full text-sm bg-white text-red-700 border border-red-300 hover:bg-red-100 hover:border-red-400 inline-flex items-center justify-start gap-2"
+                  data-confirm="Refuser la demande SAV ? Le client recevra un email." data-action-statut="refuse">
+                  <span class="material-symbols-outlined" style="font-size:16px;">block</span>
+                  Refuser la demande
+                </button>
+              </div>
+            </div>
+
           </div>
         </section>
 
@@ -318,17 +572,18 @@
           <div id="sav-paiement" class="text-sm text-slate-700">—</div>
         </section>
       </aside>
+      </div>
 
     </div>
   </div>
 </main>
 
 <!-- Modale assignation -->
-<div id="sav-assign-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+<div id="sav-assign-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-assign-modal-title">
   <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="text-lg font-semibold">Assigner le ticket</h3>
-      <button type="button" data-close-assign class="text-slate-400 hover:text-slate-700 text-2xl">×</button>
+      <h3 id="sav-assign-modal-title" class="text-lg font-semibold">Assigner le ticket</h3>
+      <button type="button" data-close-assign aria-label="Fermer la modale" class="text-slate-400 hover:text-slate-700 text-2xl">×</button>
     </div>
     <select id="sav-assign-select" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
       <option value="">— Personne (désassigner) —</option>
@@ -338,12 +593,12 @@
 </div>
 
 <!-- Modale confirmation actions destructives -->
-<div id="sav-confirm-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+<div id="sav-confirm-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-confirm-modal-title">
   <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
     <div class="flex items-start gap-3">
-      <span class="material-symbols-outlined text-red-600 text-3xl">warning</span>
+      <span class="material-symbols-outlined text-red-600 text-3xl" aria-hidden="true">warning</span>
       <div class="flex-1">
-        <h3 class="text-lg font-semibold">Confirmer l'action</h3>
+        <h3 id="sav-confirm-modal-title" class="text-lg font-semibold">Confirmer l'action</h3>
         <p id="sav-confirm-text" class="mt-1 text-sm text-slate-600">Êtes-vous sûr ?</p>
       </div>
     </div>
@@ -355,20 +610,20 @@
 </div>
 
 <!-- Modale WhatsApp fournisseur (preview + envoi) -->
-<div id="sav-wa-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+<div id="sav-wa-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-wa-modal-title">
   <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="text-lg font-semibold flex items-center gap-2"><span class="material-symbols-outlined text-emerald-600">chat</span> Envoi WhatsApp fournisseur</h3>
-      <button type="button" data-close-wa class="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+      <h3 id="sav-wa-modal-title" class="text-lg font-semibold flex items-center gap-2"><span class="material-symbols-outlined text-emerald-600" aria-hidden="true">chat</span> Envoi WhatsApp fournisseur</h3>
+      <button type="button" data-close-wa aria-label="Fermer la modale" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
     </div>
     <div class="space-y-3">
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">Numéro fournisseur (international, ex: 33612345678)</label>
-        <input type="tel" id="sav-wa-phone" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="33612345678">
+        <input type="tel" id="sav-wa-phone" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="33612345678">
       </div>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">Aperçu du message (modifiable)</label>
-        <textarea id="sav-wa-text" rows="14" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono"></textarea>
+        <textarea id="sav-wa-text" rows="14" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono"></textarea>
       </div>
       <div class="flex gap-2 flex-wrap">
         <a id="sav-wa-link" target="_blank" rel="noopener" class="btn btn-secondary text-emerald-700 border-emerald-200">Ouvrir wa.me ↗</a>
@@ -377,23 +632,23 @@
       </div>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">Réponse du fournisseur (à coller pour archivage)</label>
-        <textarea id="sav-wa-reply" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"></textarea>
+        <textarea id="sav-wa-reply" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"></textarea>
         <button type="button" id="sav-wa-save-reply" class="mt-2 btn btn-secondary text-xs">Enregistrer la réponse</button>
       </div>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">Script client final (copier/coller dans Communications)</label>
-        <textarea id="sav-wa-client-script" rows="4" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"></textarea>
+        <textarea id="sav-wa-client-script" rows="4" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"></textarea>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Modale aide raccourcis -->
-<div id="sav-kbd-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4">
+<div id="sav-kbd-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-kbd-modal-title">
   <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold">Raccourcis clavier</h3>
-      <button type="button" data-close-kbd class="text-slate-400 text-2xl leading-none">×</button>
+      <h3 id="sav-kbd-modal-title" class="text-lg font-semibold">Raccourcis clavier</h3>
+      <button type="button" data-close-kbd aria-label="Fermer la modale" class="text-slate-400 text-2xl leading-none">×</button>
     </div>
     <ul class="text-sm space-y-2">
       <li class="flex justify-between"><span>Aller à l'onglet 1-6</span><span><kbd class="px-2 py-0.5 rounded border bg-slate-50">1-6</kbd></span></li>

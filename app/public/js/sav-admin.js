@@ -48,6 +48,72 @@
     });
   }
 
+  // -------- Modal a11y utilities (focus trap + Esc + restore focus) --------
+  var FOCUSABLE_SELECTOR = 'a[href],area[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),iframe,object,embed,[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
+  var modalStack = [];
+
+  function getFocusable(el) {
+    return Array.prototype.slice
+      .call(el.querySelectorAll(FOCUSABLE_SELECTOR))
+      .filter(function (n) {
+        return !n.hasAttribute('disabled') && n.offsetParent !== null;
+      });
+  }
+
+  function openModal(el) {
+    if (!el || !el.classList.contains('hidden') === false && el.__savModalOpen) return;
+    var prev = document.activeElement;
+    el.classList.remove('hidden');
+    el.classList.add('flex');
+    el.__savModalOpen = true;
+    el.__savPrevFocus = prev;
+
+    var nodes = getFocusable(el);
+    var first = nodes[0] || el;
+    try { first.focus(); } catch (_) {}
+
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); closeModal(el); return; }
+      if (e.key !== 'Tab') return;
+      var f = getFocusable(el);
+      if (!f.length) { e.preventDefault(); return; }
+      var firstN = f[0]; var lastN = f[f.length - 1];
+      var active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === firstN || !el.contains(active)) { e.preventDefault(); lastN.focus(); }
+      } else {
+        if (active === lastN) { e.preventDefault(); firstN.focus(); }
+      }
+    }
+    el.__savModalKey = onKey;
+    document.addEventListener('keydown', onKey, true);
+    modalStack.push(el);
+  }
+
+  function closeModal(el) {
+    if (!el || !el.__savModalOpen) {
+      // Fallback : juste cacher
+      if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+      return;
+    }
+    el.classList.add('hidden');
+    el.classList.remove('flex');
+    el.__savModalOpen = false;
+    if (el.__savModalKey) {
+      document.removeEventListener('keydown', el.__savModalKey, true);
+      el.__savModalKey = null;
+    }
+    var i = modalStack.indexOf(el);
+    if (i !== -1) modalStack.splice(i, 1);
+    var prev = el.__savPrevFocus;
+    if (prev && typeof prev.focus === 'function') {
+      try { prev.focus(); } catch (_) {}
+    }
+    el.__savPrevFocus = null;
+  }
+  window.openModal = openModal;
+  window.closeModal = closeModal;
+
   function fmtSize(n) {
     if (!n && n !== 0) return '';
     if (n < 1024) return n + ' o';
@@ -62,6 +128,29 @@
     if (d > 0) return d + 'j ' + h + 'h restantes';
     var m = Math.floor((ms % (3600 * 1000)) / 60000);
     return h + 'h ' + m + 'min restantes';
+  }
+
+  function fmtRelative(date) {
+    if (!date) return '';
+    var diff = Date.now() - new Date(date).getTime();
+    if (diff < 0) return 'à l\'instant';
+    var s = Math.floor(diff / 1000);
+    if (s < 60) return 'à l\'instant';
+    var m = Math.floor(s / 60);
+    if (m < 60) return 'il y a ' + m + ' min';
+    var h = Math.floor(m / 60);
+    if (h < 24) return 'il y a ' + h + ' h';
+    var d = Math.floor(h / 24);
+    if (d < 30) return 'il y a ' + d + ' j';
+    var mo = Math.floor(d / 30);
+    if (mo < 12) return 'il y a ' + mo + ' mois';
+    return 'il y a ' + Math.floor(mo / 12) + ' an' + (mo >= 24 ? 's' : '');
+  }
+
+  function initials(name) {
+    if (!name) return '?';
+    var parts = String(name).trim().split(/\s+/);
+    return ((parts[0] || '')[0] || '' + (parts[1] || '')[0] || '').toUpperCase().slice(0, 2) || '?';
   }
 
   // Couleurs par type de pièce (badges)
@@ -407,9 +496,9 @@
 
     // Raccourcis clavier
     var kbdModal = document.getElementById('sav-kbd-modal');
-    function openKbd() { if (kbdModal) { kbdModal.classList.remove('hidden'); kbdModal.classList.add('flex'); } }
-    function closeKbd() { if (kbdModal) { kbdModal.classList.add('hidden'); kbdModal.classList.remove('flex'); } }
-    if (kbdModal) kbdModal.addEventListener('click', function (e) { if (e.target === kbdModal || e.target.matches('[data-close-kbd]')) closeKbd(); });
+    function openKbd() { if (kbdModal) openModal(kbdModal); }
+    function closeKbd() { if (kbdModal) closeModal(kbdModal); }
+    if (kbdModal) kbdModal.addEventListener('click', function (e) { if (e.target === kbdModal || (e.target.matches && e.target.matches('[data-close-kbd]'))) closeKbd(); });
 
     document.addEventListener('keydown', function (e) {
       if (e.target.matches('input,textarea,select')) {
@@ -464,35 +553,242 @@
         prefillDiagEnrichi();
         prefillFournisseur();
         renderPreview();
+        renderTabBadges();
+        // Skeletons → clear aria-busy (innerHTML already replaced)
+        ['sav-header-meta', 'sav-dossier', 'sav-timeline', 'sav-documents'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.removeAttribute('aria-busy');
+        });
       });
     }
 
+    // -------- Stepper cycle SAV --------
+    var STEPPER_STAGES = [
+      { key: 'recu',       label: 'Reçu',                statuts: ['ouvert','pre_qualification','en_attente_documents','retour_demande','en_transit_retour'] },
+      { key: 'atelier',    label: 'Pièce reçue atelier', statuts: ['recu_atelier'] },
+      { key: 'analyse',    label: 'En analyse',          statuts: ['en_analyse'] },
+      { key: 'diagnostic', label: 'Diagnostic',          statuts: ['analyse_terminee'] },
+      { key: 'resolution', label: 'Résolution',          statuts: ['en_attente_decision_client'] },
+      { key: 'cloture',    label: 'Clôturé',             statuts: ['clos'] }
+    ];
+
+    function renderStepper(statut) {
+      var host = document.getElementById('sav-stepper');
+      if (!host) return;
+      var idx = -1;
+      for (var i = 0; i < STEPPER_STAGES.length; i++) {
+        if (STEPPER_STAGES[i].statuts.indexOf(statut) !== -1) { idx = i; break; }
+      }
+      if (idx === -1) idx = 0;
+      var html = '<ol class="sav-stepper__list">';
+      for (var j = 0; j < STEPPER_STAGES.length; j++) {
+        var st = STEPPER_STAGES[j];
+        var state = j < idx ? 'done' : (j === idx ? 'current' : 'todo');
+        var icon = state === 'done'
+          ? '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.8 3.8 6.8-6.8a1 1 0 0 1 1.4 0z" clip-rule="evenodd"/></svg>'
+          : '<span>' + (j + 1) + '</span>';
+        html += '<li class="sav-stepper__step sav-stepper__step--' + state + '" aria-current="' + (state === 'current' ? 'step' : 'false') + '">'
+              +   '<span class="sav-stepper__bullet">' + icon + '</span>'
+              +   '<span class="sav-stepper__label">' + escapeHtml(st.label) + '</span>'
+              + '</li>';
+        if (j < STEPPER_STAGES.length - 1) {
+          var barState = j < idx ? 'done' : 'todo';
+          html += '<li class="sav-stepper__bar sav-stepper__bar--' + barState + '" aria-hidden="true"></li>';
+        }
+      }
+      html += '</ol>';
+      host.innerHTML = html;
+    }
+    window.renderStepper = renderStepper;
+
     // -------- Header sticky --------
+    function icon(name, size) {
+      return '<span class="material-symbols-outlined" style="font-size:' + (size || 14) + 'px;vertical-align:middle;">' + name + '</span>';
+    }
+
+    function statutBadgeClass(statut) {
+      switch (statut) {
+        case 'ouvert':
+        case 'pre_qualification':
+        case 'en_attente_documents':
+        case 'retour_demande':
+        case 'en_transit_retour':
+          return 'bg-sky-100 text-sky-700';
+        case 'recu_atelier':       return 'bg-blue-100 text-blue-700';
+        case 'en_analyse':         return 'bg-violet-100 text-violet-700';
+        case 'analyse_terminee':   return 'bg-amber-100 text-amber-700';
+        case 'en_attente_decision_client': return 'bg-orange-100 text-orange-700';
+        case 'clos':               return 'bg-slate-200 text-slate-600';
+        default:                   return 'bg-slate-100 text-slate-700';
+      }
+    }
+
     function renderHeader() {
-      var meta = '';
-      if (ticket.client) meta += escapeHtml((ticket.client.nom || '') + ' · ' + (ticket.client.email || ''));
-      if (ticket.vehicule && ticket.vehicule.vin) meta += ' · VIN ' + escapeHtml(ticket.vehicule.vin);
-      if (ticket.pieceType) meta += ' · ' + escapeHtml(ticket.pieceType);
+      var t = ticket || {};
+      var c = t.client || {};
+
       var hm = document.getElementById('sav-header-meta');
-      if (hm) hm.textContent = meta;
+      if (hm) {
+        var parts = [];
+        if (c.nom || c.email) {
+          var clientHref = c.email ? '/admin/clients?q=' + encodeURIComponent(c.email) : '#';
+          parts.push('<a href="' + clientHref + '" class="inline-flex items-center gap-1 hover:text-primary">' +
+            icon('person') + '<span>' + escapeHtml(c.nom || c.email) + '</span></a>');
+        }
+        if (t.commandeId || t.commandeNumero) {
+          var num = t.commandeNumero || t.commandeId;
+          parts.push('<a href="/admin/commandes/' + encodeURIComponent(t.commandeId || num) + '" class="inline-flex items-center gap-1 hover:text-primary">' +
+            icon('receipt_long') + '<span>' + escapeHtml(num) + '</span></a>');
+        }
+        if (t.createdAt) {
+          parts.push('<span class="inline-flex items-center gap-1" title="' + escapeHtml(new Date(t.createdAt).toLocaleString('fr-FR')) + '">' +
+            icon('schedule') + '<span>' + fmtRelative(t.createdAt) + '</span></span>');
+        }
+        hm.innerHTML = parts.join('<span class="text-slate-300">·</span>');
+      }
+
       var sb = document.getElementById('sav-statut-badge');
-      if (sb) sb.textContent = ticket.statut;
+      if (sb) {
+        sb.textContent = t.statut || '—';
+        sb.className = 'px-3 py-1 rounded-full text-xs font-semibold ' + statutBadgeClass(t.statut);
+      }
+
+      var main = document.querySelector('main.sav-module');
+      if (main) main.setAttribute('data-current-statut', t.statut || '');
+      if (typeof renderStepper === 'function') renderStepper(t.statut);
 
       var sla = document.getElementById('sav-sla-badge');
-      var d = ticket.sla && ticket.sla.dateLimite;
+      var d = t.sla && t.sla.dateLimite;
       if (sla && d) {
         var diff = new Date(d) - Date.now();
         var cls = diff < 0 ? 'late' : diff < 24 * 3600 * 1000 ? 'warn' : 'ok';
-        sla.className = 'sav-sla-badge sav-sla-badge--' + cls;
-        sla.textContent = diff < 0 ? 'SLA dépassé' : 'SLA ' + fmtDuration(diff);
+        sla.className = 'sav-sla-badge sav-sla-badge--' + cls + ' inline-flex items-center gap-1';
+        sla.title = 'Échéance : ' + new Date(d).toLocaleString('fr-FR');
+        sla.innerHTML = icon('schedule') + '<span>' + (diff < 0 ? 'SLA dépassé' : 'SLA ' + fmtDuration(diff)) + '</span>';
       }
 
       var assignLabel = document.getElementById('sav-assign-label');
-      if (assignLabel) assignLabel.textContent = ticket.assignedToName ? ticket.assignedToName : 'Assigner';
+      var assignIcon = document.getElementById('sav-assign-icon');
+      var assignAvatar = document.getElementById('sav-assign-avatar');
+      if (t.assignedToName) {
+        if (assignLabel) assignLabel.textContent = t.assignedToName;
+        if (assignAvatar) {
+          assignAvatar.textContent = initials(t.assignedToName);
+          assignAvatar.classList.remove('hidden');
+          assignAvatar.classList.add('inline-flex');
+        }
+        if (assignIcon) assignIcon.classList.add('hidden');
+      } else {
+        if (assignLabel) assignLabel.textContent = 'Assigner';
+        if (assignAvatar) { assignAvatar.classList.add('hidden'); assignAvatar.classList.remove('inline-flex'); }
+        if (assignIcon) assignIcon.classList.remove('hidden');
+      }
     }
 
-    // -------- Dossier --------
+    // -------- Dossier (Aperçu : KPIs + 4 cards) --------
+    function businessDaysSince(date) {
+      if (!date) return 0;
+      var start = new Date(date); start.setHours(0,0,0,0);
+      var end = new Date(); end.setHours(0,0,0,0);
+      var n = 0;
+      for (var d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        var w = d.getDay();
+        if (w !== 0 && w !== 6) n++;
+      }
+      return n;
+    }
+
+    function cardTpl(iconName, title, body) {
+      return '<div class="rounded-2xl border border-slate-200 bg-white p-4">' +
+        '<div class="flex items-center gap-2 mb-3">' +
+          '<span class="material-symbols-outlined text-slate-500" style="font-size:18px;">' + iconName + '</span>' +
+          '<h3 class="text-sm font-semibold text-slate-700">' + title + '</h3>' +
+        '</div>' +
+        '<div class="text-sm text-slate-700 space-y-1.5">' + body + '</div>' +
+      '</div>';
+    }
+
     function renderDossier() {
+      var box = document.getElementById('sav-dossier');
+      var t = ticket || {};
+      var c = t.client || {};
+      var v = t.vehicule || {};
+
+      // --- KPIs ---
+      var kpiDuree = document.querySelector('[data-kpi="duree"]');
+      var kpiMsgs = document.querySelector('[data-kpi="messages"]');
+      var kpiRel = document.querySelector('[data-kpi="relances"]');
+      if (kpiDuree) kpiDuree.textContent = String(businessDaysSince(t.createdAt));
+      if (kpiMsgs)  kpiMsgs.textContent  = String((t.messages || []).length);
+      if (kpiRel) {
+        var nbRelances = (t.messages || []).filter(function (m) {
+          return /relance/i.test(m.contenu || '') || /relance/i.test(m.type || '');
+        }).length;
+        kpiRel.textContent = String(nbRelances);
+      }
+
+      if (!box) return;
+
+      // --- Card 1 : Client ---
+      var clientHref = c.email ? '/admin/clients?q=' + encodeURIComponent(c.email) : '#';
+      var clientBody = [
+        c.nom ? '<div class="font-medium text-slate-900">' + escapeHtml(c.nom) + '</div>' : '',
+        c.email ? '<div><a href="mailto:' + escapeHtml(c.email) + '" class="text-primary hover:underline">' + escapeHtml(c.email) + '</a></div>' : '',
+        c.telephone ? '<div><a href="tel:' + escapeHtml(c.telephone) + '" class="text-primary hover:underline">' + escapeHtml(c.telephone) + '</a></div>' : '',
+        '<div class="pt-2"><a href="' + clientHref + '" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 text-xs hover:border-primary hover:text-primary">Voir fiche client</a></div>',
+      ].filter(Boolean).join('') || '<span class="text-slate-400">Non renseigné</span>';
+
+      // --- Card 2 : Véhicule ---
+      var vehBody = [
+        (v.marque || v.modele || v.annee) ? '<div class="font-medium text-slate-900">' + escapeHtml([v.marque, v.modele, v.annee].filter(Boolean).join(' ')) + '</div>' : '',
+        v.vin ? '<div class="flex items-center gap-1"><span class="text-slate-500">VIN&nbsp;:</span> <span class="font-mono">' + escapeHtml(v.vin) + '</span>' +
+          '<button type="button" data-copy="' + escapeHtml(v.vin) + '" class="sav-copy-mini text-slate-400 hover:text-primary" title="Copier"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">content_copy</span></button></div>' : '',
+        v.immatriculation ? '<div><span class="text-slate-500">Plaque&nbsp;:</span> ' + escapeHtml(v.immatriculation) + '</div>' : '',
+        v.kilometrage ? '<div><span class="text-slate-500">Kilométrage&nbsp;:</span> ' + escapeHtml(String(v.kilometrage)) + ' km</div>' : '',
+        v.motorisation ? '<div><span class="text-slate-500">Motorisation&nbsp;:</span> ' + escapeHtml(v.motorisation) + '</div>' : '',
+      ].filter(Boolean).join('') || '<span class="text-slate-400">Non renseigné</span>';
+
+      // --- Card 3 : Pièce SAV ---
+      var p = t.piece || {};
+      var pieceBody = [
+        p.reference ? '<div class="font-mono text-slate-900">' + escapeHtml(p.reference) + '</div>' : (t.pieceType ? '<div class="font-medium text-slate-900">' + escapeHtml(t.pieceType) + '</div>' : ''),
+        p.designation ? '<div>' + escapeHtml(p.designation) + '</div>' : '',
+        (p.prixHT != null) ? '<div><span class="text-slate-500">Prix HT&nbsp;:</span> ' + Number(p.prixHT).toFixed(2) + ' €</div>' : '',
+        p.url ? '<div class="pt-2"><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 text-xs hover:border-primary hover:text-primary">Fiche produit</a></div>' : '',
+      ].filter(Boolean).join('') || '<span class="text-slate-400">Non renseigné</span>';
+
+      // --- Card 4 : Commande liée ---
+      var cmdNum = t.numeroCommande || t.commandeNumero || (t.commande && t.commande.numero);
+      var cmdDate = t.dateAchat || (t.commande && t.commande.date);
+      var cmdTotal = (t.commande && t.commande.total) || t.commandeTotal;
+      var cmdPaiement = (t.commande && t.commande.statutPaiement) || t.commandeStatutPaiement;
+      var cmdBody = cmdNum
+        ? [
+            '<div><a href="/admin/commandes/' + encodeURIComponent(cmdNum) + '" class="text-primary font-mono hover:underline">' + escapeHtml(cmdNum) + '</a></div>',
+            cmdDate ? '<div><span class="text-slate-500">Date&nbsp;:</span> ' + new Date(cmdDate).toLocaleDateString('fr-FR') + '</div>' : '',
+            (cmdTotal != null) ? '<div><span class="text-slate-500">Total&nbsp;:</span> ' + Number(cmdTotal).toFixed(2) + ' €</div>' : '',
+            cmdPaiement ? '<div><span class="text-slate-500">Paiement&nbsp;:</span> <span class="px-1.5 py-0.5 rounded text-xs ' +
+              (cmdPaiement === 'paye' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') + '">' + escapeHtml(cmdPaiement) + '</span></div>' : '',
+          ].filter(Boolean).join('')
+        : '<span class="text-slate-400">Aucune commande liée</span>';
+
+      box.innerHTML =
+        cardTpl('person',       'Client',         clientBody) +
+        cardTpl('directions_car','Véhicule',      vehBody) +
+        cardTpl('settings',     'Pièce SAV',      pieceBody) +
+        cardTpl('receipt_long', 'Commande liée',  cmdBody);
+
+      // Wire copy mini buttons
+      box.querySelectorAll('.sav-copy-mini').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var val = b.getAttribute('data-copy') || '';
+          if (navigator.clipboard) navigator.clipboard.writeText(val).then(function(){ toast('Copié'); });
+          else toast('Copié');
+        });
+      });
+    }
+
+    function renderDossier_legacy_unused() {
       var box = document.getElementById('sav-dossier');
       if (!box) return;
       var t = ticket || {};
@@ -562,20 +858,70 @@
         '<details class="rounded-xl border border-slate-200 bg-white p-4"><summary class="cursor-pointer text-sm font-semibold text-slate-700">CGV / RGPD</summary><div class="mt-2">' + cgvBlock + '</div></details>';
     }
 
+    var tlFilter = 'all';
+    var TL_TYPE_ICON = {
+      message:     'forum',
+      statut:      'flag',
+      systeme:     'settings_suggest',
+      fournisseur: 'local_shipping',
+      diagnostic:  'biotech',
+    };
+
+    function detectTlType(m) {
+      if (m.type && TL_TYPE_ICON[m.type]) return m.type;
+      var c = (m.contenu || '') + ' ' + (m.canal || '') + ' ' + (m.auteur || '');
+      if (/fournisseur|supplier/i.test(c)) return 'fournisseur';
+      if (/diagnostic|analyse|code\s*défaut|obd/i.test(c)) return 'diagnostic';
+      if (/statut|→|status/i.test(c)) return 'statut';
+      if (/🤖|systeme|auto/i.test(c) || m.auteur === 'systeme') return 'systeme';
+      return 'message';
+    }
+
     function renderTimeline() {
       var box = document.getElementById('sav-timeline');
       if (!box) return;
       var msgs = (ticket.messages || []).slice().reverse();
-      if (!msgs.length) { box.innerHTML = '<div class="text-sm text-slate-500">Aucun événement.</div>'; return; }
-      box.innerHTML = msgs.map(function (m) {
-        var auto = /🤖|systeme/.test(m.contenu) || m.auteur === 'systeme';
-        return '<div class="sav-timeline__item">' +
-          '<div class="sav-timeline__dot sav-timeline__dot--' + (auto ? 'auto' : 'fait') + '"></div>' +
-          '<div class="text-xs text-slate-500">' + new Date(m.date).toLocaleString('fr-FR') + ' · ' + escapeHtml(m.canal) + ' · ' + escapeHtml(m.auteur) + (auto ? ' <span class="ml-1 text-orange-600">🤖 auto</span>' : '') + '</div>' +
-          '<div class="text-sm text-slate-800">' + escapeHtml(m.contenu) + '</div>' +
+      if (!msgs.length) {
+        box.className = 'sav-timeline sav-timeline--v2';
+        box.innerHTML = '<div class="text-sm text-slate-500">Aucun événement.</div>';
+        return;
+      }
+      var filtered = msgs.filter(function (m) {
+        if (tlFilter === 'all') return true;
+        return detectTlType(m) === tlFilter;
+      });
+      box.className = 'sav-timeline sav-timeline--v2';
+      if (!filtered.length) {
+        box.innerHTML = '<div class="text-sm text-slate-500">Aucun événement pour ce filtre.</div>';
+        return;
+      }
+      box.innerHTML = filtered.map(function (m) {
+        var type = detectTlType(m);
+        var iconName = TL_TYPE_ICON[type] || 'circle';
+        var dateAbs = new Date(m.date).toLocaleString('fr-FR');
+        var dateRel = fmtRelative(m.date);
+        return '<div class="sav-tl-entry" data-type="' + type + '">' +
+          '<div class="sav-tl-badge sav-tl-badge--' + type + '"><span class="material-symbols-outlined">' + iconName + '</span></div>' +
+          '<div class="sav-tl-meta">' +
+            '<span class="sav-tl-author">' + escapeHtml(m.auteur || '—') + '</span>' +
+            '<span title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>' +
+            (m.canal ? '<span class="text-slate-300">·</span><span>' + escapeHtml(m.canal) + '</span>' : '') +
+          '</div>' +
+          '<div class="sav-tl-content">' + escapeHtml(m.contenu || '') + '</div>' +
         '</div>';
       }).join('');
     }
+
+    // Wire timeline filter chips (one-time)
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-tl-filter]');
+      if (!btn) return;
+      tlFilter = btn.getAttribute('data-tl-filter');
+      document.querySelectorAll('[data-tl-filter]').forEach(function (b) {
+        b.classList.toggle('is-active', b === btn);
+      });
+      renderTimeline();
+    });
 
     function renderDocuments() {
       var box = document.getElementById('sav-documents');
@@ -613,32 +959,167 @@
       }).join('');
     }
 
+    function avatarColor(name) {
+      var s = String(name || '?');
+      var h = 0;
+      for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      var palette = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f43f5e','#22c55e','#0ea5e9'];
+      return palette[h % palette.length];
+    }
+
+    function sanitizeHtml(html) {
+      var div = document.createElement('div');
+      div.innerHTML = String(html || '');
+      div.querySelectorAll('script,style,iframe,object,embed').forEach(function (n) { n.remove(); });
+      div.querySelectorAll('*').forEach(function (n) {
+        for (var i = n.attributes.length - 1; i >= 0; i--) {
+          var a = n.attributes[i];
+          if (/^on/i.test(a.name)) n.removeAttribute(a.name);
+          if ((a.name === 'href' || a.name === 'src') && /^javascript:/i.test(a.value)) n.removeAttribute(a.name);
+        }
+      });
+      return div.innerHTML;
+    }
+
     function renderMessages() {
       var box = document.getElementById('sav-messages');
       if (!box) return;
       var msgs = ticket.messages || [];
       if (!msgs.length) { box.innerHTML = '<div class="text-sm text-slate-500">Aucun message.</div>'; return; }
-      box.innerHTML = msgs.map(function (m) {
-        return '<div class="rounded-xl border border-slate-200 p-2 text-sm"><div class="text-xs text-slate-500">' + new Date(m.date).toLocaleString('fr-FR') + ' · ' + escapeHtml(m.canal) + ' · ' + escapeHtml(m.auteur) + '</div><div>' + escapeHtml(m.contenu) + '</div></div>';
+      box.innerHTML = msgs.map(function (m, idx) {
+        var canal = (m.canal || 'email').toLowerCase();
+        var canalKey = canal === 'whatsapp' ? 'whatsapp' : canal === 'tel' || canal === 'phone' ? 'tel' : canal === 'interne' || canal === 'note' ? 'interne' : 'email';
+        var author = m.auteur || '—';
+        var color = avatarColor(author);
+        var dateAbs = new Date(m.date).toLocaleString('fr-FR');
+        var dateRel = fmtRelative(m.date);
+        var rawHtml = m.html || ('<div>' + escapeHtml(m.contenu || '').replace(/\n/g, '</div><div>') + '</div>');
+        var safe = sanitizeHtml(rawHtml);
+        var sujet = m.sujet ? '<div class="font-semibold text-slate-900 mb-1">' + escapeHtml(m.sujet) + '</div>' : '';
+        var label = canalKey === 'interne' ? '<div class="sav-msg__intlabel">🔒 INTERNE</div>' : '';
+        return '<article class="sav-msg sav-msg--' + canalKey + '" data-msg-idx="' + idx + '">' +
+          label +
+          '<header class="sav-msg__head">' +
+            '<span class="sav-msg__avatar" style="background:' + color + '">' + escapeHtml(initials(author)) + '</span>' +
+            '<span class="sav-msg__author">' + escapeHtml(author) + '</span>' +
+            '<span class="sav-msg__pill sav-msg__pill--' + canalKey + '">' + escapeHtml(canalKey) + '</span>' +
+            '<span class="sav-msg__date" title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>' +
+          '</header>' +
+          '<div class="sav-msg__body">' + sujet + safe + '</div>' +
+          '<footer class="sav-msg__foot">' +
+            '<button type="button" class="sav-msg__reply" data-reply-idx="' + idx + '">' +
+              '<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">reply</span> Répondre' +
+            '</button>' +
+          '</footer>' +
+        '</article>';
       }).join('');
+
+      // Wire reply buttons
+      box.querySelectorAll('[data-reply-idx]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var i = Number(b.getAttribute('data-reply-idx'));
+          var m = (ticket.messages || [])[i];
+          if (!m || !editor) return;
+          var quoted = String(m.contenu || m.html || '').replace(/<[^>]+>/g, '').split('\n').map(function (l) { return '> ' + l; }).join('\n');
+          var existing = editor.innerHTML;
+          editor.innerHTML = existing + '<div><br></div><blockquote style="border-left:3px solid #cbd5e1;padding-left:8px;color:#64748b;">' +
+            escapeHtml(quoted).replace(/\n/g, '<br>') + '</blockquote><div><br></div>';
+          syncContenu();
+          editor.focus();
+          var tabBtn = document.querySelector('[data-tab-btn="communications"]');
+          if (tabBtn) tabBtn.click();
+        });
+      });
+    }
+
+    function deriveP149State(p) {
+      if (!p || !p.status || p.status === 'na') return 'non_applicable';
+      if (p.status === 'payee') return 'paye';
+      if (p.status === 'impayee' || p.status === 'expired' || p.status === 'failed') return 'echec';
+      if (p.paymentUrl || p.mollieId) return 'lien_genere';
+      return 'non_facture';
+    }
+
+    function callFacturer149(label) {
+      api('/tickets/' + encodeURIComponent(numero) + '/facturer-149', { method: 'POST' })
+        .then(function (res) {
+          if (res.ok && res.j.success) {
+            toast(label || 'Lien de paiement généré');
+            if (res.j.data && res.j.data.paymentUrl) window.open(res.j.data.paymentUrl, '_blank');
+            loadTicket();
+          } else toast((res.j && res.j.error) || 'Erreur', 'error');
+        });
     }
 
     function renderPaiement() {
       var box = document.getElementById('sav-paiement');
       if (!box) return;
-      var p = ticket.paiements && ticket.paiements.facture149;
-      if (!p || !p.status || p.status === 'na') { box.innerHTML = '<span class="text-slate-400">Non applicable</span>'; return; }
-      var statusColor = p.status === 'payee' ? 'bg-emerald-100 text-emerald-800' : p.status === 'impayee' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800';
-      box.innerHTML =
-        '<div class="space-y-2">' +
-          '<div><span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + statusColor + '">' + escapeHtml(p.status) + '</span></div>' +
-          (p.qontoInvoiceId ? '<div class="text-xs"><strong>Qonto :</strong> ' + (p.qontoInvoiceUrl ? '<a class="text-primary underline" target="_blank" href="' + escapeHtml(p.qontoInvoiceUrl) + '">' + escapeHtml(p.qontoInvoiceId) + '</a>' : escapeHtml(p.qontoInvoiceId)) + '</div>' : '') +
-          (p.qontoPdfUrl ? '<div><a class="text-xs text-primary underline" target="_blank" href="' + escapeHtml(p.qontoPdfUrl) + '">📄 Facture PDF</a></div>' : '') +
-          (p.mollieId ? '<div class="text-xs text-slate-500"><strong>Mollie :</strong> ' + escapeHtml(p.mollieId) + '</div>' : '') +
-          (p.paymentUrl ? '<div><a class="text-xs text-primary underline" target="_blank" href="' + escapeHtml(p.paymentUrl) + '">🔗 Lien de paiement</a></div>' : '') +
-          (p.dateGeneration ? '<div class="text-[10px] text-slate-400">Généré : ' + new Date(p.dateGeneration).toLocaleString('fr-FR') + '</div>' : '') +
-          (p.datePaiement ? '<div class="text-[10px] text-emerald-700">✓ Payé : ' + new Date(p.datePaiement).toLocaleString('fr-FR') + '</div>' : '') +
-        '</div>';
+      var p = (ticket.paiements && ticket.paiements.facture149) || {};
+      var state = deriveP149State(p);
+
+      if (state === 'non_applicable') {
+        box.innerHTML = '<div class="text-sm text-slate-400">Non applicable</div>';
+        return;
+      }
+
+      var amount = (p.montant != null ? p.montant : 149);
+      var url = p.paymentUrl || '';
+
+      if (state === 'non_facture') {
+        box.innerHTML =
+          '<div class="space-y-2">' +
+            '<div class="text-sm text-slate-600">Aucun lien de paiement généré.</div>' +
+            '<button type="button" class="btn btn-primary w-full text-sm" data-p149-action="create">' +
+              '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;">add_link</span> Créer le lien Mollie' +
+            '</button>' +
+          '</div>';
+      } else if (state === 'lien_genere') {
+        box.innerHTML =
+          '<div class="space-y-2">' +
+            '<div><span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">En attente paiement</span></div>' +
+            '<div class="text-sm font-semibold text-slate-900">' + Number(amount).toFixed(2) + ' €</div>' +
+            (url ? '<div class="flex items-center gap-1"><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener" class="text-xs text-primary underline truncate flex-1">' + escapeHtml(url) + '</a>' +
+              '<button type="button" class="sav-copy-mini text-slate-400 hover:text-primary" data-copy="' + escapeHtml(url) + '" title="Copier"><span class="material-symbols-outlined" style="font-size:14px;">content_copy</span></button></div>' : '') +
+            (p.dateGeneration ? '<div class="text-[10px] text-slate-400">Généré : ' + new Date(p.dateGeneration).toLocaleString('fr-FR') + '</div>' : '') +
+            '<button type="button" class="btn btn-secondary w-full text-sm" data-p149-action="resend">' +
+              '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;">forward_to_inbox</span> Renvoyer le lien' +
+            '</button>' +
+          '</div>';
+      } else if (state === 'paye') {
+        box.innerHTML =
+          '<div class="space-y-2">' +
+            '<div class="flex items-center gap-2 text-emerald-700"><span class="material-symbols-outlined">check_circle</span><span class="font-semibold">Payé</span></div>' +
+            '<div class="text-sm font-semibold text-slate-900">' + Number(amount).toFixed(2) + ' €</div>' +
+            (p.datePaiement ? '<div class="text-xs text-slate-500">Le ' + new Date(p.datePaiement).toLocaleString('fr-FR') + '</div>' : '') +
+            (p.mollieId ? '<div class="text-xs"><a href="https://my.mollie.com/dashboard/payments/' + escapeHtml(p.mollieId) + '" target="_blank" rel="noopener" class="text-primary underline">Voir transaction Mollie ↗</a></div>' : '') +
+            (p.qontoInvoiceUrl ? '<div class="text-xs"><a href="' + escapeHtml(p.qontoInvoiceUrl) + '" target="_blank" rel="noopener" class="text-primary underline">Facture Qonto ↗</a></div>' : '') +
+          '</div>';
+      } else if (state === 'echec') {
+        box.innerHTML =
+          '<div class="space-y-2">' +
+            '<div><span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Échec / Expiré</span></div>' +
+            '<div class="text-xs text-slate-500">Le lien précédent a échoué ou expiré.</div>' +
+            '<button type="button" class="btn btn-primary w-full text-sm" data-p149-action="regenerate">' +
+              '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;">refresh</span> Régénérer le lien' +
+            '</button>' +
+          '</div>';
+      }
+
+      // Wire actions
+      box.querySelectorAll('[data-p149-action]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var act = b.getAttribute('data-p149-action');
+          var label = act === 'create' ? 'Lien créé' : act === 'resend' ? 'Lien renvoyé' : 'Lien régénéré';
+          callFacturer149(label);
+        });
+      });
+      box.querySelectorAll('.sav-copy-mini').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var v = b.getAttribute('data-copy') || '';
+          if (navigator.clipboard) navigator.clipboard.writeText(v).then(function () { toast('Copié'); });
+          else toast('Copié');
+        });
+      });
     }
 
     function prefillDiagEnrichi() {
@@ -671,14 +1152,94 @@
       if (f.elements.dateRetour && fo.dateRetour) f.elements.dateRetour.value = new Date(fo.dateRetour).toISOString().slice(0,10);
     }
 
+    // -------- Bottom sheet actions (mobile) --------
+    var bottomToggle = document.getElementById('sav-bottom-toggle');
+    var bottomWrap = bottomToggle && bottomToggle.closest('.sav-bottom-actions');
+    if (bottomToggle && bottomWrap) {
+      bottomToggle.addEventListener('click', function () {
+        var open = bottomWrap.classList.toggle('is-open');
+        bottomToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      // Ferme sur clic d'un bouton d'action à l'intérieur (pour libérer la vue)
+      bottomWrap.addEventListener('click', function (e) {
+        var btn = e.target.closest && e.target.closest('[data-action-statut],[data-action-resolution],[data-action-facturer],[data-action-pdf]');
+        if (btn && bottomWrap.classList.contains('is-open')) {
+          bottomWrap.classList.remove('is-open');
+          bottomToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+      // Esc ferme
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && bottomWrap.classList.contains('is-open')) {
+          bottomWrap.classList.remove('is-open');
+          bottomToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
     // -------- Onglets --------
     document.querySelectorAll('[data-tab]').forEach(function (b) {
       b.addEventListener('click', function () {
         var k = b.getAttribute('data-tab');
-        document.querySelectorAll('[data-tab]').forEach(function (x) { x.classList.toggle('is-active', x.getAttribute('data-tab') === k); });
+        document.querySelectorAll('[data-tab]').forEach(function (x) {
+          var on = x.getAttribute('data-tab') === k;
+          x.classList.toggle('is-active', on);
+          x.setAttribute('aria-selected', on ? 'true' : 'false');
+          x.setAttribute('tabindex', on ? '0' : '-1');
+        });
         document.querySelectorAll('[data-tab-panel]').forEach(function (x) { x.classList.toggle('hidden', x.getAttribute('data-tab-panel') !== k); });
       });
     });
+
+    // -------- Compteurs + indicateur "à compléter" sur les onglets --------
+    function renderTabBadges() {
+      var t = ticket || {};
+      var nbDocs = Array.isArray(t.documentsList)
+        ? t.documentsList.length
+        : (function () {
+            var d = t.documents || {}; var n = 0;
+            if (d.factureMontage) n++;
+            if (d.confirmationReglageBase) n++;
+            n += (d.photosObd || []).length;
+            n += (d.photosVisuelles || []).length;
+            return n;
+          })();
+      var nbMsgs = (t.messages || []).length;
+      var counts = { documents: nbDocs, communications: nbMsgs };
+
+      Object.keys(counts).forEach(function (k) {
+        var el = document.querySelector('[data-tab-count="' + k + '"]');
+        if (!el) return;
+        if (counts[k] > 0) {
+          el.textContent = '(' + counts[k] + ')';
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+      });
+
+      // Dots "à compléter"
+      var statut = t.statut || '';
+      var diag = t.diagnosticEnrichi || t.diagnostic || {};
+      var diagEmpty = !(diag && (diag.conclusion || diag.scoreCalcule || (diag.mesures && Object.keys(diag.mesures).length)));
+      var fourn = t.fournisseur || {};
+      var fournEmpty = !(fourn && (fourn.nom || fourn.contact || fourn.rmaNumero));
+      var hasUnreadClient = (t.messages || []).some(function (m) {
+        return m && m.lu === false && (m.auteur === 'client' || (m.canal && m.canal !== 'interne' && /client/i.test(m.auteur || '')));
+      });
+
+      var dots = {
+        diagnostic: diagEmpty && /en[_ ]?analyse|analyse_terminee/i.test(statut),
+        fournisseur: fournEmpty && /attente.*fourn|en_attente_fournisseur/i.test(statut),
+        communications: hasUnreadClient,
+      };
+      Object.keys(dots).forEach(function (k) {
+        var el = document.querySelector('[data-tab-dot="' + k + '"]');
+        if (!el) return;
+        el.classList.toggle('hidden', !dots[k]);
+      });
+    }
+    window.renderTabBadges = renderTabBadges;
 
     // -------- Templates + variables + WYSIWYG + preview --------
     var TEMPLATES = {
@@ -728,82 +1289,259 @@
       });
     }
     var tplSelect = document.getElementById('sav-template');
-    if (tplSelect) tplSelect.addEventListener('change', function (e) {
-      var v = e.target.value;
+    function applyTemplate(v) {
       if (TEMPLATES[v] && editor) {
         editor.innerHTML = TEMPLATES[v].split('\n').map(function (l) { return '<div>' + escapeHtml(l) + '</div>'; }).join('');
         syncContenu();
       }
+    }
+    if (tplSelect) tplSelect.addEventListener('change', function (e) { applyTemplate(e.target.value); });
+
+    // Templates en chips
+    document.querySelectorAll('[data-template]').forEach(function (chip) {
+      chip.addEventListener('click', function () { applyTemplate(chip.getAttribute('data-template')); });
     });
 
-    var msgForm = document.getElementById('sav-msg-form');
-    if (msgForm) msgForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var fd = new FormData(e.target);
-      var canal = fd.get('canal') || 'email';
-      var sujet = fd.get('sujet') || '';
-      var contenu = interpolate(document.getElementById('sav-msg-contenu').value || '');
-      var html = interpolate(document.getElementById('sav-msg-html').value || '');
-      api('/tickets/' + encodeURIComponent(numero) + '/communication', {
-        method: 'POST',
-        body: JSON.stringify({ canal: canal, sujet: sujet, contenu: contenu, html: html }),
-      }).then(function (res) {
-        if (res.ok && res.j.success) {
-          toast('Message envoyé via ' + canal);
-          editor.innerHTML = '';
-          syncContenu();
-          loadTicket();
-        } else toast(res.j.error || 'Erreur', 'error');
+    // Pills toggle canaux
+    var canalInput = document.getElementById('sav-canal-input');
+    document.querySelectorAll('.sav-canal-pill').forEach(function (p) {
+      p.addEventListener('click', function () {
+        document.querySelectorAll('.sav-canal-pill').forEach(function (x) {
+          x.classList.remove('is-active');
+          x.setAttribute('aria-checked', 'false');
+        });
+        p.classList.add('is-active');
+        p.setAttribute('aria-checked', 'true');
+        if (canalInput) canalInput.value = p.getAttribute('data-canal');
       });
     });
 
-    // -------- Diagnostic (existant + enrichi) --------
-    var diagForm = document.getElementById('sav-diag-form');
-    if (diagForm) diagForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var fd = new FormData(e.target);
-      var payload = {
-        conclusion: fd.get('conclusion'),
-        rapport: fd.get('rapport'),
-        scoreRisque: fd.get('scoreRisque') ? Number(fd.get('scoreRisque')) : undefined,
-        codesDefaut: (fd.get('codesDefaut') || '').toString().split(/[,\s]+/).filter(Boolean),
-      };
-      api('/tickets/' + encodeURIComponent(numero) + '/diagnostic', { method: 'POST', body: JSON.stringify(payload) })
-        .then(function (res) {
-          if (res.ok && res.j.success) { toast('Diagnostic enregistré'); loadTicket(); }
-          else toast(res.j.error || 'Erreur', 'error');
-        });
+    // -------- Brouillon localStorage --------
+    var DRAFT_KEY = 'sav-draft-' + numero;
+    var draftStatus = document.getElementById('sav-draft-status');
+    var draftSavedAt = null;
+    var draftTimer = null;
+
+    function setDraftStatus() {
+      if (!draftStatus) return;
+      if (!draftSavedAt) { draftStatus.textContent = ''; return; }
+      var s = Math.max(1, Math.floor((Date.now() - draftSavedAt) / 1000));
+      draftStatus.textContent = 'Brouillon sauvegardé · il y a ' + s + ' s';
+    }
+    setInterval(setDraftStatus, 5000);
+
+    function persistDraft() {
+      try {
+        var payload = {
+          html: editor ? editor.innerHTML : '',
+          sujet: (document.querySelector('[name="sujet"]') || {}).value || '',
+          canal: canalInput ? canalInput.value : 'email',
+          ts: Date.now(),
+        };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+        draftSavedAt = Date.now();
+        setDraftStatus();
+      } catch (_) {}
+    }
+    function clearDraft() {
+      try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+      draftSavedAt = null; setDraftStatus();
+    }
+    function restoreDraft() {
+      try {
+        var raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        var d = JSON.parse(raw);
+        if (d.html && editor) { editor.innerHTML = d.html; syncContenu(); }
+        if (d.sujet) { var s = document.querySelector('[name="sujet"]'); if (s) s.value = d.sujet; }
+        if (d.canal) {
+          var pill = document.querySelector('.sav-canal-pill[data-canal="' + d.canal + '"]');
+          if (pill) pill.click();
+        }
+        draftSavedAt = d.ts || Date.now();
+        setDraftStatus();
+      } catch (_) {}
+    }
+    function scheduleDraftSave() {
+      clearTimeout(draftTimer);
+      draftTimer = setTimeout(persistDraft, 500);
+    }
+    if (editor) editor.addEventListener('input', scheduleDraftSave);
+    var sujetInput = document.querySelector('[name="sujet"]');
+    if (sujetInput) sujetInput.addEventListener('input', scheduleDraftSave);
+    restoreDraft();
+
+    // -------- Split button menu --------
+    var sendMore = document.getElementById('sav-send-more');
+    var sendMenu = document.getElementById('sav-send-menu');
+    if (sendMore && sendMenu) {
+      sendMore.addEventListener('click', function () {
+        var open = !sendMenu.classList.contains('hidden');
+        sendMenu.classList.toggle('hidden', open);
+        sendMore.setAttribute('aria-expanded', String(!open));
+      });
+      document.addEventListener('click', function (e) {
+        if (!sendMenu.contains(e.target) && e.target !== sendMore && !sendMore.contains(e.target)) {
+          sendMenu.classList.add('hidden');
+          sendMore.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    // -------- Submit (avec actions) --------
+    var pendingAction = 'send';
+    document.querySelectorAll('[data-send-action]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        pendingAction = b.getAttribute('data-send-action');
+        if (pendingAction === 'save_draft') {
+          e.preventDefault();
+          persistDraft();
+          toast('Brouillon sauvegardé');
+          if (sendMenu) sendMenu.classList.add('hidden');
+          return;
+        }
+        if (b.tagName !== 'BUTTON' || b.type !== 'submit') {
+          e.preventDefault();
+          if (msgForm) msgForm.requestSubmit();
+        }
+      });
     });
 
-    var diagEnrichiForm = document.getElementById('sav-diag-enrichi-form');
-    if (diagEnrichiForm) diagEnrichiForm.addEventListener('submit', function (e) {
+    var msgForm = document.getElementById('sav-msg-form');
+    function doSend(action, nextStatut) {
+      var canal = (canalInput && canalInput.value) || 'email';
+      var sujet = (document.querySelector('[name="sujet"]') || {}).value || '';
+      var contenu = interpolate(document.getElementById('sav-msg-contenu').value || '');
+      var html = interpolate(document.getElementById('sav-msg-html').value || '');
+      return api('/tickets/' + encodeURIComponent(numero) + '/communication', {
+        method: 'POST',
+        body: JSON.stringify({ canal: canal, sujet: sujet, contenu: contenu, html: html }),
+      }).then(function (res) {
+        if (!(res.ok && res.j.success)) { toast(res.j.error || 'Erreur', 'error'); return; }
+        toast('Message envoyé via ' + canal);
+        editor.innerHTML = '';
+        syncContenu();
+        clearDraft();
+        if (action === 'send_and_status' && nextStatut) {
+          return api('/tickets/' + encodeURIComponent(numero) + '/statut', {
+            method: 'PATCH', body: JSON.stringify({ statut: nextStatut, auteur: 'admin' }),
+          }).then(function () { toast('Statut → ' + nextStatut); loadTicket(); });
+        }
+        loadTicket();
+      });
+    }
+    if (msgForm) msgForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      var fd = new FormData(e.target);
-      var payload = {
-        mesures: {
-          pressionHydraulique: fd.get('pressionHydraulique') ? Number(fd.get('pressionHydraulique')) : undefined,
-          fuiteInterne: fd.get('fuiteInterne'),
-          temperatureAvant: fd.get('temperatureAvant') ? Number(fd.get('temperatureAvant')) : undefined,
-          temperatureApres: fd.get('temperatureApres') ? Number(fd.get('temperatureApres')) : undefined,
-          codesAvantReset: (fd.get('codesAvantReset') || '').toString().split(/[,\s]+/).filter(Boolean),
-          codesApresReset: (fd.get('codesApresReset') || '').toString().split(/[,\s]+/).filter(Boolean),
-        },
-        videoUrl: fd.get('videoUrl'),
-        courbeBancUrl: fd.get('courbeBancUrl'),
-        avis2eTechnicienTexte: fd.get('avis2eTechnicienTexte'),
-      };
-      api('/tickets/' + encodeURIComponent(numero) + '/diagnostic-enrichi', { method: 'POST', body: JSON.stringify(payload) })
-        .then(function (res) {
-          if (res.ok && res.j.success) {
-            toast('Diagnostic enrichi sauvegardé');
-            var sc = document.getElementById('sav-diag-score');
-            if (sc) sc.textContent = (res.j.data.diagnosticEnrichi && res.j.data.diagnosticEnrichi.scoreCalcule) || '—';
-            loadTicket();
-          } else toast(res.j.error || 'Erreur', 'error');
-        });
+      var nextStatut = null;
+      if (pendingAction === 'send_and_status') {
+        var btn = document.querySelector('[data-send-action="send_and_status"]');
+        nextStatut = btn && btn.getAttribute('data-next-statut');
+        if (sendMenu) sendMenu.classList.add('hidden');
+      }
+      doSend(pendingAction, nextStatut);
+      pendingAction = 'send';
     });
+
+    // Cmd+Enter / Cmd+S sur l'éditeur
+    if (editor) {
+      editor.addEventListener('keydown', function (e) {
+        var meta = e.metaKey || e.ctrlKey;
+        if (!meta) return;
+        if (e.key === 'Enter') { e.preventDefault(); pendingAction = 'send'; if (msgForm) msgForm.requestSubmit(); }
+        else if (e.key === 's' || e.key === 'S') { e.preventDefault(); persistDraft(); toast('Brouillon sauvegardé'); }
+      });
+    }
+
+    // -------- Diagnostic Wizard 4 étapes --------
+    var diagState = {
+      step: 1,
+      data: {
+        pressionHydraulique: '', fuiteInterne: '', temperatureAvant: '', temperatureApres: '',
+        codesAvantReset: '', codesApresReset: '', codesDefaut: '',
+        videoUrl: '', courbeBancUrl: '', rapport: '',
+        conclusion: '', avis2eTechnicienTexte: '',
+      },
+    };
+    var STEP_LABELS = { 1: 'Mesures', 2: 'Codes défaut', 3: 'Médias', 4: 'Conclusion' };
+
+    function computeScore(d) {
+      var sympts = (ticket && ticket.diagnostic && ticket.diagnostic.symptomes) || [];
+      var score = Math.min(40, sympts.length * 5);
+      if (d.pressionHydraulique !== '' && Number(d.pressionHydraulique) < 5) score += 20;
+      if (d.fuiteInterne && String(d.fuiteInterne).toLowerCase() !== 'non') score += 15;
+      if ((d.codesAvantReset || '').split(/[,\s]+/).filter(Boolean).length > 0) score += 10;
+      if ((d.codesApresReset || '').split(/[,\s]+/).filter(Boolean).length > 0) score += 15;
+      return Math.min(100, score);
+    }
+    window.computeScore = computeScore;
+
+    function renderDiagWizard() {
+      var cur = document.querySelector('[data-diag-current]');
+      var label = document.querySelector('[data-diag-step-label]');
+      var bar = document.querySelector('[data-diag-progress]');
+      if (cur) cur.textContent = String(diagState.step);
+      if (label) label.textContent = STEP_LABELS[diagState.step];
+      if (bar) bar.style.width = (diagState.step * 25) + '%';
+      document.querySelectorAll('.sav-diag-step').forEach(function (el) {
+        el.classList.toggle('hidden', Number(el.getAttribute('data-diag-step')) !== diagState.step);
+      });
+      var prev = document.getElementById('sav-diag-prev');
+      var next = document.getElementById('sav-diag-next');
+      var save = document.getElementById('sav-diag-save');
+      if (prev) prev.disabled = diagState.step === 1;
+      if (next) next.classList.toggle('hidden', diagState.step === 4);
+      if (save) save.classList.toggle('hidden', diagState.step !== 4);
+      var sc = document.querySelector('[data-diag-score-display]');
+      if (sc) sc.textContent = String(computeScore(diagState.data));
+      var legacySc = document.getElementById('sav-diag-score');
+      if (legacySc) legacySc.textContent = String(computeScore(diagState.data));
+    }
+
+    document.querySelectorAll('[data-diag-field]').forEach(function (el) {
+      el.addEventListener('input', function () {
+        diagState.data[el.getAttribute('data-diag-field')] = el.value;
+        renderDiagWizard();
+      });
+      el.addEventListener('change', function () {
+        diagState.data[el.getAttribute('data-diag-field')] = el.value;
+        renderDiagWizard();
+      });
+    });
+
+    var diagPrev = document.getElementById('sav-diag-prev');
+    var diagNext = document.getElementById('sav-diag-next');
+    var diagSave = document.getElementById('sav-diag-save');
+    if (diagPrev) diagPrev.addEventListener('click', function () { if (diagState.step > 1) { diagState.step--; renderDiagWizard(); } });
+    if (diagNext) diagNext.addEventListener('click', function () { if (diagState.step < 4) { diagState.step++; renderDiagWizard(); } });
+    if (diagSave) diagSave.addEventListener('click', function () {
+      if (!diagState.data.conclusion) { toast('Conclusion requise', 'error'); return; }
+      api('/tickets/' + encodeURIComponent(numero) + '/diagnostic-complet', {
+        method: 'POST', body: JSON.stringify(diagState.data),
+      }).then(function (res) {
+        if (res.ok && res.j.success) {
+          toast('Diagnostic enregistré · score ' + (res.j.data.scoreCalcule || '?'));
+          loadTicket();
+        } else toast((res.j && res.j.error) || 'Erreur', 'error');
+      });
+    });
+    renderDiagWizard();
+
+    // Stub legacy variables (referenced ailleurs)
+    var diagForm = document.getElementById('sav-diag-form');
+    var diagEnrichiForm = document.getElementById('sav-diag-enrichi-form');
 
     // -------- Fournisseur --------
+    // Persist <details data-fourn-section> open state in localStorage
+    document.querySelectorAll('details[data-fourn-section]').forEach(function (d) {
+      var key = 'sav-fourn-section-' + d.getAttribute('data-fourn-section');
+      var saved = localStorage.getItem(key);
+      if (saved === 'open') d.open = true;
+      else if (saved === 'closed') d.open = false;
+      d.addEventListener('toggle', function () {
+        try { localStorage.setItem(key, d.open ? 'open' : 'closed'); } catch (_) {}
+      });
+    });
+
     var fournForm = document.getElementById('sav-fourn-form');
     if (fournForm) fournForm.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -844,12 +1582,12 @@
           waText.value = d.text || '';
           waClientScript.value = d.clientScript || '';
           waLink.href = d.waUrl || '#';
-          waModal.classList.remove('hidden'); waModal.classList.add('flex');
+          openModal(waModal);
         });
     }
-    function closeWa() { if (waModal) { waModal.classList.add('hidden'); waModal.classList.remove('flex'); } }
+    function closeWa() { if (waModal) closeModal(waModal); }
     if (waBtn) waBtn.addEventListener('click', openWa);
-    if (waModal) waModal.addEventListener('click', function (e) { if (e.target === waModal || e.target.matches('[data-close-wa]')) closeWa(); });
+    if (waModal) waModal.addEventListener('click', function (e) { if (e.target === waModal || (e.target.matches && e.target.matches('[data-close-wa]'))) closeWa(); });
     if (waPhone) waPhone.addEventListener('input', function () {
       var clean = waPhone.value.replace(/[^\d]/g, '');
       waLink.href = clean ? 'https://wa.me/' + clean + '?text=' + encodeURIComponent(waText.value) : '#';
@@ -889,8 +1627,8 @@
       var cancel = document.getElementById('sav-confirm-cancel');
       if (!modal) { if (window.confirm(msg)) action(); return; }
       text.textContent = msg;
-      modal.classList.remove('hidden'); modal.classList.add('flex');
-      function close() { modal.classList.add('hidden'); modal.classList.remove('flex'); ok.removeEventListener('click', go); cancel.removeEventListener('click', close); }
+      openModal(modal);
+      function close() { closeModal(modal); ok.removeEventListener('click', go); cancel.removeEventListener('click', close); }
       function go() { close(); action(); }
       ok.addEventListener('click', go);
       cancel.addEventListener('click', close);
@@ -947,12 +1685,12 @@
         teamUsers = res.j.data.users || [];
         assignSelect.innerHTML = '<option value="">— Désassigner —</option>' +
           teamUsers.map(function (u) { return '<option value="' + u._id + '"' + (ticket && String(ticket.assignedToUserId) === String(u._id) ? ' selected' : '') + '>' + escapeHtml((u.firstName || '') + ' ' + (u.lastName || '')) + '</option>'; }).join('');
-        assignModal.classList.remove('hidden'); assignModal.classList.add('flex');
+        openModal(assignModal);
       });
     }
-    function closeAssign() { assignModal.classList.add('hidden'); assignModal.classList.remove('flex'); }
+    function closeAssign() { if (assignModal) closeModal(assignModal); }
     if (assignBtn) assignBtn.addEventListener('click', openAssign);
-    if (assignModal) assignModal.addEventListener('click', function (e) { if (e.target === assignModal || e.target.matches('[data-close-assign]')) closeAssign(); });
+    if (assignModal) assignModal.addEventListener('click', function (e) { if (e.target === assignModal || (e.target.matches && e.target.matches('[data-close-assign]'))) closeAssign(); });
     var assignConfirm = document.getElementById('sav-assign-confirm');
     if (assignConfirm) assignConfirm.addEventListener('click', function () {
       var uid = assignSelect.value || null;
@@ -963,13 +1701,29 @@
         });
     });
 
+    // -------- Copy numéro ticket --------
+    var copyBtn = document.getElementById('sav-copy-numero');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var val = copyBtn.getAttribute('data-copy') || '';
+        var done = function () { toast('Copié'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(val).then(done).catch(function () {
+            try { var ta = document.createElement('textarea'); ta.value = val; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); } catch (_) { toast('Erreur copie', 'error'); }
+          });
+        } else {
+          try { var ta = document.createElement('textarea'); ta.value = val; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); } catch (_) { toast('Erreur copie', 'error'); }
+        }
+      });
+    }
+
     // -------- Modale aide raccourcis --------
     var helpBtn = document.getElementById('sav-help-btn');
-    var kbdModal = document.getElementById('sav-kbd-modal');
-    function openKbd() { if (kbdModal) { kbdModal.classList.remove('hidden'); kbdModal.classList.add('flex'); } }
-    function closeKbd() { if (kbdModal) { kbdModal.classList.add('hidden'); kbdModal.classList.remove('flex'); } }
-    if (helpBtn) helpBtn.addEventListener('click', openKbd);
-    if (kbdModal) kbdModal.addEventListener('click', function (e) { if (e.target === kbdModal || e.target.matches('[data-close-kbd]')) closeKbd(); });
+    var kbdModalDetail = document.getElementById('sav-kbd-modal');
+    function openKbdDetail() { if (kbdModalDetail) openModal(kbdModalDetail); }
+    function closeKbdDetail() { if (kbdModalDetail) closeModal(kbdModalDetail); }
+    if (helpBtn) helpBtn.addEventListener('click', openKbdDetail);
+    if (kbdModalDetail) kbdModalDetail.addEventListener('click', function (e) { if (e.target === kbdModalDetail || (e.target.matches && e.target.matches('[data-close-kbd]'))) closeKbdDetail(); });
 
     // Raccourcis fiche
     document.addEventListener('keydown', function (e) {
@@ -982,10 +1736,8 @@
       if (e.key === 'a') { openAssign(); }
       if (e.key === 'e') { var c = document.querySelector('#sav-diag-form [name="conclusion"]'); if (c) { document.querySelector('[data-tab="diagnostic"]').click(); c.focus(); } }
       if (e.key === 's') { var b = document.querySelector('[data-action-statut]'); if (b) b.focus(); }
-      if (e.key === '?' || (e.shiftKey && e.key === '/')) { e.preventDefault(); openKbd(); }
-      if (e.key === 'Escape') {
-        document.querySelectorAll('.flex.fixed.inset-0').forEach(function (m) { m.classList.add('hidden'); m.classList.remove('flex'); });
-      }
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) { e.preventDefault(); openKbdDetail(); }
+      // Escape : géré par chaque modal individuellement via le focus trap
     });
 
     // Copier code OBD
