@@ -1197,3 +1197,257 @@
 
 /* Zone dangereuse collapsible */
 .sav-danger-zone[aria-expanded="false"] + .sav-danger-zone-body { display: none; }
+
+/* =====================================================================
+   SLA objectives timeline
+   ===================================================================== */
+.sav-obj {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.sav-obj__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.sav-obj__label { font-weight: 600; flex: 1; }
+.sav-obj__target {
+  font-size: 10px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+.sav-obj__bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.sav-obj__bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+.sav-obj__status {
+  font-size: 11px;
+  margin-top: 6px;
+  font-weight: 600;
+}
+.sav-obj--ok   { border-color: #a7f3d0; background: #ecfdf5; }
+.sav-obj--ok   .sav-obj__bar-fill { background: #10b981; }
+.sav-obj--ok   .sav-obj__status { color: #065f46; }
+.sav-obj--warn { border-color: #fde68a; background: #fffbeb; }
+.sav-obj--warn .sav-obj__bar-fill { background: #f59e0b; }
+.sav-obj--warn .sav-obj__status { color: #92400e; }
+.sav-obj--late { border-color: #fecaca; background: #fef2f2; }
+.sav-obj--late .sav-obj__bar-fill { background: #ef4444; }
+.sav-obj--late .sav-obj__status { color: #991b1b; }
+
+/* =====================================================================
+   Filter pill (remplace checkbox brute)
+   ===================================================================== */
+.sav-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.sav-filter-pill:hover { border-color: #94a3b8; background: #f8fafc; }
+.sav-filter-pill:has(input:checked) {
+  background: #ec1313;
+  border-color: #ec1313;
+  color: #fff;
+}
+.sav-filter-pill__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+.sav-filter-pill__dot--late { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+.sav-filter-pill:has(input:checked) .sav-filter-pill__dot--late {
+  background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
+}
+
+/* =====================================================================
+   Diagnostic banc — stepper horizontal + inputs avec suffixe
+   ===================================================================== */
+.sav-diag-stepper {
+  display: flex;
+  gap: 8px;
+  padding: 0;
+  margin: 0 0 12px 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+.sav-diag-step-pill {
+  flex: 1 1 0;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.sav-diag-step-pill__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sav-diag-step-pill.is-done {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #065f46;
+}
+.sav-diag-step-pill.is-done .sav-diag-step-pill__num {
+  background: #10b981;
+  color: #fff;
+}
+.sav-diag-step-pill.is-current {
+  border-color: #ec1313;
+  background: #fff1f2;
+  color: #881337;
+  box-shadow: 0 0 0 3px rgba(236, 19, 19, 0.12);
+}
+.sav-diag-step-pill.is-current .sav-diag-step-pill__num {
+  background: #ec1313;
+  color: #fff;
+}
+
+/* Inputs avec suffixe d'unité inline */
+.sav-input-wrap { position: relative; display: block; }
+.sav-input-wrap .sav-input-suffix {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: #94a3b8;
+  pointer-events: none;
+  background: #f8fafc;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.sav-input.sav-input--warning,
+.sav-input-wrap:has(.sav-input--warning) .sav-input {
+  border-color: #f59e0b !important;
+  background: #fffbeb;
+}
+.sav-field-hint {
+  margin-top: 3px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+.sav-field-error {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #b91c1c;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.sav-field-error::before {
+  content: "⚠";
+}
+
+/* =====================================================================
+   Mini KPIs en tête de liste SAV
+   ===================================================================== */
+.sav-mini-kpi {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  text-align: left;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.sav-mini-kpi:hover { border-color: #94a3b8; transform: translateY(-1px); }
+.sav-mini-kpi__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+}
+.sav-mini-kpi__value { font-size: 18px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+.sav-mini-kpi__label { font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: 0.03em; }
+.sav-mini-kpi--danger .sav-mini-kpi__value { color: #b91c1c; }
+
+/* =====================================================================
+   Multi-select dropdown custom
+   ===================================================================== */
+.sav-multiselect { position: relative; }
+.sav-multiselect__btn {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.sav-multiselect__btn:hover { border-color: #94a3b8; }
+.sav-multiselect[aria-expanded="true"] .sav-multiselect__btn,
+.sav-multiselect__btn[aria-expanded="true"] { border-color: #ec1313; box-shadow: 0 0 0 3px rgba(236,19,19,0.1); }
+.sav-multiselect__label { flex: 1; }
+.sav-multiselect__count {
+  background: #ec1313; color: #fff; font-size: 10px;
+  padding: 1px 7px; border-radius: 9999px; font-weight: 700;
+}
+.sav-multiselect__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  z-index: 40;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+  padding: 6px;
+}
+.sav-multiselect__option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.sav-multiselect__option:hover { background: #f8fafc; }
+.sav-multiselect__option input { flex-shrink: 0; }

@@ -188,19 +188,39 @@
     return '<span class="inline-flex w-6 h-6 rounded-full text-white items-center justify-center text-[10px] font-bold" style="background: hsl(' + hue + ',55%,45%)">' + initials + '</span>';
   }
 
-  function slaState(d) {
-    if (!d) return { cls: 'ok', label: '—', remainingMs: null };
-    var diff = new Date(d) - Date.now();
+  // slaState — cls progressive selon % de temps écoulé du SLA (vert > 50%, orange 10-50%, rouge < 10% ou dépassé)
+  // opts : { dateOuverture } pour calcul %
+  function slaState(d, opts) {
+    if (!d) return { cls: 'ok', label: '—', tooltip: 'SLA non défini', remainingMs: null, pct: null };
+    var limite = new Date(d).getTime();
+    var now = Date.now();
+    var diff = limite - now;
+    var start = (opts && opts.dateOuverture) ? new Date(opts.dateOuverture).getTime() : null;
+    var total = start ? (limite - start) : null;
+    var pct = (total && total > 0) ? Math.max(0, Math.min(100, Math.round((diff / total) * 100))) : null;
+    var tooltipBase = 'SLA calculé sur jours ouvrés (lun–ven), hors week-ends.\n';
+    if (start) tooltipBase += 'Ouvert : ' + new Date(start).toLocaleString('fr-FR') + '\n';
+    tooltipBase += 'Échéance : ' + new Date(limite).toLocaleString('fr-FR');
+
     if (diff < 0) {
       var daysLate = Math.ceil(-diff / (24 * 3600 * 1000));
-      return { cls: 'late', label: 'Dépassé ' + daysLate + 'j', remainingMs: diff };
+      return { cls: 'late', label: 'Dépassé ' + daysLate + 'j', tooltip: tooltipBase, remainingMs: diff, pct: 0 };
     }
+    // Progressive : warn si <50% restant ou <24h, late si <10%
+    var cls = 'ok';
+    if (pct != null && pct < 10) cls = 'late';
+    else if (pct != null && pct < 50) cls = 'warn';
+    else if (diff < 24 * 3600 * 1000) cls = 'warn';
+
+    var label;
     if (diff < 24 * 3600 * 1000) {
       var h = Math.max(1, Math.floor(diff / (3600 * 1000)));
-      return { cls: 'warn', label: h + 'h restantes', remainingMs: diff };
+      label = h + 'h restantes';
+    } else {
+      var days = Math.round(diff / (24 * 3600 * 1000));
+      label = days + 'j restants';
     }
-    var days = Math.round(diff / (24 * 3600 * 1000));
-    return { cls: 'ok', label: days + 'j restants', remainingMs: diff };
+    return { cls: cls, label: label, tooltip: tooltipBase, remainingMs: diff, pct: pct };
   }
 
   // ============================================================
@@ -306,7 +326,16 @@
     function buildQs() {
       var fd = new FormData(form);
       var qs = new URLSearchParams();
-      fd.forEach(function (v, k) { if (v && k !== 'assignedToMe') qs.append(k, v); });
+      // Coalesce multi-values into comma-separated for statut & pieceType
+      var multi = { statut: [], pieceType: [] };
+      fd.forEach(function (v, k) {
+        if (!v || k === 'assignedToMe') return;
+        if (multi[k]) { multi[k].push(v); return; }
+        qs.append(k, v);
+      });
+      Object.keys(multi).forEach(function (k) {
+        if (multi[k].length) qs.set(k, multi[k].join(','));
+      });
       qs.append('page', state.page);
       qs.append('perPage', state.perPage);
       qs.append('sort', state.sort);
@@ -337,7 +366,7 @@
         var cardsBox = document.getElementById('sav-tickets-cards');
         if (cardsBox) {
           cardsBox.innerHTML = list.map(function (t) {
-            var sla2 = slaState(t.sla && t.sla.dateLimite);
+            var sla2 = slaState(t.sla && t.sla.dateLimite, { dateOuverture: t.sla && t.sla.dateOuverture });
             var v2 = t.vehicule || {};
             var vstr2 = [v2.marque, v2.modele].filter(Boolean).join(' ') + (v2.annee ? ' ' + v2.annee : '');
             return '<a href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '" class="block p-4 hover:bg-slate-50 ' + (sla2.cls === 'late' ? 'sav-pulse-row' : '') + '">' +
@@ -357,7 +386,7 @@
         }
 
         tbody.innerHTML = list.map(function (t, i) {
-          var sla = slaState(t.sla && t.sla.dateLimite);
+          var sla = slaState(t.sla && t.sla.dateLimite, { dateOuverture: t.sla && t.sla.dateOuverture });
           var rowPulse = sla.cls === 'late' || (sla.remainingMs != null && sla.remainingMs < 24 * 3600 * 1000) ? 'sav-pulse-row' : '';
           var v = t.vehicule || {};
           var vstr = [v.marque, v.modele].filter(Boolean).join(' ') + (v.annee ? ' ' + v.annee : '');
@@ -372,7 +401,7 @@
             '<td class="px-3 py-2 text-xs">' + (vstr ? escapeHtml(vstr) : '<span class="text-slate-400">—</span>') + (v.vin ? '<div class="text-[10px] font-mono text-slate-400">' + escapeHtml(v.vin) + '</div>' : '') + '</td>' +
             '<td class="px-3 py-2">' + assignHtml + '</td>' +
             '<td class="px-3 py-2 sav-col-sticky-r2">' + statutBadge(t.statut) + '</td>' +
-            '<td class="px-3 py-2 sav-col-sticky-r"><span class="sav-sla-badge sav-sla-badge--' + sla.cls + '" title="' + (t.sla && t.sla.dateLimite ? escapeHtml(new Date(t.sla.dateLimite).toLocaleString('fr-FR')) : '') + '">' + sla.label + '</span></td>' +
+            '<td class="px-3 py-2 sav-col-sticky-r"><span class="sav-sla-badge sav-sla-badge--' + sla.cls + '" title="' + escapeHtml(sla.tooltip || '') + '">' + sla.label + '</span></td>' +
             '<td class="px-3 py-2 text-xs text-slate-500">' + new Date(t.createdAt).toLocaleDateString('fr-FR') + '</td>' +
           '</tr>';
         }).join('');
@@ -553,7 +582,7 @@
         host.innerHTML = cols.map(function (col) {
           var tickets = list.filter(function (t) { return col.statuts.indexOf(t.statut) !== -1; });
           var cards = tickets.map(function (t) {
-            var sla2 = slaState(t.sla && t.sla.dateLimite);
+            var sla2 = slaState(t.sla && t.sla.dateLimite, { dateOuverture: t.sla && t.sla.dateOuverture });
             var pulse = sla2.cls === 'late' ? 'sav-pulse-row' : '';
             return '<a href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '" class="block rounded-xl border border-slate-200 bg-white hover:border-primary hover:shadow-sm p-3 text-xs ' + pulse + '">' +
               '<div class="flex items-center justify-between gap-1 mb-1"><span class="font-mono font-bold text-[11px]">' + escapeHtml(t.numero) + '</span>' +
@@ -600,6 +629,138 @@
       rows.forEach(function (r, i) { r.classList.toggle('bg-primary/10', i === rowIdx); });
       rows[rowIdx].scrollIntoView({ block: 'nearest' });
     });
+
+    // -------- Multi-select custom --------
+    document.querySelectorAll('[data-multiselect]').forEach(function (ms) {
+      var btn = ms.querySelector('.sav-multiselect__btn');
+      var dd = ms.querySelector('.sav-multiselect__dropdown');
+      var labelEl = ms.querySelector('.sav-multiselect__label');
+      var countEl = ms.querySelector('[data-multi-count]');
+      var baseLabel = labelEl.textContent;
+      function updateLabel() {
+        var n = dd.querySelectorAll('input:checked').length;
+        if (n === 0) {
+          labelEl.textContent = baseLabel;
+          countEl.classList.add('hidden');
+        } else if (n === 1) {
+          var only = dd.querySelector('input:checked');
+          labelEl.textContent = only.parentElement.querySelector('span').textContent;
+          countEl.classList.add('hidden');
+        } else {
+          labelEl.textContent = baseLabel;
+          countEl.textContent = n;
+          countEl.classList.remove('hidden');
+        }
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = !dd.classList.contains('hidden');
+        document.querySelectorAll('.sav-multiselect__dropdown').forEach(function (d) { d.classList.add('hidden'); });
+        if (!open) { dd.classList.remove('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+        else btn.setAttribute('aria-expanded', 'false');
+      });
+      dd.addEventListener('click', function (e) { e.stopPropagation(); });
+      dd.querySelectorAll('input').forEach(function (input) {
+        input.addEventListener('change', function () {
+          updateLabel();
+          state.page = 1; load();
+        });
+      });
+      updateLabel();
+    });
+    document.addEventListener('click', function () {
+      document.querySelectorAll('.sav-multiselect__dropdown').forEach(function (d) { d.classList.add('hidden'); });
+      document.querySelectorAll('.sav-multiselect__btn').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+    });
+
+    // -------- Page size selector --------
+    var pageSizeSel = document.getElementById('sav-page-size');
+    if (pageSizeSel) {
+      pageSizeSel.value = String(state.perPage);
+      pageSizeSel.addEventListener('change', function () {
+        state.perPage = parseInt(pageSizeSel.value, 10) || 20;
+        state.page = 1;
+        load();
+      });
+    }
+
+    // -------- Mini KPIs tête de liste --------
+    function loadMiniKpis() {
+      api('/dashboard').then(function (res) {
+        if (!res.ok || !res.j.success) return;
+        var d = res.j.data || {};
+        function setV(key, val) {
+          var el = document.querySelector('[data-mini-kpi="' + key + '"]');
+          if (el) el.textContent = val == null ? '0' : String(val);
+        }
+        setV('total', d.total || 0);
+        setV('ouverts', d.ouverts || 0);
+        setV('attenteClient', d.enAttenteClient || d.enAttenteDoc || 0);
+        setV('attenteFournisseur', d.enAttenteFournisseur || 0);
+        setV('slaDepasse', d.slaDepasse || 0);
+      });
+    }
+    loadMiniKpis();
+    document.querySelectorAll('[data-mini-kpi-filter]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var f = btn.getAttribute('data-mini-kpi-filter') || '';
+        // Parse & apply to form
+        form.reset();
+        // clear checked state in multi-selects
+        document.querySelectorAll('[data-multiselect] input:checked').forEach(function (cb) { cb.checked = false; });
+        if (f) {
+          var params = new URLSearchParams(f);
+          params.forEach(function (v, k) {
+            if (k === 'statut') {
+              v.split(',').forEach(function (val) {
+                var cb = document.querySelector('[data-multiselect="statut"] input[value="' + val + '"]');
+                if (cb) cb.checked = true;
+              });
+            } else {
+              var el = form.querySelector('[name="' + k + '"]');
+              if (el) { if (el.type === 'checkbox') el.checked = v === 'true'; else el.value = v; }
+            }
+          });
+        }
+        // Refresh labels of multi-selects
+        document.querySelectorAll('[data-multiselect]').forEach(function (ms) {
+          var evt = new Event('change', { bubbles: true });
+          var cb = ms.querySelector('input'); if (cb) cb.dispatchEvent(evt);
+        });
+        state.page = 1; load();
+      });
+    });
+
+    // -------- Nouveau ticket modal --------
+    var newBtn = document.getElementById('sav-new-ticket-btn');
+    var newModal = document.getElementById('sav-new-ticket-modal');
+    var newForm = document.getElementById('sav-new-ticket-form');
+    if (newBtn && newModal) {
+      newBtn.addEventListener('click', function () { openModal(newModal); });
+      newModal.addEventListener('click', function (e) {
+        if (e.target === newModal || (e.target.matches && e.target.matches('[data-close-new-ticket]'))) closeModal(newModal);
+      });
+      if (newForm) newForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(newForm);
+        var body = { client: {}, vehicule: {} };
+        fd.forEach(function (v, k) {
+          if (!v) return;
+          if (k.indexOf('client.') === 0) body.client[k.slice(7)] = v;
+          else if (k.indexOf('vehicule.') === 0) body.vehicule[k.slice(9)] = v;
+          else body[k] = v;
+        });
+        api('/tickets', { method: 'POST', body: JSON.stringify(body) }).then(function (res) {
+          if (res.ok && res.j.success) {
+            toast('Ticket ' + res.j.data.numero + ' créé', 'success');
+            closeModal(newModal);
+            newForm.reset();
+            load();
+            loadMiniKpis();
+          } else toast((res.j && res.j.error) || 'Erreur', 'error');
+        });
+      });
+    }
 
     load();
   }
@@ -725,6 +886,152 @@
       }
     }
 
+    // Next Best Action : bouton primaire contextualisé selon le statut courant
+    var NEXT_ACTIONS = {
+      ouvert:                       { label: 'Demander les documents manquants', icon: 'mail', hint: 'Client à contacter pour compléter le dossier.', type: 'tab', target: 'communications' },
+      pre_qualification:            { label: 'Qualifier la demande',              icon: 'quiz', hint: 'Vérifier VIN, plaque et symptômes avant retour.', type: 'tab', target: 'apercu' },
+      en_attente_documents:         { label: 'Relancer le client',                icon: 'campaign', hint: 'Documents manquants — relance email/whatsapp.', type: 'tab', target: 'communications' },
+      relance_1:                    { label: 'Envoyer la 2ᵉ relance',             icon: 'campaign', hint: '1ʳᵉ relance envoyée, sans réponse.', type: 'tab', target: 'communications' },
+      relance_2:                    { label: 'Clôturer sans réponse',             icon: 'block', hint: 'Aucune réponse après 2 relances.', type: 'statut', target: 'clos_sans_reponse', confirm: 'Clôturer ce ticket sans réponse client ?' },
+      retour_demande:               { label: 'Envoyer l\'étiquette de retour',    icon: 'local_shipping', hint: 'Générer & transmettre l\'étiquette retour.', type: 'tab', target: 'communications' },
+      en_transit_retour:            { label: 'Marquer pièce reçue atelier',       icon: 'inventory_2', hint: 'Quand la pièce arrive physiquement.', type: 'statut', target: 'recu_atelier' },
+      recu_atelier:                 { label: 'Démarrer l\'analyse',                icon: 'science', hint: 'Lancer le diagnostic banc.', type: 'statut', target: 'en_analyse' },
+      en_analyse:                   { label: 'Conclure l\'analyse',                icon: 'fact_check', hint: 'Passer les résultats au client.', type: 'statut', target: 'analyse_terminee' },
+      analyse_terminee:             { label: 'Choisir la résolution',              icon: 'swap_horiz', hint: 'Échange, remboursement ou refus.', type: 'scroll', target: 'sav-actions' },
+      en_attente_decision_client:   { label: 'Relancer pour décision',             icon: 'campaign', hint: 'Client n\'a pas encore validé.', type: 'tab', target: 'communications' },
+      en_attente_fournisseur:       { label: 'Suivre le retour fournisseur',       icon: 'local_shipping', hint: 'Mettre à jour RMA / tracking.', type: 'tab', target: 'fournisseur' },
+      resolu_garantie:              { label: 'Clôturer le ticket',                 icon: 'lock', hint: 'Résolution sous garantie validée.', type: 'statut', target: 'clos', confirm: 'Clôturer définitivement ce ticket ?' },
+      resolu_facture:               { label: 'Clôturer le ticket',                 icon: 'lock', hint: 'Facture payée, résolution validée.', type: 'statut', target: 'clos', confirm: 'Clôturer définitivement ce ticket ?' },
+      clos:                         { label: 'Ticket clôturé',                     icon: 'check_circle', hint: 'Aucune action restante.', type: 'none', disabled: true },
+      clos_sans_reponse:            { label: 'Ticket clôturé',                     icon: 'check_circle', hint: 'Clos sans réponse du client.', type: 'none', disabled: true },
+      refuse:                       { label: 'Ticket refusé',                      icon: 'block', hint: 'Demande refusée — pas d\'action.', type: 'none', disabled: true },
+    };
+
+    function renderNextAction(t) {
+      var host = document.getElementById('sav-next-action');
+      var hint = document.getElementById('sav-next-action-hint');
+      if (!host) return;
+      var def = NEXT_ACTIONS[t.statut] || { label: 'Aucune action suggérée', icon: 'help', hint: '', type: 'none', disabled: true };
+      var disabled = def.disabled ? 'disabled' : '';
+      var btnClass = def.disabled
+        ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
+        : 'bg-primary text-white hover:bg-primary-hover border-primary shadow-sm';
+      host.innerHTML =
+        '<button type="button" id="sav-next-action-btn" ' + disabled +
+        ' class="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-semibold transition ' + btnClass + '">' +
+          '<span class="material-symbols-outlined" style="font-size:20px;">' + def.icon + '</span>' +
+          '<span>' + escapeHtml(def.label) + '</span>' +
+        '</button>';
+      if (hint) hint.textContent = def.hint || '';
+
+      var btn = document.getElementById('sav-next-action-btn');
+      if (!btn || def.disabled) return;
+      btn.addEventListener('click', function () {
+        if (def.type === 'statut') {
+          if (def.confirm && !window.confirm(def.confirm)) return;
+          var target = document.querySelector('[data-action-statut="' + def.target + '"]');
+          if (target) { target.click(); return; }
+          // Fallback: direct API call
+          api('/tickets/' + encodeURIComponent(numero) + '/statut', {
+            method: 'PATCH', body: JSON.stringify({ statut: def.target, auteur: 'admin' })
+          }).then(function (res) {
+            if (res.ok && res.j.success) { toast('Statut mis à jour', 'success'); loadTicket(); }
+            else { toast((res.j && res.j.error) || 'Erreur', 'error'); }
+          });
+        } else if (def.type === 'tab') {
+          var tabBtn = document.querySelector('[data-tab="' + def.target + '"]');
+          if (tabBtn) tabBtn.click();
+        } else if (def.type === 'scroll') {
+          var el = document.getElementById(def.target);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+
+    // Dim/hide les boutons d'actions rapides qui ne correspondent pas à la phase courante
+    function dimIrrelevantActions(statut) {
+      // Map status → phase active
+      var phases = {
+        recu_atelier: ['recu_atelier','en_transit_retour','retour_demande','ouvert','pre_qualification','en_attente_documents'],
+        en_analyse: ['recu_atelier','en_analyse'],
+        analyse_terminee: ['en_analyse','analyse_terminee'],
+        echange: ['analyse_terminee','en_attente_decision_client'],
+        remboursement: ['analyse_terminee','en_attente_decision_client'],
+        clos: ['analyse_terminee','en_attente_decision_client','en_attente_fournisseur','resolu_garantie','resolu_facture'],
+        refuse: ['ouvert','pre_qualification','en_attente_documents','analyse_terminee'],
+      };
+      document.querySelectorAll('[data-action-statut]').forEach(function (btn) {
+        var next = btn.getAttribute('data-action-statut');
+        var allowed = phases[next];
+        var relevant = !allowed || allowed.indexOf(statut) !== -1;
+        btn.classList.toggle('opacity-40', !relevant);
+        btn.classList.toggle('pointer-events-none', !relevant);
+        btn.setAttribute('aria-disabled', relevant ? 'false' : 'true');
+        if (!relevant) btn.title = 'Non disponible au statut actuel (' + labelStatut(statut) + ')';
+        else btn.removeAttribute('title');
+      });
+      document.querySelectorAll('[data-action-resolution]').forEach(function (btn) {
+        var reso = btn.getAttribute('data-action-resolution');
+        var allowed = phases[reso];
+        var relevant = !allowed || allowed.indexOf(statut) !== -1;
+        btn.classList.toggle('opacity-40', !relevant);
+        btn.classList.toggle('pointer-events-none', !relevant);
+        btn.setAttribute('aria-disabled', relevant ? 'false' : 'true');
+        if (!relevant) btn.title = 'Non disponible au statut actuel (' + labelStatut(statut) + ')';
+        else btn.removeAttribute('title');
+      });
+    }
+
+    // SLA objectives : 3 jalons métier (Réponse 4h, Diagnostic 48h, Résolution 7j)
+    function renderSlaObjectives(t) {
+      var host = document.getElementById('sav-sla-objectives');
+      if (!host) return;
+      var openedAt = t.sla && t.sla.dateOuverture ? new Date(t.sla.dateOuverture).getTime() : (t.createdAt ? new Date(t.createdAt).getTime() : null);
+      if (!openedAt) { host.innerHTML = ''; return; }
+      var msgs = (t.messages || []).filter(function (m) { return m && m.canal !== 'interne'; });
+      var firstReplyAt = msgs.length ? new Date(msgs[0].date).getTime() : null;
+
+      // Détection diagnostic fait = statut >= analyse_terminee ou présence conclusion
+      var diagDoneStatuts = ['analyse_terminee', 'en_attente_decision_client', 'en_attente_fournisseur', 'resolu_garantie', 'resolu_facture', 'clos'];
+      var diagDone = diagDoneStatuts.indexOf(t.statut) !== -1 || (t.analyse && t.analyse.conclusion);
+      var resolDone = ['resolu_garantie', 'resolu_facture', 'clos'].indexOf(t.statut) !== -1;
+
+      var objectives = [
+        { key: 'reponse',    label: 'Première réponse', target: 4 * 3600 * 1000,        doneAt: firstReplyAt },
+        { key: 'diagnostic', label: 'Diagnostic',        target: 48 * 3600 * 1000,       doneAt: diagDone ? (t.updatedAt ? new Date(t.updatedAt).getTime() : Date.now()) : null },
+        { key: 'resolution', label: 'Résolution',        target: 7 * 24 * 3600 * 1000,   doneAt: resolDone ? (t.updatedAt ? new Date(t.updatedAt).getTime() : Date.now()) : null },
+      ];
+
+      host.innerHTML = objectives.map(function (o) {
+        var deadline = openedAt + o.target;
+        var now = Date.now();
+        var pctUsed;
+        var cls, statusLabel, iconName;
+        if (o.doneAt) {
+          var ok = o.doneAt <= deadline;
+          cls = ok ? 'ok' : 'late';
+          statusLabel = ok ? 'Atteint' : 'Manqué';
+          iconName = ok ? 'check_circle' : 'cancel';
+          pctUsed = 100;
+        } else {
+          var elapsed = now - openedAt;
+          pctUsed = Math.max(0, Math.min(100, Math.round((elapsed / o.target) * 100)));
+          if (now > deadline) { cls = 'late'; statusLabel = 'Dépassé'; iconName = 'error'; }
+          else if (pctUsed > 75) { cls = 'warn'; statusLabel = 'Risque'; iconName = 'schedule'; }
+          else { cls = 'ok'; statusLabel = 'Dans les temps'; iconName = 'schedule'; }
+        }
+        var targetLabel = o.target >= 24 * 3600 * 1000 ? Math.round(o.target / (24 * 3600 * 1000)) + 'j' : Math.round(o.target / (3600 * 1000)) + 'h';
+        var tip = 'Objectif ' + o.label + ' : ' + targetLabel + ' après ouverture du ticket.\nÉchéance : ' + new Date(deadline).toLocaleString('fr-FR');
+        return '<div class="sav-obj sav-obj--' + cls + '" title="' + escapeHtml(tip) + '">' +
+          '<div class="sav-obj__head"><span class="material-symbols-outlined text-base">' + iconName + '</span>' +
+          '<span class="sav-obj__label">' + o.label + '</span>' +
+          '<span class="sav-obj__target">' + targetLabel + '</span></div>' +
+          '<div class="sav-obj__bar"><div class="sav-obj__bar-fill" style="width:' + pctUsed + '%"></div></div>' +
+          '<div class="sav-obj__status">' + statusLabel + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
     function renderHeader() {
       var t = ticket || {};
       var c = t.client || {};
@@ -762,12 +1069,16 @@
       var sla = document.getElementById('sav-sla-badge');
       var d = t.sla && t.sla.dateLimite;
       if (sla && d) {
-        var diff = new Date(d) - Date.now();
-        var cls = diff < 0 ? 'late' : diff < 24 * 3600 * 1000 ? 'warn' : 'ok';
-        sla.className = 'sav-sla-badge sav-sla-badge--' + cls + ' inline-flex items-center gap-1';
-        sla.title = 'Échéance : ' + new Date(d).toLocaleString('fr-FR');
-        sla.innerHTML = icon('schedule') + '<span>' + (diff < 0 ? 'SLA dépassé' : 'SLA ' + fmtDuration(diff)) + '</span>';
+        var s = slaState(d, { dateOuverture: t.sla && t.sla.dateOuverture });
+        sla.className = 'sav-sla-badge sav-sla-badge--' + s.cls + ' inline-flex items-center gap-1';
+        sla.title = s.tooltip || '';
+        sla.innerHTML = icon('schedule') + '<span>SLA ' + s.label + '</span>';
       }
+      // SLA objectives timeline
+      renderSlaObjectives(t);
+      // Next Best Action + dim actions non pertinentes
+      renderNextAction(t);
+      dimIrrelevantActions(t.statut);
 
       var assignLabel = document.getElementById('sav-assign-label');
       var assignIcon = document.getElementById('sav-assign-icon');
@@ -1375,7 +1686,21 @@
       var preview = document.getElementById('sav-msg-preview');
       if (!preview || !editor) return;
       preview.innerHTML = interpolate(editor.innerHTML.replace(/&nbsp;/g, ' '));
+      // Aperçu en-tête email
+      var to = document.getElementById('sav-preview-to');
+      var subj = document.getElementById('sav-preview-subject');
+      var ref = document.getElementById('sav-preview-ref');
+      var c = (ticket && ticket.client) || {};
+      var sujetInput = document.querySelector('input[name="sujet"]');
+      if (to) to.textContent = c.nom ? c.nom + ' <' + (c.email || '—') + '>' : (c.email || '—');
+      if (subj) {
+        var s = sujetInput && sujetInput.value ? sujetInput.value : '(sans objet)';
+        subj.textContent = '[SAV ' + (ticket ? ticket.numero : '') + '] ' + s;
+      }
+      if (ref) ref.textContent = ticket ? ticket.numero : '—';
     }
+    var sujetInput = document.querySelector('input[name="sujet"]');
+    if (sujetInput) sujetInput.addEventListener('input', renderPreview);
     if (editor) {
       editor.addEventListener('input', syncContenu);
       document.querySelectorAll('[data-cmd]').forEach(function (b) {
@@ -1402,6 +1727,26 @@
     // Templates en chips
     document.querySelectorAll('[data-template]').forEach(function (chip) {
       chip.addEventListener('click', function () { applyTemplate(chip.getAttribute('data-template')); });
+    });
+
+    // Charge la bibliothèque de templates depuis l'API et ajoute les chips
+    api('/message-templates').then(function (res) {
+      if (!res.ok || !res.j.success) return;
+      var list = (res.j.data && res.j.data.templates) || [];
+      var host = document.getElementById('sav-templates-chips');
+      if (!host) return;
+      list.forEach(function (t) {
+        if (TEMPLATES[t.key]) return; // déjà présent
+        TEMPLATES[t.key] = t.body;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sav-tpl-chip';
+        btn.setAttribute('data-template', t.key);
+        btn.setAttribute('title', t.title);
+        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">' + escapeHtml(t.icon || 'description') + '</span><span>' + escapeHtml(t.title) + '</span>';
+        btn.addEventListener('click', function () { applyTemplate(t.key); });
+        host.appendChild(btn);
+      });
     });
 
     // Pills toggle canaux
@@ -1577,15 +1922,42 @@
     }
     window.computeScore = computeScore;
 
+    // Ranges de validation des mesures banc (min/max hard, warn si hors min_ok/max_ok)
+    var DIAG_RANGES = {
+      pressionHydraulique: { min: 0, max: 15, min_ok: 3.5, max_ok: 6, unit: 'bar', warn: 'Pression inhabituelle — vérifier le banc (normal : 3,5–6 bar)' },
+      temperatureAvant:    { min: -20, max: 150, min_ok: 10, max_ok: 40, unit: '°C', warn: 'Température ambiante inhabituelle' },
+      temperatureApres:    { min: -20, max: 150, min_ok: 60, max_ok: 110, unit: '°C', warn: 'Température fonctionnement hors plage (normal : 70–95 °C)' },
+    };
+
+    function validateDiagField(key, value) {
+      var r = DIAG_RANGES[key];
+      if (!r || value === '' || value == null) return { ok: true };
+      var v = Number(value);
+      if (isNaN(v)) return { ok: false, error: 'Valeur numérique attendue' };
+      if (v < r.min || v > r.max) return { ok: false, error: 'Hors plage autorisée (' + r.min + '–' + r.max + ' ' + r.unit + ')' };
+      if (v < r.min_ok || v > r.max_ok) return { ok: true, warn: r.warn };
+      return { ok: true };
+    }
+
     function renderDiagWizard() {
       var cur = document.querySelector('[data-diag-current]');
       var label = document.querySelector('[data-diag-step-label]');
       var bar = document.querySelector('[data-diag-progress]');
+      var pct = document.querySelector('[data-diag-pct]');
       if (cur) cur.textContent = String(diagState.step);
       if (label) label.textContent = STEP_LABELS[diagState.step];
-      if (bar) bar.style.width = (diagState.step * 25) + '%';
+      var width = diagState.step * 25;
+      if (bar) bar.style.width = width + '%';
+      if (pct) pct.textContent = String(width);
       document.querySelectorAll('.sav-diag-step').forEach(function (el) {
         el.classList.toggle('hidden', Number(el.getAttribute('data-diag-step')) !== diagState.step);
+      });
+      // Pills stepper : done / current / todo
+      document.querySelectorAll('[data-diag-pill]').forEach(function (p) {
+        var n = Number(p.getAttribute('data-diag-pill'));
+        p.classList.remove('is-done', 'is-current');
+        if (n < diagState.step) p.classList.add('is-done');
+        else if (n === diagState.step) p.classList.add('is-current');
       });
       var prev = document.getElementById('sav-diag-prev');
       var next = document.getElementById('sav-diag-next');
@@ -1599,14 +1971,42 @@
       if (legacySc) legacySc.textContent = String(computeScore(diagState.data));
     }
 
+    function updateDiagFieldFeedback(el) {
+      var key = el.getAttribute('data-diag-field');
+      if (!DIAG_RANGES[key]) return;
+      var res = validateDiagField(key, el.value);
+      var errEl = document.querySelector('[data-diag-error="' + key + '"]');
+      el.classList.remove('sav-input--warning');
+      el.classList.remove('border-red-500');
+      if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+      if (!res.ok) {
+        el.classList.add('border-red-500');
+        if (errEl) { errEl.classList.remove('hidden'); errEl.textContent = res.error; }
+      } else if (res.warn) {
+        el.classList.add('sav-input--warning');
+        if (errEl) { errEl.classList.remove('hidden'); errEl.textContent = res.warn; errEl.classList.add('text-amber-700'); }
+      }
+    }
+
     document.querySelectorAll('[data-diag-field]').forEach(function (el) {
       el.addEventListener('input', function () {
         diagState.data[el.getAttribute('data-diag-field')] = el.value;
+        updateDiagFieldFeedback(el);
         renderDiagWizard();
       });
       el.addEventListener('change', function () {
         diagState.data[el.getAttribute('data-diag-field')] = el.value;
+        updateDiagFieldFeedback(el);
         renderDiagWizard();
+      });
+    });
+
+    // Allow clicking on stepper pills to jump steps
+    document.querySelectorAll('[data-diag-pill]').forEach(function (p) {
+      p.style.cursor = 'pointer';
+      p.addEventListener('click', function () {
+        var n = Number(p.getAttribute('data-diag-pill'));
+        if (n >= 1 && n <= 4) { diagState.step = n; renderDiagWizard(); }
       });
     });
 
@@ -1765,16 +2165,91 @@
           });
       });
     });
-    var pdf = document.querySelector('[data-action-pdf]');
-    if (pdf) pdf.addEventListener('click', function () {
-      api('/tickets/' + encodeURIComponent(numero) + '/rapport-pdf', { method: 'POST' })
-        .then(function (res) {
-          if (res.ok && res.j.success) {
-            toast('Rapport PDF généré');
-            if (res.j.data.url) window.open(res.j.data.url, '_blank');
-            loadTicket();
-          } else toast(res.j.error || 'Erreur', 'error');
+    // -------- Modal rapport PDF : choix de template + preview iframe --------
+    var pdfTemplatesCache = null;
+    function openPdfModal() {
+      var modal = document.getElementById('sav-pdf-modal');
+      if (!modal) return;
+      if (modal.__savBuilt) { openModal(modal); return; }
+      modal.__savBuilt = true;
+      openModal(modal);
+      var listEl = modal.querySelector('[data-pdf-templates]');
+      var previewEl = modal.querySelector('[data-pdf-preview]');
+      var summaryEl = modal.querySelector('[data-pdf-summary]');
+      var genBtn = modal.querySelector('[data-pdf-generate]');
+      var selected = 'client';
+
+      function renderTemplates(templates) {
+        listEl.innerHTML = templates.map(function (t) {
+          var active = t.key === selected;
+          return '<button type="button" data-pdf-tpl="' + t.key + '" class="text-left rounded-xl border-2 p-3 transition ' + (active ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300 bg-white') + '">' +
+            '<div class="flex items-center gap-2 mb-1">' +
+            '<span class="material-symbols-outlined text-base text-primary">' + (t.key === 'client' ? 'person' : t.key === 'interne' ? 'shield' : 'local_shipping') + '</span>' +
+            '<span class="font-semibold text-sm">' + escapeHtml(t.title.replace('Rapport d\'analyse — ', '')) + '</span>' +
+            '</div>' +
+            '<div class="text-[11px] text-slate-500">' + escapeHtml(t.sections.length + ' sections') + '</div>' +
+            '</button>';
+        }).join('');
+        listEl.querySelectorAll('[data-pdf-tpl]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            selected = btn.getAttribute('data-pdf-tpl');
+            renderTemplates(templates);
+            renderSummary(templates);
+          });
         });
+      }
+      function renderSummary(templates) {
+        var current = templates.find(function (t) { return t.key === selected; });
+        if (!current) return;
+        summaryEl.innerHTML =
+          '<div class="font-semibold text-sm mb-2">' + escapeHtml(current.title) + '</div>' +
+          (current.note ? '<div class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-2">⚠ ' + escapeHtml(current.note) + '</div>' : '') +
+          '<div class="text-xs font-semibold text-slate-600 mb-1">Sections incluses :</div>' +
+          '<ul class="text-xs text-slate-700 space-y-1">' +
+            current.sections.map(function (s) { return '<li class="flex items-center gap-1"><span class="material-symbols-outlined text-base text-emerald-600">check_circle</span>' + escapeHtml(s) + '</li>'; }).join('') +
+          '</ul>';
+        previewEl.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 text-sm text-center p-6">Cliquez sur « Générer & prévisualiser » pour voir le PDF.</div>';
+      }
+
+      function loadTemplates() {
+        if (pdfTemplatesCache) { renderTemplates(pdfTemplatesCache); renderSummary(pdfTemplatesCache); return; }
+        api('/report-templates').then(function (res) {
+          if (!res.ok || !res.j.success) { listEl.innerHTML = '<div class="text-red-600 text-sm">Erreur de chargement des templates.</div>'; return; }
+          pdfTemplatesCache = res.j.data.templates;
+          renderTemplates(pdfTemplatesCache);
+          renderSummary(pdfTemplatesCache);
+        });
+      }
+
+      genBtn.addEventListener('click', function () {
+        genBtn.disabled = true;
+        genBtn.textContent = 'Génération…';
+        api('/tickets/' + encodeURIComponent(numero) + '/rapport-pdf', {
+          method: 'POST', body: JSON.stringify({ template: selected }),
+        }).then(function (res) {
+          genBtn.disabled = false;
+          genBtn.textContent = 'Générer & prévisualiser';
+          if (res.ok && res.j.success && res.j.data.url) {
+            var url = res.j.data.url + '?t=' + Date.now();
+            previewEl.innerHTML = '<iframe src="' + url + '" class="w-full h-full rounded-lg border border-slate-200" title="Aperçu PDF"></iframe>' +
+              '<div class="mt-2 flex items-center justify-between text-xs">' +
+                '<a href="' + res.j.data.url + '" target="_blank" class="text-primary hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-base">open_in_new</span>Ouvrir dans un onglet</a>' +
+                '<a href="' + res.j.data.url + '" download class="text-primary hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-base">download</span>Télécharger</a>' +
+              '</div>';
+            toast('Rapport ' + selected + ' généré', 'success');
+            loadTicket();
+          } else toast((res.j && res.j.error) || 'Erreur', 'error');
+        });
+      });
+
+      loadTemplates();
+    }
+
+    var pdf = document.querySelector('[data-action-pdf]');
+    if (pdf) pdf.addEventListener('click', function (e) { e.preventDefault(); openPdfModal(); });
+    var pdfModal = document.getElementById('sav-pdf-modal');
+    if (pdfModal) pdfModal.addEventListener('click', function (e) {
+      if (e.target === pdfModal || (e.target.matches && e.target.matches('[data-close-pdf]'))) closeModal(pdfModal);
     });
 
     // -------- Assignation --------
