@@ -191,9 +191,22 @@ const savTicketSchema = new mongoose.Schema(
           default: 'na',
         },
         mollieId: { type: String, trim: true },
+        paymentUrl: { type: String, trim: true },
+        qontoInvoiceId: { type: String, trim: true },
+        qontoInvoiceUrl: { type: String, trim: true },
+        qontoPdfUrl: { type: String, trim: true },
         dateGeneration: { type: Date },
         datePaiement: { type: Date },
       },
+    },
+
+    // Feedback client (4.4 Google Reviews)
+    reviewFeedback: {
+      sentAt: { type: Date }, // mail J+7 envoyé
+      completedAt: { type: Date }, // formulaire client rempli
+      note: { type: Number, min: 1, max: 5 },
+      comment: { type: String, trim: true },
+      redirectedToGoogle: { type: Boolean, default: false },
     },
 
     sla: {
