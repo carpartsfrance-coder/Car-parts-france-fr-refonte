@@ -35,3 +35,15 @@ exports.getSavSettings = (req, res) => {
 exports.getAuditLog = (req, res) => {
   res.render('admin/audit-log', baseLocals(req, { title: 'Journal d\'audit — Admin' }));
 };
+
+exports.getAnalytics = (req, res) => {
+  res.render('admin/sav-analytics', baseLocals(req, { title: 'Analytics SAV — Admin' }));
+};
+
+exports.getReputation = (req, res) => {
+  res.render('admin/sav-reputation', baseLocals(req, { title: 'Réputation SAV — Admin' }));
+};
+
+exports.getIntegrations = (req, res) => {
+  res.render('admin/sav-integrations', baseLocals(req, { title: 'Intégrations — Admin' }));
+};

@@ -605,9 +605,17 @@
       if (!box) return;
       var p = ticket.paiements && ticket.paiements.facture149;
       if (!p || !p.status || p.status === 'na') { box.innerHTML = '<span class="text-slate-400">Non applicable</span>'; return; }
-      box.innerHTML = '<div>Statut : <strong>' + escapeHtml(p.status) + '</strong></div>' +
-        (p.mollieId ? '<div class="text-xs text-slate-500">Mollie : ' + escapeHtml(p.mollieId) + '</div>' : '') +
-        (p.dateGeneration ? '<div class="text-xs text-slate-500">Généré : ' + new Date(p.dateGeneration).toLocaleString('fr-FR') + '</div>' : '');
+      var statusColor = p.status === 'payee' ? 'bg-emerald-100 text-emerald-800' : p.status === 'impayee' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800';
+      box.innerHTML =
+        '<div class="space-y-2">' +
+          '<div><span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold ' + statusColor + '">' + escapeHtml(p.status) + '</span></div>' +
+          (p.qontoInvoiceId ? '<div class="text-xs"><strong>Qonto :</strong> ' + (p.qontoInvoiceUrl ? '<a class="text-primary underline" target="_blank" href="' + escapeHtml(p.qontoInvoiceUrl) + '">' + escapeHtml(p.qontoInvoiceId) + '</a>' : escapeHtml(p.qontoInvoiceId)) + '</div>' : '') +
+          (p.qontoPdfUrl ? '<div><a class="text-xs text-primary underline" target="_blank" href="' + escapeHtml(p.qontoPdfUrl) + '">📄 Facture PDF</a></div>' : '') +
+          (p.mollieId ? '<div class="text-xs text-slate-500"><strong>Mollie :</strong> ' + escapeHtml(p.mollieId) + '</div>' : '') +
+          (p.paymentUrl ? '<div><a class="text-xs text-primary underline" target="_blank" href="' + escapeHtml(p.paymentUrl) + '">🔗 Lien de paiement</a></div>' : '') +
+          (p.dateGeneration ? '<div class="text-[10px] text-slate-400">Généré : ' + new Date(p.dateGeneration).toLocaleString('fr-FR') + '</div>' : '') +
+          (p.datePaiement ? '<div class="text-[10px] text-emerald-700">✓ Payé : ' + new Date(p.datePaiement).toLocaleString('fr-FR') + '</div>' : '') +
+        '</div>';
     }
 
     function prefillDiagEnrichi() {
@@ -793,6 +801,61 @@
       else toast('Pas d\'URL de tracking enregistrée', 'error');
     });
 
+    // -------- WhatsApp fournisseur (4.2) --------
+    var waBtn = document.getElementById('sav-fourn-whatsapp');
+    var waModal = document.getElementById('sav-wa-modal');
+    var waPhone = document.getElementById('sav-wa-phone');
+    var waText = document.getElementById('sav-wa-text');
+    var waLink = document.getElementById('sav-wa-link');
+    var waCopy = document.getElementById('sav-wa-copy');
+    var waSend = document.getElementById('sav-wa-send');
+    var waSaveReply = document.getElementById('sav-wa-save-reply');
+    var waClientScript = document.getElementById('sav-wa-client-script');
+    function openWa() {
+      var phone = (ticket && ticket.fournisseur && ticket.fournisseur.contact) || '';
+      api('/tickets/' + encodeURIComponent(numero) + '/whatsapp-fournisseur/preview?phone=' + encodeURIComponent(phone))
+        .then(function (res) {
+          if (!res.ok) { toast('Erreur preview', 'error'); return; }
+          var d = res.j.data;
+          waPhone.value = phone;
+          waText.value = d.text || '';
+          waClientScript.value = d.clientScript || '';
+          waLink.href = d.waUrl || '#';
+          waModal.classList.remove('hidden'); waModal.classList.add('flex');
+        });
+    }
+    function closeWa() { if (waModal) { waModal.classList.add('hidden'); waModal.classList.remove('flex'); } }
+    if (waBtn) waBtn.addEventListener('click', openWa);
+    if (waModal) waModal.addEventListener('click', function (e) { if (e.target === waModal || e.target.matches('[data-close-wa]')) closeWa(); });
+    if (waPhone) waPhone.addEventListener('input', function () {
+      var clean = waPhone.value.replace(/[^\d]/g, '');
+      waLink.href = clean ? 'https://wa.me/' + clean + '?text=' + encodeURIComponent(waText.value) : '#';
+    });
+    if (waText) waText.addEventListener('input', function () {
+      var clean = (waPhone.value || '').replace(/[^\d]/g, '');
+      waLink.href = clean ? 'https://wa.me/' + clean + '?text=' + encodeURIComponent(waText.value) : '#';
+    });
+    if (waCopy) waCopy.addEventListener('click', function () {
+      navigator.clipboard.writeText(waText.value).then(function () { toast('Texte copié'); });
+    });
+    if (waSend) waSend.addEventListener('click', function () {
+      api('/tickets/' + encodeURIComponent(numero) + '/whatsapp-fournisseur/send', {
+        method: 'POST', body: JSON.stringify({ phone: waPhone.value }),
+      }).then(function (res) {
+        if (res.ok && res.j.success) { toast('Envoi enregistré'); loadTicket(); }
+        else toast(res.j.error || 'Erreur', 'error');
+      });
+    });
+    if (waSaveReply) waSaveReply.addEventListener('click', function () {
+      var reply = document.getElementById('sav-wa-reply').value;
+      api('/tickets/' + encodeURIComponent(numero) + '/whatsapp-fournisseur/send', {
+        method: 'POST', body: JSON.stringify({ phone: waPhone.value, parsedReply: reply }),
+      }).then(function (res) {
+        if (res.ok && res.j.success) { toast('Réponse enregistrée'); closeWa(); loadTicket(); }
+        else toast(res.j.error || 'Erreur', 'error');
+      });
+    });
+
     // -------- Actions sidebar --------
     function withConfirm(btn, action) {
       var msg = btn.getAttribute('data-confirm');
@@ -912,6 +975,129 @@
     });
 
     loadTicket();
+  }
+
+  // ============================================================
+  // ANALYTICS PAGE (4.5)
+  // ============================================================
+  if (document.getElementById('ana-monthly')) {
+    api('/analytics').then(function (res) {
+      if (!res.ok) { document.getElementById('sav-analytics-error').classList.remove('hidden'); return; }
+      var d = res.j.data;
+      // KPI top
+      document.getElementById('ana-ca-recup').textContent = (d.financier.caRecupere || 0).toLocaleString('fr-FR') + ' €';
+      document.getElementById('ana-cout-gar').textContent = (d.financier.coutGarantie || 0).toLocaleString('fr-FR') + ' €';
+      document.getElementById('ana-balance').textContent = (d.financier.balance || 0).toLocaleString('fr-FR') + ' €';
+      document.getElementById('ana-recidive').textContent = d.recidive.tauxRecidive + ' %';
+
+      // Chart monthly
+      if (window.Chart) {
+        new window.Chart(document.getElementById('ana-monthly'), {
+          type: 'bar',
+          data: { labels: d.monthly.labels, datasets: [{ label: 'SAV', data: d.monthly.counts, backgroundColor: '#ec1313' }] },
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+        });
+
+        // Chart fournisseur (camembert : nb tickets par fournisseur, % défaut en tooltip)
+        if (d.fournisseur && d.fournisseur.length) {
+          new window.Chart(document.getElementById('ana-fournisseur'), {
+            type: 'doughnut',
+            data: {
+              labels: d.fournisseur.map(function (f) { return f.nom + ' (' + f.taux + '% défaut)'; }),
+              datasets: [{
+                data: d.fournisseur.map(function (f) { return f.total; }),
+                backgroundColor: ['#ec1313','#f97316','#f59e0b','#10b981','#0ea5e9','#6366f1','#a855f7','#ec4899'],
+              }],
+            },
+            options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } },
+          });
+        } else {
+          document.getElementById('ana-fournisseur-empty').classList.remove('hidden');
+        }
+      }
+
+      // Top pieces table
+      var topBody = document.getElementById('ana-top-pieces');
+      if (topBody) topBody.innerHTML = (d.topPieces || []).map(function (p) {
+        return '<tr class="border-t border-slate-100"><td class="py-1">' + escapeHtml(p._id) + '</td><td class="text-right py-1 font-mono">' + p.count + '</td></tr>';
+      }).join('') || '<tr><td colspan="2" class="py-3 text-center text-slate-400">Aucune donnée</td></tr>';
+
+      // Avg by type table
+      var avgBody = document.getElementById('ana-avg-by-type');
+      if (avgBody) avgBody.innerHTML = (d.avgByType || []).map(function (p) {
+        return '<tr class="border-t border-slate-100"><td class="py-1">' + escapeHtml(p.pieceType) + '</td><td class="text-right py-1">' + p.avgDays + '</td><td class="text-right py-1 text-slate-400">' + p.count + '</td></tr>';
+      }).join('') || '<tr><td colspan="3" class="py-3 text-center text-slate-400">Aucune donnée</td></tr>';
+
+      // Departments
+      var deptBox = document.getElementById('ana-departments');
+      if (deptBox) deptBox.innerHTML = (d.departments || []).map(function (x) {
+        return '<div class="rounded-lg border border-slate-200 px-2 py-2 text-center"><div class="font-mono font-bold text-sm">' + escapeHtml(x.dept) + '</div><div class="text-[10px] text-slate-500">' + x.count + ' SAV</div></div>';
+      }).join('') || '<div class="col-span-full text-center text-slate-400 text-xs">Aucun code postal détecté dans les adresses garage.</div>';
+    });
+
+    var exp = document.getElementById('sav-analytics-export');
+    if (exp) exp.addEventListener('click', function (e) {
+      e.preventDefault();
+      window.open('/admin/api/sav/analytics.csv', '_blank');
+    });
+  }
+
+  // ============================================================
+  // REPUTATION PAGE (4.4)
+  // ============================================================
+  if (document.getElementById('rep-private-tbody')) {
+    api('/reputation').then(function (res) {
+      if (!res.ok) return;
+      var d = res.j.data;
+      document.getElementById('rep-sent').textContent = d.sent || 0;
+      document.getElementById('rep-completed').textContent = d.completed || 0;
+      document.getElementById('rep-avg').textContent = d.avgNote ? d.avgNote + ' / 5' : '—';
+      document.getElementById('rep-redirected').textContent = d.redirected || 0;
+      var tb = document.getElementById('rep-private-tbody');
+      var items = d.privateFeedbacks || [];
+      tb.innerHTML = items.length
+        ? items.map(function (t) {
+            var rf = t.reviewFeedback || {};
+            return '<tr><td class="px-4 py-2 text-xs text-slate-500">' + new Date(rf.completedAt).toLocaleString('fr-FR') + '</td>' +
+              '<td class="px-4 py-2 font-mono text-xs"><a class="text-primary underline" href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '">' + escapeHtml(t.numero) + '</a></td>' +
+              '<td class="px-4 py-2"><span class="text-amber-500">' + ('★'.repeat(rf.note || 0)) + '</span><span class="text-slate-300">' + ('★'.repeat(5 - (rf.note || 0))) + '</span></td>' +
+              '<td class="px-4 py-2 text-xs">' + escapeHtml((rf.comment || '').slice(0, 200)) + '</td></tr>';
+          }).join('')
+        : '<tr><td colspan="4" class="px-4 py-6 text-center text-slate-400">Aucun feedback privé.</td></tr>';
+    });
+  }
+
+  // ============================================================
+  // INTEGRATIONS PAGE (4.3)
+  // ============================================================
+  if (document.getElementById('sav-integrations-form')) {
+    var intForm = document.getElementById('sav-integrations-form');
+    api('/settings').then(function (res) {
+      if (!res.ok) return;
+      var i = res.j.data.integrations || {};
+      if (intForm.elements.slackWebhookUrl) intForm.elements.slackWebhookUrl.value = i.slackWebhookUrl || '';
+      if (intForm.elements.slackChannel) intForm.elements.slackChannel.value = i.slackChannel || '#sav';
+      if (intForm.elements.googleReviewsUrl) intForm.elements.googleReviewsUrl.value = i.googleReviewsUrl || '';
+      if (intForm.elements.whatsappEnabled) intForm.elements.whatsappEnabled.checked = !!i.whatsappEnabled;
+      if (intForm.elements.qontoEnabled) intForm.elements.qontoEnabled.checked = !!i.qontoEnabled;
+    });
+    intForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(intForm);
+      var integrations = {
+        slackWebhookUrl: fd.get('slackWebhookUrl') || '',
+        slackChannel: fd.get('slackChannel') || '#sav',
+        googleReviewsUrl: fd.get('googleReviewsUrl') || '',
+        whatsappEnabled: fd.get('whatsappEnabled') === 'on',
+        qontoEnabled: fd.get('qontoEnabled') === 'on',
+      };
+      api('/settings', { method: 'POST', body: JSON.stringify({ integrations: integrations }) }).then(function (res) {
+        var fb = document.getElementById('sav-integrations-feedback');
+        fb.classList.remove('hidden');
+        if (res.ok && res.j.success) { fb.className = 'rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 p-3 text-sm'; fb.textContent = 'Intégrations sauvegardées.'; }
+        else { fb.className = 'rounded-xl border border-red-200 bg-red-50 text-red-900 p-3 text-sm'; fb.textContent = (res.j && res.j.error) || 'Erreur'; }
+      });
+    });
   }
 
   // ============================================================

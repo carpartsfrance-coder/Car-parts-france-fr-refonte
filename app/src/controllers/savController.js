@@ -109,6 +109,60 @@ exports.getSuivi = async (req, res) => {
   });
 };
 
+// GET /sav/feedback/:numero — formulaire de feedback post-résolution
+exports.getFeedback = async (req, res) => {
+  const numero = req.params.numero;
+  const ticket = await SavTicket.findOne({ numero }).lean().catch(() => null);
+  if (!ticket) {
+    return res.status(404).render('sav/feedback', { ...baseLocals(req), title: 'Feedback', numero, ticket: null, completed: false, sent: false });
+  }
+  return res.render('sav/feedback', {
+    ...baseLocals(req),
+    title: `Votre avis sur le SAV ${numero}`,
+    metaRobots: 'noindex, nofollow',
+    numero,
+    ticket,
+    completed: !!(ticket.reviewFeedback && ticket.reviewFeedback.completedAt),
+    sent: false,
+  });
+};
+
+// POST /sav/feedback/:numero
+exports.postFeedback = async (req, res) => {
+  const numero = req.params.numero;
+  const note = parseInt((req.body && req.body.note) || '0', 10);
+  const comment = String((req.body && req.body.comment) || '').slice(0, 2000);
+  const ticket = await SavTicket.findOne({ numero });
+  if (!ticket) return res.status(404).redirect('/');
+  ticket.reviewFeedback = ticket.reviewFeedback || {};
+  ticket.reviewFeedback.note = isNaN(note) ? 0 : Math.max(0, Math.min(5, note));
+  ticket.reviewFeedback.comment = comment;
+  ticket.reviewFeedback.completedAt = new Date();
+
+  let redirectGoogle = false;
+  if (ticket.reviewFeedback.note >= 4) {
+    redirectGoogle = true;
+    ticket.reviewFeedback.redirectedToGoogle = true;
+  }
+  await ticket.save();
+
+  if (redirectGoogle) {
+    const SavSettings = require('../models/SavSettings');
+    const s = await SavSettings.getSingleton().catch(() => null);
+    const url = (s && s.integrations && s.integrations.googleReviewsUrl) || process.env.GOOGLE_REVIEWS_URL || 'https://www.google.com/search?q=carpartsfrance+avis';
+    return res.redirect(url);
+  }
+  return res.render('sav/feedback', {
+    ...baseLocals(req),
+    title: 'Merci pour votre retour',
+    metaRobots: 'noindex, nofollow',
+    numero,
+    ticket: ticket.toObject(),
+    completed: true,
+    sent: true,
+  });
+};
+
 // GET /sav/confirmation/:numero — page de confirmation post-création
 exports.getConfirmation = async (req, res) => {
   const numero = req.params.numero;

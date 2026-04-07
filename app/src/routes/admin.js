@@ -140,6 +140,9 @@ router.get('/sav/tickets', requireAdminAuth, savAdminController.getSavTickets);
 router.get('/sav/tickets/:numero', requireAdminAuth, savAdminController.getSavTicketDetail);
 router.get('/parametres/sav', requireAdminAuth, savAdminController.getSavSettings);
 router.get('/parametres/audit', requireAdminAuth, savAdminController.getAuditLog);
+router.get('/parametres/integrations', requireAdminAuth, savAdminController.getIntegrations);
+router.get('/sav/analytics', requireAdminAuth, savAdminController.getAnalytics);
+router.get('/analytics/reputation', requireAdminAuth, savAdminController.getReputation);
 
 // Profil - Sécurité (2FA)
 router.get('/profil/securite', requireAdminAuth, adminController.getAdminProfileSecurity);
