@@ -44,10 +44,12 @@ async function checkSavSlaEscalation() {
       t.slaAlerts.alert12h = now;
       await t.save();
       await notif.notifyInternalEscalation(t, 'SLA < 12h');
+      try { require('../services/slackNotifier').notifySlaWarning(t, '< 12h'); } catch (_) {}
     } else if (remainingMs <= 24 * 3600 * 1000 && !t.slaAlerts.alert24h) {
       t.slaAlerts.alert24h = now;
       await t.save();
       await notif.notifyInternalEscalation(t, 'SLA < 24h');
+      try { require('../services/slackNotifier').notifySlaWarning(t, '< 24h'); } catch (_) {}
     }
   }
 
@@ -121,8 +123,38 @@ async function runSavDailyReminders() {
     }
   }
 
+  // ---------- Google Reviews J+7 ----------
+  let reviewsSent = 0;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const reviewCandidats = await SavTicket.find({
+    statut: 'resolu_garantie',
+    'reviewFeedback.sentAt': { $exists: false },
+    updatedAt: { $lte: sevenDaysAgo },
+  });
+  for (const t of reviewCandidats) {
+    try {
+      const { sendEmail } = require('../services/emailService');
+      const link = `${(process.env.SITE_URL || '').replace(/\/$/, '')}/sav/feedback/${encodeURIComponent(t.numero)}`;
+      await sendEmail({
+        toEmail: t.client && t.client.email,
+        subject: `[SAV ${t.numero}] Comment s'est passée votre expérience ?`,
+        html: `<p>Bonjour ${(t.client && t.client.nom) || ''},</p>
+          <p>Votre dossier SAV <strong>${t.numero}</strong> a été traité il y a une semaine. Comment s'est passée votre expérience avec CarPartsFrance ?</p>
+          <p style="text-align:center;margin:24px 0;">
+            <a href="${link}" style="display:inline-block;padding:12px 22px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">Donner mon avis</a>
+          </p>
+          <p style="font-size:13px;color:#475569;">Cela nous prendra moins d'une minute et nous aide énormément à nous améliorer.</p>`,
+        text: `Comment s'est passée votre expérience ? ${link}`,
+      });
+      t.reviewFeedback = t.reviewFeedback || {};
+      t.reviewFeedback.sentAt = new Date();
+      await t.save();
+      reviewsSent++;
+    } catch (e) { console.error('[sav-cron] reviewMail', e.message); }
+  }
+
   console.log('[sav-cron] daily reminders', {
-    docsRelances, docsRefus, payRelances, payDemeure, disposables,
+    docsRelances, docsRefus, payRelances, payDemeure, disposables, reviewsSent,
   });
 }
 
