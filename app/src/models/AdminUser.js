@@ -17,6 +17,12 @@ const adminUserSchema = new mongoose.Schema(
     lastLoginAt: { type: Date, default: null },
     passwordUpdatedAt: { type: Date, default: Date.now },
     createdByAdminUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser', default: null },
+
+    // 2FA TOTP (otplib + qrcode)
+    twoFactorEnabled: { type: Boolean, default: false },
+    twoFactorSecret: { type: String, default: null }, // base32
+    twoFactorBackupCodes: { type: [String], default: [] }, // hashes ou clair, simple ici
+    twoFactorActivatedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

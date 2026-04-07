@@ -5,7 +5,7 @@ const { sendAbandonedCartReminders } = require('./sendAbandonedCartReminders');
 const { expireDraftOrders } = require('./expireDraftOrders');
 const { checkOrderAlerts } = require('./checkOrderAlerts');
 const { sendConsigneReminders } = require('./sendConsigneReminders');
-const { checkSavSlaEscalation, runSavDailyReminders } = require('./savCronJobs');
+const { checkSavSlaEscalation, runSavDailyReminders, runSavAutomations } = require('./savCronJobs');
 
 function startScheduler() {
   // Detect abandoned carts every hour (at minute 0)
@@ -62,10 +62,19 @@ function startScheduler() {
   cron.schedule('15 * * * *', async () => {
     console.log('[scheduler] SAV: vérification SLA...');
     try {
-      const n = await checkSavSlaEscalation();
-      if (n > 0) console.log(`[scheduler] SAV: ${n} ticket(s) escaladé(s)`);
+      const r = await checkSavSlaEscalation();
+      console.log('[scheduler] SAV SLA:', r);
     } catch (err) {
       console.error('[scheduler] Erreur SAV SLA:', err.message || err);
+    }
+  });
+
+  // SAV — moteur d'automatisations toutes les 30 min
+  cron.schedule('25,55 * * * *', async () => {
+    try {
+      await runSavAutomations();
+    } catch (err) {
+      console.error('[scheduler] Erreur SAV automations:', err.message || err);
     }
   });
 

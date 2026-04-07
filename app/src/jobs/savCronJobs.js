@@ -11,20 +11,60 @@ const STATUTS_SLA = ['en_analyse', 'en_attente_documents'];
 
 async function checkSavSlaEscalation() {
   const now = new Date();
-  const tickets = await SavTicket.find({
+  // 1) Tickets avec SLA déjà dépassé → escalade complète une seule fois
+  const expired = await SavTicket.find({
     statut: { $in: STATUTS_SLA },
     'sla.dateLimite': { $lt: now },
     'sla.escalade': { $ne: true },
   });
-  for (const t of tickets) {
+  for (const t of expired) {
     t.sla.escalade = true;
     t.sla.alertes = t.sla.alertes || [];
     t.sla.alertes.push({ date: now, type: 'sla_depasse', message: 'SLA dépassé — escalade auto' });
+    t.slaAlerts = t.slaAlerts || {};
+    t.slaAlerts.alertExpired = now;
     t.addMessage('systeme', 'interne', 'SLA dépassé — escalade interne déclenchée');
     await t.save();
     await notif.notifyInternalEscalation(t, 'SLA dépassé');
   }
-  return tickets.length;
+
+  // 2) Pré-alertes 24h et 12h restantes (anti-doublon via slaAlerts.alertXXh)
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const in12h = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+
+  const upcoming = await SavTicket.find({
+    statut: { $in: STATUTS_SLA },
+    'sla.dateLimite': { $gte: now, $lte: in24h },
+  });
+  for (const t of upcoming) {
+    const limit = new Date(t.sla.dateLimite).getTime();
+    const remainingMs = limit - now.getTime();
+    t.slaAlerts = t.slaAlerts || {};
+    if (remainingMs <= 12 * 3600 * 1000 && !t.slaAlerts.alert12h) {
+      t.slaAlerts.alert12h = now;
+      await t.save();
+      await notif.notifyInternalEscalation(t, 'SLA < 12h');
+    } else if (remainingMs <= 24 * 3600 * 1000 && !t.slaAlerts.alert24h) {
+      t.slaAlerts.alert24h = now;
+      await t.save();
+      await notif.notifyInternalEscalation(t, 'SLA < 24h');
+    }
+  }
+
+  return { expired: expired.length, upcoming: upcoming.length };
+}
+
+// Lance les automatisations (relance_1, relance_2, clos_sans_reponse, echange_auto)
+async function runSavAutomations() {
+  try {
+    const auto = require('../services/savAutomations');
+    const summary = await auto.runRules();
+    console.log('[sav-cron] automations', summary);
+    return summary;
+  } catch (e) {
+    console.error('[sav-cron] automations failed', e && e.message);
+    return null;
+  }
 }
 
 function daysSince(date) {
@@ -89,4 +129,5 @@ async function runSavDailyReminders() {
 module.exports = {
   checkSavSlaEscalation,
   runSavDailyReminders,
+  runSavAutomations,
 };

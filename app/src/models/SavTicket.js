@@ -18,12 +18,16 @@ const STATUTS = [
   'ouvert',
   'pre_qualification',
   'en_attente_documents',
+  'relance_1',
+  'relance_2',
+  'clos_sans_reponse',
   'retour_demande',
   'en_transit_retour',
   'recu_atelier',
   'en_analyse',
   'analyse_terminee',
   'en_attente_decision_client',
+  'en_attente_fournisseur',
   'resolu_garantie',
   'resolu_facture',
   'clos',
@@ -209,10 +213,58 @@ const savTicketSchema = new mongoose.Schema(
 
     fournisseur: {
       contact: { type: String, trim: true },
+      nom: { type: String, trim: true },
+      rmaNumero: { type: String, trim: true },
+      transporteur: { type: String, trim: true }, // chronopost|colissimo|ups|dhl|other
+      colisNumero: { type: String, trim: true },
+      trackingUrl: { type: String, trim: true },
+      coutAnalyse: { type: Number, min: 0 }, // €
+      coutRefacture: { type: Number, min: 0 }, // €
+      rapportUrl: { type: String, trim: true },
       dateEnvoi: { type: Date },
       dateRetour: { type: Date },
       reponse: { type: String, trim: true },
     },
+
+    // Assignation
+    assignedToUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser', index: true },
+    assignedToName: { type: String, trim: true }, // dénormalisé pour affichage rapide
+    assignedAt: { type: Date },
+
+    // Alertes SLA déjà envoyées (anti-doublons)
+    slaAlerts: {
+      alert24h: { type: Date },
+      alert12h: { type: Date },
+      alertExpired: { type: Date },
+    },
+
+    // Diagnostic enrichi (3.7)
+    diagnosticEnrichi: {
+      photosAvant: [{ url: String, legende: String }],
+      photosPendant: [{ url: String, legende: String }],
+      photosApres: [{ url: String, legende: String }],
+      videoUrl: { type: String, trim: true },
+      mesures: {
+        pressionHydraulique: { type: Number },
+        fuiteInterne: { type: String, trim: true },
+        temperatureAvant: { type: Number },
+        temperatureApres: { type: Number },
+        codesAvantReset: [{ type: String, trim: true }],
+        codesApresReset: [{ type: String, trim: true }],
+      },
+      courbeBancUrl: { type: String, trim: true },
+      avis2eTechnicienUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser' },
+      avis2eTechnicienTexte: { type: String, trim: true },
+      scoreCalcule: { type: Number, min: 0, max: 100 },
+      pdfUrl: { type: String, trim: true },
+    },
+
+    // Trace des actions automatisées
+    automationLog: [{
+      ruleKey: { type: String, trim: true },
+      executedAt: { type: Date, default: Date.now },
+      details: { type: String, trim: true },
+    }],
 
     preuveQualite: {
       videoTest: { type: String, trim: true },
