@@ -158,6 +158,30 @@ const adminLoginLimiter = rateLimit({
 });
 app.use('/admin/connexion', adminLoginLimiter);
 
+// Headers de sécurité sur toutes les routes /admin
+app.use('/admin', (req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // CSP basique : pas d'iframe, scripts/styles uniquement self + inline (Tailwind/EJS),
+  // images self/data/https (pour les uploads et thumbnails).
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "img-src 'self' data: https:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "script-src 'self' 'unsafe-inline'",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ')
+  );
+  next();
+});
+
 const secureCookieFromEnv =
   process.env.SESSION_COOKIE_SECURE === 'true'
     ? true

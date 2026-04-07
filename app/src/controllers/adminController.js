@@ -746,7 +746,9 @@ function getAdminRoleLabel(role) {
 function renderAdminLoginPage(res, { status = 200, dbConnected, errorMessage, successMessage, email, returnTo, legacyCreds } = {}) {
   const safeCreds = legacyCreds || getAdminCredentials();
   const showDevFallback = !dbConnected && safeCreds.isDevFallback;
-  const isDevMode = process.env.NODE_ENV !== 'production';
+  // Strict : on n'affiche les comptes de test QUE si NODE_ENV === 'development'.
+  // Toute autre valeur (production, staging, undefined) → bloc masqué.
+  const isDevMode = process.env.NODE_ENV === 'development';
   return res.status(status).render('admin/login', {
     title: 'Admin - Connexion',
     dbConnected,
@@ -1638,8 +1640,19 @@ async function postAdminLogin(req, res) {
   const returnTo = getSafeReturnTo(req.body.returnTo) || '/admin';
 
   const ip = getClientIp(req);
+  const userAgent = (req.headers && req.headers['user-agent']) || '';
+
+  // Log des tentatives (best-effort, jamais bloquant)
+  function logAttempt(success, reason) {
+    try {
+      const AdminLoginAttempt = require('../models/AdminLoginAttempt');
+      AdminLoginAttempt.create({ email, ip, userAgent, success, reason }).catch(() => {});
+    } catch (_) {}
+  }
+
   const honeypot = getTrimmedString(req.body && req.body.website);
   if (honeypot) {
+    logAttempt(false, 'honeypot');
     return renderAdminLoginPage(res, {
       status: 401,
       dbConnected,
@@ -1650,12 +1663,14 @@ async function postAdminLogin(req, res) {
     });
   }
 
-  const limit = consumeRateLimit(ADMIN_LOGIN_BUCKETS, ip, { limit: 20, windowMs: 10 * 60 * 1000 });
+  // Rate limit serré : 5 tentatives / 15 min / IP
+  const limit = consumeRateLimit(ADMIN_LOGIN_BUCKETS, ip, { limit: 5, windowMs: 15 * 60 * 1000 });
   if (limit.limited) {
+    logAttempt(false, 'rate_limited');
     return renderAdminLoginPage(res, {
       status: 429,
       dbConnected,
-      errorMessage: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
+      errorMessage: 'Trop de tentatives de connexion (max 5 toutes les 15 minutes). Réessayez plus tard.',
       email,
       returnTo,
       legacyCreds: creds,
@@ -1663,6 +1678,7 @@ async function postAdminLogin(req, res) {
   }
 
   if (!email || !password) {
+    logAttempt(false, 'missing_fields');
     return renderAdminLoginPage(res, {
       status: 400,
       dbConnected,
@@ -1684,6 +1700,7 @@ async function postAdminLogin(req, res) {
     }
 
     if (!adminUser) {
+      logAttempt(false, 'bad_credentials');
       return renderAdminLoginPage(res, {
         status: 401,
         dbConnected,
@@ -1694,6 +1711,7 @@ async function postAdminLogin(req, res) {
       });
     }
 
+    logAttempt(true, 'ok_db');
     const sessionAdmin = adminUsers.sanitizeAdminForSession(adminUser);
 
     if (req.session && typeof req.session.regenerate === 'function') {
@@ -1723,6 +1741,7 @@ async function postAdminLogin(req, res) {
     : password === normalizeEnvString(creds.password);
 
   if (email !== creds.email || !passwordOk) {
+    logAttempt(false, 'bad_credentials_fallback');
     return renderAdminLoginPage(res, {
       status: 401,
       dbConnected,
@@ -1733,6 +1752,7 @@ async function postAdminLogin(req, res) {
     });
   }
 
+  logAttempt(true, 'ok_fallback');
   const fallbackAdmin = { email, role: ROLES.OWNER };
 
   req.session.admin = fallbackAdmin;
