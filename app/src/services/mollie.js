@@ -138,8 +138,25 @@ async function getPayment(paymentId) {
   return requestJson(url, { apiKey });
 }
 
+async function createRefund({ paymentId, amountCents, currency = 'EUR', description } = {}) {
+  const apiKey = getApiKeyFromEnv();
+  const id = getTrimmedString(paymentId);
+  if (!id) throw new Error('paymentId manquant');
+  if (!Number.isFinite(amountCents) || amountCents <= 0) throw new Error('amountCents invalide');
+
+  const body = {
+    amount: { currency, value: formatAmountFromCents(amountCents) },
+  };
+  const desc = getTrimmedString(description);
+  if (desc) body.description = desc;
+
+  const url = `${MOLLIE_BASE_URL}/payments/${encodeURIComponent(id)}/refunds`;
+  return requestJson(url, { method: 'POST', apiKey, body });
+}
+
 module.exports = {
   formatAmountFromCents,
   createPayment,
   getPayment,
+  createRefund,
 };

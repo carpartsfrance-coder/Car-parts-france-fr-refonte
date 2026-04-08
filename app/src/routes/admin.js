@@ -141,6 +141,7 @@ router.get('/sav/tickets/:numero', requireAdminAuth, savAdminController.getSavTi
 router.get('/parametres/sav', requireAdminAuth, savAdminController.getSavSettings);
 router.get('/parametres/audit', requireAdminAuth, savAdminController.getAuditLog);
 router.get('/parametres/integrations', requireAdminAuth, savAdminController.getIntegrations);
+router.get('/sav/procedures', requireAdminAuth, savAdminController.getSavProcedures);
 router.get('/sav/analytics', requireAdminAuth, savAdminController.getAnalytics);
 router.get('/analytics/reputation', requireAdminAuth, savAdminController.getReputation);
 

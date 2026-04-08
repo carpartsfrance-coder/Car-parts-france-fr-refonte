@@ -44,6 +44,10 @@ exports.getReputation = (req, res) => {
   res.render('admin/sav-reputation', baseLocals(req, { title: 'Réputation SAV — Admin' }));
 };
 
+exports.getSavProcedures = (req, res) => {
+  res.render('admin/sav-procedures', baseLocals(req, { title: 'Procédures SAV — Admin' }));
+};
+
 exports.getIntegrations = (req, res) => {
   res.render('admin/sav-integrations', baseLocals(req, { title: 'Intégrations — Admin' }));
 };

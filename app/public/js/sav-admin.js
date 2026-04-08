@@ -213,15 +213,37 @@
     else if (diff < 24 * 3600 * 1000) cls = 'warn';
 
     var label;
-    if (diff < 24 * 3600 * 1000) {
+    if (diff < 60 * 60 * 1000) {
+      // < 1h : précision à la minute
+      var mins = Math.max(1, Math.floor(diff / (60 * 1000)));
+      label = mins + ' min';
+      cls = 'late';
+    } else if (diff < 24 * 3600 * 1000) {
       var h = Math.max(1, Math.floor(diff / (3600 * 1000)));
-      label = h + 'h restantes';
+      label = h + 'h';
     } else {
       var days = Math.round(diff / (24 * 3600 * 1000));
-      label = days + 'j restants';
+      label = days + 'j';
     }
     return { cls: cls, label: label, tooltip: tooltipBase, remainingMs: diff, pct: pct };
   }
+
+  // Tick live des badges SLA — relit l'attribut data-sla-deadline et regénère le label / la classe
+  // Activable sur n'importe quel élément avec [data-sla-deadline] (ISO date) et optionnellement [data-sla-start]
+  function tickSlaBadges() {
+    document.querySelectorAll('[data-sla-deadline]').forEach(function (el) {
+      var d = el.getAttribute('data-sla-deadline');
+      if (!d) return;
+      var s = el.getAttribute('data-sla-start') || null;
+      var st = slaState(d, { dateOuverture: s });
+      // Conserve les classes non-sla, remplace seulement sav-sla-badge--*
+      el.className = el.className.replace(/sav-sla-badge--(ok|warn|late)/g, '').trim() + ' sav-sla-badge--' + st.cls;
+      el.textContent = st.label;
+      if (st.tooltip) el.setAttribute('title', st.tooltip);
+    });
+  }
+  // Démarre un tick toutes les 30s globalement (fait sans bruit, no-op si pas de badges)
+  setInterval(tickSlaBadges, 30000);
 
   // ============================================================
   // DASHBOARD
@@ -372,7 +394,10 @@
             return '<a href="/admin/sav/tickets/' + encodeURIComponent(t.numero) + '" class="block p-4 hover:bg-slate-50 ' + (sla2.cls === 'late' ? 'sav-pulse-row' : '') + '">' +
               '<div class="flex items-center justify-between mb-1">' +
                 '<span class="font-mono font-bold text-sm">' + escapeHtml(t.numero) + '</span>' +
-                '<span class="sav-sla-badge sav-sla-badge--' + sla2.cls + '">' + sla2.label + '</span>' +
+                '<span class="sav-sla-badge sav-sla-badge--' + sla2.cls + '"' +
+                  (t.sla && t.sla.dateLimite ? ' data-sla-deadline="' + escapeHtml(t.sla.dateLimite) + '"' : '') +
+                  (t.sla && t.sla.dateOuverture ? ' data-sla-start="' + escapeHtml(t.sla.dateOuverture) + '"' : '') +
+                  '>' + sla2.label + '</span>' +
               '</div>' +
               '<div class="text-xs text-slate-700 truncate">' + escapeHtml((t.client && t.client.email) || '') + '</div>' +
               '<div class="mt-1 flex items-center gap-2 flex-wrap">' + pieceBadge(t.pieceType) +
@@ -431,7 +456,10 @@
             '<td class="px-3 py-2 text-xs">' + (vstr ? escapeHtml(vstr) : '<span class="text-slate-400">—</span>') + (v.vin ? '<div class="text-[10px] font-mono text-slate-400">' + escapeHtml(v.vin) + '</div>' : '') + '</td>' +
             '<td class="px-3 py-2">' + assignHtml + '</td>' +
             '<td class="px-3 py-2 sav-col-sticky-r2">' + statutBadge(t.statut) + '</td>' +
-            '<td class="px-3 py-2 sav-col-sticky-r"><span class="sav-sla-badge sav-sla-badge--' + sla.cls + '" title="' + escapeHtml(sla.tooltip || '') + '">' + sla.label + '</span></td>' +
+            '<td class="px-3 py-2 sav-col-sticky-r"><span class="sav-sla-badge sav-sla-badge--' + sla.cls + '" title="' + escapeHtml(sla.tooltip || '') + '"' +
+              (t.sla && t.sla.dateLimite ? ' data-sla-deadline="' + escapeHtml(t.sla.dateLimite) + '"' : '') +
+              (t.sla && t.sla.dateOuverture ? ' data-sla-start="' + escapeHtml(t.sla.dateOuverture) + '"' : '') +
+              '>' + sla.label + '</span></td>' +
             '<td class="px-3 py-2 text-xs text-slate-500">' + new Date(t.createdAt).toLocaleDateString('fr-FR') + '</td>' +
           '</tr>';
         }).join('');
@@ -811,6 +839,103 @@
     var ticket = null;
     var teamUsers = [];
 
+    function renderRefundPanel() {
+      var st = document.getElementById('sav-refund-status');
+      var btn = document.getElementById('sav-refund-btn');
+      if (!st || !btn) return;
+      var r = ticket.paiements && ticket.paiements.remboursement;
+      if (r && r.status === 'effectue') {
+        st.innerHTML = '<span class="text-emerald-700 font-semibold">' + (r.amountCents/100).toFixed(2) + ' € remboursés</span> · ' + (r.mollieRefundId || '');
+      } else {
+        st.textContent = 'Aucun remboursement enregistré';
+      }
+    }
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('#sav-refund-btn')) return;
+      var input = document.getElementById('sav-refund-amount');
+      var euros = parseFloat((input && input.value) || '');
+      if (!isFinite(euros) || euros <= 0) { toast('Montant invalide', 'error'); return; }
+      var cents = Math.round(euros * 100);
+      if (!window.confirm('Rembourser ' + euros.toFixed(2) + ' € via Mollie sur la commande ' + (ticket.numeroCommande || '?') + ' ?')) return;
+      var btn = document.getElementById('sav-refund-btn');
+      btn.disabled = true; btn.classList.add('opacity-60');
+      api('/tickets/' + encodeURIComponent(numero) + '/refund', {
+        method: 'POST',
+        body: JSON.stringify({ amountCents: cents }),
+      }).then(function (res) {
+        if (res.ok && res.j.success) {
+          toast('Remboursement effectué', 'success');
+          input.value = '';
+          loadTicket();
+        } else {
+          toast((res.j && res.j.error) || 'Erreur', 'error');
+        }
+      }).catch(function (err) {
+        toast(err.message || 'Erreur', 'error');
+      }).finally(function () {
+        btn.disabled = false; btn.classList.remove('opacity-60');
+      });
+    });
+
+    function loadOrderContext() {
+      var box = document.getElementById('sav-order-context-body');
+      if (!box) return;
+      api('/tickets/' + encodeURIComponent(numero) + '/order-context').then(function (res) {
+        if (!res.ok || !res.j.success) {
+          box.innerHTML = '<div class="text-slate-400 italic">Indisponible</div>';
+          return;
+        }
+        var o = res.j.data && res.j.data.order;
+        if (!o) {
+          var nc = (res.j.data && res.j.data.numeroCommande) || (ticket && ticket.numeroCommande) || '';
+          box.innerHTML = nc
+            ? '<div class="text-slate-500">Commande <strong>' + escapeHtml(nc) + '</strong> introuvable en base.</div>'
+            : '<div class="text-slate-400 italic">Aucune commande liée.</div>';
+          return;
+        }
+        var html = '';
+        html += '<div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">';
+        html += '<a href="/admin/orders/' + encodeURIComponent(o.number) + '" target="_blank" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">'
+              + escapeHtml(o.number) + ' <span class="material-symbols-outlined" style="font-size:12px;">open_in_new</span></a>';
+        if (o.status) html += '<span class="text-[10px] uppercase tracking-wide font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">' + escapeHtml(o.status) + '</span>';
+        html += '</div>';
+        if (o.items && o.items.length) {
+          html += '<div class="space-y-1.5 mb-2">';
+          o.items.forEach(function (it) {
+            html += '<div class="flex items-start gap-1.5">';
+            html += '<span class="text-slate-400 font-mono text-[10px] mt-0.5">' + (it.quantity || 1) + '×</span>';
+            html += '<div class="flex-1 min-w-0"><div class="truncate text-slate-700">' + escapeHtml(it.name || '—') + '</div>';
+            if (it.sku) html += '<div class="text-[10px] text-slate-400 font-mono">' + escapeHtml(it.sku) + '</div>';
+            html += '</div></div>';
+          });
+          html += '</div>';
+        }
+        var trackings = [];
+        (o.shipments || []).forEach(function (s) {
+          if (s.trackingNumber) trackings.push({ label: s.label || s.carrier || 'Envoi', carrier: s.carrier, num: s.trackingNumber });
+        });
+        if (o.cloningTracking && o.cloningTracking.trackingNumber) {
+          trackings.push({ label: 'Clonage', carrier: o.cloningTracking.carrier, num: o.cloningTracking.trackingNumber, url: o.cloningTracking.trackingUrl });
+        }
+        if (trackings.length) {
+          html += '<div class="pt-2 border-t border-slate-100 space-y-1">';
+          trackings.forEach(function (t) {
+            html += '<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-slate-400" style="font-size:14px;">local_shipping</span>';
+            html += '<span class="text-[11px] text-slate-500">' + escapeHtml(t.label) + (t.carrier ? ' · ' + escapeHtml(t.carrier) : '') + '</span></div>';
+            var trackUrl = t.url || '';
+            html += '<div class="font-mono text-[11px] ' + (trackUrl ? '' : 'text-slate-700') + '">';
+            if (trackUrl) html += '<a href="' + escapeHtml(trackUrl) + '" target="_blank" class="text-primary hover:underline">' + escapeHtml(t.num) + '</a>';
+            else html += escapeHtml(t.num);
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        box.innerHTML = html;
+      }).catch(function () {
+        box.innerHTML = '<div class="text-slate-400 italic">Erreur de chargement</div>';
+      });
+    }
+
     function loadTicket() {
       api('/tickets/' + encodeURIComponent(numero)).then(function (res) {
         if (!res.ok || !res.j.success) {
@@ -830,6 +955,8 @@
         prefillFournisseur();
         renderPreview();
         renderTabBadges();
+        loadOrderContext();
+        renderRefundPanel();
         // Skeletons → clear aria-busy (innerHTML already replaced)
         ['sav-header-meta', 'sav-dossier', 'sav-timeline', 'sav-documents'].forEach(function (id) {
           var el = document.getElementById(id);
@@ -1110,7 +1237,19 @@
         var s = slaState(d, { dateOuverture: t.sla && t.sla.dateOuverture });
         sla.className = 'sav-sla-badge sav-sla-badge--' + s.cls + ' inline-flex items-center gap-1';
         sla.title = s.tooltip || '';
-        sla.innerHTML = icon('schedule') + '<span>SLA ' + s.label + '</span>';
+        sla.setAttribute('data-sla-deadline', d);
+        if (t.sla && t.sla.dateOuverture) sla.setAttribute('data-sla-start', t.sla.dateOuverture);
+        sla.innerHTML = icon('schedule') + '<span data-sla-text>SLA ' + s.label + '</span>';
+        // Le tick global ne touche pas aux innerHTML complexes — on relit le label nous-mêmes
+        if (!sla.__slaTick) {
+          sla.__slaTick = setInterval(function () {
+            var st = slaState(sla.getAttribute('data-sla-deadline'), { dateOuverture: sla.getAttribute('data-sla-start') });
+            sla.className = 'sav-sla-badge sav-sla-badge--' + st.cls + ' inline-flex items-center gap-1';
+            sla.title = st.tooltip || '';
+            var txt = sla.querySelector('[data-sla-text]');
+            if (txt) txt.textContent = 'SLA ' + st.label;
+          }, 30000);
+        }
       }
       // SLA objectives timeline
       renderSlaObjectives(t);
@@ -1674,14 +1813,64 @@
       diagnostic:  'biotech',
     };
 
+    // Analyse un message pour détecter le type et extraire un objet structuré
+    function parseTlEntry(m) {
+      var contenu = m.contenu || '';
+      var canal = (m.canal || '').toLowerCase();
+
+      // Changement de statut : "Changement de statut : X → Y"
+      var mStatut = contenu.match(/^Changement de statut\s*:\s*(\S+)\s*(?:→|->)\s*(\S+)/i);
+      if (mStatut) {
+        return { kind: 'statut', from: mStatut[1], to: mStatut[2] };
+      }
+      // Document upload/ajout : "Document uploadé (kind) : nomfichier (size octets)" ou "Document ajouté (kind) : /uploads/.../file.ext"
+      var mDoc = contenu.match(/^Document\s+(uploadé|ajouté)\s*\(([^)]+)\)\s*:\s*(.+?)(?:\s*\((\d+)\s*octets?\))?$/i);
+      if (mDoc) {
+        var raw = mDoc[3].trim();
+        var filename = raw.split('/').pop();
+        return { kind: 'doc', docKind: mDoc[2], filename: fixMojibake(filename), action: mDoc[1], size: mDoc[4] ? parseInt(mDoc[4], 10) : null };
+      }
+      // Procédure envoyée : "Procédure envoyée : Titre (url)"
+      var mProc = contenu.match(/^Procédure envoyée\s*:\s*(.+?)\s*\(([^)]+)\)\s*$/i);
+      if (mProc) return { kind: 'procedure', title: mProc[1], url: mProc[2] };
+      // Assignation
+      if (/^Ticket (assigné|désassigné|pris en charge)/i.test(contenu)) return { kind: 'assign', text: contenu };
+      // Remboursement Mollie
+      if (/^Remboursement Mollie/i.test(contenu)) return { kind: 'refund', text: contenu };
+      // Message client/admin (email, whatsapp, tel, interne)
+      var isIntern = canal === 'interne' || canal === 'note';
+      if (canal === 'email' || canal === 'whatsapp' || canal === 'tel' || canal === 'phone' || isIntern) {
+        return { kind: 'message', canal: canal || 'note', isIntern: isIntern, isClient: (m.auteur === 'client'), html: m.html, text: contenu, sujet: m.sujet };
+      }
+      // Fallback
+      return { kind: 'systeme', text: contenu };
+    }
+
+    // Réparation des filenames mal encodés (UTF-8 lu comme Latin-1)
+    function fixMojibake(s) {
+      if (!s || typeof s !== 'string') return s;
+      if (!/[Ã¢â€ÂÌÈ]/.test(s)) return s;
+      try {
+        var bytes = new Uint8Array(s.length);
+        for (var i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
+        return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      } catch (_) { return s; }
+    }
+
+    function fmtSizeShort(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' o';
+      if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' Ko';
+      return (bytes / 1024 / 1024).toFixed(1) + ' Mo';
+    }
+
     function detectTlType(m) {
-      if (m.type && TL_TYPE_ICON[m.type]) return m.type;
-      var c = (m.contenu || '') + ' ' + (m.canal || '') + ' ' + (m.auteur || '');
-      if (/fournisseur|supplier/i.test(c)) return 'fournisseur';
-      if (/diagnostic|analyse|code\s*défaut|obd/i.test(c)) return 'diagnostic';
-      if (/statut|→|status/i.test(c)) return 'statut';
-      if (/🤖|systeme|auto/i.test(c) || m.auteur === 'systeme') return 'systeme';
-      return 'message';
+      var p = parseTlEntry(m);
+      if (p.kind === 'statut') return 'statut';
+      if (p.kind === 'doc' || p.kind === 'procedure') return 'systeme';
+      if (p.kind === 'assign' || p.kind === 'refund') return 'systeme';
+      if (p.kind === 'message') return 'message';
+      return 'systeme';
     }
 
     function renderTimeline() {
@@ -1702,19 +1891,92 @@
         box.innerHTML = '<div class="text-sm text-slate-500">Aucun événement pour ce filtre.</div>';
         return;
       }
-      box.innerHTML = filtered.map(function (m) {
-        var type = detectTlType(m);
-        var iconName = TL_TYPE_ICON[type] || 'circle';
+      box.innerHTML = filtered.map(function (m, idx) {
+        var p = parseTlEntry(m);
         var dateAbs = new Date(m.date).toLocaleString('fr-FR');
         var dateRel = fmtRelative(m.date);
-        return '<div class="sav-tl-entry" data-type="' + type + '">' +
-          '<div class="sav-tl-badge sav-tl-badge--' + type + '"><span class="material-symbols-outlined">' + iconName + '</span></div>' +
-          '<div class="sav-tl-meta">' +
-            '<span class="sav-tl-author">' + escapeHtml(m.auteur || '—') + '</span>' +
-            '<span title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>' +
-            (m.canal ? '<span class="text-slate-300">·</span><span>' + escapeHtml(m.canal) + '</span>' : '') +
-          '</div>' +
-          '<div class="sav-tl-content">' + escapeHtml(m.contenu || '') + '</div>' +
+        var relHtml = '<span class="sav-tl-time" title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>';
+
+        // -- Status change : ligne compacte inline
+        if (p.kind === 'statut') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon">flag</span>' +
+            '<span class="sav-tl-compact__text"><strong>Statut :</strong> ' +
+              '<span class="sav-tl-statutpill">' + escapeHtml(labelStatut(p.from)) + '</span>' +
+              ' <span class="text-slate-400">→</span> ' +
+              '<span class="sav-tl-statutpill sav-tl-statutpill--to">' + escapeHtml(labelStatut(p.to)) + '</span>' +
+            '</span>' +
+            relHtml +
+          '</div>';
+        }
+
+        // -- Document upload / procédure / assign / refund : ligne compacte aussi
+        if (p.kind === 'doc') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#6366f1;">attach_file</span>' +
+            '<span class="sav-tl-compact__text"><strong>' + escapeHtml(p.action === 'uploadé' ? 'Doc client' : 'Doc ajouté') + '</strong> <span class="text-slate-400">·</span> ' +
+              '<span class="text-slate-600">' + escapeHtml(p.docKind) + '</span> <span class="text-slate-400">·</span> ' +
+              '<span class="font-mono text-[11px]">' + escapeHtml(p.filename) + '</span>' +
+              (p.size ? ' <span class="text-slate-400 text-[11px]">(' + fmtSizeShort(p.size) + ')</span>' : '') +
+            '</span>' +
+            relHtml +
+          '</div>';
+        }
+        if (p.kind === 'procedure') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#e11d48;">menu_book</span>' +
+            '<span class="sav-tl-compact__text"><strong>Procédure envoyée :</strong> ' + escapeHtml(p.title) + '</span>' +
+            relHtml +
+          '</div>';
+        }
+        if (p.kind === 'assign') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#64748b;">person</span>' +
+            '<span class="sav-tl-compact__text">' + escapeHtml(p.text) + '</span>' +
+            relHtml +
+          '</div>';
+        }
+        if (p.kind === 'refund') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#059669;">payments</span>' +
+            '<span class="sav-tl-compact__text">' + escapeHtml(p.text) + '</span>' +
+            relHtml +
+          '</div>';
+        }
+
+        // -- Message (email/whatsapp/interne) : carte collapsable
+        if (p.kind === 'message') {
+          var isClient = p.isClient;
+          var canalLabel = p.canal.charAt(0).toUpperCase() + p.canal.slice(1);
+          var direction = isClient ? 'IN' : 'OUT';
+          var dirIcon = isClient ? 'call_received' : 'send';
+          var sideCls = isClient ? 'sav-tl-msg--client' : (p.isIntern ? 'sav-tl-msg--intern' : 'sav-tl-msg--admin');
+          var authorLabel = isClient ? 'Client' : (m.auteur || 'Admin');
+          var preview = (p.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+          var needExpand = (p.text || '').length > 140 || /<[^>]+>/.test(p.text || '') || p.html;
+          var fullBody = p.html
+            ? sanitizeHtml(p.html)
+            : '<div>' + escapeHtml(p.text || '').replace(/\n/g, '</div><div>') + '</div>';
+          return '<div class="sav-tl-msg ' + sideCls + '">' +
+            '<div class="sav-tl-msg__head">' +
+              '<span class="material-symbols-outlined sav-tl-msg__dir" title="' + direction + '">' + dirIcon + '</span>' +
+              '<span class="sav-tl-msg__author">' + escapeHtml(authorLabel) + '</span>' +
+              '<span class="sav-tl-msg__pill sav-tl-msg__pill--' + p.canal + '">' + escapeHtml(canalLabel) + '</span>' +
+              (p.isIntern ? '<span class="sav-tl-msg__pill sav-tl-msg__pill--intern">Interne</span>' : '') +
+              relHtml +
+            '</div>' +
+            (p.sujet ? '<div class="sav-tl-msg__subject">' + escapeHtml(p.sujet) + '</div>' : '') +
+            (needExpand
+              ? '<details class="sav-tl-msg__details"><summary class="sav-tl-msg__preview">' + escapeHtml(preview) + (preview.length === 140 ? '…' : '') + '</summary><div class="sav-tl-msg__full">' + fullBody + '</div></details>'
+              : '<div class="sav-tl-msg__preview sav-tl-msg__preview--static">' + escapeHtml(preview) + '</div>') +
+          '</div>';
+        }
+
+        // Fallback système
+        return '<div class="sav-tl-compact">' +
+          '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#94a3b8;">info</span>' +
+          '<span class="sav-tl-compact__text text-slate-500">' + escapeHtml(p.text || '') + '</span>' +
+          relHtml +
         '</div>';
       }).join('');
     }
@@ -1749,7 +2011,7 @@
       box.innerHTML = docs.map(function (x) {
         var img = x.mime ? /^image\//i.test(x.mime) : /\.(png|jpe?g|gif|webp|avif|heic)$/i.test(x.url || '');
         var thumb = img
-          ? '<div class="aspect-video w-full overflow-hidden rounded-lg bg-slate-100"><img src="' + escapeHtml(x.url) + '" loading="lazy" class="w-full h-full object-cover"></div>'
+          ? '<div class="aspect-video w-full overflow-hidden rounded-lg bg-slate-100 cursor-zoom-in" data-lightbox="' + escapeHtml(x.url) + '"><img src="' + escapeHtml(x.url) + '" loading="lazy" class="w-full h-full object-cover pointer-events-none"></div>'
           : '<div class="aspect-video w-full flex items-center justify-center rounded-lg bg-slate-100 text-slate-400"><span class="material-symbols-outlined text-5xl">picture_as_pdf</span></div>';
         var name = escapeHtml(x.originalName || (x.url || '').split('/').pop() || 'document');
         var meta = [];
@@ -1800,35 +2062,84 @@
       var msgs = ticket.messages || [];
       if (!msgs.length) { box.innerHTML = '<div class="text-sm text-slate-500">Aucun message.</div>'; return; }
       box.innerHTML = msgs.map(function (m, idx) {
-        var canal = (m.canal || 'email').toLowerCase();
-        var canalKey = canal === 'whatsapp' ? 'whatsapp' : canal === 'tel' || canal === 'phone' ? 'tel' : canal === 'interne' || canal === 'note' ? 'interne' : 'email';
-        var author = m.auteur || '—';
-        var color = avatarColor(author);
+        var p = parseTlEntry(m);
         var dateAbs = new Date(m.date).toLocaleString('fr-FR');
         var dateRel = fmtRelative(m.date);
-        var rawHtml = m.html || ('<div>' + escapeHtml(m.contenu || '').replace(/\n/g, '</div><div>') + '</div>');
-        var safe = sanitizeHtml(rawHtml);
-        var sujet = m.sujet ? '<div class="font-semibold text-slate-900 mb-1">' + escapeHtml(m.sujet) + '</div>' : '';
-        var label = canalKey === 'interne' ? '<div class="sav-msg__intlabel">🔒 INTERNE</div>' : '';
-        var isClient = author === 'client';
-        var clientCls = isClient ? ' sav-msg--client' : '';
-        var clientLabel = isClient ? '<div class="sav-msg__intlabel" style="background:#dbeafe;color:#1e40af;">🗨 CLIENT</div>' : '';
-        return '<article class="sav-msg sav-msg--' + canalKey + clientCls + '" data-msg-idx="' + idx + '">' +
-          clientLabel +
-          label +
-          '<header class="sav-msg__head">' +
-            '<span class="sav-msg__avatar" style="background:' + color + '">' + escapeHtml(initials(author)) + '</span>' +
-            '<span class="sav-msg__author">' + escapeHtml(author) + '</span>' +
-            '<span class="sav-msg__pill sav-msg__pill--' + canalKey + '">' + escapeHtml(canalKey) + '</span>' +
-            '<span class="sav-msg__date" title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>' +
-          '</header>' +
-          '<div class="sav-msg__body">' + sujet + safe + '</div>' +
-          '<footer class="sav-msg__foot">' +
-            '<button type="button" class="sav-msg__reply" data-reply-idx="' + idx + '">' +
+        var relHtml = '<span class="sav-tl-time" title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>';
+
+        // Events système → ligne compacte (pas de carte, pas de "Répondre")
+        if (p.kind === 'statut') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon">flag</span>' +
+            '<span class="sav-tl-compact__text"><strong>Statut :</strong> ' +
+              '<span class="sav-tl-statutpill">' + escapeHtml(labelStatut(p.from)) + '</span> ' +
+              '<span class="text-slate-400">→</span> ' +
+              '<span class="sav-tl-statutpill sav-tl-statutpill--to">' + escapeHtml(labelStatut(p.to)) + '</span>' +
+            '</span>' + relHtml +
+          '</div>';
+        }
+        if (p.kind === 'doc') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#6366f1;">attach_file</span>' +
+            '<span class="sav-tl-compact__text"><strong>' + escapeHtml(p.action === 'uploadé' ? 'Doc client' : 'Doc ajouté') + '</strong> <span class="text-slate-400">·</span> ' +
+              '<span class="text-slate-600">' + escapeHtml(p.docKind) + '</span> <span class="text-slate-400">·</span> ' +
+              '<span class="font-mono text-[11px]">' + escapeHtml(p.filename) + '</span>' +
+              (p.size ? ' <span class="text-slate-400 text-[11px]">(' + fmtSizeShort(p.size) + ')</span>' : '') +
+            '</span>' + relHtml +
+          '</div>';
+        }
+        if (p.kind === 'procedure') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#e11d48;">menu_book</span>' +
+            '<span class="sav-tl-compact__text"><strong>Procédure envoyée :</strong> ' + escapeHtml(p.title) + '</span>' + relHtml +
+          '</div>';
+        }
+        if (p.kind === 'assign') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#64748b;">person</span>' +
+            '<span class="sav-tl-compact__text">' + escapeHtml(p.text) + '</span>' + relHtml +
+          '</div>';
+        }
+        if (p.kind === 'refund') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#059669;">payments</span>' +
+            '<span class="sav-tl-compact__text">' + escapeHtml(p.text) + '</span>' + relHtml +
+          '</div>';
+        }
+        if (p.kind === 'systeme') {
+          return '<div class="sav-tl-compact">' +
+            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#94a3b8;">info</span>' +
+            '<span class="sav-tl-compact__text text-slate-500">' + escapeHtml(p.text || '') + '</span>' + relHtml +
+          '</div>';
+        }
+
+        // Vraie conversation (email / whatsapp / tel / interne) : carte avec "Répondre"
+        var isClient = p.isClient;
+        var canalLabel = p.canal.charAt(0).toUpperCase() + p.canal.slice(1);
+        var dirIcon = isClient ? 'call_received' : 'send';
+        var sideCls = isClient ? 'sav-tl-msg--client' : (p.isIntern ? 'sav-tl-msg--intern' : 'sav-tl-msg--admin');
+        var authorLabel = isClient ? 'Client' : (m.auteur || 'Admin');
+        var preview = (p.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+        var needExpand = (p.text || '').length > 140 || /<[^>]+>/.test(p.text || '') || p.html;
+        var fullBody = p.html
+          ? sanitizeHtml(p.html)
+          : '<div>' + escapeHtml(p.text || '').replace(/\n/g, '</div><div>') + '</div>';
+        return '<div class="sav-tl-msg ' + sideCls + '" data-msg-idx="' + idx + '">' +
+          '<div class="sav-tl-msg__head">' +
+            '<span class="material-symbols-outlined sav-tl-msg__dir">' + dirIcon + '</span>' +
+            '<span class="sav-tl-msg__author">' + escapeHtml(authorLabel) + '</span>' +
+            '<span class="sav-tl-msg__pill sav-tl-msg__pill--' + p.canal + '">' + escapeHtml(canalLabel) + '</span>' +
+            (p.isIntern ? '<span class="sav-tl-msg__pill sav-tl-msg__pill--intern">Interne</span>' : '') +
+            relHtml +
+            '<button type="button" class="sav-tl-msg__reply" data-reply-idx="' + idx + '" title="Répondre">' +
               '<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">reply</span> Répondre' +
             '</button>' +
-          '</footer>' +
-        '</article>';
+          '</div>' +
+          (p.sujet ? '<div class="sav-tl-msg__subject">' + escapeHtml(p.sujet) + '</div>' : '') +
+          (needExpand
+            ? '<details class="sav-tl-msg__details"' + (isClient ? ' open' : '') + '><summary class="sav-tl-msg__preview">' + escapeHtml(preview) + (preview.length === 140 ? '…' : '') + '</summary><div class="sav-tl-msg__full">' + fullBody + '</div></details>'
+            : '<div class="sav-tl-msg__preview sav-tl-msg__preview--static">' + escapeHtml(preview) + '</div>') +
+        '</div>';
       }).join('');
 
       // Wire reply buttons
@@ -2307,20 +2618,112 @@
     });
 
     var msgForm = document.getElementById('sav-msg-form');
+
+    // -------- Pièces jointes (ad-hoc + étiquette retour) --------
+    var attachFiles = []; // { file, isReturnLabel }
+    var attachBtn = document.getElementById('sav-attach-btn');
+    var attachInput = document.getElementById('sav-attach-input');
+    var attachList = document.getElementById('sav-attach-list');
+    var returnLabelBtn = document.getElementById('sav-return-label-btn');
+    var returnLabelInput = document.getElementById('sav-return-label-input');
+
+    function renderAttachList() {
+      if (!attachList) return;
+      if (!attachFiles.length) { attachList.classList.add('hidden'); attachList.innerHTML = ''; return; }
+      attachList.classList.remove('hidden');
+      attachList.innerHTML = attachFiles.map(function (a, i) {
+        var size = a.file.size < 1024 * 1024 ? (Math.round(a.file.size / 102.4) / 10) + ' Ko' : (Math.round(a.file.size / 104857.6) / 10) + ' Mo';
+        var label = a.isReturnLabel ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-semibold uppercase">Étiquette retour</span>' : '';
+        return '<li class="flex items-center gap-2 text-xs bg-white border border-slate-200 rounded px-2 py-1">'
+          + '<span class="material-symbols-outlined text-slate-500" style="font-size:14px;">' + (a.file.type.indexOf('image') === 0 ? 'image' : 'picture_as_pdf') + '</span>'
+          + '<span class="flex-1 truncate">' + escapeHtml(a.file.name) + '</span>'
+          + label
+          + '<span class="text-slate-400">' + size + '</span>'
+          + '<button type="button" data-attach-remove="' + i + '" class="text-slate-400 hover:text-rose-600" title="Retirer">'
+          + '<span class="material-symbols-outlined" style="font-size:14px;">close</span></button>'
+          + '</li>';
+      }).join('');
+    }
+    if (attachList) {
+      attachList.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-attach-remove]');
+        if (!t) return;
+        attachFiles.splice(parseInt(t.getAttribute('data-attach-remove'), 10), 1);
+        renderAttachList();
+      });
+    }
+    if (attachBtn && attachInput) {
+      attachBtn.addEventListener('click', function () { attachInput.click(); });
+      attachInput.addEventListener('change', function () {
+        for (var i = 0; i < attachInput.files.length; i++) {
+          if (attachFiles.length >= 5) { toast('Maximum 5 fichiers', 'error'); break; }
+          attachFiles.push({ file: attachInput.files[i], isReturnLabel: false });
+        }
+        attachInput.value = '';
+        renderAttachList();
+      });
+    }
+    if (returnLabelBtn && returnLabelInput) {
+      returnLabelBtn.addEventListener('click', function () { returnLabelInput.click(); });
+      returnLabelInput.addEventListener('change', function () {
+        var f = returnLabelInput.files[0];
+        if (!f) return;
+        // retirer précédente étiquette retour s'il y en a une
+        attachFiles = attachFiles.filter(function (a) { return !a.isReturnLabel; });
+        attachFiles.push({ file: f, isReturnLabel: true });
+        returnLabelInput.value = '';
+        renderAttachList();
+
+        // Pré-remplir sujet et corps
+        var sujet = document.querySelector('[name="sujet"]');
+        if (sujet && !sujet.value) sujet.value = 'Votre étiquette de retour prépayée — SAV ' + numero;
+        if (editor && !editor.textContent.trim()) {
+          editor.innerHTML = '<p>Bonjour {client_prenom},</p>'
+            + '<p>Vous trouverez en pièce jointe votre <strong>étiquette de retour prépayée</strong> pour le renvoi de votre pièce concernant le ticket SAV <strong>{ticket_numero}</strong>.</p>'
+            + '<p><u>Instructions&nbsp;:</u></p>'
+            + '<ul><li>Emballez soigneusement la pièce (carton + calage)</li>'
+            + '<li>Collez l\'étiquette sur le colis (bien visible, sans plier le code-barres)</li>'
+            + '<li>Déposez le colis au point relais ou bureau indiqué sur l\'étiquette</li>'
+            + '<li>Conservez le récépissé de dépôt jusqu\'à réception chez nous</li></ul>'
+            + '<p>Dès réception à l\'atelier, nous vous tiendrons informé de l\'avancement de l\'analyse.</p>'
+            + '<p>Cordialement,<br>L\'équipe SAV CarParts France</p>';
+          syncContenu();
+        }
+        toast('Étiquette retour ajoutée');
+      });
+    }
+
     function doSend(action, nextStatut) {
       var canal = (canalInput && canalInput.value) || 'email';
       var sujet = (document.querySelector('[name="sujet"]') || {}).value || '';
       var contenu = interpolate(document.getElementById('sav-msg-contenu').value || '');
       var html = interpolate(document.getElementById('sav-msg-html').value || '');
-      return api('/tickets/' + encodeURIComponent(numero) + '/communication', {
-        method: 'POST',
-        body: JSON.stringify({ canal: canal, sujet: sujet, contenu: contenu, html: html }),
-      }).then(function (res) {
+
+      var hasFiles = attachFiles.length > 0;
+      var fetchOpts;
+      if (hasFiles) {
+        var fd = new FormData();
+        fd.append('canal', canal);
+        fd.append('sujet', sujet);
+        fd.append('contenu', contenu);
+        fd.append('html', html);
+        if (attachFiles.some(function (a) { return a.isReturnLabel; })) fd.append('isReturnLabel', '1');
+        attachFiles.forEach(function (a) { fd.append('attachments', a.file, a.file.name); });
+        fetchOpts = { method: 'POST', headers: { 'Authorization': 'Bearer ' + TOKEN }, body: fd };
+      } else {
+        fetchOpts = { method: 'POST', headers: H, body: JSON.stringify({ canal: canal, sujet: sujet, contenu: contenu, html: html }) };
+      }
+
+      return fetch('/admin/api/sav/tickets/' + encodeURIComponent(numero) + '/communication', fetchOpts)
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
         if (!(res.ok && res.j.success)) { toast(res.j.error || 'Erreur', 'error'); return; }
-        toast('Message envoyé via ' + canal);
+        toast('Message envoyé via ' + canal + (hasFiles ? ' (+' + attachFiles.length + ' PJ)' : ''));
         editor.innerHTML = '';
         syncContenu();
         clearDraft();
+        attachFiles = [];
+        renderAttachList();
         if (action === 'send_and_status' && nextStatut) {
           return api('/tickets/' + encodeURIComponent(numero) + '/statut', {
             method: 'PATCH', body: JSON.stringify({ statut: nextStatut, auteur: 'admin' }),
@@ -2914,7 +3317,511 @@
       else toast(code);
     });
 
+    // ----------- Réponses 1-clic (actions composites) -----------
+    var QUICK_ACTIONS = {
+      approve_refund: {
+        confirm: 'Approuver le remboursement et notifier le client ?',
+        statut: 'remboursement_initie',
+        resolution: { type: 'remboursement' },
+        email: {
+          sujet: 'Remboursement approuvé — ticket {ticket_numero}',
+          contenu: "Bonjour {client_prenom},\n\nNous vous confirmons l'approbation du remboursement de votre dossier {ticket_numero}. Le virement sera effectué sous 3 à 5 jours ouvrés sur le moyen de paiement initial.\n\nMerci de votre confiance,\nL'équipe SAV",
+        },
+        toast: 'Remboursement approuvé · email envoyé',
+      },
+      ask_photo: {
+        confirm: 'Envoyer une demande de photo au client ?',
+        statut: 'en_attente_documents',
+        email: {
+          sujet: 'Photo complémentaire requise — ticket {ticket_numero}',
+          contenu: "Bonjour {client_prenom},\n\nPour avancer sur votre dossier {ticket_numero}, nous avons besoin d'une photo complémentaire de la pièce concernée. Merci de répondre directement à cet email en joignant l'image.\n\nL'équipe SAV",
+        },
+        toast: 'Demande de photo envoyée',
+      },
+      goodwill: {
+        promptMontant: true,
+        confirm: null,
+        pinNote: '💰 Geste commercial accordé : ',
+        email: {
+          sujet: 'Geste commercial — ticket {ticket_numero}',
+          contenu: "Bonjour {client_prenom},\n\nPour vous remercier de votre patience sur le dossier {ticket_numero}, nous vous accordons un geste commercial de {montant} €. Vous recevrez les détails sous 24h.\n\nL'équipe SAV",
+        },
+        toast: 'Geste commercial enregistré',
+      },
+    };
+    function interpolateAction(str, t, extra) {
+      var prenom = ((t.client && t.client.nom) || '').split(' ')[0] || 'client';
+      return String(str || '')
+        .replace(/\{client_prenom\}/g, prenom)
+        .replace(/\{ticket_numero\}/g, t.numero || '')
+        .replace(/\{montant\}/g, (extra && extra.montant) || '');
+    }
+    function runQuickAction(key) {
+      var def = QUICK_ACTIONS[key];
+      if (!def || !ticket) return;
+      var extra = {};
+      if (def.promptMontant) {
+        var m = window.prompt('Montant du geste commercial (€) :', '20');
+        if (!m) return;
+        extra.montant = m;
+      }
+      if (def.confirm && !window.confirm(def.confirm)) return;
+      var fb = document.getElementById('sav-quick-action-feedback');
+      if (fb) { fb.className = 'mt-2 text-[11px] text-slate-500'; fb.textContent = 'Envoi en cours…'; }
+      // Désactive les boutons pendant l'opération
+      document.querySelectorAll('[data-quick-action]').forEach(function (b) { b.disabled = true; b.classList.add('opacity-50'); });
+
+      var chain = Promise.resolve();
+      // 1) Email
+      if (def.email) {
+        chain = chain.then(function () {
+          return api('/tickets/' + encodeURIComponent(numero) + '/communication', {
+            method: 'POST',
+            body: JSON.stringify({
+              canal: 'email',
+              sujet: interpolateAction(def.email.sujet, ticket, extra),
+              contenu: interpolateAction(def.email.contenu, ticket, extra),
+            }),
+          });
+        });
+      }
+      // 2) Statut
+      if (def.statut) {
+        chain = chain.then(function () {
+          return api('/tickets/' + encodeURIComponent(numero) + '/statut', {
+            method: 'PATCH',
+            body: JSON.stringify({ statut: def.statut, auteur: 'admin' }),
+          });
+        });
+      }
+      // 3) Résolution
+      if (def.resolution) {
+        chain = chain.then(function () {
+          return api('/tickets/' + encodeURIComponent(numero) + '/resolution', {
+            method: 'POST',
+            body: JSON.stringify(def.resolution),
+          });
+        });
+      }
+      // 4) Note épinglée
+      if (def.pinNote) {
+        chain = chain.then(function () {
+          return api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes', {
+            method: 'POST',
+            body: JSON.stringify({ texte: def.pinNote + (extra.montant ? extra.montant + ' €' : ''), couleur: 'amber' }),
+          });
+        });
+      }
+      chain.then(function () {
+        toast(def.toast || 'Action effectuée');
+        if (fb) { fb.className = 'mt-2 text-[11px] text-emerald-600'; fb.textContent = '✓ ' + (def.toast || 'Fait'); }
+        loadTicket();
+      }).catch(function (err) {
+        toast((err && err.message) || 'Erreur', 'error');
+        if (fb) { fb.className = 'mt-2 text-[11px] text-red-600'; fb.textContent = '✗ ' + ((err && err.message) || 'Erreur'); }
+      }).then(function () {
+        document.querySelectorAll('[data-quick-action]').forEach(function (b) { b.disabled = false; b.classList.remove('opacity-50'); });
+      });
+    }
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-quick-action]');
+      if (!b) return;
+      runQuickAction(b.getAttribute('data-quick-action'));
+    });
+
+    // -------- Picker procédure --------
+    var procPickerSelected = null;
+    var procPickerTimer = null;
+    function openProcPicker() {
+      var m = document.getElementById('sav-proc-modal');
+      m.classList.remove('hidden'); m.classList.add('flex');
+      procPickerSelected = null;
+      document.getElementById('sav-proc-compose').classList.add('hidden');
+      document.getElementById('sav-proc-message').value = '';
+      document.getElementById('sav-proc-search').value = '';
+      loadProcPickerList('');
+    }
+    function closeProcPicker() {
+      var m = document.getElementById('sav-proc-modal');
+      m.classList.add('hidden'); m.classList.remove('flex');
+    }
+    function loadProcPickerList(q) {
+      var box = document.getElementById('sav-proc-list');
+      box.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">Chargement…</div>';
+      api('/procedures' + (q ? '?q=' + encodeURIComponent(q) : '')).then(function (res) {
+        if (!res.ok || !res.j.success) { box.innerHTML = '<div class="text-sm text-rose-500 py-6 text-center">Erreur</div>'; return; }
+        var items = res.j.data.procedures || [];
+        if (!items.length) {
+          box.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">Aucune procédure. <a href="/admin/sav/procedures" class="text-primary hover:underline">Ajouter</a></div>';
+          return;
+        }
+        box.innerHTML = items.map(function (p) {
+          var tags = (p.tags || []).map(function (t) { return '<span class="inline-block text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded mr-1">' + escapeHtml(t) + '</span>'; }).join('');
+          return '<button type="button" data-proc-pick="' + escapeHtml(p._id) + '" data-proc-title="' + escapeHtml(p.title) + '" class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-rose-400 hover:bg-rose-50 mb-2 transition">' +
+            '<div class="flex items-start gap-2">' +
+            '<span class="material-symbols-outlined text-rose-500" style="font-size:20px;">picture_as_pdf</span>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="text-sm font-semibold text-slate-800">' + escapeHtml(p.title) + '</div>' +
+              (p.description ? '<div class="text-xs text-slate-500 mt-0.5">' + escapeHtml(p.description) + '</div>' : '') +
+              (tags ? '<div class="mt-1">' + tags + '</div>' : '') +
+            '</div></div></button>';
+        }).join('');
+      });
+    }
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('#sav-open-procedure-picker')) { openProcPicker(); return; }
+      if (e.target.closest('#sav-proc-close') || e.target.closest('#sav-proc-cancel')) { closeProcPicker(); return; }
+      var pick = e.target.closest('[data-proc-pick]');
+      if (pick) {
+        procPickerSelected = pick.getAttribute('data-proc-pick');
+        document.getElementById('sav-proc-selected-title').textContent = pick.getAttribute('data-proc-title');
+        document.getElementById('sav-proc-compose').classList.remove('hidden');
+        return;
+      }
+      if (e.target.closest('#sav-proc-send')) {
+        if (!procPickerSelected) { toast('Sélectionnez une procédure', 'error'); return; }
+        var btn = document.getElementById('sav-proc-send');
+        btn.disabled = true; btn.classList.add('opacity-60');
+        var msg = document.getElementById('sav-proc-message').value;
+        api('/tickets/' + encodeURIComponent(numero) + '/send-procedure', {
+          method: 'POST',
+          body: JSON.stringify({ procedureId: procPickerSelected, message: msg }),
+        }).then(function (res) {
+          btn.disabled = false; btn.classList.remove('opacity-60');
+          if (res.ok && res.j.success) {
+            toast('Procédure envoyée au client', 'success');
+            closeProcPicker();
+            loadTicket();
+          } else {
+            toast((res.j && res.j.error) || 'Erreur', 'error');
+          }
+        }).catch(function (err) {
+          btn.disabled = false; btn.classList.remove('opacity-60');
+          toast(err.message || 'Erreur', 'error');
+        });
+      }
+    });
+    document.getElementById('sav-proc-search').addEventListener('input', function (e) {
+      clearTimeout(procPickerTimer);
+      var v = e.target.value;
+      procPickerTimer = setTimeout(function () { loadProcPickerList(v); }, 200);
+    });
+
+    // -------- Lightbox photos --------
+    var lbState = { urls: [], idx: 0, zoom: 1, rot: 0 };
+    function lbApply() {
+      var img = document.getElementById('sav-lightbox-img');
+      if (!img) return;
+      img.style.transform = 'scale(' + lbState.zoom + ') rotate(' + lbState.rot + 'deg)';
+      var z = document.getElementById('sav-lb-zoom-level');
+      if (z) z.textContent = Math.round(lbState.zoom * 100) + '%';
+      var c = document.getElementById('sav-lb-counter');
+      if (c) c.textContent = (lbState.idx + 1) + ' / ' + lbState.urls.length;
+    }
+    function lbShow(i) {
+      if (!lbState.urls.length) return;
+      lbState.idx = (i + lbState.urls.length) % lbState.urls.length;
+      lbState.zoom = 1; lbState.rot = 0;
+      document.getElementById('sav-lightbox-img').src = lbState.urls[lbState.idx];
+      lbApply();
+    }
+    function lbOpen(url) {
+      lbState.urls = Array.prototype.map.call(document.querySelectorAll('[data-lightbox]'), function (n) { return n.getAttribute('data-lightbox'); });
+      var i = lbState.urls.indexOf(url);
+      if (i < 0) i = 0;
+      var m = document.getElementById('sav-lightbox');
+      m.classList.remove('hidden'); m.classList.add('flex');
+      lbShow(i);
+    }
+    function lbClose() {
+      var m = document.getElementById('sav-lightbox');
+      m.classList.add('hidden'); m.classList.remove('flex');
+    }
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-lightbox]');
+      if (t) { lbOpen(t.getAttribute('data-lightbox')); return; }
+      if (e.target.closest('#sav-lightbox-close')) { lbClose(); return; }
+      if (e.target.closest('#sav-lightbox-prev'))  { lbShow(lbState.idx - 1); return; }
+      if (e.target.closest('#sav-lightbox-next'))  { lbShow(lbState.idx + 1); return; }
+      if (e.target.closest('#sav-lb-zoom-in'))     { lbState.zoom = Math.min(5, lbState.zoom + 0.25); lbApply(); return; }
+      if (e.target.closest('#sav-lb-zoom-out'))    { lbState.zoom = Math.max(0.25, lbState.zoom - 0.25); lbApply(); return; }
+      if (e.target.closest('#sav-lb-rot-l'))       { lbState.rot -= 90; lbApply(); return; }
+      if (e.target.closest('#sav-lb-rot-r'))       { lbState.rot += 90; lbApply(); return; }
+      if (e.target.closest('#sav-lb-reset'))       { lbState.zoom = 1; lbState.rot = 0; lbApply(); return; }
+    });
+    document.addEventListener('keydown', function (e) {
+      var m = document.getElementById('sav-lightbox');
+      if (!m || m.classList.contains('hidden')) return;
+      if (e.key === 'Escape') lbClose();
+      else if (e.key === 'ArrowLeft') lbShow(lbState.idx - 1);
+      else if (e.key === 'ArrowRight') lbShow(lbState.idx + 1);
+      else if (e.key === '+' || e.key === '=') { lbState.zoom = Math.min(5, lbState.zoom + 0.25); lbApply(); }
+      else if (e.key === '-') { lbState.zoom = Math.max(0.25, lbState.zoom - 0.25); lbApply(); }
+      else if (e.key === 'r') { lbState.rot += 90; lbApply(); }
+    });
+
+    // -------- Arbre de décision 149€ --------
+    var DECISION_TREE = {
+      start: {
+        q: 'La pièce a-t-elle été testée à l\'atelier ?',
+        choices: [
+          { label: 'Oui, test effectué', next: 'test_result' },
+          { label: 'Non, pas encore', next: 'need_test' }
+        ]
+      },
+      need_test: {
+        recommendation: {
+          title: 'Tester la pièce avant tout',
+          desc: 'Aucune décision possible sans test technique. Démarrer l\'analyse atelier.',
+          tone: 'blue',
+          actionLabel: 'Passer en analyse',
+          run: function () {
+            return api('/tickets/' + encodeURIComponent(numero) + '/statut', { method: 'POST', body: JSON.stringify({ statut: 'en_analyse' }) });
+          }
+        }
+      },
+      test_result: {
+        q: 'Le test confirme-t-il un défaut sur la pièce ?',
+        choices: [
+          { label: 'Défaut confirmé', next: 'defect_confirmed' },
+          { label: 'Aucun défaut trouvé', next: 'no_defect' },
+          { label: 'Défaut non lié à la pièce', next: 'wrong_diagnosis' }
+        ]
+      },
+      defect_confirmed: {
+        q: 'La pièce est-elle encore sous garantie ?',
+        choices: [
+          { label: 'Oui, sous garantie', next: 'warranty_ok' },
+          { label: 'Non, hors garantie', next: 'out_warranty' }
+        ]
+      },
+      warranty_ok: {
+        recommendation: {
+          title: 'Remboursement / échange sous garantie',
+          desc: 'Pièce défectueuse confirmée + garantie valide. Approuver le remboursement intégral.',
+          tone: 'emerald',
+          actionLabel: 'Approuver remboursement',
+          run: function () { return runQuickActionPromise('approve_refund'); }
+        }
+      },
+      out_warranty: {
+        q: 'Le client est-il un habitué (>3 commandes) ?',
+        choices: [
+          { label: 'Oui, client fidèle', next: 'goodwill_loyal' },
+          { label: 'Non / occasionnel', next: 'invoice_149' }
+        ]
+      },
+      goodwill_loyal: {
+        recommendation: {
+          title: 'Geste commercial recommandé',
+          desc: 'Hors garantie mais fidélité client. Avoir partiel ou bon d\'achat conseillé.',
+          tone: 'amber',
+          actionLabel: 'Geste commercial',
+          run: function () { return runQuickActionPromise('goodwill'); }
+        }
+      },
+      no_defect: {
+        q: 'Le client a-t-il accepté les frais d\'analyse 149€ à l\'ouverture ?',
+        choices: [
+          { label: 'Oui, accord signé', next: 'invoice_149' },
+          { label: 'Non / pas clair', next: 'goodwill_clemence' }
+        ]
+      },
+      invoice_149: {
+        recommendation: {
+          title: 'Facturer 149 € (analyse atelier)',
+          desc: 'Aucun défaut OU hors garantie + accord client. Lien Mollie à envoyer.',
+          tone: 'violet',
+          actionLabel: 'Conclure analyse négative',
+          run: function () {
+            return api('/tickets/' + encodeURIComponent(numero) + '/statut', { method: 'POST', body: JSON.stringify({ statut: 'analyse_terminee' }) });
+          }
+        }
+      },
+      goodwill_clemence: {
+        recommendation: {
+          title: 'Clore en geste commercial',
+          desc: 'Pas de défaut mais accord 149€ non documenté. Risque litige > coût analyse. Clore sans frais.',
+          tone: 'amber',
+          actionLabel: 'Geste commercial',
+          run: function () { return runQuickActionPromise('goodwill'); }
+        }
+      },
+      wrong_diagnosis: {
+        recommendation: {
+          title: 'Réorienter le client',
+          desc: 'La panne ne vient pas de la pièce livrée. Expliquer le diagnostic et clore sans frais.',
+          tone: 'blue',
+          actionLabel: 'Demander une photo (clarification)',
+          run: function () { return runQuickActionPromise('ask_photo'); }
+        }
+      }
+    };
+
+    function runQuickActionPromise(key) {
+      return new Promise(function (resolve) {
+        runQuickAction(key);
+        setTimeout(resolve, 100);
+      });
+    }
+
+    var decisionStack = [];
+    function openDecisionTree() {
+      decisionStack = ['start'];
+      document.getElementById('sav-decision-modal').classList.remove('hidden');
+      document.getElementById('sav-decision-modal').classList.add('flex');
+      renderDecisionStep();
+    }
+    function closeDecisionTree() {
+      var m = document.getElementById('sav-decision-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+    function renderDecisionStep() {
+      var key = decisionStack[decisionStack.length - 1];
+      var node = DECISION_TREE[key];
+      var body = document.getElementById('sav-decision-body');
+      var trail = document.getElementById('sav-decision-trail');
+      var back = document.getElementById('sav-decision-back');
+      back.disabled = decisionStack.length <= 1;
+      trail.textContent = 'Étape ' + decisionStack.length;
+      if (!node) { body.innerHTML = '<div class="text-slate-500">Étape inconnue</div>'; return; }
+      if (node.q) {
+        var html = '<div class="text-base font-semibold text-slate-800 mb-4">' + escapeHtml(node.q) + '</div>';
+        html += '<div class="space-y-2">';
+        node.choices.forEach(function (c, i) {
+          html += '<button type="button" data-decision-next="' + escapeHtml(c.next) + '" class="w-full text-left px-4 py-3 rounded-lg border border-slate-200 hover:border-violet-500 hover:bg-violet-50 text-sm font-medium text-slate-700 transition">' + escapeHtml(c.label) + '</button>';
+        });
+        html += '</div>';
+        body.innerHTML = html;
+      } else if (node.recommendation) {
+        var r = node.recommendation;
+        var TONES = {
+          emerald: { box: 'border-emerald-200 bg-emerald-50', icon: 'text-emerald-600', title: 'text-emerald-800', desc: 'text-emerald-700' },
+          amber:   { box: 'border-amber-200 bg-amber-50',     icon: 'text-amber-600',   title: 'text-amber-800',   desc: 'text-amber-700' },
+          blue:    { box: 'border-blue-200 bg-blue-50',       icon: 'text-blue-600',    title: 'text-blue-800',    desc: 'text-blue-700' },
+          violet:  { box: 'border-violet-200 bg-violet-50',   icon: 'text-violet-600',  title: 'text-violet-800',  desc: 'text-violet-700' }
+        };
+        var t = TONES[r.tone] || TONES.violet;
+        var html = '<div class="rounded-xl border ' + t.box + ' p-4 mb-4">';
+        html += '<div class="flex items-center gap-2 mb-2"><span class="material-symbols-outlined ' + t.icon + '">lightbulb</span><div class="text-base font-semibold ' + t.title + '">' + escapeHtml(r.title) + '</div></div>';
+        html += '<div class="text-sm ' + t.desc + '">' + escapeHtml(r.desc) + '</div></div>';
+        html += '<button type="button" id="sav-decision-run" class="btn btn-primary w-full inline-flex items-center justify-center gap-2"><span class="material-symbols-outlined" style="font-size:18px;">check</span>' + escapeHtml(r.actionLabel) + '</button>';
+        body.innerHTML = html;
+        document.getElementById('sav-decision-run').addEventListener('click', function () {
+          var btn = this;
+          btn.disabled = true; btn.classList.add('opacity-60');
+          Promise.resolve(r.run()).then(function () {
+            toast('Action exécutée', 'success');
+            closeDecisionTree();
+            loadTicket();
+          }).catch(function (err) {
+            toast((err && err.message) || 'Erreur', 'error');
+            btn.disabled = false; btn.classList.remove('opacity-60');
+          });
+        });
+      }
+    }
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('#sav-open-decision-tree')) { openDecisionTree(); return; }
+      if (e.target.closest('#sav-decision-close')) { closeDecisionTree(); return; }
+      if (e.target.closest('#sav-decision-back')) {
+        if (decisionStack.length > 1) { decisionStack.pop(); renderDecisionStep(); }
+        return;
+      }
+      var n = e.target.closest('[data-decision-next]');
+      if (n) {
+        decisionStack.push(n.getAttribute('data-decision-next'));
+        renderDecisionStep();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var m = document.getElementById('sav-decision-modal');
+        if (m && !m.classList.contains('hidden')) closeDecisionTree();
+      }
+    });
+
     loadTicket();
+  }
+
+  // ============================================================
+  // PROCÉDURES PAGE
+  // ============================================================
+  if (document.getElementById('proc-list')) {
+    var procSearchTimer = null;
+    function loadProcedures(q) {
+      var box = document.getElementById('proc-list');
+      var cnt = document.getElementById('proc-count');
+      box.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">Chargement…</div>';
+      api('/procedures' + (q ? '?q=' + encodeURIComponent(q) : '')).then(function (res) {
+        if (!res.ok || !res.j.success) {
+          box.innerHTML = '<div class="text-sm text-rose-500 py-4">Erreur</div>';
+          return;
+        }
+        var items = res.j.data.procedures || [];
+        cnt.textContent = items.length;
+        if (!items.length) {
+          box.innerHTML = '<div class="text-sm text-slate-400 py-6 text-center">Aucune procédure.</div>';
+          return;
+        }
+        box.innerHTML = items.map(function (p) {
+          var size = p.sizeBytes ? (Math.round(p.sizeBytes / 1024) + ' Ko') : '';
+          var date = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('fr-FR') : '';
+          var tags = (p.tags || []).map(function (t) { return '<span class="inline-block text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded mr-1">' + escapeHtml(t) + '</span>'; }).join('');
+          return '<div class="py-3 flex items-start gap-3">' +
+            '<span class="material-symbols-outlined text-rose-500 mt-0.5">picture_as_pdf</span>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="text-sm font-semibold text-slate-800">' + escapeHtml(p.title) + '</div>' +
+              (p.description ? '<div class="text-xs text-slate-500 mt-0.5">' + escapeHtml(p.description) + '</div>' : '') +
+              (tags ? '<div class="mt-1">' + tags + '</div>' : '') +
+              '<div class="text-[10px] text-slate-400 mt-1">' + escapeHtml(p.originalName || '') + (size ? ' · ' + size : '') + (date ? ' · ' + date : '') + ' · ' + (p.downloads || 0) + ' envois</div>' +
+            '</div>' +
+            '<div class="flex items-center gap-1 shrink-0">' +
+              '<a href="' + escapeHtml(p.fileUrl) + '" target="_blank" class="text-xs px-2 py-1 rounded border border-slate-200 hover:bg-slate-50">Ouvrir</a>' +
+              '<button type="button" data-proc-delete="' + escapeHtml(p._id) + '" class="text-xs px-2 py-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-50">Supprimer</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      });
+    }
+    document.getElementById('proc-search').addEventListener('input', function (e) {
+      clearTimeout(procSearchTimer);
+      var v = e.target.value;
+      procSearchTimer = setTimeout(function () { loadProcedures(v); }, 200);
+    });
+    document.getElementById('proc-upload-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var form = e.target;
+      var fd = new FormData(form);
+      var status = document.getElementById('proc-upload-status');
+      status.textContent = 'Upload…';
+      var token = document.querySelector('[data-sav-token]').getAttribute('data-sav-token') || '';
+      fetch('/admin/api/sav/procedures', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.success) {
+            toast('Procédure ajoutée', 'success');
+            form.reset();
+            status.textContent = '';
+            loadProcedures('');
+          } else {
+            status.textContent = j.error || 'Erreur';
+            toast(j.error || 'Erreur', 'error');
+          }
+        })
+        .catch(function (err) { status.textContent = err.message; toast(err.message, 'error'); });
+    });
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-proc-delete]');
+      if (!b) return;
+      if (!window.confirm('Supprimer cette procédure ?')) return;
+      api('/procedures/' + encodeURIComponent(b.getAttribute('data-proc-delete')), { method: 'DELETE' }).then(function (res) {
+        if (res.ok && res.j.success) { toast('Supprimée', 'success'); loadProcedures(document.getElementById('proc-search').value); }
+        else toast((res.j && res.j.error) || 'Erreur', 'error');
+      });
+    });
+    loadProcedures('');
   }
 
   // ============================================================

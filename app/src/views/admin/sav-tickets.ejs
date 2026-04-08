@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/sav.css">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
-<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
+<main class="flex-1 sav-module" data-sav-token="<%= savApiToken %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
   <div class="px-6 lg:px-10 py-6">
 
     <div class="flex items-start justify-between gap-4 mb-4">
@@ -15,6 +15,7 @@
           <span class="material-symbols-outlined mr-1 text-base">add</span>Nouveau ticket
         </button>
         <a id="sav-export-csv" href="#" class="btn btn-secondary" aria-label="Exporter les tickets en CSV"><span class="material-symbols-outlined mr-1 text-base" aria-hidden="true">download</span>Exporter CSV</a>
+        <a href="/admin/sav/procedures" class="btn btn-secondary"><span class="material-symbols-outlined mr-1 text-base">menu_book</span>Procédures</a>
         <a href="/admin/sav" class="btn btn-secondary">← Tableau de bord</a>
       </div>
     </div>
@@ -327,5 +328,5 @@
 </div>
 
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=12" defer></script>
+<script src="/js/sav-admin.js?v=17" defer></script>
 <%- include('./partials/footer') %>

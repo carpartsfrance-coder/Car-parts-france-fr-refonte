@@ -69,12 +69,6 @@
       el.classList.toggle('is-clickable', clickable);
     });
     // Mobile bar
-    var sc = document.getElementById('sav-sidebar-current');
-    if (sc) sc.textContent = String(n);
-    var sr = document.getElementById('sav-sidebar-remaining');
-    if (sr) sr.textContent = String(Math.max(0, TOTAL - n));
-    var heroTag = document.getElementById('sav-hero-step');
-    if (heroTag) heroTag.textContent = 'ÉTAPE ' + n;
     var mc = document.getElementById('sav-mobile-current');
     var ml = document.getElementById('sav-mobile-label');
     var mp = document.getElementById('sav-mobile-pct');

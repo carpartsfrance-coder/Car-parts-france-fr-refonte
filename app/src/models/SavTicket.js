@@ -242,6 +242,13 @@ const savTicketSchema = new mongoose.Schema(
         dateGeneration: { type: Date },
         datePaiement: { type: Date },
       },
+      remboursement: {
+        status: { type: String, enum: ['na', 'effectue', 'echoue'], default: 'na' },
+        mollieRefundId: { type: String, trim: true },
+        amountCents: { type: Number },
+        date: { type: Date },
+        reason: { type: String, trim: true },
+      },
     },
 
     // Feedback client (4.4 Google Reviews)

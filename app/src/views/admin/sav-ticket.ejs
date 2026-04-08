@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/sav.css">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
-<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-statut="" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
+<main class="flex-1 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-statut="" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
 
   <!-- HEADER STICKY -->
   <header class="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 lg:px-10 py-3">
@@ -257,12 +257,6 @@
                 <button type="button" data-canal="email" class="sav-canal-pill sav-canal-pill--email is-active" role="radio" aria-checked="true">
                   <span class="material-symbols-outlined" style="font-size:16px;">mail</span><span>Email</span>
                 </button>
-                <button type="button" data-canal="whatsapp" class="sav-canal-pill sav-canal-pill--whatsapp" role="radio" aria-checked="false">
-                  <span class="material-symbols-outlined" style="font-size:16px;">chat</span><span>WhatsApp</span>
-                </button>
-                <button type="button" data-canal="tel" class="sav-canal-pill sav-canal-pill--tel" role="radio" aria-checked="false">
-                  <span class="material-symbols-outlined" style="font-size:16px;">call</span><span>Téléphone</span>
-                </button>
                 <button type="button" data-canal="interne" class="sav-canal-pill sav-canal-pill--interne" role="radio" aria-checked="false">
                   <span class="material-symbols-outlined" style="font-size:16px;">lock</span><span>Note interne</span>
                 </button>
@@ -345,6 +339,26 @@
                   </div>
                 </div>
               </details>
+
+              <!-- Pièces jointes -->
+              <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-2">
+                    <button type="button" id="sav-attach-btn" class="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100">
+                      <span class="material-symbols-outlined" style="font-size:14px;">attach_file</span>
+                      Joindre un fichier
+                    </button>
+                    <button type="button" id="sav-return-label-btn" class="text-xs inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
+                      <span class="material-symbols-outlined" style="font-size:14px;">local_shipping</span>
+                      Étiquette retour prépayée
+                    </button>
+                  </div>
+                  <span class="text-[10px] text-slate-400">PDF / image · 15 Mo max · 5 fichiers</span>
+                </div>
+                <input type="file" id="sav-attach-input" class="hidden" multiple accept="application/pdf,image/*">
+                <input type="file" id="sav-return-label-input" class="hidden" accept="application/pdf">
+                <ul id="sav-attach-list" class="mt-2 space-y-1 hidden"></ul>
+              </div>
 
               <!-- Indicateur brouillon + raccourcis -->
               <div class="flex items-center justify-between text-xs text-slate-500">
@@ -651,6 +665,53 @@
           <div id="sav-next-action-hint" class="mt-2 text-[11px] text-slate-500"></div>
         </section>
 
+        <!-- Commande liée — items, suivi tracking -->
+        <section id="sav-order-context" class="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 class="text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-2 flex items-center gap-1">
+            <span class="material-symbols-outlined" style="font-size:14px;">local_shipping</span>
+            Commande liée
+          </h2>
+          <div id="sav-order-context-body" class="text-xs text-slate-600">
+            <div class="sav-skeleton sav-skeleton--line" style="height:14px;width:100%;"></div>
+          </div>
+        </section>
+
+        <!-- Réponses 1-clic — actions composites les plus fréquentes -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 class="text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-2 flex items-center gap-1">
+            <span class="material-symbols-outlined" style="font-size:14px;">flash_on</span>
+            Réponses 1-clic
+          </h2>
+          <div class="grid grid-cols-1 gap-1.5">
+            <button type="button" data-quick-action="approve_refund"
+                    class="sav-quick-action group flex items-center gap-2 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 px-3 py-2 text-xs font-medium text-slate-700 hover:text-emerald-700 transition text-left">
+              <span class="material-symbols-outlined text-emerald-600" style="font-size:18px;">check_circle</span>
+              <span class="flex-1">Approuver le remboursement</span>
+            </button>
+            <button type="button" data-quick-action="ask_photo"
+                    class="sav-quick-action group flex items-center gap-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 px-3 py-2 text-xs font-medium text-slate-700 hover:text-blue-700 transition text-left">
+              <span class="material-symbols-outlined text-blue-600" style="font-size:18px;">photo_camera</span>
+              <span class="flex-1">Demander une photo</span>
+            </button>
+            <button type="button" data-quick-action="goodwill"
+                    class="sav-quick-action group flex items-center gap-2 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50 px-3 py-2 text-xs font-medium text-slate-700 hover:text-amber-700 transition text-left">
+              <span class="material-symbols-outlined text-amber-600" style="font-size:18px;">redeem</span>
+              <span class="flex-1">Geste commercial</span>
+            </button>
+            <button type="button" id="sav-open-procedure-picker"
+                    class="group flex items-center gap-2 rounded-lg border border-slate-200 hover:border-rose-500 hover:bg-rose-50 px-3 py-2 text-xs font-medium text-slate-700 hover:text-rose-700 transition text-left">
+              <span class="material-symbols-outlined text-rose-600" style="font-size:18px;">menu_book</span>
+              <span class="flex-1">Envoyer une procédure</span>
+            </button>
+            <button type="button" id="sav-open-decision-tree"
+                    class="group flex items-center gap-2 rounded-lg border border-slate-200 hover:border-violet-500 hover:bg-violet-50 px-3 py-2 text-xs font-medium text-slate-700 hover:text-violet-700 transition text-left">
+              <span class="material-symbols-outlined text-violet-600" style="font-size:18px;">account_tree</span>
+              <span class="flex-1">Diagnostic guidé (149€)</span>
+            </button>
+          </div>
+          <div id="sav-quick-action-feedback" class="hidden mt-2 text-[11px]"></div>
+        </section>
+
         <section class="rounded-2xl border border-slate-200 bg-white p-4">
           <details class="group" open>
             <summary class="flex items-center justify-between cursor-pointer list-none select-none mb-3">
@@ -741,6 +802,24 @@
         <section class="rounded-2xl border border-slate-200 bg-white p-4">
           <h2 class="text-sm font-semibold text-slate-700 mb-2">Paiement 149€</h2>
           <div id="sav-paiement" class="text-sm text-slate-700">—</div>
+        </section>
+
+        <!-- Remboursement Mollie -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 class="text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-2 flex items-center gap-1">
+            <span class="material-symbols-outlined" style="font-size:14px;">payments</span>
+            Remboursement Mollie
+          </h2>
+          <div id="sav-refund-status" class="text-xs text-slate-500 mb-2">—</div>
+          <div class="flex items-center gap-1.5 mb-2">
+            <input type="number" id="sav-refund-amount" min="0" step="0.01" placeholder="Montant €"
+                   class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs">
+          </div>
+          <button type="button" id="sav-refund-btn"
+                  class="btn btn-secondary w-full text-xs inline-flex items-center justify-center gap-1.5">
+            <span class="material-symbols-outlined" style="font-size:14px;">undo</span>
+            Rembourser via Mollie
+          </button>
         </section>
       </aside>
       </div>
@@ -901,7 +980,88 @@
   </div>
 </div>
 
+<!-- Modal envoi procédure -->
+<div id="sav-proc-modal" class="hidden fixed inset-0 z-[60] items-center justify-center bg-slate-900/60 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-rose-600">menu_book</span>
+        <h3 class="text-base font-semibold text-slate-800">Envoyer une procédure au client</h3>
+      </div>
+      <button type="button" id="sav-proc-close" class="text-slate-400 hover:text-slate-700">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="px-5 py-3 border-b border-slate-200">
+      <input type="search" id="sav-proc-search" placeholder="Rechercher une procédure…" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+    </div>
+    <div id="sav-proc-list" class="flex-1 overflow-y-auto p-3">
+      <div class="text-sm text-slate-400 py-6 text-center">Chargement…</div>
+    </div>
+    <div id="sav-proc-compose" class="hidden px-5 py-3 border-t border-slate-200">
+      <div class="text-xs font-semibold text-slate-700 mb-1">Procédure : <span id="sav-proc-selected-title"></span></div>
+      <textarea id="sav-proc-message" rows="4" placeholder="Message accompagnement (optionnel — un message par défaut sera utilisé sinon)" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
+      <div class="flex items-center justify-end gap-2 mt-2">
+        <button type="button" id="sav-proc-cancel" class="text-xs text-slate-500 hover:text-slate-700">Annuler</button>
+        <button type="button" id="sav-proc-send" class="btn btn-primary text-xs">
+          <span class="material-symbols-outlined mr-1" style="font-size:14px;">send</span>Envoyer au client
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox photos -->
+<div id="sav-lightbox" class="hidden fixed inset-0 z-[70] items-center justify-center bg-black/90 select-none">
+  <button type="button" id="sav-lightbox-close" class="absolute top-4 right-4 text-white/80 hover:text-white p-2" aria-label="Fermer">
+    <span class="material-symbols-outlined" style="font-size:32px;">close</span>
+  </button>
+  <button type="button" id="sav-lightbox-prev" class="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2" aria-label="Précédent">
+    <span class="material-symbols-outlined" style="font-size:40px;">chevron_left</span>
+  </button>
+  <button type="button" id="sav-lightbox-next" class="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2" aria-label="Suivant">
+    <span class="material-symbols-outlined" style="font-size:40px;">chevron_right</span>
+  </button>
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 rounded-full px-3 py-1.5 text-white">
+    <button type="button" id="sav-lb-zoom-out" class="p-1 hover:text-violet-300" title="Zoom -"><span class="material-symbols-outlined" style="font-size:20px;">zoom_out</span></button>
+    <span id="sav-lb-zoom-level" class="text-xs font-mono w-12 text-center">100%</span>
+    <button type="button" id="sav-lb-zoom-in" class="p-1 hover:text-violet-300" title="Zoom +"><span class="material-symbols-outlined" style="font-size:20px;">zoom_in</span></button>
+    <span class="w-px h-4 bg-white/30"></span>
+    <button type="button" id="sav-lb-rot-l" class="p-1 hover:text-violet-300" title="Rotation -90°"><span class="material-symbols-outlined" style="font-size:20px;">rotate_left</span></button>
+    <button type="button" id="sav-lb-rot-r" class="p-1 hover:text-violet-300" title="Rotation +90°"><span class="material-symbols-outlined" style="font-size:20px;">rotate_right</span></button>
+    <span class="w-px h-4 bg-white/30"></span>
+    <button type="button" id="sav-lb-reset" class="p-1 hover:text-violet-300" title="Réinitialiser"><span class="material-symbols-outlined" style="font-size:20px;">restart_alt</span></button>
+    <span class="w-px h-4 bg-white/30"></span>
+    <span id="sav-lb-counter" class="text-[11px] font-mono"></span>
+  </div>
+  <div class="w-full h-full flex items-center justify-center overflow-hidden">
+    <img id="sav-lightbox-img" src="" class="max-w-[90vw] max-h-[85vh] object-contain transition-transform duration-150" style="transform: scale(1) rotate(0deg);" alt="">
+  </div>
+</div>
+
+<!-- Modal arbre de décision 149€ -->
+<div id="sav-decision-modal" class="hidden fixed inset-0 z-[60] items-center justify-center bg-slate-900/60 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-violet-600">account_tree</span>
+        <h3 class="text-base font-semibold text-slate-800">Diagnostic guidé</h3>
+      </div>
+      <button type="button" id="sav-decision-close" class="text-slate-400 hover:text-slate-700">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="sav-decision-body" class="flex-1 overflow-y-auto p-5"></div>
+    <div class="px-5 py-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+      <button type="button" id="sav-decision-back" class="inline-flex items-center gap-1 hover:text-slate-700 disabled:opacity-30" disabled>
+        <span class="material-symbols-outlined" style="font-size:14px;">arrow_back</span> Retour
+      </button>
+      <span id="sav-decision-trail"></span>
+    </div>
+  </div>
+</div>
+
 <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=12" defer></script>
+<script src="/js/sav-admin.js?v=20" defer></script>
 <%- include('./partials/footer') %>
