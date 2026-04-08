@@ -1654,11 +1654,113 @@
       '</div>';
     }
 
+    function renderBriefing() {
+      var box = document.getElementById('sav-briefing');
+      var body = document.getElementById('sav-briefing-body');
+      if (!box || !body) return;
+      var t = ticket || {};
+      var c = t.client || {};
+      var v = t.vehicule || {};
+      var diag = t.diagnostic || {};
+      var p = t.piece || {};
+
+      // Résumé client : prénom nom — pièce — véhicule
+      var clientName = (c.prenom || c.firstName || '') + ' ' + (c.nom || c.lastName || '');
+      clientName = clientName.trim() || (c.email || 'Client');
+      var pieceLabel = p.designation || labelPiece(t.pieceType) || '—';
+      var vehLabel = [v.marque, v.modele, v.annee].filter(Boolean).join(' ');
+
+      // Problème : description du diagnostic ou du motif
+      var probleme = diag.description || t.description || t.motif || '';
+      if (probleme.length > 180) probleme = probleme.slice(0, 177) + '…';
+
+      // Dernière interaction : dernier message non-système
+      var lastMsg = null;
+      var msgs = t.messages || [];
+      for (var i = msgs.length - 1; i >= 0; i--) {
+        var m = msgs[i];
+        if (!m) continue;
+        var isSys = /^(Statut|Document|Assignation|Procédure|Remboursement)\b/i.test(m.contenu || '');
+        if (!isSys && (m.auteur === 'client' || m.auteur === 'admin')) { lastMsg = m; break; }
+      }
+      var lastMsgLine = '';
+      if (lastMsg) {
+        var who = lastMsg.auteur === 'client' ? '📩 <strong>Client</strong>' : '✉️ <strong>Vous</strong>';
+        var when = lastMsg.createdAt ? new Date(lastMsg.createdAt).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+        var excerpt = (lastMsg.contenu || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (excerpt.length > 120) excerpt = excerpt.slice(0, 117) + '…';
+        lastMsgLine = who + ' · <span class="text-slate-500">' + escapeHtml(when) + '</span> — ' + escapeHtml(excerpt);
+      } else {
+        lastMsgLine = '<span class="text-slate-400">Aucun échange client/agent pour l\'instant</span>';
+      }
+
+      // Action attendue : déduite du statut
+      var statut = t.statut || '';
+      var actionMap = {
+        'ouvert': { who: '👤 Nous', what: 'Qualifier le dossier et demander les documents manquants' },
+        'pre_qualification': { who: '👤 Nous', what: 'Qualifier et envoyer la demande documents' },
+        'en_attente_documents': { who: '🧍 Client', what: 'Envoyer les documents demandés (on relance à J+3)' },
+        'retour_demande': { who: '🧍 Client', what: 'Expédier la pièce avec l\'étiquette retour' },
+        'en_transit_retour': { who: '🚚 Transporteur', what: 'Acheminement en cours vers l\'atelier' },
+        'recu_atelier': { who: '🔧 Atelier', what: 'Démarrer l\'analyse de la pièce' },
+        'en_analyse': { who: '🔧 Atelier', what: 'Finaliser le diagnostic banc' },
+        'analyse_terminee': { who: '👤 Nous', what: 'Communiquer la conclusion au client' },
+        'en_attente_decision_client': { who: '🧍 Client', what: 'Accepter ou refuser la proposition' },
+        'en_attente_fournisseur': { who: '🏭 Fournisseur', what: 'Attente réponse fournisseur / RMA' },
+        'remboursement_initie': { who: '💸 Compta', what: 'Finaliser le remboursement Mollie' },
+        'resolu_garantie': { who: '✅ Terminé', what: 'Dossier résolu sous garantie' },
+        'resolu_facture': { who: '✅ Terminé', what: 'Dossier résolu (facturé)' },
+        'clos': { who: '🔒 Clos', what: 'Aucune action' },
+        'refuse': { who: '🔒 Clos', what: 'Demande refusée' },
+      };
+      var act = actionMap[statut] || { who: '—', what: '—' };
+
+      // Assemble
+      var head =
+        '<div class="flex items-start gap-2 flex-wrap">' +
+          '<span class="material-symbols-outlined text-primary" style="font-size:18px;">person</span>' +
+          '<div class="font-semibold text-slate-900">' + escapeHtml(clientName) + '</div>' +
+          (vehLabel ? '<span class="text-slate-400">·</span><span class="text-slate-700">' + escapeHtml(vehLabel) + '</span>' : '') +
+          '<span class="text-slate-400">·</span><span class="text-slate-700">' + escapeHtml(pieceLabel) + '</span>' +
+        '</div>';
+
+      var probLine = probleme
+        ? '<div class="flex items-start gap-2 text-slate-700"><span class="material-symbols-outlined text-slate-400 shrink-0" style="font-size:16px;">format_quote</span><em>' + escapeHtml(probleme) + '</em></div>'
+        : '<div class="flex items-start gap-2 text-slate-400"><span class="material-symbols-outlined shrink-0" style="font-size:16px;">format_quote</span><em>Pas de description fournie par le client</em></div>';
+
+      var msgLine = '<div class="flex items-start gap-2 text-slate-600"><span class="material-symbols-outlined text-slate-400 shrink-0" style="font-size:16px;">schedule</span><div class="text-[13px]">' + lastMsgLine + '</div></div>';
+
+      var actLine =
+        '<div class="mt-2 pt-2 border-t border-primary/20 flex items-start gap-2">' +
+          '<span class="material-symbols-outlined text-primary shrink-0" style="font-size:18px;">flag</span>' +
+          '<div class="text-[13px]"><span class="text-[10px] uppercase tracking-wide font-bold text-primary">À faire · </span>' +
+          '<strong>' + escapeHtml(act.who) + '</strong> — ' + escapeHtml(act.what) + '</div>' +
+        '</div>';
+
+      body.innerHTML = head + probLine + msgLine + actLine;
+      box.setAttribute('aria-busy', 'false');
+    }
+
     function renderDossier() {
       var box = document.getElementById('sav-dossier');
       var t = ticket || {};
       var c = t.client || {};
       var v = t.vehicule || {};
+
+      renderBriefing();
+
+      // --- Masquage conditionnel onglet Fournisseur ---
+      // On ne l'affiche que si un nom fournisseur est saisi OU si le ticket est en attente fournisseur
+      var fournBtn = document.getElementById('tab-fournisseur');
+      if (fournBtn) {
+        var f = t.fournisseur || {};
+        var hasFourn = !!(f.nom || f.contact || f.rmaNumero || t.statut === 'en_attente_fournisseur');
+        if (hasFourn) {
+          fournBtn.classList.remove('hidden');
+        } else {
+          fournBtn.classList.add('hidden');
+        }
+      }
 
       // --- KPIs ---
       var kpiDuree = document.querySelector('[data-kpi="duree"]');
@@ -3285,12 +3387,26 @@
       });
     }
 
+    // -------- Bannière bienvenue (once per user) --------
+    var welcomeBanner = document.getElementById('sav-welcome-banner');
+    var welcomeClose = document.getElementById('sav-welcome-close');
+    var WELCOME_KEY = 'sav-welcome-dismissed-v1';
+    function showWelcome() { if (welcomeBanner) welcomeBanner.classList.remove('hidden'); }
+    function hideWelcome() {
+      if (welcomeBanner) welcomeBanner.classList.add('hidden');
+      try { localStorage.setItem(WELCOME_KEY, String(Date.now())); } catch (_) {}
+    }
+    try {
+      if (!localStorage.getItem(WELCOME_KEY)) showWelcome();
+    } catch (_) {}
+    if (welcomeClose) welcomeClose.addEventListener('click', hideWelcome);
+
     // -------- Modale aide raccourcis --------
     var helpBtn = document.getElementById('sav-help-btn');
     var kbdModalDetail = document.getElementById('sav-kbd-modal');
     function openKbdDetail() { if (kbdModalDetail) openModal(kbdModalDetail); }
     function closeKbdDetail() { if (kbdModalDetail) closeModal(kbdModalDetail); }
-    if (helpBtn) helpBtn.addEventListener('click', openKbdDetail);
+    if (helpBtn) helpBtn.addEventListener('click', function () { showWelcome(); openKbdDetail(); });
     if (kbdModalDetail) kbdModalDetail.addEventListener('click', function (e) { if (e.target === kbdModalDetail || (e.target.matches && e.target.matches('[data-close-kbd]'))) closeKbdDetail(); });
 
     // Raccourcis fiche

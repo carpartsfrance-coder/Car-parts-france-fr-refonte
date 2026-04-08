@@ -1,5 +1,5 @@
 <%- include('./partials/head') %>
-<link rel="stylesheet" href="/css/sav.css?v=20">
+<link rel="stylesheet" href="/css/sav.css?v=21">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
 <main class="flex-1 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-statut="" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
@@ -55,6 +55,41 @@
       </div>
     </div>
   </header>
+
+  <!-- Bannière bienvenue (première visite — dismissible, 5 tips) -->
+  <div id="sav-welcome-banner" class="hidden mx-6 lg:mx-10 mt-3 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-white p-4 relative">
+    <button type="button" id="sav-welcome-close" aria-label="Fermer" class="absolute top-2 right-2 text-slate-400 hover:text-slate-700 w-7 h-7 rounded-full hover:bg-white/50 inline-flex items-center justify-center">
+      <span class="material-symbols-outlined" style="font-size:18px;">close</span>
+    </button>
+    <div class="flex items-center gap-2 text-primary font-bold text-sm mb-2">
+      <span class="material-symbols-outlined">waving_hand</span>
+      Bienvenue dans la fiche ticket SAV
+    </div>
+    <div class="text-xs text-slate-600 mb-3">Voici les 5 choses à savoir pour traiter un ticket efficacement :</div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-[11px]">
+      <div class="bg-white rounded-lg p-2 border border-primary/10">
+        <div class="font-bold text-primary mb-0.5">1 · Briefing 10 s</div>
+        <div class="text-slate-600">En tête d'aperçu : qui, quoi, dernier échange, à faire maintenant.</div>
+      </div>
+      <div class="bg-white rounded-lg p-2 border border-primary/10">
+        <div class="font-bold text-primary mb-0.5">2 · Action suivante</div>
+        <div class="text-slate-600">Sidebar droite — le bouton primaire te guide vers le prochain geste.</div>
+      </div>
+      <div class="bg-white rounded-lg p-2 border border-primary/10">
+        <div class="font-bold text-primary mb-0.5">3 · Réponses 1-clic</div>
+        <div class="text-slate-600">Approuver remboursement, demander photo, geste commercial…</div>
+      </div>
+      <div class="bg-white rounded-lg p-2 border border-primary/10">
+        <div class="font-bold text-primary mb-0.5">4 · Onglet Répondre</div>
+        <div class="text-slate-600">Templates, variables auto, PJ, étiquette retour prépayée.</div>
+      </div>
+      <div class="bg-white rounded-lg p-2 border border-primary/10">
+        <div class="font-bold text-primary mb-0.5">5 · Raccourcis</div>
+        <div class="text-slate-600"><kbd class="px-1 bg-slate-100 rounded text-[9px]">⌘↵</kbd> envoyer · <kbd class="px-1 bg-slate-100 rounded text-[9px]">⇧P</kbd> épingler · <kbd class="px-1 bg-slate-100 rounded text-[9px]">?</kbd> aide</div>
+      </div>
+    </div>
+    <div class="mt-2 text-[10px] text-slate-400">Cette bannière ne s'affiche qu'une fois. Tu peux la rappeler avec <kbd class="px-1 bg-white border border-slate-300 rounded text-[9px]">?</kbd>.</div>
+  </div>
 
   <!-- NOTES ÉPINGLÉES (résumé interne) — placée AVANT le stepper pour visibilité max -->
   <section id="sav-pinned-notes-section" class="px-6 lg:px-10 pt-3 pb-1">
@@ -146,9 +181,9 @@
           <nav class="flex gap-1 px-3 pt-3 border-b border-slate-100 overflow-x-auto" role="tablist">
             <% const tabs = [
               ['apercu','Aperçu','dashboard'],
-              ['historique','Historique','timeline'],
+              ['communications','Répondre','reply'],
+              ['historique','Timeline','timeline'],
               ['documents','Documents','folder'],
-              ['communications','Communications','forum'],
               ['diagnostic','Diagnostic banc','science'],
               ['fournisseur','Fournisseur','local_shipping'],
             ]; %>
@@ -170,6 +205,20 @@
 
           <!-- Tab Aperçu (dossier) -->
           <section class="sav-tabpanel p-5" data-tab-panel="apercu" id="panel-apercu" role="tabpanel" aria-labelledby="tab-apercu" tabindex="0">
+
+            <!-- BRIEFING 10 SECONDES : tout ce qu'un agent doit savoir en ouvrant le ticket -->
+            <div id="sav-briefing" class="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-white to-white p-4 mb-4" aria-busy="true">
+              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-bold text-primary mb-2">
+                <span class="material-symbols-outlined" style="font-size:14px;">bolt</span>
+                Briefing 10 secondes
+              </div>
+              <div id="sav-briefing-body" class="space-y-1.5 text-sm text-slate-700">
+                <span class="sav-skeleton sav-skeleton--line" style="width:70%;"></span>
+                <span class="sav-skeleton sav-skeleton--line" style="width:85%;"></span>
+                <span class="sav-skeleton sav-skeleton--line" style="width:60%;"></span>
+              </div>
+            </div>
+
             <!-- Mini KPIs -->
             <div id="sav-apercu-kpis" class="grid grid-cols-3 gap-3 mb-4">
               <div class="rounded-xl border border-slate-200 bg-white p-3 text-center">
@@ -314,7 +363,7 @@
               </div>
 
               <!-- Aperçu email type Gmail -->
-              <details class="rounded-xl border border-slate-300 bg-white" open>
+              <details class="rounded-xl border border-slate-300 bg-white">
                 <summary class="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 flex items-center gap-1.5 select-none border-b border-slate-200">
                   <span class="material-symbols-outlined text-base" aria-hidden="true">visibility</span>
                   Aperçu de l'email final (variables remplacées)
@@ -496,8 +545,8 @@
               <!-- Étape 4 : Conclusion -->
               <div class="sav-diag-step hidden" data-diag-step="4">
                 <h3 class="text-sm font-semibold text-slate-800 mb-3">Conclusion</h3>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 mb-4 text-center">
-                  <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Score de risque</div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 mb-4 text-center" title="Score sur 100 calculé à partir des mesures banc (pression, fuite, écart de température), du nombre et de la gravité des codes défaut qui reviennent après reset, et de la conclusion choisie. Au-dessus de 70 → probable défaut produit. Entre 30 et 70 → zone d'incertitude (2e avis conseillé). En dessous de 30 → mauvais montage ou usure normale probable.">
+                  <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center justify-center gap-1">Score de risque <span class="material-symbols-outlined text-slate-400" style="font-size:14px;">info</span></div>
                   <div class="text-4xl font-bold text-primary mt-1" data-diag-score-display>—</div>
                   <div class="text-xs text-slate-400">/ 100 · calculé automatiquement</div>
                 </div>
@@ -713,9 +762,9 @@
         </section>
 
         <section class="rounded-2xl border border-slate-200 bg-white p-4">
-          <details class="group" open>
+          <details class="group">
             <summary class="flex items-center justify-between cursor-pointer list-none select-none mb-3">
-              <h2 class="text-sm font-semibold text-slate-700">Toutes les actions</h2>
+              <h2 class="text-sm font-semibold text-slate-700">Toutes les actions <span class="text-[10px] font-normal text-slate-400">(avancé)</span></h2>
               <span class="material-symbols-outlined text-slate-400 transition-transform group-open:rotate-180" style="font-size:18px;">expand_more</span>
             </summary>
           <div id="sav-actions" class="space-y-4">
@@ -799,27 +848,38 @@
           </div>
         </section>
 
+        <!-- Paiements (149€ analyse + remboursement Mollie fusionnés) -->
         <section class="rounded-2xl border border-slate-200 bg-white p-4">
-          <h2 class="text-sm font-semibold text-slate-700 mb-2">Paiement 149€</h2>
-          <div id="sav-paiement" class="text-sm text-slate-700">—</div>
-        </section>
-
-        <!-- Remboursement Mollie -->
-        <section class="rounded-2xl border border-slate-200 bg-white p-4">
-          <h2 class="text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-2 flex items-center gap-1">
-            <span class="material-symbols-outlined" style="font-size:14px;">payments</span>
-            Remboursement Mollie
-          </h2>
-          <div id="sav-refund-status" class="text-xs text-slate-500 mb-2">—</div>
-          <div class="flex items-center gap-1.5 mb-2">
-            <input type="number" id="sav-refund-amount" min="0" step="0.01" placeholder="Montant €"
-                   class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs">
-          </div>
-          <button type="button" id="sav-refund-btn"
-                  class="btn btn-secondary w-full text-xs inline-flex items-center justify-center gap-1.5">
-            <span class="material-symbols-outlined" style="font-size:14px;">undo</span>
-            Rembourser via Mollie
-          </button>
+          <details class="group" open>
+            <summary class="flex items-center justify-between cursor-pointer list-none select-none">
+              <h2 class="text-[10px] uppercase tracking-wide font-bold text-slate-500 flex items-center gap-1">
+                <span class="material-symbols-outlined" style="font-size:14px;">payments</span>
+                Paiements
+              </h2>
+              <span class="material-symbols-outlined text-slate-400 transition-transform group-open:rotate-180" style="font-size:18px;">expand_more</span>
+            </summary>
+            <div class="mt-3 space-y-3">
+              <!-- Analyse 149€ -->
+              <div>
+                <div class="text-[10px] uppercase tracking-wide font-semibold text-slate-400 mb-1">Analyse 149 €</div>
+                <div id="sav-paiement" class="text-xs text-slate-700">—</div>
+              </div>
+              <!-- Remboursement Mollie -->
+              <div class="pt-3 border-t border-slate-100">
+                <div class="text-[10px] uppercase tracking-wide font-semibold text-slate-400 mb-1">Remboursement Mollie</div>
+                <div id="sav-refund-status" class="text-xs text-slate-500 mb-2">—</div>
+                <div class="flex items-center gap-1.5 mb-2">
+                  <input type="number" id="sav-refund-amount" min="0" step="0.01" placeholder="Montant €"
+                         class="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs">
+                </div>
+                <button type="button" id="sav-refund-btn"
+                        class="btn btn-secondary w-full text-xs inline-flex items-center justify-center gap-1.5">
+                  <span class="material-symbols-outlined" style="font-size:14px;">undo</span>
+                  Rembourser via Mollie
+                </button>
+              </div>
+            </div>
+          </details>
         </section>
       </aside>
       </div>
@@ -1063,5 +1123,5 @@
 
 <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=20" defer></script>
+<script src="/js/sav-admin.js?v=21" defer></script>
 <%- include('./partials/footer') %>
