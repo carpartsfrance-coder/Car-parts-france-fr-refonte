@@ -1,10 +1,15 @@
 const mongoose = require('mongoose');
 
 const PIECE_TYPES = [
-  'mecatronique_dq200',
-  'mecatronique_dq250',
-  'mecatronique_dq381',
-  'mecatronique_dq500',
+  // Catégories simplifiées côté client (nouvelles)
+  'mecatronique',
+  'boite_vitesses',
+  'moteur',
+  'arbre_transmission',
+  'visco_coupleur',
+  'turbo',
+  'injecteur',
+  // Catégories existantes
   'boite_transfert',
   'pont',
   'differentiel',
@@ -12,6 +17,11 @@ const PIECE_TYPES = [
   'reducteur',
   'cardan',
   'autre',
+  // Legacy (anciens tickets — on les conserve pour compat)
+  'mecatronique_dq200',
+  'mecatronique_dq250',
+  'mecatronique_dq381',
+  'mecatronique_dq500',
 ];
 
 const MOTIFS_SAV = [

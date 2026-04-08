@@ -46,10 +46,13 @@
   };
 
   var PIECE_LABELS = {
-    mecatronique_dq200: 'Mécatronique DQ200',
-    mecatronique_dq250: 'Mécatronique DQ250',
-    mecatronique_dq381: 'Mécatronique DQ381',
-    mecatronique_dq500: 'Mécatronique DQ500',
+    mecatronique: 'Mécatronique DSG',
+    boite_vitesses: 'Boîte de vitesses',
+    moteur: 'Moteur',
+    arbre_transmission: 'Arbre de transmission',
+    visco_coupleur: 'Visco-coupleur',
+    turbo: 'Turbo',
+    injecteur: 'Injecteur',
     boite_transfert: 'Boîte de transfert',
     pont: 'Pont',
     differentiel: 'Différentiel',
@@ -57,6 +60,11 @@
     reducteur: 'Réducteur',
     cardan: 'Cardan',
     autre: 'Autre',
+    // Legacy
+    mecatronique_dq200: 'Mécatronique DQ200',
+    mecatronique_dq250: 'Mécatronique DQ250',
+    mecatronique_dq381: 'Mécatronique DQ381',
+    mecatronique_dq500: 'Mécatronique DQ500',
   };
 
   // Ordre affiché dans le Kanban
