@@ -231,6 +231,20 @@ const savTicketSchema = new mongoose.Schema(
         couleur: { type: String, enum: ['amber', 'rose', 'blue', 'emerald', 'slate'], default: 'amber' },
         auteur: { type: String, trim: true },
         createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date },
+        expiresAt: { type: Date, default: null },
+        mentions: [{ type: String, trim: true }],
+      },
+    ],
+    // Historique des notes épinglées supprimées (audit visible en UI)
+    deletedPinnedNotes: [
+      {
+        texte: { type: String, trim: true },
+        couleur: { type: String, trim: true },
+        auteur: { type: String, trim: true },
+        createdAt: { type: Date },
+        deletedAt: { type: Date, default: Date.now },
+        deletedBy: { type: String, trim: true },
       },
     ],
 

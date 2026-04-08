@@ -56,34 +56,81 @@
     </div>
   </header>
 
-  <!-- STEPPER CYCLE SAV -->
-  <nav id="sav-stepper" class="sav-stepper" aria-label="Cycle de vie du ticket SAV"></nav>
-
-  <!-- NOTES ÉPINGLÉES (résumé interne) -->
-  <section id="sav-pinned-notes-section" class="px-6 lg:px-10 pt-4">
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1">
-        <span class="material-symbols-outlined" style="font-size:16px;">push_pin</span>
-        Notes épinglées
-      </h2>
-      <button type="button" id="sav-pinned-add-btn" class="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1">
-        <span class="material-symbols-outlined" style="font-size:14px;">add</span> Ajouter
+  <!-- NOTES ÉPINGLÉES (résumé interne) — placée AVANT le stepper pour visibilité max -->
+  <section id="sav-pinned-notes-section" class="px-6 lg:px-10 pt-3 pb-1">
+    <div id="sav-pinned-notes-wrap" class="hidden">
+      <div class="flex items-center justify-between mb-1.5">
+        <h2 class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px;">push_pin</span>
+          Notes épinglées
+          <span id="sav-pinned-count" class="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold"></span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <button type="button" id="sav-pinned-dense-toggle" class="text-[11px] text-slate-500 hover:text-slate-700" title="Mode dense">
+            <span class="material-symbols-outlined" style="font-size:14px;">density_small</span>
+          </button>
+          <button type="button" id="sav-pinned-history-btn" class="text-[11px] text-slate-500 hover:text-slate-700" title="Historique notes supprimées">
+            <span class="material-symbols-outlined" style="font-size:14px;">history</span>
+          </button>
+          <button type="button" id="sav-pinned-add-btn-top" class="inline-flex items-center gap-1 rounded-md bg-primary text-white px-2.5 py-1 text-[11px] font-semibold hover:bg-primary-dark">
+            <span class="material-symbols-outlined" style="font-size:14px;">add</span> Épingler <kbd class="ml-1 px-1 bg-white/20 rounded text-[9px]">⇧P</kbd>
+          </button>
+        </div>
+      </div>
+      <div id="sav-pinned-notes" class="flex flex-wrap gap-2"></div>
+      <button type="button" id="sav-pinned-showall" class="hidden mt-1.5 text-[11px] text-primary hover:underline"></button>
+    </div>
+    <div id="sav-pinned-empty" class="flex items-center justify-end">
+      <button type="button" id="sav-pinned-add-btn-empty" class="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-500 hover:border-primary hover:text-primary">
+        <span class="material-symbols-outlined" style="font-size:14px;">push_pin</span>
+        Épingler une note <kbd class="ml-1 px-1 bg-slate-100 rounded text-[9px]">⇧P</kbd>
       </button>
     </div>
-    <div id="sav-pinned-notes" class="flex flex-wrap gap-2"></div>
-    <form id="sav-pinned-add-form" class="hidden mt-2 flex flex-col sm:flex-row gap-2">
-      <input type="text" id="sav-pinned-input" maxlength="500" placeholder="Ex: client difficile, dossier lié #SAV-2025-0042…" class="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary" />
-      <select id="sav-pinned-color" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
-        <option value="amber">🟡 Attention</option>
-        <option value="rose">🔴 Urgent</option>
-        <option value="blue">🔵 Info</option>
-        <option value="emerald">🟢 OK</option>
-        <option value="slate">⚪ Neutre</option>
-      </select>
-      <button type="submit" class="rounded-lg bg-primary text-white px-3 py-1.5 text-sm font-medium hover:bg-primary-dark">Épingler</button>
-      <button type="button" id="sav-pinned-cancel" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">Annuler</button>
+
+    <!-- Form ajout/édition -->
+    <form id="sav-pinned-add-form" class="hidden mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <input type="hidden" id="sav-pinned-edit-id" value="" />
+      <div class="flex flex-wrap gap-1.5 mb-2" id="sav-pinned-templates">
+        <button type="button" data-tpl="⚠️ Client difficile" class="sav-pinned-tpl text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-300 hover:border-primary">⚠️ Client difficile</button>
+        <button type="button" data-tpl="📞 Rappel promis le " class="sav-pinned-tpl text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-300 hover:border-primary">📞 Rappel promis</button>
+        <button type="button" data-tpl="🔗 Dossier lié #SAV-" class="sav-pinned-tpl text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-300 hover:border-primary">🔗 Dossier lié</button>
+        <button type="button" data-tpl="⚖️ Litige / Avocat" class="sav-pinned-tpl text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-300 hover:border-primary">⚖️ Litige</button>
+        <button type="button" data-tpl="💰 Geste commercial accordé : " class="sav-pinned-tpl text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-300 hover:border-primary">💰 Geste co.</button>
+        <button type="button" data-tpl="🚚 Attente transporteur" class="sav-pinned-tpl text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-300 hover:border-primary">🚚 Transporteur</button>
+      </div>
+      <textarea id="sav-pinned-input" maxlength="500" rows="2" placeholder="Saisissez une note… (Entrée = épingler · Échap = annuler · #SAV-2025-0042 auto-lien · @prenom mention)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary resize-none"></textarea>
+      <div class="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+        <div class="flex gap-1" role="radiogroup" aria-label="Couleur">
+          <button type="button" data-color="rose"    class="sav-pinned-color w-6 h-6 rounded-full border-2 border-transparent" style="background:#e11d48" title="Urgent"></button>
+          <button type="button" data-color="amber"   class="sav-pinned-color w-6 h-6 rounded-full border-2 border-transparent" style="background:#f59e0b" title="Attention"></button>
+          <button type="button" data-color="blue"    class="sav-pinned-color w-6 h-6 rounded-full border-2 border-transparent" style="background:#2563eb" title="Info"></button>
+          <button type="button" data-color="emerald" class="sav-pinned-color w-6 h-6 rounded-full border-2 border-transparent" style="background:#059669" title="OK"></button>
+          <button type="button" data-color="slate"   class="sav-pinned-color w-6 h-6 rounded-full border-2 border-transparent" style="background:#64748b" title="Neutre"></button>
+        </div>
+        <label class="inline-flex items-center gap-1 text-[11px] text-slate-600">
+          <span class="material-symbols-outlined" style="font-size:14px;">event</span>
+          Expire le
+          <input type="date" id="sav-pinned-expires" class="rounded border border-slate-300 px-1.5 py-0.5 text-[11px]" />
+        </label>
+        <div class="flex-1"></div>
+        <span class="text-[10px] text-slate-400"><kbd class="px-1 bg-white border border-slate-300 rounded text-[9px]">Entrée</kbd> épingler</span>
+        <button type="button" id="sav-pinned-cancel" class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs">Annuler</button>
+        <button type="submit" id="sav-pinned-submit" class="rounded-lg bg-primary text-white px-3 py-1 text-xs font-semibold hover:bg-primary-dark">Épingler</button>
+      </div>
     </form>
+
+    <!-- Historique notes supprimées -->
+    <div id="sav-pinned-history" class="hidden mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div class="flex items-center justify-between mb-1">
+        <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Notes supprimées</div>
+        <button type="button" id="sav-pinned-history-close" class="text-[11px] text-slate-500 hover:text-slate-700">Fermer</button>
+      </div>
+      <div id="sav-pinned-history-list" class="space-y-1 max-h-48 overflow-y-auto"></div>
+    </div>
   </section>
+
+  <!-- STEPPER CYCLE SAV -->
+  <nav id="sav-stepper" class="sav-stepper" aria-label="Cycle de vie du ticket SAV"></nav>
 
   <div class="px-6 lg:px-10 py-6">
     <div id="sav-detail-error" class="hidden mt-2 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>

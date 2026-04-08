@@ -1117,6 +1117,16 @@ adminRouter.post('/tickets/:numero/rapport-pdf', async (req, res) => {
   }
 });
 
+// Helpers pinned notes
+const PIN_COLORS_VALID = ['amber', 'rose', 'blue', 'emerald', 'slate'];
+function extractMentions(t) {
+  const out = [];
+  const re = /@([a-zA-Z0-9_.-]{2,40})/g;
+  let m;
+  while ((m = re.exec(t)) !== null) out.push(m[1]);
+  return out;
+}
+
 // POST /admin/api/sav/tickets/:numero/pinned-notes — ajouter note épinglée
 adminRouter.post('/tickets/:numero/pinned-notes', async (req, res) => {
   try {
@@ -1124,11 +1134,45 @@ adminRouter.post('/tickets/:numero/pinned-notes', async (req, res) => {
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
     const texte = (req.body && req.body.texte || '').trim();
     if (!texte) return fail(res, 'texte requis');
-    const couleur = ['amber', 'rose', 'blue', 'emerald', 'slate'].includes(req.body.couleur) ? req.body.couleur : 'amber';
+    const couleur = PIN_COLORS_VALID.includes(req.body.couleur) ? req.body.couleur : 'amber';
     const auteur = (req.user && (req.user.name || req.user.email)) || 'admin';
-    ticket.pinnedNotes.push({ texte: texte.slice(0, 500), couleur, auteur, createdAt: new Date() });
+    let expiresAt = null;
+    if (req.body.expiresAt) {
+      const d = new Date(req.body.expiresAt);
+      if (!isNaN(d.getTime())) expiresAt = d;
+    }
+    const mentions = extractMentions(texte);
+    ticket.pinnedNotes.push({ texte: texte.slice(0, 500), couleur, auteur, createdAt: new Date(), expiresAt, mentions });
     await ticket.save();
-    audit.log({ req, action: 'sav.pinnedNote.add', entityType: 'sav_ticket', entityId: ticket.numero, after: { texte, couleur } });
+    audit.log({ req, action: 'sav.pinnedNote.add', entityType: 'sav_ticket', entityId: ticket.numero, after: { texte, couleur, mentions } });
+    // TODO: notifier les mentions via savNotifications si besoin
+    return ok(res, { pinnedNotes: ticket.pinnedNotes, deletedPinnedNotes: ticket.deletedPinnedNotes || [] });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// PATCH /admin/api/sav/tickets/:numero/pinned-notes/:noteId — éditer note
+adminRouter.patch('/tickets/:numero/pinned-notes/:noteId', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const note = ticket.pinnedNotes.id(req.params.noteId);
+    if (!note) return fail(res, 'Note introuvable', 404);
+    if (typeof req.body.texte === 'string') {
+      const t = req.body.texte.trim();
+      if (!t) return fail(res, 'texte requis');
+      note.texte = t.slice(0, 500);
+      note.mentions = extractMentions(t);
+    }
+    if (req.body.couleur && PIN_COLORS_VALID.includes(req.body.couleur)) note.couleur = req.body.couleur;
+    if (req.body.expiresAt !== undefined) {
+      if (!req.body.expiresAt) note.expiresAt = null;
+      else { const d = new Date(req.body.expiresAt); if (!isNaN(d.getTime())) note.expiresAt = d; }
+    }
+    note.updatedAt = new Date();
+    await ticket.save();
+    audit.log({ req, action: 'sav.pinnedNote.edit', entityType: 'sav_ticket', entityId: ticket.numero, after: { noteId: req.params.noteId, texte: note.texte, couleur: note.couleur } });
     return ok(res, { pinnedNotes: ticket.pinnedNotes });
   } catch (err) {
     return fail(res, err.message, 500);
@@ -1140,11 +1184,39 @@ adminRouter.delete('/tickets/:numero/pinned-notes/:noteId', async (req, res) => 
   try {
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
-    const before = ticket.pinnedNotes.length;
-    ticket.pinnedNotes = ticket.pinnedNotes.filter((n) => String(n._id) !== String(req.params.noteId));
-    if (ticket.pinnedNotes.length === before) return fail(res, 'Note introuvable', 404);
+    const note = ticket.pinnedNotes.id(req.params.noteId);
+    if (!note) return fail(res, 'Note introuvable', 404);
+    const deletedBy = (req.user && (req.user.name || req.user.email)) || 'admin';
+    ticket.deletedPinnedNotes = ticket.deletedPinnedNotes || [];
+    ticket.deletedPinnedNotes.push({
+      texte: note.texte, couleur: note.couleur, auteur: note.auteur,
+      createdAt: note.createdAt, deletedAt: new Date(), deletedBy,
+    });
+    // Cap historique à 50 pour ne pas exploser le doc
+    if (ticket.deletedPinnedNotes.length > 50) {
+      ticket.deletedPinnedNotes = ticket.deletedPinnedNotes.slice(-50);
+    }
+    ticket.pinnedNotes.pull(req.params.noteId);
     await ticket.save();
     audit.log({ req, action: 'sav.pinnedNote.delete', entityType: 'sav_ticket', entityId: ticket.numero, before: { noteId: req.params.noteId } });
+    return ok(res, { pinnedNotes: ticket.pinnedNotes, deletedPinnedNotes: ticket.deletedPinnedNotes });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/pinned-notes/:noteId/restore — restaurer
+adminRouter.post('/tickets/:numero/pinned-notes/:noteId/restore', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const b = req.body || {};
+    const texte = (b.texte || '').trim();
+    if (!texte) return fail(res, 'texte requis');
+    const couleur = PIN_COLORS_VALID.includes(b.couleur) ? b.couleur : 'amber';
+    const auteur = (req.user && (req.user.name || req.user.email)) || 'admin';
+    ticket.pinnedNotes.push({ texte: texte.slice(0, 500), couleur, auteur, createdAt: new Date(), mentions: extractMentions(texte) });
+    await ticket.save();
     return ok(res, { pinnedNotes: ticket.pinnedNotes });
   } catch (err) {
     return fail(res, err.message, 500);

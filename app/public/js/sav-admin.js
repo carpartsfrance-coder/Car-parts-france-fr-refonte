@@ -395,9 +395,22 @@
             : '<span class="text-[11px] text-slate-400 italic">Non assigné</span>';
           var awaiting = t.lastClientMessageAt && (!t.lastAdminReadAt || new Date(t.lastClientMessageAt) > new Date(t.lastAdminReadAt));
           var awaitingDot = awaiting ? '<span title="Réponse client en attente" class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 align-middle animate-pulse"></span>' : '';
+          // Indicateur notes épinglées (couleur max priorité)
+          var pinColor = '';
+          var pinOrder = ['rose', 'amber', 'blue', 'emerald', 'slate'];
+          var pinHexes = { rose: '#e11d48', amber: '#f59e0b', blue: '#2563eb', emerald: '#059669', slate: '#64748b' };
+          var pinCount = 0;
+          if (t.pinnedNotes && t.pinnedNotes.length) {
+            var active = t.pinnedNotes.filter(function (n) { return !n.expiresAt || new Date(n.expiresAt) >= new Date(); });
+            pinCount = active.length;
+            for (var pi = 0; pi < pinOrder.length && !pinColor; pi++) {
+              if (active.some(function (n) { return n.couleur === pinOrder[pi]; })) pinColor = pinHexes[pinOrder[pi]];
+            }
+          }
+          var pinDot = pinCount ? '<span title="' + pinCount + ' note(s) épinglée(s)" class="inline-flex items-center justify-center w-3 h-3 rounded-full mr-1 align-middle text-white text-[8px] font-bold" style="background:' + pinColor + '">' + (pinCount > 1 ? pinCount : '') + '</span>' : '';
           return '<tr class="hover:bg-slate-50 cursor-pointer ' + rowPulse + '" data-row="' + i + '" data-numero="' + escapeHtml(t.numero) + '">' +
             '<td class="px-3 py-2 sav-col-sticky-l"><input type="checkbox" class="rounded sav-row-cb" data-numero="' + escapeHtml(t.numero) + '" ' + (selected.has(t.numero) ? 'checked' : '') + '></td>' +
-            '<td class="px-3 py-2 font-mono text-xs font-semibold sav-col-sticky-l2">' + awaitingDot + escapeHtml(t.numero) + '</td>' +
+            '<td class="px-3 py-2 font-mono text-xs font-semibold sav-col-sticky-l2">' + pinDot + awaitingDot + escapeHtml(t.numero) + '</td>' +
             '<td class="px-3 py-2"><div class="text-xs font-medium">' + escapeHtml((t.client && t.client.nom) || '') + '</div><div class="text-[10px] text-slate-500">' + escapeHtml((t.client && t.client.email) || '') + '</div></td>' +
             '<td class="px-3 py-2">' + pieceBadge(t.pieceType) + '</td>' +
             '<td class="px-3 py-2 text-xs">' + (vstr ? escapeHtml(vstr) : '<span class="text-slate-400">—</span>') + (v.vin ? '<div class="text-[10px] font-mono text-slate-400">' + escapeHtml(v.vin) + '</div>' : '') + '</td>' +
@@ -1102,85 +1115,361 @@
       }
     }
 
-    // -------- Notes épinglées --------
+    // -------- Notes épinglées (UX agent) --------
     var PIN_COLORS = {
-      amber:   { bg: '#fef3c7', border: '#f59e0b', text: '#78350f' },
-      rose:    { bg: '#ffe4e6', border: '#e11d48', text: '#881337' },
-      blue:    { bg: '#dbeafe', border: '#2563eb', text: '#1e3a8a' },
-      emerald: { bg: '#d1fae5', border: '#059669', text: '#064e3b' },
-      slate:   { bg: '#f1f5f9', border: '#64748b', text: '#0f172a' },
+      rose:    { bg: '#ffe4e6', border: '#e11d48', text: '#881337', hex: '#e11d48' },
+      amber:   { bg: '#fef3c7', border: '#f59e0b', text: '#78350f', hex: '#f59e0b' },
+      blue:    { bg: '#dbeafe', border: '#2563eb', text: '#1e3a8a', hex: '#2563eb' },
+      emerald: { bg: '#d1fae5', border: '#059669', text: '#064e3b', hex: '#059669' },
+      slate:   { bg: '#f1f5f9', border: '#64748b', text: '#0f172a', hex: '#64748b' },
     };
+    var PIN_ORDER = ['rose', 'amber', 'blue', 'emerald', 'slate'];
+    var pinState = {
+      denseMode: (typeof localStorage !== 'undefined' && localStorage.getItem('savPinDense') === '1'),
+      showAll: false,
+      selectedColor: 'amber',
+    };
+
+    function isPinExpired(n) {
+      return n && n.expiresAt && new Date(n.expiresAt) < new Date();
+    }
+    function sortedPins() {
+      var notes = ((ticket && ticket.pinnedNotes) || []).slice();
+      notes.sort(function (a, b) {
+        var ea = isPinExpired(a) ? 1 : 0;
+        var eb = isPinExpired(b) ? 1 : 0;
+        if (ea !== eb) return ea - eb; // non-expirées d'abord
+        var ia = PIN_ORDER.indexOf(a.couleur); if (ia === -1) ia = 99;
+        var ib = PIN_ORDER.indexOf(b.couleur); if (ib === -1) ib = 99;
+        if (ia !== ib) return ia - ib;
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      });
+      return notes;
+    }
+    function autoLinkAndMentions(text) {
+      var safe = escapeHtml(text || '');
+      // #SAV-YYYY-NNNN → lien
+      safe = safe.replace(/#?(SAV-\d{4}-\d{3,5})/gi, function (m, num) {
+        return '<a href="/admin/sav/tickets/' + encodeURIComponent(num.toUpperCase()) + '" class="underline font-semibold">' + num.toUpperCase() + '</a>';
+      });
+      // @mentions
+      safe = safe.replace(/@([a-zA-Z0-9_.-]{2,40})/g, '<span class="font-semibold" style="opacity:.85;">@$1</span>');
+      return safe;
+    }
+
     function renderPinnedNotes() {
+      var wrap = document.getElementById('sav-pinned-notes-wrap');
+      var empty = document.getElementById('sav-pinned-empty');
       var box = document.getElementById('sav-pinned-notes');
-      if (!box) return;
-      var notes = (ticket && ticket.pinnedNotes) || [];
+      var countEl = document.getElementById('sav-pinned-count');
+      var showAllBtn = document.getElementById('sav-pinned-showall');
+      if (!box || !wrap || !empty) return;
+      var notes = sortedPins();
       if (!notes.length) {
-        box.innerHTML = '<span class="text-xs text-slate-400 italic">Aucune note épinglée</span>';
+        wrap.classList.add('hidden');
+        empty.classList.remove('hidden');
         return;
       }
-      box.innerHTML = notes.map(function (n) {
+      empty.classList.add('hidden');
+      wrap.classList.remove('hidden');
+      if (countEl) countEl.textContent = String(notes.length);
+
+      var visible = pinState.showAll ? notes : notes.slice(0, 3);
+      var dense = pinState.denseMode;
+
+      box.className = dense ? 'flex flex-col gap-1' : 'flex flex-wrap gap-2';
+      box.innerHTML = visible.map(function (n) {
         var c = PIN_COLORS[n.couleur] || PIN_COLORS.amber;
+        var expired = isPinExpired(n);
         var date = n.createdAt ? new Date(n.createdAt).toLocaleDateString('fr-FR') : '';
+        var expLabel = '';
+        if (n.expiresAt) {
+          var d = new Date(n.expiresAt);
+          expLabel = (expired ? ' · ⏰ expiré ' : ' · ⏰ ') + d.toLocaleDateString('fr-FR');
+        }
         var auteur = n.auteur ? escapeHtml(n.auteur) + ' · ' : '';
-        return '<div class="inline-flex items-start gap-2 rounded-lg px-3 py-2 text-xs shadow-sm" ' +
-          'style="background:' + c.bg + ';border-left:3px solid ' + c.border + ';color:' + c.text + ';max-width:320px;">' +
+        var body = autoLinkAndMentions(n.texte || '');
+        var opacity = expired ? 'opacity:.55;filter:grayscale(.4);' : '';
+        var id = escapeHtml(String(n._id));
+        if (dense) {
+          return '<div data-pin-id="' + id + '" class="flex items-center gap-2 rounded-md px-2 py-1 text-[11px] cursor-pointer" ' +
+            'style="background:' + c.bg + ';border-left:3px solid ' + c.border + ';color:' + c.text + ';' + opacity + '" ' +
+            'title="Double-clic pour éditer">' +
+            '<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:' + c.border + '"></span>' +
+            '<span class="flex-1 truncate">' + body + '</span>' +
+            '<span class="text-[9px] opacity-60">' + auteur + escapeHtml(date) + escapeHtml(expLabel) + '</span>' +
+            '<button type="button" data-pin-del="' + id + '" class="opacity-50 hover:opacity-100" style="color:' + c.text + ';" title="Retirer">' +
+              '<span class="material-symbols-outlined" style="font-size:12px;">close</span>' +
+            '</button>' +
+          '</div>';
+        }
+        return '<div data-pin-id="' + id + '" class="inline-flex items-start gap-2 rounded-lg px-3 py-2 text-xs shadow-sm cursor-pointer" ' +
+          'style="background:' + c.bg + ';border-left:3px solid ' + c.border + ';color:' + c.text + ';max-width:340px;' + opacity + '" ' +
+          'title="Double-clic pour éditer">' +
           '<span class="material-symbols-outlined" style="font-size:14px;flex-shrink:0;margin-top:1px;">push_pin</span>' +
           '<div class="flex-1 min-w-0">' +
-            '<div class="font-medium break-words">' + escapeHtml(n.texte || '') + '</div>' +
-            '<div class="text-[10px] opacity-70 mt-0.5">' + auteur + escapeHtml(date) + '</div>' +
+            '<div class="font-medium break-words">' + body + '</div>' +
+            '<div class="text-[10px] opacity-70 mt-0.5">' + auteur + escapeHtml(date) + escapeHtml(expLabel) + '</div>' +
           '</div>' +
-          '<button type="button" data-pin-del="' + escapeHtml(String(n._id)) + '" title="Retirer" class="opacity-60 hover:opacity-100" style="color:' + c.text + ';">' +
+          '<button type="button" data-pin-del="' + id + '" title="Retirer" class="opacity-60 hover:opacity-100" style="color:' + c.text + ';">' +
             '<span class="material-symbols-outlined" style="font-size:14px;">close</span>' +
           '</button>' +
         '</div>';
       }).join('');
+
+      // "Voir plus"
+      if (showAllBtn) {
+        if (notes.length > 3) {
+          showAllBtn.classList.remove('hidden');
+          showAllBtn.textContent = pinState.showAll ? '↑ Replier' : ('↓ Voir les ' + (notes.length - 3) + ' autres notes');
+        } else {
+          showAllBtn.classList.add('hidden');
+        }
+      }
+
+      // Wire delete (undo pattern — no confirm)
       box.querySelectorAll('[data-pin-del]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
           var id = btn.getAttribute('data-pin-del');
-          if (!confirm('Retirer cette note ?')) return;
-          api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes/' + encodeURIComponent(id), { method: 'DELETE' }).then(function (res) {
-            if (res.ok && res.j.success) {
-              ticket.pinnedNotes = res.j.data.pinnedNotes;
-              renderPinnedNotes();
-              toast('Note retirée', 'success');
-            } else {
-              toast((res.j && res.j.error) || 'Erreur', 'error');
+          var snapshot = (ticket.pinnedNotes || []).find(function (x) { return String(x._id) === String(id); });
+          // Optimistic remove
+          ticket.pinnedNotes = (ticket.pinnedNotes || []).filter(function (x) { return String(x._id) !== String(id); });
+          renderPinnedNotes();
+          var undone = false;
+          toastUndo('Note retirée', function () {
+            undone = true;
+            if (snapshot) {
+              api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes/' + encodeURIComponent(id) + '/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ texte: snapshot.texte, couleur: snapshot.couleur }),
+              }).then(function (res) {
+                if (res.ok && res.j.success) {
+                  ticket.pinnedNotes = res.j.data.pinnedNotes;
+                  renderPinnedNotes();
+                }
+              });
             }
+          }, 5000, function () {
+            if (undone) return;
+            api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes/' + encodeURIComponent(id), { method: 'DELETE' }).then(function (res) {
+              if (res.ok && res.j.success) {
+                ticket.deletedPinnedNotes = res.j.data.deletedPinnedNotes;
+              }
+            });
           });
         });
       });
+      // Wire edit (double-click)
+      box.querySelectorAll('[data-pin-id]').forEach(function (el) {
+        el.addEventListener('dblclick', function () {
+          var id = el.getAttribute('data-pin-id');
+          var n = (ticket.pinnedNotes || []).find(function (x) { return String(x._id) === String(id); });
+          if (n) openPinForm(n);
+        });
+      });
     }
-    // Wire add form
-    (function wirePinnedAdd() {
-      var addBtn = document.getElementById('sav-pinned-add-btn');
+
+    // Toast undo simple (fallback si pas de lib)
+    function toastUndo(message, onUndo, ms, onExpire) {
+      var root = document.getElementById('sav-toast-root') || document.body;
+      var el = document.createElement('div');
+      el.className = 'sav-toast sav-toast--info';
+      el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:8px;box-shadow:0 10px 25px rgba(0,0,0,.2);z-index:9999;display:flex;gap:12px;align-items:center;font-size:13px;';
+      el.innerHTML = '<span>' + escapeHtml(message) + '</span>';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Annuler';
+      btn.style.cssText = 'background:#fff;color:#0f172a;padding:4px 10px;border-radius:6px;font-weight:600;cursor:pointer;';
+      el.appendChild(btn);
+      root.appendChild(el);
+      var timer = setTimeout(function () {
+        el.remove();
+        try { onExpire && onExpire(); } catch (_) {}
+      }, ms || 5000);
+      btn.addEventListener('click', function () {
+        clearTimeout(timer);
+        el.remove();
+        try { onUndo && onUndo(); } catch (_) {}
+      });
+    }
+
+    // Form ajout/édition
+    function openPinForm(editingNote) {
+      var form = document.getElementById('sav-pinned-add-form');
+      var input = document.getElementById('sav-pinned-input');
+      var editIdInput = document.getElementById('sav-pinned-edit-id');
+      var expInput = document.getElementById('sav-pinned-expires');
+      var submitBtn = document.getElementById('sav-pinned-submit');
+      if (!form || !input) return;
+      form.classList.remove('hidden');
+      if (editingNote) {
+        input.value = editingNote.texte || '';
+        editIdInput.value = String(editingNote._id || '');
+        pinState.selectedColor = editingNote.couleur || 'amber';
+        if (expInput) expInput.value = editingNote.expiresAt ? new Date(editingNote.expiresAt).toISOString().slice(0, 10) : '';
+        if (submitBtn) submitBtn.textContent = 'Mettre à jour';
+      } else {
+        input.value = '';
+        editIdInput.value = '';
+        pinState.selectedColor = 'amber';
+        if (expInput) expInput.value = '';
+        if (submitBtn) submitBtn.textContent = 'Épingler';
+      }
+      updatePinColorUI();
+      setTimeout(function () { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 30);
+    }
+    function closePinForm() {
+      var form = document.getElementById('sav-pinned-add-form');
+      if (form) form.classList.add('hidden');
+    }
+    function updatePinColorUI() {
+      document.querySelectorAll('.sav-pinned-color').forEach(function (b) {
+        if (b.getAttribute('data-color') === pinState.selectedColor) {
+          b.style.borderColor = '#0f172a';
+          b.style.transform = 'scale(1.15)';
+        } else {
+          b.style.borderColor = 'transparent';
+          b.style.transform = 'scale(1)';
+        }
+      });
+    }
+
+    (function wirePinnedForm() {
+      var addTop = document.getElementById('sav-pinned-add-btn-top');
+      var addEmpty = document.getElementById('sav-pinned-add-btn-empty');
       var form = document.getElementById('sav-pinned-add-form');
       var cancel = document.getElementById('sav-pinned-cancel');
       var input = document.getElementById('sav-pinned-input');
-      var color = document.getElementById('sav-pinned-color');
-      if (!addBtn || !form) return;
-      addBtn.addEventListener('click', function () { form.classList.remove('hidden'); input && input.focus(); });
-      cancel && cancel.addEventListener('click', function () { form.classList.add('hidden'); if (input) input.value = ''; });
+      var expInput = document.getElementById('sav-pinned-expires');
+      var showAllBtn = document.getElementById('sav-pinned-showall');
+      var denseBtn = document.getElementById('sav-pinned-dense-toggle');
+      var historyBtn = document.getElementById('sav-pinned-history-btn');
+      var historyBox = document.getElementById('sav-pinned-history');
+      var historyClose = document.getElementById('sav-pinned-history-close');
+      if (!form || !input) return;
+
+      addTop && addTop.addEventListener('click', function () { openPinForm(null); });
+      addEmpty && addEmpty.addEventListener('click', function () { openPinForm(null); });
+      cancel && cancel.addEventListener('click', closePinForm);
+
+      // Shift+P global shortcut
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'P' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          var t = e.target;
+          var tag = t && t.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+          e.preventDefault();
+          openPinForm(null);
+        }
+        if (e.key === 'Escape' && !form.classList.contains('hidden')) {
+          closePinForm();
+        }
+      });
+      // Entrée = submit (sans Shift)
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      });
+
+      // Templates
+      document.querySelectorAll('.sav-pinned-tpl').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var tpl = b.getAttribute('data-tpl') || '';
+          input.value = input.value ? (input.value + ' ' + tpl) : tpl;
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        });
+      });
+      // Color picker
+      document.querySelectorAll('.sav-pinned-color').forEach(function (b) {
+        b.addEventListener('click', function () {
+          pinState.selectedColor = b.getAttribute('data-color') || 'amber';
+          updatePinColorUI();
+          input.focus();
+        });
+      });
+
       form.addEventListener('submit', function (e) {
         e.preventDefault();
-        var texte = (input && input.value || '').trim();
+        var texte = (input.value || '').trim();
         if (!texte) return;
-        api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes', {
-          method: 'POST',
+        var editId = document.getElementById('sav-pinned-edit-id').value;
+        var payload = {
+          texte: texte,
+          couleur: pinState.selectedColor,
+          expiresAt: expInput && expInput.value ? expInput.value : null,
+        };
+        var url = '/tickets/' + encodeURIComponent(numero) + '/pinned-notes' + (editId ? '/' + encodeURIComponent(editId) : '');
+        var method = editId ? 'PATCH' : 'POST';
+        api(url, {
+          method: method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ texte: texte, couleur: color ? color.value : 'amber' }),
+          body: JSON.stringify(payload),
         }).then(function (res) {
           if (res.ok && res.j.success) {
             ticket.pinnedNotes = res.j.data.pinnedNotes;
             renderPinnedNotes();
-            form.classList.add('hidden');
-            if (input) input.value = '';
-            toast('Note épinglée', 'success');
+            closePinForm();
+            toast(editId ? 'Note mise à jour' : 'Note épinglée', 'success');
           } else {
             toast((res.j && res.j.error) || 'Erreur', 'error');
           }
         });
       });
+
+      showAllBtn && showAllBtn.addEventListener('click', function () {
+        pinState.showAll = !pinState.showAll;
+        renderPinnedNotes();
+      });
+      denseBtn && denseBtn.addEventListener('click', function () {
+        pinState.denseMode = !pinState.denseMode;
+        try { localStorage.setItem('savPinDense', pinState.denseMode ? '1' : '0'); } catch (_) {}
+        renderPinnedNotes();
+      });
+      historyBtn && historyBtn.addEventListener('click', function () {
+        historyBox.classList.toggle('hidden');
+        if (!historyBox.classList.contains('hidden')) renderPinHistory();
+      });
+      historyClose && historyClose.addEventListener('click', function () { historyBox.classList.add('hidden'); });
     })();
+
+    function renderPinHistory() {
+      var list = document.getElementById('sav-pinned-history-list');
+      if (!list) return;
+      var del = (ticket && ticket.deletedPinnedNotes) || [];
+      if (!del.length) { list.innerHTML = '<div class="text-[11px] text-slate-400 italic">Aucune note supprimée.</div>'; return; }
+      list.innerHTML = del.slice().reverse().map(function (n) {
+        var c = PIN_COLORS[n.couleur] || PIN_COLORS.slate;
+        var d = n.deletedAt ? new Date(n.deletedAt).toLocaleString('fr-FR') : '';
+        return '<div class="flex items-center gap-2 text-[11px] p-1.5 rounded bg-white border border-slate-200">' +
+          '<span class="w-1.5 h-1.5 rounded-full" style="background:' + c.border + '"></span>' +
+          '<span class="flex-1 truncate text-slate-700">' + escapeHtml(n.texte || '') + '</span>' +
+          '<span class="text-[10px] text-slate-400">' + escapeHtml(n.deletedBy || '') + ' · ' + escapeHtml(d) + '</span>' +
+          '<button type="button" data-pin-restore=\'' + escapeHtml(JSON.stringify({ texte: n.texte, couleur: n.couleur })) + '\' class="text-primary hover:underline text-[10px]">Restaurer</button>' +
+        '</div>';
+      }).join('');
+      list.querySelectorAll('[data-pin-restore]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var data = {};
+          try { data = JSON.parse(b.getAttribute('data-pin-restore') || '{}'); } catch (_) {}
+          api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          }).then(function (res) {
+            if (res.ok && res.j.success) {
+              ticket.pinnedNotes = res.j.data.pinnedNotes;
+              renderPinnedNotes();
+              toast('Note restaurée', 'success');
+            }
+          });
+        });
+      });
+    }
 
     // -------- Dossier (Aperçu : KPIs + 4 cards) --------
     function businessDaysSince(date) {
