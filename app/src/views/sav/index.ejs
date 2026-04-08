@@ -352,7 +352,26 @@
       <!-- ============== ÉTAPE 4 : Documents + véhicule ============== -->
       <section class="sav-form-step sav-status-card" data-step="4" aria-labelledby="step4-title" hidden>
         <h2 id="step4-title" class="text-lg font-semibold mb-1">4. Documents et véhicule</h2>
-        <p class="text-sm text-slate-600 mb-4">Ces documents sont obligatoires pour ouvrir votre dossier.</p>
+        <p class="text-sm text-slate-600 mb-3">Ces 4 documents sont obligatoires pour ouvrir votre dossier&nbsp;:</p>
+        <ul id="sav-docs-checklist" class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+          <li data-doc="factureMontage" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+            <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+            <span>Facture du garage qui a monté la pièce</span>
+          </li>
+          <li data-doc="photoPiece" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+            <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+            <span>Photo de la pièce défectueuse</span>
+          </li>
+          <li data-doc="photoObd" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+            <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+            <span>Photo de la valise de diagnostic (OBD)</span>
+          </li>
+          <li data-doc="photoCompteur" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+            <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+            <span>Photo du compteur kilométrique</span>
+          </li>
+        </ul>
+        <p class="text-xs text-slate-500 mb-3">💡 Après avoir ajouté chaque fichier, sélectionnez sa catégorie dans le menu déroulant à droite de son nom.</p>
 
         <!-- Drop unique -->
         <div class="space-y-4">

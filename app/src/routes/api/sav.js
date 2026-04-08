@@ -1466,6 +1466,22 @@ adminRouter.get('/dashboard', async (req, res) => {
       closArr.push(found ? found.clos : 0);
     }
 
+    // Compteurs par équipe (tickets actifs)
+    const byTeamAgg = await SavTicket.aggregate([
+      { $match: { statut: { $in: STATUTS_ACTIFS } } },
+      { $group: { _id: '$assignedTeam', count: { $sum: 1 } } },
+    ]);
+    const by_team = { atelier: 0, logistique: 0, commercial: 0, compta: 0, sav_general: 0 };
+    byTeamAgg.forEach((g) => { if (g._id && by_team[g._id] !== undefined) by_team[g._id] = g.count; });
+
+    // Compteurs par motif
+    const byMotifAgg = await SavTicket.aggregate([
+      { $match: { statut: { $in: STATUTS_ACTIFS } } },
+      { $group: { _id: '$motifSav', count: { $sum: 1 } } },
+    ]);
+    const by_motif = {};
+    byMotifAgg.forEach((g) => { if (g._id) by_motif[g._id] = g.count; });
+
     return ok(res, {
       ouverts: ouverts || 0,
       en_attente_doc: enAttenteDoc || 0,
@@ -1479,6 +1495,8 @@ adminRouter.get('/dashboard', async (req, res) => {
       sav_recurrents: savRecurrents,
       mes_tickets: mesTickets || 0,
       awaiting_client: awaitingClient || 0,
+      by_team,
+      by_motif,
       chart: { labels, ouverts: ouvertsArr, clos: closArr },
     });
   } catch (err) {

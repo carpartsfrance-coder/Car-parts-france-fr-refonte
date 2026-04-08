@@ -184,13 +184,28 @@ async function notifyInternalEscalation(ticket, motif) {
 // ============================================================
 // Confirmation client (post-création) avec PDF CGV horodaté joint
 // ============================================================
+// Sujet + intro adaptés selon motifSav
+const MOTIF_SUBJECTS = {
+  piece_defectueuse:  { subject: 'Votre demande SAV {n} est enregistrée — Pièce défectueuse', sla: 'Notre atelier vous répondra sous 5 jours ouvrés.' },
+  retard_livraison:   { subject: 'Demande {n} reçue — Retard de livraison',                   sla: 'Notre équipe logistique vous répond sous 24 h.' },
+  colis_abime:        { subject: '⚠️ Demande {n} reçue — Réserve colis abîmé',                sla: 'Réserve enregistrée. Notre équipe logistique vous répond sous 48 h.' },
+  colis_non_recu:     { subject: 'Demande {n} reçue — Colis non reçu',                        sla: 'Une enquête transporteur est ouverte. Réponse sous 72 h.' },
+  erreur_preparation: { subject: 'Demande {n} reçue — Erreur de préparation',                 sla: "Désolé pour l'erreur. Réponse logistique sous 48 h." },
+  retractation:       { subject: 'Demande {n} reçue — Rétractation 14 jours',                 sla: 'Votre demande de rétractation est enregistrée. Réponse sous 14 jours.' },
+  non_compatible:     { subject: 'Demande {n} reçue — Pièce non compatible',                  sla: 'Notre équipe commerciale vous répond sous 5 jours ouvrés.' },
+  facture_document:   { subject: 'Demande {n} reçue — Facture / document',                    sla: 'Notre service comptabilité vous répond sous 24 h.' },
+  remboursement:      { subject: 'Demande {n} reçue — Remboursement',                         sla: 'Notre service comptabilité vous répond sous 48 h.' },
+  autre:              { subject: 'Votre demande SAV {n} est enregistrée',                     sla: 'Notre équipe SAV vous répond sous 48 h.' },
+};
+
 async function sendConfirmationToClient(ticket) {
   if (!ticket || !ticket.client || !ticket.client.email) {
     return { ok: false, reason: 'no_email' };
   }
   try {
-    const html = await renderTemplate('confirmation_client', { ticket });
-    const subject = `Votre demande SAV ${ticket.numero} est bien enregistrée`;
+    const motifInfo = MOTIF_SUBJECTS[ticket.motifSav] || MOTIF_SUBJECTS.piece_defectueuse;
+    const html = await renderTemplate('confirmation_client', { ticket, motifIntro: motifInfo.sla });
+    const subject = motifInfo.subject.replace('{n}', ticket.numero);
     const attachments = [];
     // Joindre le PDF d'acceptation CGV s'il existe (créé juste avant l'envoi)
     try {

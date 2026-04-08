@@ -291,13 +291,29 @@
       // Documents : facture + photo pièce + photo OBD + photo compteur obligatoires
       var hasKinds = {};
       droppedFiles.forEach(function (f) { hasKinds[f.kind] = true; });
-      var missing = [];
-      if (!hasKinds.factureMontage) missing.push('facture garage');
-      if (!hasKinds.photoPiece) missing.push('photo de la pièce');
-      if (!hasKinds.photoObd) missing.push('photo OBD');
-      if (!hasKinds.photoCompteur) missing.push('photo du compteur');
+      var REQ = [
+        { k: 'factureMontage', l: 'Facture du garage' },
+        { k: 'photoPiece',     l: 'Photo de la pièce' },
+        { k: 'photoObd',       l: 'Photo OBD' },
+        { k: 'photoCompteur',  l: 'Photo du compteur' },
+      ];
+      // MAJ checklist visuelle
+      REQ.forEach(function (r) {
+        var li = document.querySelector('#sav-docs-checklist [data-doc="' + r.k + '"]');
+        if (!li) return;
+        var done = !!hasKinds[r.k];
+        li.classList.toggle('bg-emerald-50', done);
+        li.classList.toggle('border-emerald-300', done);
+        li.classList.toggle('text-emerald-800', done);
+        li.classList.toggle('bg-slate-50', !done);
+        li.classList.toggle('border-slate-200', !done);
+        li.classList.toggle('text-slate-600', !done);
+        var ic = li.querySelector('.material-symbols-rounded');
+        if (ic) ic.textContent = done ? 'check_circle' : 'radio_button_unchecked';
+      });
+      var missing = REQ.filter(function (r) { return !hasKinds[r.k]; }).map(function (r) { return r.l; });
       if (missing.length) {
-        setError('files', 'Manque : ' + missing.join(', ') + '. Ajoutez et catégorisez les fichiers.');
+        setError('files', 'Il manque encore : ' + missing.join(', ') + '. Ajoutez le(s) fichier(s) puis choisissez leur catégorie dans le menu à droite.');
         ok = false;
       } else setError('files', '');
     }

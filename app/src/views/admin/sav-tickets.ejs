@@ -47,6 +47,30 @@
       </button>
     </div>
 
+    <!-- KPI par équipe -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+      <button type="button" data-mini-kpi-filter="assignedTeam=atelier" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-rose-100 text-rose-700"><span class="text-base">🔧</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamAtelier">—</div><div class="sav-mini-kpi__label">Atelier</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=logistique" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-amber-100 text-amber-700"><span class="text-base">📦</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamLogistique">—</div><div class="sav-mini-kpi__label">Logistique</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=commercial" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-blue-100 text-blue-700"><span class="text-base">💼</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamCommercial">—</div><div class="sav-mini-kpi__label">Commercial</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=compta" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-emerald-100 text-emerald-700"><span class="text-base">💰</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamCompta">—</div><div class="sav-mini-kpi__label">Compta</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=sav_general" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-slate-100 text-slate-700"><span class="text-base">🎧</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamGeneral">—</div><div class="sav-mini-kpi__label">SAV général</div></div>
+      </button>
+    </div>
+
     <!-- Filtres + recherche -->
     <form id="sav-filters" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
       <input type="hidden" name="awaitingClient">

@@ -210,6 +210,32 @@ exports.postSimpleForm = async (req, res) => {
     ticket.addMessage('client', 'interne', `Ticket créé via formulaire court (motif : ${motif.title})`);
     await ticket.save();
 
+    // Sauvegarde des pièces jointes (photos colis, justificatifs…)
+    if (Array.isArray(req.files) && req.files.length) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const dir = path.join(process.cwd(), 'uploads', 'sav', ticket.numero);
+        fs.mkdirSync(dir, { recursive: true });
+        ticket.documentsList = ticket.documentsList || [];
+        for (const f of req.files) {
+          const safe = (f.originalname || 'fichier').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+          const filename = Date.now() + '-' + safe;
+          fs.writeFileSync(path.join(dir, filename), f.buffer);
+          ticket.documentsList.push({
+            kind: 'client_upload',
+            url: '/uploads/sav/' + ticket.numero + '/' + filename,
+            originalName: f.originalname,
+            size: f.size,
+            mime: f.mimetype,
+          });
+        }
+        await ticket.save();
+      } catch (e) {
+        console.error('[sav] simple upload error', e && e.message);
+      }
+    }
+
     try { require('../services/slackNotifier').notifyTicketCreated(ticket); } catch (_) {}
     try {
       const notif = require('../services/savNotifications');

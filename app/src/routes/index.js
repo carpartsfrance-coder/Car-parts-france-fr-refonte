@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 
 const aboutController = require('../controllers/aboutController');
 const homeController = require('../controllers/homeController');
@@ -33,7 +34,20 @@ router.get('/sav', savController.getMotifSelect);
 router.get('/sav/piece-defectueuse', savController.getSavHome);
 // Formulaire court pour les 9 autres motifs
 router.get('/sav/demande/:motif', savController.getSimpleForm);
-router.post('/sav/demande', express.json({ limit: '2mb' }), savController.postSimpleForm);
+const simpleUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (req, file, cb) => {
+    var ok = ['image/jpeg','image/png','image/webp','application/pdf'].indexOf(file.mimetype) >= 0;
+    cb(ok ? null : new Error('Format non autorisé'), ok);
+  },
+});
+router.post('/sav/demande',
+  (req, res, next) => simpleUpload.array('attachments', 5)(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, error: 'Upload refusé : ' + err.message });
+    next();
+  }),
+  savController.postSimpleForm);
 router.get('/sav/notre-engagement', (req, res) => {
   res.render('sav-engagement', {
     title: 'Notre engagement SAV — CarParts France',
@@ -52,7 +66,6 @@ router.post('/sav/check-commande', savController.postCheckCommande);
 
 // Suivi invité
 const savGuestController = require('../controllers/savGuestController');
-const multer = require('multer');
 const guestUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 5 },

@@ -729,6 +729,12 @@
         setV('attenteFournisseur', d.enAttenteFournisseur || 0);
         setV('slaDepasse', d.slaDepasse || d.sla_depasse || 0);
         setV('awaitingClient', d.awaiting_client || 0);
+        var bt = d.by_team || {};
+        setV('teamAtelier', bt.atelier || 0);
+        setV('teamLogistique', bt.logistique || 0);
+        setV('teamCommercial', bt.commercial || 0);
+        setV('teamCompta', bt.compta || 0);
+        setV('teamGeneral', bt.sav_general || 0);
       });
     }
     loadMiniKpis();
