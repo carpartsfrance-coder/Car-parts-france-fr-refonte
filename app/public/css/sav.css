@@ -1549,17 +1549,31 @@
   padding: 0.625rem 0.75rem;
   border-radius: 0.625rem;
   background: transparent;
+  border: 0;
   color: var(--sav-slate-500);
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   text-align: left;
-  transition: background-color 150ms, color 150ms;
+  transition: color 150ms;
   cursor: default;
+  pointer-events: none; /* items status non-cliquables par défaut */
 }
-.sav-sidebar__item.is-clickable .sav-sidebar__btn { cursor: pointer; }
-.sav-sidebar__item.is-clickable .sav-sidebar__btn:hover { background: var(--sav-slate-50); color: var(--sav-dark); }
+.sav-sidebar__btn:focus { outline: none; }
+/* Seules les étapes passées (is-done) sont cliquables */
+.sav-sidebar__item.is-done .sav-sidebar__btn,
+.sav-sidebar__item.is-clickable .sav-sidebar__btn {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.sav-sidebar__item.is-done .sav-sidebar__btn:hover {
+  color: var(--sav-primary);
+}
+.sav-sidebar__item.is-done .sav-sidebar__btn:hover .sav-sidebar__icon-main {
+  transform: translateX(-2px);
+  transition: transform 150ms ease;
+}
 .sav-sidebar__icon {
   flex-shrink: 0;
   width: 22px; height: 22px;
@@ -1580,7 +1594,7 @@
 .sav-sidebar__item.is-current .sav-sidebar__btn {
   background: var(--sav-primary);
   color: #fff !important;
-  box-shadow: 0 10px 28px -12px rgba(236, 19, 19, 0.45);
+  /* pas de shadow ni hover : c'est un indicateur d'état, pas un bouton */
 }
 .sav-sidebar__item.is-current .sav-sidebar__icon { color: #fff !important; }
 .sav-sidebar__item.is-current .sav-sidebar__label,
