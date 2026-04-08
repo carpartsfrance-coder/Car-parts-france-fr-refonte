@@ -266,7 +266,7 @@
             <div class="mt-2 space-y-2">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="reglageBase" value="oui" class="text-primary focus:ring-primary">
-                <span>Oui, le garage a effectué le réglage de base</span>
+                <span>Oui</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="reglageBase" value="non" class="text-primary focus:ring-primary">
@@ -276,33 +276,6 @@
                 <input type="radio" name="reglageBase" value="inconnu" class="text-primary focus:ring-primary">
                 <span>Je ne sais pas</span>
               </label>
-            </div>
-
-            <!-- Encart pédagogique (visible si non / inconnu) -->
-            <div id="reglageBaseHelp" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-3">
-              <div class="font-semibold flex items-center gap-2">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-                Pourquoi le réglage de base est indispensable
-              </div>
-              <p>Le réglage de base est obligatoire. Sans lui, on ne peut pas traiter votre dossier. <strong>9 retours sur 10 sans réglage de base ne sont pas couverts en garantie.</strong></p>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <a href="https://www.youtube.com/results?search_query=VCDS+r%C3%A9glage+de+base+m%C3%A9catronique+DQ200" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
-                  ▶ Voir un tuto VCDS
-                </a>
-                <a href="https://www.google.com/maps/search/garage+specialiste+vag+VCDS+pres+de+chez+moi" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
-                  📍 Trouver un garage VAG
-                </a>
-                <a href="https://wa.me/33000000000" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
-                  💬 SAV WhatsApp
-                </a>
-              </div>
-              <button type="button" id="sav-pause-draft-btn" class="w-full text-sm font-semibold rounded-lg bg-amber-700 text-white px-4 py-2 hover:bg-amber-800">
-                J'ai fait le réglage de base, je reviens
-              </button>
-            </div>
-
-            <div id="reglageBaseAlert" class="mt-3 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-              <strong>Confirmation requise.</strong> Cochez "Oui" une fois le réglage effectué pour pouvoir continuer.
             </div>
           </fieldset>
         </div>

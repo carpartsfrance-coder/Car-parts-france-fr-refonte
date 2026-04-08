@@ -283,15 +283,7 @@
       check('dateMontage');
       check('garageNom');
       var rb = (form.querySelector('input[name="reglageBase"]:checked') || {}).value || '';
-      var alert = document.getElementById('reglageBaseAlert');
-      var help = document.getElementById('reglageBaseHelp');
-      if (help) help.classList.toggle('hidden', !(rb === 'non' || rb === 'inconnu'));
-      if (rb !== 'oui') {
-        if (alert) alert.classList.remove('hidden');
-        ok = false;
-      } else {
-        if (alert) alert.classList.add('hidden');
-      }
+      if (!rb) { ok = false; }
     }
     if (step === 3) {
       check('description');
@@ -605,22 +597,6 @@
       var b = document.getElementById('sav-manual-block');
       if (b) b.classList.toggle('hidden');
     });
-  });
-
-  // ----------------- Réglage de base : affichage du bloc d'aide -----------------
-  form.addEventListener('change', function (e) {
-    if (e.target && e.target.name === 'reglageBase') {
-      var v = e.target.value;
-      var help = document.getElementById('reglageBaseHelp');
-      var alert = document.getElementById('reglageBaseAlert');
-      if (help) help.classList.toggle('hidden', !(v === 'non' || v === 'inconnu'));
-      if (alert && v === 'oui') alert.classList.add('hidden');
-    }
-  });
-  var pauseBtn = document.getElementById('sav-pause-draft-btn');
-  if (pauseBtn) pauseBtn.addEventListener('click', function () {
-    saveDraft();
-    toast('Brouillon sauvegardé. Revenez quand le réglage de base est fait.', 'success');
   });
 
   // ----------------- Récap (étape 6) -----------------
