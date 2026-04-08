@@ -1567,6 +1567,16 @@
   color: var(--sav-slate-400);
 }
 .sav-sidebar__icon-main { font-size: 22px; }
+.sav-sidebar__label {
+  display: inline !important;
+  margin: 0 !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: inherit !important;
+  line-height: 1.2;
+}
 .sav-sidebar__item.is-current .sav-sidebar__btn {
   background: var(--sav-primary);
   color: #fff !important;
