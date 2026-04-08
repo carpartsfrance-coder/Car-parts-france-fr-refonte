@@ -1485,6 +1485,54 @@
 .sav-tpl-del:hover { background: #f59e0b; color: #fff; }
 
 /* ====================================================================== */
+/* === Sous-sections (split visuel d'étape) ============================ */
+/* ====================================================================== */
+.sav-substep {
+  border: 1px solid var(--sav-slate-200);
+  border-radius: 0.875rem;
+  padding: 1rem 1rem 1.125rem;
+  background: #fcfcfd;
+}
+.sav-substep + .sav-substep { margin-top: 1rem; }
+.sav-substep__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px dashed var(--sav-slate-200);
+}
+.sav-substep__badge {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 9999px;
+  background: var(--sav-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.sav-substep__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--sav-dark);
+  line-height: 1.25;
+}
+.sav-substep__hint {
+  font-size: 0.75rem;
+  color: var(--sav-slate-500);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.sav-substep .grid { margin-bottom: 1rem; }
+.sav-substep .grid:last-child,
+.sav-substep > *:last-child { margin-bottom: 0; }
+
+/* Autosave indicator */
+#sav-autosave { transition: opacity 300ms ease; }
+
+/* ====================================================================== */
 /* === MOBILE UX OPTIMISATIONS (≤ 768px) ================================ */
 /* ====================================================================== */
 @media (max-width: 768px) {

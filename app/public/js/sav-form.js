@@ -112,8 +112,30 @@
         }
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      pingAutosave();
     } catch (_) {}
   }
+
+  // Indicateur "Brouillon enregistré il y a X"
+  var lastSaveAt = 0;
+  function pingAutosave() {
+    lastSaveAt = Date.now();
+    var el = document.getElementById('sav-autosave');
+    var lb = document.getElementById('sav-autosave-label');
+    if (!el || !lb) return;
+    el.style.opacity = '1';
+    lb.textContent = 'Brouillon enregistré';
+  }
+  setInterval(function () {
+    if (!lastSaveAt) return;
+    var el = document.getElementById('sav-autosave');
+    var lb = document.getElementById('sav-autosave-label');
+    if (!el || !lb) return;
+    var s = Math.floor((Date.now() - lastSaveAt) / 1000);
+    if (s < 3) lb.textContent = 'Brouillon enregistré';
+    else if (s < 60) lb.textContent = 'Enregistré il y a ' + s + ' s';
+    else lb.textContent = 'Enregistré il y a ' + Math.floor(s / 60) + ' min';
+  }, 5000);
   function restoreDraft() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
