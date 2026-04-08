@@ -1,0 +1,9 @@
+2026-04-07T19:53:44.281Z SEND piece_recue_atelier → killian.belabbes@gmail.com ticket=SAV-2026-0002 ok=false
+2026-04-07T19:58:52.324Z SEND analyse_pas_de_defaut → killian.belabbes@gmail.com ticket=SAV-2026-0002 ok=false
+2026-04-07T20:07:49.518Z NOOP statut=analyse_terminee ticket=SAV-2026-0002 (pas de template)
+2026-04-07T20:08:03.817Z NOOP statut=analyse_terminee ticket=SAV-2026-0002 (pas de template)
+2026-04-07T20:08:05.153Z SEND analyse_en_cours → killian.belabbes@gmail.com ticket=SAV-2026-0002 ok=false
+2026-04-07T20:51:55.497Z NOOP statut=analyse_terminee ticket=SAV-2026-0002 (pas de template)
+2026-04-07T20:52:05.047Z NOOP statut=analyse_terminee ticket=SAV-2026-0002 (pas de template)
+2026-04-07T20:52:19.036Z SEND satisfaction → killian.belabbes@gmail.com ticket=SAV-2026-0002
+2026-04-07T20:52:19.037Z NOOP statut=clos ticket=SAV-2026-0002 (pas de template)

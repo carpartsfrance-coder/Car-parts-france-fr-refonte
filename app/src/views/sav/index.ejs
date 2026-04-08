@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/sav.css?v=4">
+<link rel="stylesheet" href="/css/sav.css?v=7">
 <%- include('../partials/header') %>
 
 <a href="#sav-form" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">
@@ -68,6 +68,21 @@
       <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
         <div id="sav-mobile-bar" class="h-full bg-primary transition-all" style="width: 17%"></div>
       </div>
+    </div>
+
+    <!-- Mini bandeau confiance + autosave -->
+    <div class="flex items-center justify-between gap-2 mb-4 text-[11px] sm:text-xs text-slate-500">
+      <span class="inline-flex items-center gap-1">
+        <span class="material-symbols-rounded text-[14px]" aria-hidden="true">lock</span>
+        Données chiffrées
+        <span class="mx-1 text-slate-300">·</span>
+        <span class="material-symbols-rounded text-[14px]" aria-hidden="true">schedule</span>
+        ~3 min
+      </span>
+      <span id="sav-autosave" class="inline-flex items-center gap-1 opacity-0 transition-opacity" aria-live="polite">
+        <span class="material-symbols-rounded text-[14px] text-emerald-600" aria-hidden="true">cloud_done</span>
+        <span id="sav-autosave-label">Brouillon enregistré</span>
+      </span>
     </div>
 
     <div id="sav-restore-banner" class="hidden mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 flex items-start gap-2">
@@ -169,7 +184,7 @@
           <div class="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-slate-700 flex items-center gap-2">
             <span class="material-symbols-rounded text-primary" aria-hidden="true">account_circle</span>
             <span>Vous avez un compte&nbsp;?
-              <a href="/compte/connexion?redirect=%2Fsav" class="font-semibold text-primary underline">Connectez-vous</a>
+              <a href="/compte/connexion?returnTo=%2Fsav" class="font-semibold text-primary underline">Connectez-vous</a>
               pour retrouver vos commandes automatiquement.</span>
           </div>
           <p class="text-sm text-slate-600 mb-4">Indiquez l'email utilisé lors de l'achat et votre numéro de commande.</p>
@@ -211,16 +226,19 @@
             <label for="pieceType" class="block text-sm font-medium text-slate-700 mb-1">Type de pièce</label>
             <select id="pieceType" name="pieceType" required class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] bg-white">
               <option value="">— Sélectionner —</option>
-              <option value="mecatronique_dq200">Mécatronique DQ200</option>
-              <option value="mecatronique_dq250">Mécatronique DQ250</option>
-              <option value="mecatronique_dq381">Mécatronique DQ381</option>
-              <option value="mecatronique_dq500">Mécatronique DQ500</option>
+              <option value="mecatronique">Mécatronique DSG</option>
               <option value="boite_transfert">Boîte de transfert</option>
+              <option value="boite_vitesses">Boîte de vitesses</option>
+              <option value="moteur">Moteur</option>
               <option value="pont">Pont</option>
               <option value="differentiel">Différentiel</option>
               <option value="haldex">Haldex</option>
               <option value="reducteur">Réducteur</option>
+              <option value="arbre_transmission">Arbre de transmission</option>
               <option value="cardan">Cardan</option>
+              <option value="visco_coupleur">Visco-coupleur</option>
+              <option value="turbo">Turbo</option>
+              <option value="injecteur">Injecteur</option>
               <option value="autre">Autre</option>
             </select>
             <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="pieceType"></p>
@@ -248,7 +266,7 @@
             <div class="mt-2 space-y-2">
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="reglageBase" value="oui" class="text-primary focus:ring-primary">
-                <span>Oui, le garage a effectué le réglage de base</span>
+                <span>Oui</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="reglageBase" value="non" class="text-primary focus:ring-primary">
@@ -258,33 +276,6 @@
                 <input type="radio" name="reglageBase" value="inconnu" class="text-primary focus:ring-primary">
                 <span>Je ne sais pas</span>
               </label>
-            </div>
-
-            <!-- Encart pédagogique (visible si non / inconnu) -->
-            <div id="reglageBaseHelp" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-3">
-              <div class="font-semibold flex items-center gap-2">
-                <span class="material-symbols-rounded" aria-hidden="true">info</span>
-                Pourquoi le réglage de base est indispensable
-              </div>
-              <p>Le réglage de base est obligatoire. Sans lui, on ne peut pas traiter votre dossier. <strong>9 retours sur 10 sans réglage de base ne sont pas couverts en garantie.</strong></p>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <a href="https://www.youtube.com/results?search_query=VCDS+r%C3%A9glage+de+base+m%C3%A9catronique+DQ200" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
-                  ▶ Voir un tuto VCDS
-                </a>
-                <a href="https://www.google.com/maps/search/garage+specialiste+vag+VCDS+pres+de+chez+moi" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
-                  📍 Trouver un garage VAG
-                </a>
-                <a href="https://wa.me/33000000000" target="_blank" rel="noopener" class="block text-center text-xs font-semibold rounded-lg border border-amber-300 bg-white px-3 py-2 hover:bg-amber-50">
-                  💬 SAV WhatsApp
-                </a>
-              </div>
-              <button type="button" id="sav-pause-draft-btn" class="w-full text-sm font-semibold rounded-lg bg-amber-700 text-white px-4 py-2 hover:bg-amber-800">
-                J'ai fait le réglage de base, je reviens
-              </button>
-            </div>
-
-            <div id="reglageBaseAlert" class="mt-3 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-              <strong>Confirmation requise.</strong> Cochez "Oui" une fois le réglage effectué pour pouvoir continuer.
             </div>
           </fieldset>
         </div>
@@ -351,29 +342,18 @@
 
       <!-- ============== ÉTAPE 4 : Documents + véhicule ============== -->
       <section class="sav-form-step sav-status-card" data-step="4" aria-labelledby="step4-title" hidden>
-        <h2 id="step4-title" class="text-lg font-semibold mb-1">4. Documents et véhicule</h2>
-        <p class="text-sm text-slate-600 mb-4">Ces documents sont obligatoires pour ouvrir votre dossier.</p>
+        <h2 id="step4-title" class="text-lg font-semibold mb-1">4. Votre véhicule &amp; vos documents</h2>
+        <p class="text-sm text-slate-600 mb-5">Deux petites sections : on commence par l'identité du véhicule, puis les justificatifs.</p>
 
-        <!-- Drop unique -->
-        <div class="space-y-4">
-          <div>
-            <div class="block text-sm font-medium text-slate-700 mb-1">Vos fichiers (facture, photos pièce, photo OBD, photo compteur, bon garantie)</div>
-            <div id="sav-drop" class="sav-drop" tabindex="0" aria-label="Zone de dépôt de fichiers">
-              <input id="sav-file-input" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/heic,image/heif" class="sr-only">
-              <span class="material-symbols-rounded text-4xl text-primary" aria-hidden="true">cloud_upload</span>
-              <div class="mt-1 text-sm font-semibold text-slate-700">Glissez vos fichiers ici ou cliquez pour parcourir</div>
-              <div class="text-xs text-slate-500">PDF, JPG, PNG, HEIC · 10 Mo max par fichier · 5 fichiers max</div>
+        <!-- ===== Sous-section 4A : VÉHICULE ===== -->
+        <div class="sav-substep mb-6">
+          <div class="sav-substep__header">
+            <span class="sav-substep__badge">A</span>
+            <div>
+              <div class="sav-substep__title">Véhicule concerné</div>
+              <div class="sav-substep__hint">VIN <em>ou</em> plaque suffit — les autres champs accélèrent le traitement.</div>
             </div>
-            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="files"></p>
-            <ul id="sav-file-list" class="mt-3 space-y-2"></ul>
           </div>
-
-          <!-- Catégorisation rapide après dépôt : pour chaque fichier on tagge son "kind" -->
-          <p class="text-xs text-slate-500">Vous pourrez catégoriser chaque fichier (facture / photo pièce / OBD / compteur / bon garantie) directement dans la liste ci-dessus.</p>
-
-          <hr class="border-slate-200">
-
-          <p class="text-sm text-slate-700"><strong>Véhicule.</strong> VIN <em>ou</em> plaque suffit ; les autres champs sont optionnels mais accélèrent le traitement.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label for="vin" class="block text-sm font-medium text-slate-700 mb-1">VIN (17 caractères)</label>
@@ -411,6 +391,51 @@
             <input id="kilometrage" name="kilometrage" type="number" min="0" max="1500000" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base" placeholder="ex: 145000">
           </div>
         </div>
+        <!-- /Sous-section 4A -->
+
+        <!-- ===== Sous-section 4B : DOCUMENTS ===== -->
+        <div class="sav-substep">
+          <div class="sav-substep__header">
+            <span class="sav-substep__badge">B</span>
+            <div>
+              <div class="sav-substep__title">Documents justificatifs</div>
+              <div class="sav-substep__hint">Ces 4 pièces sont obligatoires pour ouvrir votre dossier.</div>
+            </div>
+          </div>
+
+          <ul id="sav-docs-checklist" class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+            <li data-doc="factureMontage" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+              <span>Facture du garage</span>
+            </li>
+            <li data-doc="photoPiece" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+              <span>Photo de la pièce défectueuse</span>
+            </li>
+            <li data-doc="photoObd" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+              <span>Photo valise diagnostic (OBD)</span>
+            </li>
+            <li data-doc="photoCompteur" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
+              <span>Photo du compteur kilométrique</span>
+            </li>
+          </ul>
+
+          <div id="sav-drop" class="sav-drop" tabindex="0" aria-label="Zone de dépôt de fichiers">
+            <input id="sav-file-input" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/heic,image/heif" class="sr-only">
+            <span class="material-symbols-rounded text-4xl text-primary" aria-hidden="true">cloud_upload</span>
+            <div class="mt-1 text-sm font-semibold text-slate-700">Glissez vos fichiers ici ou cliquez pour parcourir</div>
+            <div class="text-xs text-slate-500">PDF, JPG, PNG, HEIC · 10 Mo max · 5 fichiers max</div>
+          </div>
+          <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="files"></p>
+          <ul id="sav-file-list" class="mt-3 space-y-2"></ul>
+          <p class="mt-2 text-xs text-slate-500 flex items-start gap-1.5">
+            <span class="material-symbols-rounded text-sm text-slate-400 mt-px" aria-hidden="true">info</span>
+            <span>Après l'ajout, sélectionnez la catégorie de chaque fichier dans le menu déroulant à droite de son nom.</span>
+          </p>
+        </div>
+        <!-- /Sous-section 4B -->
 
         <div class="mt-6 flex items-center justify-between gap-2">
           <button type="button" data-action="prev" class="text-slate-600 hover:text-slate-900 font-medium">← Retour</button>

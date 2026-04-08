@@ -1,9 +1,23 @@
 const express = require('express');
+const multer = require('multer');
 
 const accountController = require('../controllers/accountController');
 const accountSavController = require('../controllers/accountSavController');
 
 const router = express.Router();
+
+// Multer pour pièces jointes côté client (5 fichiers, 10 Mo)
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const clientUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME.indexOf(file.mimetype) === -1) {
+      return cb(new Error('Format non autorisé'));
+    }
+    cb(null, true);
+  },
+});
 
 function requireAuth(req, res, next) {
   if (req.session && req.session.user) return next();
@@ -52,7 +66,15 @@ router.get('/garage', requireAuth, accountController.getGaragePage);
 // SAV — espace client
 router.get('/sav', requireAuth, accountSavController.getSavList);
 router.get('/sav/:numero', requireAuth, accountSavController.getSavDetail);
-router.post('/sav/:numero/messages', requireAuth, accountSavController.postSavMessage);
+router.post(
+  '/sav/:numero/messages',
+  requireAuth,
+  (req, res, next) => clientUpload.array('attachments', 5)(req, res, (err) => {
+    if (err) return res.redirect(`/compte/sav/${encodeURIComponent(req.params.numero)}?error=upload`);
+    next();
+  }),
+  accountSavController.postSavMessage,
+);
 
 // RGPD
 router.get('/rgpd', requireAuth, accountSavController.getRgpdPage);

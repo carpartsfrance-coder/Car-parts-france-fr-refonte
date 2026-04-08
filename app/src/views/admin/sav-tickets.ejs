@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/sav.css">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
-<main class="flex-1 lg:pl-72 sav-module" data-sav-token="<%= savApiToken %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
+<main class="flex-1 sav-module" data-sav-token="<%= savApiToken %>" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
   <div class="px-6 lg:px-10 py-6">
 
     <div class="flex items-start justify-between gap-4 mb-4">
@@ -15,6 +15,7 @@
           <span class="material-symbols-outlined mr-1 text-base">add</span>Nouveau ticket
         </button>
         <a id="sav-export-csv" href="#" class="btn btn-secondary" aria-label="Exporter les tickets en CSV"><span class="material-symbols-outlined mr-1 text-base" aria-hidden="true">download</span>Exporter CSV</a>
+        <a href="/admin/sav/procedures" class="btn btn-secondary"><span class="material-symbols-outlined mr-1 text-base">menu_book</span>Procédures</a>
         <a href="/admin/sav" class="btn btn-secondary">← Tableau de bord</a>
       </div>
     </div>
@@ -41,10 +42,40 @@
         <div class="sav-mini-kpi__icon bg-red-100 text-red-700"><span class="material-symbols-outlined text-base">warning</span></div>
         <div><div class="sav-mini-kpi__value" data-mini-kpi="slaDepasse">—</div><div class="sav-mini-kpi__label">SLA dépassé</div></div>
       </button>
+      <button type="button" data-mini-kpi-filter="awaitingClient=true" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-rose-100 text-rose-700"><span class="material-symbols-outlined text-base">mark_unread_chat_alt</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="awaitingClient">—</div><div class="sav-mini-kpi__label">Réponse client</div></div>
+      </button>
+    </div>
+
+    <!-- KPI par équipe -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+      <button type="button" data-mini-kpi-filter="assignedTeam=atelier" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-rose-100 text-rose-700"><span class="text-base">🔧</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamAtelier">—</div><div class="sav-mini-kpi__label">Atelier</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=logistique" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-amber-100 text-amber-700"><span class="text-base">📦</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamLogistique">—</div><div class="sav-mini-kpi__label">Logistique</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=commercial" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-blue-100 text-blue-700"><span class="text-base">💼</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamCommercial">—</div><div class="sav-mini-kpi__label">Commercial</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=compta" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-emerald-100 text-emerald-700"><span class="text-base">💰</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamCompta">—</div><div class="sav-mini-kpi__label">Compta</div></div>
+      </button>
+      <button type="button" data-mini-kpi-filter="assignedTeam=sav_general" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-slate-100 text-slate-700"><span class="text-base">🎧</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="teamGeneral">—</div><div class="sav-mini-kpi__label">SAV général</div></div>
+      </button>
     </div>
 
     <!-- Filtres + recherche -->
     <form id="sav-filters" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+      <input type="hidden" name="awaitingClient">
+      <input type="hidden" name="sla_depasse">
       <div class="lg:col-span-2 relative">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
         <input id="sav-search" type="text" name="search" placeholder="N°, email, VIN, plaque…" autocomplete="off"
@@ -95,6 +126,27 @@
           <% }); %>
         </div>
       </div>
+      <select name="motifSav" id="sav-filter-motif" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <option value="">Tous motifs</option>
+        <option value="piece_defectueuse">🔧 Pièce défectueuse</option>
+        <option value="retard_livraison">🚚 Retard livraison</option>
+        <option value="colis_abime">📦 Colis abîmé</option>
+        <option value="colis_non_recu">📭 Colis non reçu</option>
+        <option value="erreur_preparation">🔀 Erreur préparation</option>
+        <option value="retractation">↩️ Rétractation</option>
+        <option value="non_compatible">❌ Non compatible</option>
+        <option value="facture_document">📄 Facture/document</option>
+        <option value="remboursement">💳 Remboursement</option>
+        <option value="autre">❓ Autre</option>
+      </select>
+      <select name="assignedTeam" id="sav-filter-team" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <option value="">Toutes équipes</option>
+        <option value="atelier">🔧 Atelier</option>
+        <option value="logistique">📦 Logistique</option>
+        <option value="commercial">💼 Commercial</option>
+        <option value="compta">💰 Compta</option>
+        <option value="sav_general">🎧 SAV général</option>
+      </select>
       <select name="assignedToUserId" id="sav-filter-assignee" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
         <option value="">Assigné : tous</option>
         <option value="__none__">Non assigné</option>
@@ -276,5 +328,5 @@
 </div>
 
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=11" defer></script>
+<script src="/js/sav-admin.js?v=17" defer></script>
 <%- include('./partials/footer') %>

@@ -5,6 +5,8 @@ const multer = require('multer');
 const SavTicket = require('../../models/SavTicket');
 const SavSettings = require('../../models/SavSettings');
 const AdminUser = require('../../models/AdminUser');
+const Order = require('../../models/Order');
+const SavProcedure = require('../../models/SavProcedure');
 const AuditLog = require('../../models/AuditLog');
 const audit = require('../../services/auditLogger');
 
@@ -145,7 +147,36 @@ publicRouter.post('/tickets', async (req, res) => {
       return fail(res, 'client.email requis');
     }
     if (!body.client.nom) body.client.nom = body.client.email.split('@')[0];
-    if (!body.pieceType) return fail(res, 'pieceType requis');
+    // motifSav par défaut = piece_defectueuse (rétro-compat avec wizard existant)
+    const motifSav = body.motifSav || 'piece_defectueuse';
+    if (motifSav === 'piece_defectueuse' && !body.pieceType) return fail(res, 'pieceType requis');
+
+    // Détection de doublon : même commande + même email + ticket non clôturé
+    if (body.numeroCommande && !body.forceNew) {
+      const CLOSED_STATUSES = ['clos', 'clos_sans_reponse', 'refuse', 'resolu_garantie', 'resolu_facture'];
+      const existing = await SavTicket.findOne({
+        numeroCommande: body.numeroCommande,
+        'client.email': body.client.email,
+        statut: { $nin: CLOSED_STATUSES },
+      })
+        .select('numero statut motifSav createdAt')
+        .lean();
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          error: 'duplicate',
+          message: 'Un ticket existe déjà sur cette commande.',
+          data: {
+            existingTicket: {
+              numero: existing.numero,
+              statut: existing.statut,
+              motifSav: existing.motifSav,
+              createdAt: existing.createdAt,
+            },
+          },
+        });
+      }
+    }
 
     const clientIp =
       (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
@@ -155,6 +186,7 @@ publicRouter.post('/tickets', async (req, res) => {
     const userAgent = (req.headers['user-agent'] || '').toString().slice(0, 500);
 
     const ticket = new SavTicket({
+      motifSav,
       pieceType: body.pieceType,
       referencePiece: body.referencePiece,
       numeroSerie: body.numeroSerie,
@@ -345,6 +377,13 @@ adminRouter.get('/tickets', async (req, res) => {
       const arr = String(req.query.pieceType).split(',').filter(Boolean);
       q.pieceType = arr.length > 1 ? { $in: arr } : arr[0];
     }
+    if (req.query.motifSav) {
+      const arr = String(req.query.motifSav).split(',').filter(Boolean);
+      q.motifSav = arr.length > 1 ? { $in: arr } : arr[0];
+    }
+    if (req.query.assignedTeam) {
+      q.assignedTeam = req.query.assignedTeam;
+    }
     if (req.query.assignedToUserId) {
       if (req.query.assignedToUserId === '__none__') {
         q.assignedToUserId = { $in: [null, undefined] };
@@ -355,6 +394,18 @@ adminRouter.get('/tickets', async (req, res) => {
     if (req.query.sla_depasse === 'true') {
       q['sla.dateLimite'] = { $lt: new Date() };
       q.statut = q.statut || { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'] };
+    }
+    // Réponse client en attente : un message client posté après la dernière lecture admin
+    if (req.query.awaitingClient === 'true') {
+      q.$expr = {
+        $and: [
+          { $ne: ['$lastClientMessageAt', null] },
+          { $or: [
+            { $eq: ['$lastAdminReadAt', null] },
+            { $gt: ['$lastClientMessageAt', '$lastAdminReadAt'] },
+          ] },
+        ],
+      };
     }
     if (req.query.search) {
       const s = String(req.query.search).trim();
@@ -451,6 +502,37 @@ adminRouter.get('/team', async (req, res) => {
       .sort({ firstName: 1 })
       .lean();
     return ok(res, { users });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/tickets/:numero/order-context — détails commande liée
+adminRouter.get('/tickets/:numero/order-context', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero }).select('numeroCommande').lean();
+    if (!ticket || !ticket.numeroCommande) return ok(res, { order: null });
+    const order = await Order.findOne({ number: ticket.numeroCommande }).lean();
+    if (!order) return ok(res, { order: null, numeroCommande: ticket.numeroCommande });
+    return ok(res, {
+      order: {
+        number: order.number,
+        status: order.status,
+        createdAt: order.createdAt,
+        totalCents: order.totalCents,
+        customer: order.customer || null,
+        shippingAddress: order.shippingAddress || null,
+        items: (order.items || []).map(it => ({
+          name: it.name, sku: it.sku, optionsSummary: it.optionsSummary,
+          unitPriceCents: it.unitPriceCents, quantity: it.quantity,
+        })),
+        shipments: (order.shipments || []).map(s => ({
+          label: s.label, carrier: s.carrier, trackingNumber: s.trackingNumber,
+          document: s.document, createdAt: s.createdAt,
+        })),
+        cloningTracking: order.cloningTracking || null,
+      },
+    });
   } catch (err) {
     return fail(res, err.message, 500);
   }
@@ -652,32 +734,80 @@ adminRouter.post('/tickets/:numero/diagnostic-complet', async (req, res) => {
 
 // POST /admin/api/sav/tickets/:numero/communication — envoyer un message client (email/whatsapp/interne)
 // Note : WhatsApp non câblé dans cette release, le canal whatsapp est loggé "envoyé" uniquement
-adminRouter.post('/tickets/:numero/communication', async (req, res) => {
+adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5), async (req, res) => {
   try {
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
-    const { canal, sujet, contenu, html } = req.body || {};
+    const { canal, sujet, contenu, html, isReturnLabel } = req.body || {};
     if (!canal || !contenu) return fail(res, 'canal et contenu requis');
 
+    // Persister les PJ sur disque (et dans documentsList du ticket)
+    const savedAttachments = [];
+    const emailAttachments = [];
+    if (Array.isArray(req.files) && req.files.length) {
+      const uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', ticket.numero);
+      fs.mkdirSync(uploadDir, { recursive: true });
+      for (const f of req.files) {
+        const safeName = Date.now() + '_' + (f.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fullPath = path.join(uploadDir, safeName);
+        fs.writeFileSync(fullPath, f.buffer);
+        const url = `/uploads/sav/${ticket.numero}/${safeName}`;
+        ticket.documentsList = ticket.documentsList || [];
+        ticket.documentsList.push({
+          kind: isReturnLabel ? 'etiquette_retour' : 'piece_jointe_email',
+          url,
+          originalName: f.originalname,
+          size: f.size,
+          mime: f.mimetype,
+        });
+        savedAttachments.push({ url, name: f.originalname });
+        emailAttachments.push({
+          filename: f.originalname,
+          content: f.buffer.toString('base64'),
+          disposition: 'attachment',
+        });
+      }
+    }
+
+    let emailResult = null;
     if (canal === 'email') {
       try {
         const { sendEmail } = require('../../services/emailService');
         const stripped = String(html || contenu).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        await sendEmail({
+        emailResult = await sendEmail({
           toEmail: ticket.client && ticket.client.email,
           subject: sujet || `[SAV ${ticket.numero}]`,
           html: html || `<p>${stripped}</p>`,
           text: stripped,
+          attachments: emailAttachments.length ? emailAttachments : undefined,
         });
       } catch (e) {
         console.error('[sav-comm email]', e.message);
+        emailResult = { ok: false, reason: 'exception', message: e.message };
+      }
+      if (!emailResult || emailResult.ok !== true) {
+        const reason = emailResult && emailResult.reason || 'unknown';
+        const hint = reason === 'missing_api_key'
+          ? 'MAILERSEND_API_KEY absent dans l\'environnement serveur — ajoute-le dans app/.env'
+          : reason === 'missing_from_email'
+          ? 'MAIL_FROM_EMAIL absent dans l\'environnement serveur'
+          : reason === 'missing_to_email'
+          ? 'Le ticket n\'a pas d\'email client'
+          : reason === 'mailersend_error'
+          ? 'MailerSend a refusé l\'envoi (voir logs serveur)'
+          : 'Erreur inconnue (voir logs serveur)';
+        return fail(res, 'Email non envoyé : ' + hint, 502);
       }
     }
 
-    ticket.addMessage('admin', canal, contenu);
+    let logContenu = contenu;
+    if (savedAttachments.length) {
+      logContenu += '\n\n— Pièces jointes : ' + savedAttachments.map((a) => a.name).join(', ');
+    }
+    ticket.addMessage('admin', canal, logContenu);
     await ticket.save();
-    audit.log({ req, action: 'sav.comm.' + canal, entityType: 'sav_ticket', entityId: ticket.numero });
-    return ok(res, { numero: ticket.numero });
+    audit.log({ req, action: 'sav.comm.' + canal, entityType: 'sav_ticket', entityId: ticket.numero, after: { attachments: savedAttachments.length } });
+    return ok(res, { numero: ticket.numero, attachments: savedAttachments });
   } catch (err) {
     return fail(res, err.message, 500);
   }
@@ -1049,6 +1179,25 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
     if (!canal || !contenu) return fail(res, 'canal et contenu requis');
     ticket.addMessage(auteur || 'admin', canal, contenu);
     await ticket.save();
+
+    // Notifie le client par email à chaque réponse publique de l'admin
+    if (canal === 'email' && ticket.client && ticket.client.email) {
+      try {
+        const { sendEmail } = require('../../services/emailService');
+        const baseUrl = process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr';
+        const link = `${baseUrl}/sav/suivi/${ticket.numero}`;
+        sendEmail({
+          toEmail: ticket.client.email,
+          subject: `Réponse de notre équipe SAV — ${ticket.numero}`,
+          html: `<p>Bonjour ${(ticket.client.nom) || ''},</p>
+                 <p>Notre équipe SAV vient de vous répondre sur votre dossier <strong>${ticket.numero}</strong>.</p>
+                 <blockquote style="border-left:3px solid #cbd5e1;padding:8px 12px;color:#475569;">${String(contenu).replace(/</g, '&lt;').slice(0, 800)}</blockquote>
+                 <p><a href="${link}" style="display:inline-block;background:#ec1313;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Voir la conversation</a></p>
+                 <p style="color:#64748b;font-size:12px;">Vous pouvez répondre directement depuis votre espace SAV.</p>`,
+          text: `Notre équipe vient de vous répondre sur ${ticket.numero}. Voir : ${link}`,
+        }).catch(() => {});
+      } catch (_) {}
+    }
     return ok(res, { ok: true, count: ticket.messages.length });
   } catch (err) {
     return fail(res, err.message, 500);
@@ -1068,6 +1217,47 @@ adminRouter.post('/tickets/:numero/facturer-149', async (req, res) => {
   }
 });
 
+// POST /admin/api/sav/tickets/:numero/refund — remboursement Mollie sur la commande liée
+adminRouter.post('/tickets/:numero/refund', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    if (!ticket.numeroCommande) return fail(res, 'Aucune commande liée au ticket', 400);
+
+    const order = await Order.findOne({ number: ticket.numeroCommande });
+    if (!order) return fail(res, 'Commande introuvable', 404);
+    if (!order.molliePaymentId) return fail(res, 'Aucun paiement Mollie sur cette commande', 400);
+
+    const amountCents = parseInt(req.body && req.body.amountCents, 10);
+    if (!Number.isFinite(amountCents) || amountCents <= 0) return fail(res, 'Montant invalide', 400);
+    if (order.totalCents && amountCents > order.totalCents) return fail(res, 'Montant supérieur au total commande', 400);
+
+    const reason = (req.body && req.body.reason) || `SAV ${ticket.numero}`;
+    const mollie = require('../../services/mollie');
+    const refund = await mollie.createRefund({
+      paymentId: order.molliePaymentId,
+      amountCents,
+      description: reason,
+    });
+
+    ticket.paiements = ticket.paiements || {};
+    ticket.paiements.remboursement = {
+      status: 'effectue',
+      mollieRefundId: refund && refund.id,
+      amountCents,
+      date: new Date(),
+      reason,
+    };
+    ticket.addMessage('admin', 'interne', `Remboursement Mollie ${(amountCents / 100).toFixed(2)}€ effectué (${refund && refund.id || '-'})`);
+    await ticket.save();
+
+    audit.log({ req, action: 'sav.refund', entityType: 'sav_ticket', entityId: ticket.numero, after: { amountCents, mollieRefundId: refund && refund.id } });
+    return ok(res, { numero: ticket.numero, refund: { id: refund && refund.id, amountCents } });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
 // POST /admin/api/sav/tickets/:numero/rapport-pdf
 adminRouter.post('/tickets/:numero/rapport-pdf', async (req, res) => {
   try {
@@ -1081,6 +1271,112 @@ adminRouter.post('/tickets/:numero/rapport-pdf', async (req, res) => {
     ticket.addMessage('admin', 'interne', `Rapport PDF (${template}) généré : ${url}`);
     await ticket.save();
     return ok(res, { url, template });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// Helpers pinned notes
+const PIN_COLORS_VALID = ['amber', 'rose', 'blue', 'emerald', 'slate'];
+function extractMentions(t) {
+  const out = [];
+  const re = /@([a-zA-Z0-9_.-]{2,40})/g;
+  let m;
+  while ((m = re.exec(t)) !== null) out.push(m[1]);
+  return out;
+}
+
+// POST /admin/api/sav/tickets/:numero/pinned-notes — ajouter note épinglée
+adminRouter.post('/tickets/:numero/pinned-notes', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const texte = (req.body && req.body.texte || '').trim();
+    if (!texte) return fail(res, 'texte requis');
+    const couleur = PIN_COLORS_VALID.includes(req.body.couleur) ? req.body.couleur : 'amber';
+    const auteur = (req.user && (req.user.name || req.user.email)) || 'admin';
+    let expiresAt = null;
+    if (req.body.expiresAt) {
+      const d = new Date(req.body.expiresAt);
+      if (!isNaN(d.getTime())) expiresAt = d;
+    }
+    const mentions = extractMentions(texte);
+    ticket.pinnedNotes.push({ texte: texte.slice(0, 500), couleur, auteur, createdAt: new Date(), expiresAt, mentions });
+    await ticket.save();
+    audit.log({ req, action: 'sav.pinnedNote.add', entityType: 'sav_ticket', entityId: ticket.numero, after: { texte, couleur, mentions } });
+    // TODO: notifier les mentions via savNotifications si besoin
+    return ok(res, { pinnedNotes: ticket.pinnedNotes, deletedPinnedNotes: ticket.deletedPinnedNotes || [] });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// PATCH /admin/api/sav/tickets/:numero/pinned-notes/:noteId — éditer note
+adminRouter.patch('/tickets/:numero/pinned-notes/:noteId', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const note = ticket.pinnedNotes.id(req.params.noteId);
+    if (!note) return fail(res, 'Note introuvable', 404);
+    if (typeof req.body.texte === 'string') {
+      const t = req.body.texte.trim();
+      if (!t) return fail(res, 'texte requis');
+      note.texte = t.slice(0, 500);
+      note.mentions = extractMentions(t);
+    }
+    if (req.body.couleur && PIN_COLORS_VALID.includes(req.body.couleur)) note.couleur = req.body.couleur;
+    if (req.body.expiresAt !== undefined) {
+      if (!req.body.expiresAt) note.expiresAt = null;
+      else { const d = new Date(req.body.expiresAt); if (!isNaN(d.getTime())) note.expiresAt = d; }
+    }
+    note.updatedAt = new Date();
+    await ticket.save();
+    audit.log({ req, action: 'sav.pinnedNote.edit', entityType: 'sav_ticket', entityId: ticket.numero, after: { noteId: req.params.noteId, texte: note.texte, couleur: note.couleur } });
+    return ok(res, { pinnedNotes: ticket.pinnedNotes });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// DELETE /admin/api/sav/tickets/:numero/pinned-notes/:noteId
+adminRouter.delete('/tickets/:numero/pinned-notes/:noteId', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const note = ticket.pinnedNotes.id(req.params.noteId);
+    if (!note) return fail(res, 'Note introuvable', 404);
+    const deletedBy = (req.user && (req.user.name || req.user.email)) || 'admin';
+    ticket.deletedPinnedNotes = ticket.deletedPinnedNotes || [];
+    ticket.deletedPinnedNotes.push({
+      texte: note.texte, couleur: note.couleur, auteur: note.auteur,
+      createdAt: note.createdAt, deletedAt: new Date(), deletedBy,
+    });
+    // Cap historique à 50 pour ne pas exploser le doc
+    if (ticket.deletedPinnedNotes.length > 50) {
+      ticket.deletedPinnedNotes = ticket.deletedPinnedNotes.slice(-50);
+    }
+    ticket.pinnedNotes.pull(req.params.noteId);
+    await ticket.save();
+    audit.log({ req, action: 'sav.pinnedNote.delete', entityType: 'sav_ticket', entityId: ticket.numero, before: { noteId: req.params.noteId } });
+    return ok(res, { pinnedNotes: ticket.pinnedNotes, deletedPinnedNotes: ticket.deletedPinnedNotes });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/pinned-notes/:noteId/restore — restaurer
+adminRouter.post('/tickets/:numero/pinned-notes/:noteId/restore', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const b = req.body || {};
+    const texte = (b.texte || '').trim();
+    if (!texte) return fail(res, 'texte requis');
+    const couleur = PIN_COLORS_VALID.includes(b.couleur) ? b.couleur : 'amber';
+    const auteur = (req.user && (req.user.name || req.user.email)) || 'admin';
+    ticket.pinnedNotes.push({ texte: texte.slice(0, 500), couleur, auteur, createdAt: new Date(), mentions: extractMentions(texte) });
+    await ticket.save();
+    return ok(res, { pinnedNotes: ticket.pinnedNotes });
   } catch (err) {
     return fail(res, err.message, 500);
   }
@@ -1137,6 +1433,119 @@ adminRouter.post('/tickets/:numero/upload', upload.single('file'), async (req, r
   } catch (err) {
     return fail(res, err.message, 500);
   }
+});
+
+// ========== Bibliothèque de procédures ==========
+
+// GET /admin/api/sav/procedures?q=… — liste avec recherche optionnelle
+adminRouter.get('/procedures', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    const filter = {};
+    if (q) {
+      var rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ title: rx }, { description: rx }, { tags: rx }];
+    }
+    const items = await SavProcedure.find(filter).sort({ updatedAt: -1 }).lean();
+    return ok(res, { procedures: items });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /admin/api/sav/procedures — upload (multipart)
+adminRouter.post('/procedures', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return fail(res, 'Aucun fichier fourni');
+    var title = (req.body && req.body.title || '').trim();
+    if (!title) return fail(res, 'Titre requis');
+    var uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', '_procedures');
+    fs.mkdirSync(uploadDir, { recursive: true });
+    var safeName = Date.now() + '_' + (req.file.originalname || 'procedure.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+    fs.writeFileSync(path.join(uploadDir, safeName), req.file.buffer);
+    var url = '/uploads/sav/_procedures/' + safeName;
+    var tags = (req.body.tags || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+    var doc = await SavProcedure.create({
+      title: title,
+      description: (req.body.description || '').trim(),
+      tags: tags,
+      fileUrl: url,
+      originalName: req.file.originalname,
+      sizeBytes: req.file.size,
+      mime: req.file.mimetype,
+      createdByEmail: (req.session && req.session.admin && req.session.admin.email) || '',
+    });
+    audit.log({ req, action: 'sav.procedure.create', entityType: 'sav_procedure', entityId: String(doc._id), after: { title: title, url: url } });
+    return ok(res, { procedure: doc });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// DELETE /admin/api/sav/procedures/:id
+adminRouter.delete('/procedures/:id', async (req, res) => {
+  try {
+    var doc = await SavProcedure.findById(req.params.id);
+    if (!doc) return fail(res, 'Procédure introuvable', 404);
+    try {
+      var filePath = path.join(__dirname, '..', '..', '..', '..', doc.fileUrl.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (_) {}
+    await doc.deleteOne();
+    audit.log({ req, action: 'sav.procedure.delete', entityType: 'sav_procedure', entityId: String(doc._id), before: { title: doc.title } });
+    return ok(res, { id: req.params.id });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /admin/api/sav/tickets/:numero/send-procedure — envoie une procédure au client par email + log dans le ticket
+adminRouter.post('/tickets/:numero/send-procedure', async (req, res) => {
+  try {
+    var ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    var clientEmail = ticket.client && ticket.client.email;
+    if (!clientEmail) return fail(res, 'Aucun email client', 400);
+    var procedureId = req.body && req.body.procedureId;
+    if (!procedureId) return fail(res, 'procedureId requis');
+    var proc = await SavProcedure.findById(procedureId);
+    if (!proc) return fail(res, 'Procédure introuvable', 404);
+
+    var customMessage = (req.body && req.body.message || '').trim();
+    var bodyText = customMessage
+      || ('Bonjour,\n\nVeuillez trouver ci-joint la procédure « ' + proc.title + ' » concernant votre dossier SAV ' + ticket.numero + '.\n\nN\'hésitez pas à nous contacter en cas de question.\n\nCordialement,\nL\'équipe Car Parts France');
+    var html = '<p>' + bodyText.replace(/\n/g, '<br>') + '</p>';
+
+    var filePath = path.join(__dirname, '..', '..', '..', '..', proc.fileUrl.replace(/^\//, ''));
+    var attachments = [];
+    try {
+      if (fs.existsSync(filePath)) {
+        var buf = fs.readFileSync(filePath);
+        attachments.push({
+          filename: proc.originalName || 'procedure.pdf',
+          content: buf.toString('base64'),
+          disposition: 'attachment',
+        });
+      }
+    } catch (_) {}
+
+    try {
+      const { sendEmail } = require('../../services/emailService');
+      await sendEmail({
+        toEmail: clientEmail,
+        subject: '[SAV ' + ticket.numero + '] Procédure : ' + proc.title,
+        html: html,
+        text: bodyText,
+        attachments: attachments,
+      });
+    } catch (e) {
+      console.error('[sav-send-procedure]', e.message);
+      return fail(res, 'Échec envoi email : ' + e.message, 500);
+    }
+
+    ticket.addMessage('admin', 'email', 'Procédure envoyée : ' + proc.title + ' (' + proc.fileUrl + ')');
+    await ticket.save();
+
+    proc.downloads = (proc.downloads || 0) + 1;
+    await proc.save();
+
+    audit.log({ req, action: 'sav.procedure.send', entityType: 'sav_ticket', entityId: ticket.numero, after: { procedureId: String(proc._id), title: proc.title } });
+    return ok(res, { numero: ticket.numero, procedure: { id: proc._id, title: proc.title } });
+  } catch (err) { return fail(res, err.message, 500); }
 });
 
 // GET /admin/api/sav/personal-templates?userId=… — favoris de l'agent
@@ -1238,6 +1647,7 @@ adminRouter.get('/dashboard', async (req, res) => {
       facturesImpayees,
       mesTickets,
       tousResolus,
+      awaitingClient,
     ] = await Promise.all([
       SavTicket.countDocuments({ statut: { $in: STATUTS_ACTIFS } }),
       SavTicket.countDocuments({ statut: { $in: ['en_attente_documents', 'relance_1', 'relance_2'] } }),
@@ -1255,6 +1665,9 @@ adminRouter.get('/dashboard', async (req, res) => {
       SavTicket.find({ statut: { $in: STATUTS_CLOS }, createdAt: { $gte: new Date(Date.now() - 365 * 24 * 3600 * 1000) } })
         .select('createdAt updatedAt statut')
         .lean(),
+      SavTicket.countDocuments({
+        $expr: { $and: [ { $ne: ['$lastClientMessageAt', null] }, { $or: [ { $eq: ['$lastAdminReadAt', null] }, { $gt: ['$lastClientMessageAt', '$lastAdminReadAt'] } ] } ] },
+      }),
     ]);
 
     // Temps moyen de résolution (jours) sur les tickets clos cette année
@@ -1315,6 +1728,22 @@ adminRouter.get('/dashboard', async (req, res) => {
       closArr.push(found ? found.clos : 0);
     }
 
+    // Compteurs par équipe (tickets actifs)
+    const byTeamAgg = await SavTicket.aggregate([
+      { $match: { statut: { $in: STATUTS_ACTIFS } } },
+      { $group: { _id: '$assignedTeam', count: { $sum: 1 } } },
+    ]);
+    const by_team = { atelier: 0, logistique: 0, commercial: 0, compta: 0, sav_general: 0 };
+    byTeamAgg.forEach((g) => { if (g._id && by_team[g._id] !== undefined) by_team[g._id] = g.count; });
+
+    // Compteurs par motif
+    const byMotifAgg = await SavTicket.aggregate([
+      { $match: { statut: { $in: STATUTS_ACTIFS } } },
+      { $group: { _id: '$motifSav', count: { $sum: 1 } } },
+    ]);
+    const by_motif = {};
+    byMotifAgg.forEach((g) => { if (g._id) by_motif[g._id] = g.count; });
+
     return ok(res, {
       ouverts: ouverts || 0,
       en_attente_doc: enAttenteDoc || 0,
@@ -1327,6 +1756,9 @@ adminRouter.get('/dashboard', async (req, res) => {
       avg_resolution_days: avgResolutionDays,
       sav_recurrents: savRecurrents,
       mes_tickets: mesTickets || 0,
+      awaiting_client: awaitingClient || 0,
+      by_team,
+      by_motif,
       chart: { labels, ouverts: ouvertsArr, clos: closArr },
     });
   } catch (err) {

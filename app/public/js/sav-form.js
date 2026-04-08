@@ -112,8 +112,30 @@
         }
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      pingAutosave();
     } catch (_) {}
   }
+
+  // Indicateur "Brouillon enregistré il y a X"
+  var lastSaveAt = 0;
+  function pingAutosave() {
+    lastSaveAt = Date.now();
+    var el = document.getElementById('sav-autosave');
+    var lb = document.getElementById('sav-autosave-label');
+    if (!el || !lb) return;
+    el.style.opacity = '1';
+    lb.textContent = 'Brouillon enregistré';
+  }
+  setInterval(function () {
+    if (!lastSaveAt) return;
+    var el = document.getElementById('sav-autosave');
+    var lb = document.getElementById('sav-autosave-label');
+    if (!el || !lb) return;
+    var s = Math.floor((Date.now() - lastSaveAt) / 1000);
+    if (s < 3) lb.textContent = 'Brouillon enregistré';
+    else if (s < 60) lb.textContent = 'Enregistré il y a ' + s + ' s';
+    else lb.textContent = 'Enregistré il y a ' + Math.floor(s / 60) + ' min';
+  }, 5000);
   function restoreDraft() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -261,15 +283,7 @@
       check('dateMontage');
       check('garageNom');
       var rb = (form.querySelector('input[name="reglageBase"]:checked') || {}).value || '';
-      var alert = document.getElementById('reglageBaseAlert');
-      var help = document.getElementById('reglageBaseHelp');
-      if (help) help.classList.toggle('hidden', !(rb === 'non' || rb === 'inconnu'));
-      if (rb !== 'oui') {
-        if (alert) alert.classList.remove('hidden');
-        ok = false;
-      } else {
-        if (alert) alert.classList.add('hidden');
-      }
+      if (!rb) { ok = false; }
     }
     if (step === 3) {
       check('description');
@@ -291,13 +305,29 @@
       // Documents : facture + photo pièce + photo OBD + photo compteur obligatoires
       var hasKinds = {};
       droppedFiles.forEach(function (f) { hasKinds[f.kind] = true; });
-      var missing = [];
-      if (!hasKinds.factureMontage) missing.push('facture garage');
-      if (!hasKinds.photoPiece) missing.push('photo de la pièce');
-      if (!hasKinds.photoObd) missing.push('photo OBD');
-      if (!hasKinds.photoCompteur) missing.push('photo du compteur');
+      var REQ = [
+        { k: 'factureMontage', l: 'Facture du garage' },
+        { k: 'photoPiece',     l: 'Photo de la pièce' },
+        { k: 'photoObd',       l: 'Photo OBD' },
+        { k: 'photoCompteur',  l: 'Photo du compteur' },
+      ];
+      // MAJ checklist visuelle
+      REQ.forEach(function (r) {
+        var li = document.querySelector('#sav-docs-checklist [data-doc="' + r.k + '"]');
+        if (!li) return;
+        var done = !!hasKinds[r.k];
+        li.classList.toggle('bg-emerald-50', done);
+        li.classList.toggle('border-emerald-300', done);
+        li.classList.toggle('text-emerald-800', done);
+        li.classList.toggle('bg-slate-50', !done);
+        li.classList.toggle('border-slate-200', !done);
+        li.classList.toggle('text-slate-600', !done);
+        var ic = li.querySelector('.material-symbols-rounded');
+        if (ic) ic.textContent = done ? 'check_circle' : 'radio_button_unchecked';
+      });
+      var missing = REQ.filter(function (r) { return !hasKinds[r.k]; }).map(function (r) { return r.l; });
       if (missing.length) {
-        setError('files', 'Manque : ' + missing.join(', ') + '. Ajoutez et catégorisez les fichiers.');
+        setError('files', 'Il manque encore : ' + missing.join(', ') + '. Ajoutez le(s) fichier(s) puis choisissez leur catégorie dans le menu à droite.');
         ok = false;
       } else setError('files', '');
     }
@@ -569,22 +599,6 @@
     });
   });
 
-  // ----------------- Réglage de base : affichage du bloc d'aide -----------------
-  form.addEventListener('change', function (e) {
-    if (e.target && e.target.name === 'reglageBase') {
-      var v = e.target.value;
-      var help = document.getElementById('reglageBaseHelp');
-      var alert = document.getElementById('reglageBaseAlert');
-      if (help) help.classList.toggle('hidden', !(v === 'non' || v === 'inconnu'));
-      if (alert && v === 'oui') alert.classList.add('hidden');
-    }
-  });
-  var pauseBtn = document.getElementById('sav-pause-draft-btn');
-  if (pauseBtn) pauseBtn.addEventListener('click', function () {
-    saveDraft();
-    toast('Brouillon sauvegardé. Revenez quand le réglage de base est fait.', 'success');
-  });
-
   // ----------------- Récap (étape 6) -----------------
   function val(id) { var el = document.getElementById(id); return el ? (el.value || '') : ''; }
   function buildRecap() {
@@ -745,6 +759,7 @@
     var numeroCmd = val('numeroCommande').trim() || (radio && radio.value) || val('numeroCommandeManual').trim();
 
     var payload = {
+      motifSav: 'piece_defectueuse',
       pieceType: val('pieceType'),
       numeroCommande: numeroCmd,
       dateAchat: orderInfo && orderInfo.dateCommande,
