@@ -117,13 +117,13 @@
               <p class="text-[10px] text-slate-400">Réponse rapide</p>
             </div>
           </a>
-          <a class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="https://sav.carpartsfrance.fr" rel="noopener noreferrer" target="_blank">
+          <a class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="<%= (locals.currentUser ? '/compte/sav' : '/sav/suivi') %>">
             <span class="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-primary shrink-0">
               <span class="material-symbols-outlined text-lg">support_agent</span>
             </span>
             <div>
-              <p class="text-sm font-semibold text-slate-900 dark:text-white">SAV</p>
-              <p class="text-[10px] text-slate-400">sav.carpartsfrance.fr</p>
+              <p class="text-sm font-semibold text-slate-900 dark:text-white">Suivre mon SAV</p>
+              <p class="text-[10px] text-slate-400">Conversation &amp; statut</p>
             </div>
           </a>
         </div>

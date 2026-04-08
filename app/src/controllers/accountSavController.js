@@ -55,6 +55,9 @@ exports.getSavDetail = async (req, res) => {
       numero,
       'client.email': (user.email || '').toLowerCase(),
     }).lean();
+    if (ticket) {
+      SavTicket.updateOne({ _id: ticket._id }, { $set: { lastClientReadAt: new Date() } }).catch(() => {});
+    }
   } catch (e) {
     console.error('[compte/sav] detail', e.message);
   }
@@ -64,6 +67,8 @@ exports.getSavDetail = async (req, res) => {
     currentUser: user,
     ticket,
     STATUTS_LABELS,
+    sent: req.query.sent === '1',
+    error: req.query.error || null,
   });
 };
 
@@ -81,6 +86,20 @@ exports.postSavMessage = async (req, res) => {
     if (!ticket) return res.status(404).redirect('/compte/sav?error=notfound');
     ticket.addMessage('client', 'email', contenu);
     await ticket.save();
+
+    // Notif équipe SAV (fire-and-forget)
+    try {
+      const { sendEmail } = require('../services/emailService');
+      const to = process.env.SAV_INTERNAL_EMAIL || 'carparts.france@gmail.com';
+      const link = `${process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr'}/admin/sav/tickets/${ticket.numero}`;
+      sendEmail({
+        toEmail: to,
+        subject: `[SAV] Nouvelle réponse client — ${ticket.numero}`,
+        html: `<p>Nouvelle réponse de <strong>${user.email}</strong> sur le ticket <strong>${ticket.numero}</strong>.</p><blockquote>${contenu.replace(/</g, '&lt;')}</blockquote><p><a href="${link}">Ouvrir le ticket</a></p>`,
+        text: `Nouvelle réponse client sur ${ticket.numero} : ${contenu}`,
+      }).catch(() => {});
+    } catch (_) {}
+
     return res.redirect(`/compte/sav/${encodeURIComponent(numero)}?sent=1`);
   } catch (e) {
     console.error('[compte/sav] postMessage', e.message);

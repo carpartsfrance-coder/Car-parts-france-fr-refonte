@@ -30,12 +30,18 @@
         <% } else { %>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <% tickets.forEach(function(t) {
-                 var sm = STATUTS_LABELS[t.statut] || [t.statut, 'bg-slate-100 text-slate-700']; %>
-              <a href="/compte/sav/<%= encodeURIComponent(t.numero) %>" class="block rounded-2xl border border-slate-200 bg-white p-4 hover:border-primary hover:shadow-md transition">
+                 var sm = STATUTS_LABELS[t.statut] || [t.statut, 'bg-slate-100 text-slate-700'];
+                 var hasUnread = t.lastAdminMessageAt && (!t.lastClientReadAt || new Date(t.lastAdminMessageAt) > new Date(t.lastClientReadAt)); %>
+              <a href="/compte/sav/<%= encodeURIComponent(t.numero) %>" class="block rounded-2xl border <%= hasUnread ? 'border-primary ring-1 ring-primary/20' : 'border-slate-200' %> bg-white p-4 hover:border-primary hover:shadow-md transition">
                 <div class="flex items-baseline justify-between">
                   <span class="font-mono font-bold text-slate-900"><%= t.numero %></span>
                   <span class="text-xs text-slate-500"><%= new Date(t.createdAt).toLocaleDateString('fr-FR') %></span>
                 </div>
+                <% if (hasUnread) { %>
+                  <div class="mt-1 inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                    ● Nouvelle réponse
+                  </div>
+                <% } %>
                 <div class="mt-1 text-sm text-slate-700"><%= t.pieceType %></div>
                 <% if (t.vehicule && (t.vehicule.marque || t.vehicule.modele)) { %>
                   <div class="text-xs text-slate-500"><%= [t.vehicule.marque, t.vehicule.modele, t.vehicule.annee].filter(Boolean).join(' ') %></div>

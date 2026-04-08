@@ -43,7 +43,13 @@ router.get('/legal/cgv-sav', (req, res) => {
   });
 });
 router.post('/sav/check-commande', savController.postCheckCommande);
-router.get('/sav/suivi/:numero', savController.getSuivi);
+
+// Suivi invité
+const savGuestController = require('../controllers/savGuestController');
+router.get('/sav/suivi', savGuestController.getSuiviForm);
+router.post('/sav/suivi', savGuestController.postSuiviForm);
+router.get('/sav/suivi/:numero', savGuestController.getSuiviDetail);
+router.post('/sav/suivi/:numero/messages', savGuestController.postSuiviMessage);
 router.get('/sav/confirmation/:numero', savController.getConfirmation);
 router.get('/sav/feedback/:numero', savController.getFeedback);
 router.post('/sav/feedback/:numero', savController.postFeedback);

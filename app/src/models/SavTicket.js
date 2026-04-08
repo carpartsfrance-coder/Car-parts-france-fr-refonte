@@ -224,6 +224,12 @@ const savTicketSchema = new mongoose.Schema(
 
     messages: [messageSchema],
 
+    // Suivi lecture/écriture client ↔ admin (badges "nouvelle réponse")
+    lastClientMessageAt: { type: Date, default: null },
+    lastAdminMessageAt: { type: Date, default: null },
+    lastClientReadAt: { type: Date, default: null },
+    lastAdminReadAt: { type: Date, default: null },
+
     fournisseur: {
       contact: { type: String, trim: true },
       nom: { type: String, trim: true },
@@ -344,7 +350,10 @@ savTicketSchema.pre('save', async function preSave(next) {
 // ---------- Methods ----------
 
 savTicketSchema.methods.addMessage = function addMessage(auteur, canal, contenu) {
-  this.messages.push({ auteur, canal, contenu, date: new Date() });
+  const date = new Date();
+  this.messages.push({ auteur, canal, contenu, date });
+  if (auteur === 'client') this.lastClientMessageAt = date;
+  else if (auteur && auteur !== 'systeme' && canal !== 'interne') this.lastAdminMessageAt = date;
   return this;
 };
 

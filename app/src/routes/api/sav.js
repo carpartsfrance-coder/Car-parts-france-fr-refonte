@@ -944,6 +944,8 @@ adminRouter.get('/tickets/:numero', async (req, res) => {
   try {
     const ticket = await SavTicket.findOne({ numero: req.params.numero }).lean();
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    // Marque comme lu côté admin (ne bloque pas la réponse)
+    SavTicket.updateOne({ _id: ticket._id }, { $set: { lastAdminReadAt: new Date() } }).catch(() => {});
     return ok(res, ticket);
   } catch (err) {
     return fail(res, err.message, 500);
