@@ -1485,6 +1485,156 @@
 .sav-tpl-del:hover { background: #f59e0b; color: #fff; }
 
 /* ====================================================================== */
+/* === SHELL 2-cols (sidebar + main) ==================================== */
+/* ====================================================================== */
+.sav-shell {
+  display: block;
+}
+@media (min-width: 1024px) {
+  .sav-shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 3rem;
+    align-items: start;
+  }
+}
+
+/* Sidebar cachée en mobile, visible ≥lg */
+.sav-sidebar { display: none; }
+@media (min-width: 1024px) {
+  .sav-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 1.5rem;
+    padding: 1.5rem 1.25rem;
+    border-right: 1px solid var(--sav-slate-200);
+    min-height: calc(100vh - 3rem);
+  }
+}
+.sav-sidebar__brand {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--sav-slate-200);
+}
+.sav-sidebar__brand-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--sav-primary);
+}
+.sav-sidebar__brand-progress {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--sav-slate-500);
+}
+.sav-sidebar__list {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+.sav-sidebar__btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.625rem;
+  background: transparent;
+  color: var(--sav-slate-500);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: left;
+  transition: background-color 150ms, color 150ms;
+  cursor: default;
+}
+.sav-sidebar__item.is-clickable .sav-sidebar__btn { cursor: pointer; }
+.sav-sidebar__item.is-clickable .sav-sidebar__btn:hover { background: var(--sav-slate-50); color: var(--sav-dark); }
+.sav-sidebar__icon {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border-radius: 0.5rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--sav-slate-100);
+  color: var(--sav-slate-500);
+  font-size: 13px; font-weight: 700;
+}
+.sav-sidebar__item.is-current .sav-sidebar__btn {
+  background: var(--sav-primary);
+  color: #fff;
+  box-shadow: 0 8px 24px -10px rgba(236, 19, 19, 0.35);
+}
+.sav-sidebar__item.is-current .sav-sidebar__icon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.sav-sidebar__item.is-done .sav-sidebar__btn { color: var(--sav-dark); }
+.sav-sidebar__item.is-done .sav-sidebar__icon {
+  background: var(--sav-primary);
+  color: #fff;
+}
+.sav-sidebar__item.is-done .sav-sidebar__icon .sav-stepper-v2__num { display: none; }
+.sav-sidebar__item.is-done .sav-sidebar__icon .sav-stepper-v2__check { display: inline; font-size: 16px; }
+.sav-sidebar__item:not(.is-done) .sav-sidebar__icon .sav-stepper-v2__check { display: none; }
+.sav-sidebar__footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sav-slate-200);
+}
+
+/* Main column hero */
+.sav-main { min-width: 0; }
+.sav-main__hero-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+}
+.sav-main__hero-tag > span:first-child {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  background: var(--sav-primary);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.sav-main__hero-bar {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(to right, var(--sav-primary) 0%, var(--sav-slate-200) 30%);
+  border-radius: 2px;
+}
+.sav-main__hero-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--sav-dark);
+}
+@media (min-width: 768px) {
+  .sav-main__hero-title { font-size: 2.25rem; }
+}
+.sav-main__hero-sub {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--sav-slate-500);
+  max-width: 640px;
+}
+
+/* En desktop : on masque le stepper horizontal (remplacé par sidebar) */
+@media (min-width: 1024px) {
+  .sav-shell .sav-stepper-v2:not(.sav-sidebar nav ol) { display: none; }
+  .sav-shell nav.sav-stepper-v2 { display: none; }
+}
+
+/* ====================================================================== */
 /* === Sous-sections (split visuel d'étape) ============================ */
 /* ====================================================================== */
 .sav-substep {
