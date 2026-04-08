@@ -23,6 +23,17 @@ const adminUserSchema = new mongoose.Schema(
     twoFactorSecret: { type: String, default: null }, // base32
     twoFactorBackupCodes: { type: [String], default: [] }, // hashes ou clair, simple ici
     twoFactorActivatedAt: { type: Date, default: null },
+
+    // Templates SAV personnels (favoris de l'agent)
+    savTemplates: [
+      {
+        key: { type: String, required: true },
+        title: { type: String, required: true },
+        body: { type: String, required: true },
+        icon: { type: String, default: 'star' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

@@ -196,7 +196,15 @@
               </div>
               <input type="hidden" name="canal" id="sav-canal-input" value="email">
 
-              <!-- Templates en chips -->
+              <!-- Templates en chips + bouton favori -->
+              <div class="flex items-center justify-between gap-2 flex-wrap mt-2">
+                <span class="text-[10px] uppercase tracking-wide font-bold text-slate-400">Modèles de réponse</span>
+                <button type="button" id="sav-save-favorite" class="text-xs inline-flex items-center gap-1 text-slate-500 hover:text-primary"
+                  title="Sauver le message courant comme favori personnel">
+                  <span class="material-symbols-outlined" style="font-size:14px;" aria-hidden="true">star</span>
+                  Sauver comme favori
+                </button>
+              </div>
               <div id="sav-templates-chips" class="flex flex-wrap gap-2">
                 <% const _tpls = [
                   ['reception','Pièce reçue à l\'atelier','inventory'],
@@ -668,6 +676,46 @@
   </div>
 </main>
 
+<!-- Modale annotations photos -->
+<div id="sav-annotate-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/70 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-annotate-title">
+  <div class="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[92vh] flex flex-col">
+    <div class="flex items-center justify-between p-4 border-b border-slate-200">
+      <h3 id="sav-annotate-title" class="text-lg font-semibold flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary" aria-hidden="true">edit</span>
+        Annoter la photo
+      </h3>
+      <button type="button" data-close-annotate aria-label="Fermer" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+    </div>
+    <div class="p-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2 flex-wrap text-xs">
+      <div class="flex gap-1">
+        <button type="button" data-annotate-tool="pen" class="px-3 py-1.5 rounded-lg bg-primary text-white inline-flex items-center gap-1" title="Crayon"><span class="material-symbols-outlined" style="font-size:16px;">draw</span></button>
+        <button type="button" data-annotate-tool="arrow" class="px-3 py-1.5 rounded-lg bg-slate-100 inline-flex items-center gap-1" title="Flèche"><span class="material-symbols-outlined" style="font-size:16px;">north_east</span></button>
+        <button type="button" data-annotate-tool="rect" class="px-3 py-1.5 rounded-lg bg-slate-100 inline-flex items-center gap-1" title="Rectangle"><span class="material-symbols-outlined" style="font-size:16px;">crop_square</span></button>
+        <button type="button" data-annotate-tool="circle" class="px-3 py-1.5 rounded-lg bg-slate-100 inline-flex items-center gap-1" title="Cercle"><span class="material-symbols-outlined" style="font-size:16px;">circle</span></button>
+        <button type="button" data-annotate-tool="text" class="px-3 py-1.5 rounded-lg bg-slate-100 inline-flex items-center gap-1" title="Texte"><span class="material-symbols-outlined" style="font-size:16px;">title</span></button>
+      </div>
+      <div class="h-6 w-px bg-slate-300 mx-1"></div>
+      <div class="flex gap-1">
+        <button type="button" data-annotate-color="#ef4444" class="w-7 h-7 rounded-full ring-2 ring-offset-2 ring-slate-900" style="background:#ef4444" title="Rouge" aria-label="Rouge"></button>
+        <button type="button" data-annotate-color="#f59e0b" class="w-7 h-7 rounded-full" style="background:#f59e0b" title="Orange" aria-label="Orange"></button>
+        <button type="button" data-annotate-color="#10b981" class="w-7 h-7 rounded-full" style="background:#10b981" title="Vert" aria-label="Vert"></button>
+        <button type="button" data-annotate-color="#0ea5e9" class="w-7 h-7 rounded-full" style="background:#0ea5e9" title="Bleu" aria-label="Bleu"></button>
+        <button type="button" data-annotate-color="#000000" class="w-7 h-7 rounded-full" style="background:#000000" title="Noir" aria-label="Noir"></button>
+      </div>
+      <div class="ml-auto flex gap-2">
+        <button type="button" data-annotate-clear class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-white">Effacer</button>
+        <button type="button" data-annotate-save class="px-3 py-1.5 rounded-lg bg-primary text-white font-semibold">Enregistrer</button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-auto p-4 bg-slate-100 flex items-center justify-center">
+      <div class="relative inline-block">
+        <img data-annotate-img alt="" class="block max-w-full max-h-[70vh] rounded-lg shadow-lg pointer-events-none">
+        <canvas data-annotate-canvas class="absolute inset-0 cursor-crosshair"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modale rapport PDF : choix template + preview -->
 <div id="sav-pdf-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/60 px-4" role="dialog" aria-modal="true" aria-labelledby="sav-pdf-modal-title">
   <div class="bg-white rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
@@ -782,5 +830,5 @@
 
 <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=11" defer></script>
+<script src="/js/sav-admin.js?v=12" defer></script>
 <%- include('./partials/footer') %>

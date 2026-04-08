@@ -98,6 +98,27 @@ publicRouter.post('/mollie-webhook', express.urlencoded({ extended: false }), as
 });
 
 // POST /api/sav/tickets — création
+// GET /api/sav/verify-report/:numero — vérification signature PDF (QR code)
+publicRouter.get('/verify-report/:numero', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero }).lean();
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const reportPdf = require('../../services/savReportPdf');
+    const expected = reportPdf.reportSignature
+      ? reportPdf.reportSignature(ticket, req.query.t || 'client')
+      : null;
+    const valid = expected && req.query.h && req.query.h === expected;
+    return ok(res, {
+      numero: ticket.numero,
+      valid,
+      template: req.query.t || 'client',
+      conclusion: ticket.analyse && ticket.analyse.conclusion,
+      generatedFor: ticket.client && ticket.client.nom,
+      verifiedAt: new Date().toISOString(),
+    });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
 // GET /api/sav/satisfaction/:numero — page publique de notation post-clôture (NPS/CSAT)
 publicRouter.get('/satisfaction/:numero', async (req, res) => {
   try {
@@ -343,6 +364,8 @@ adminRouter.get('/tickets', async (req, res) => {
           { 'client.email': new RegExp(s, 'i') },
           { 'client.nom': new RegExp(s, 'i') },
           { 'vehicule.vin': new RegExp(s, 'i') },
+          { 'messages.contenu': new RegExp(s, 'i') },
+          { 'diagnostic.description': new RegExp(s, 'i') },
           { 'vehicule.immatriculation': new RegExp(s, 'i') },
           { numeroCommande: new RegExp(s, 'i') },
         ];
@@ -1084,6 +1107,75 @@ adminRouter.post('/tickets', async (req, res) => {
   } catch (err) {
     return fail(res, err.message, 500);
   }
+});
+
+// POST /admin/api/sav/tickets/:numero/upload — upload doc/annotation depuis le back-office
+adminRouter.post('/tickets/:numero/upload', upload.single('file'), async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    if (!req.file) return fail(res, 'Aucun fichier fourni');
+    const uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', ticket.numero);
+    fs.mkdirSync(uploadDir, { recursive: true });
+    const safeName = `${Date.now()}_${(req.file.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const fullPath = path.join(uploadDir, safeName);
+    fs.writeFileSync(fullPath, req.file.buffer);
+    const url = `/uploads/sav/${ticket.numero}/${safeName}`;
+    ticket.documentsList = ticket.documentsList || [];
+    ticket.documentsList.push({
+      kind: req.body.kind || 'autre',
+      url,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mime: req.file.mimetype,
+    });
+    ticket.addMessage('admin', 'interne', `Document ajouté (${req.body.kind || 'autre'}) : ${url}`);
+    await ticket.save();
+    return ok(res, { url });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/personal-templates?userId=… — favoris de l'agent
+adminRouter.get('/personal-templates', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) return ok(res, { templates: [] });
+    const AdminUser = require('../../models/AdminUser');
+    const u = await AdminUser.findById(userId).select('savTemplates').lean();
+    return ok(res, { templates: (u && u.savTemplates) || [] });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /admin/api/sav/personal-templates — ajouter un favori
+adminRouter.post('/personal-templates', async (req, res) => {
+  try {
+    const { userId, title, body, icon } = req.body || {};
+    if (!userId || !title || !body) return fail(res, 'userId, title, body requis');
+    const AdminUser = require('../../models/AdminUser');
+    const u = await AdminUser.findById(userId);
+    if (!u) return fail(res, 'Utilisateur introuvable', 404);
+    const key = 'perso_' + Date.now();
+    u.savTemplates = u.savTemplates || [];
+    u.savTemplates.push({ key, title, body, icon: icon || 'star' });
+    await u.save();
+    return ok(res, { key });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// DELETE /admin/api/sav/personal-templates/:key
+adminRouter.delete('/personal-templates/:key', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) return fail(res, 'userId requis');
+    const AdminUser = require('../../models/AdminUser');
+    const u = await AdminUser.findById(userId);
+    if (!u) return fail(res, 'Utilisateur introuvable', 404);
+    u.savTemplates = (u.savTemplates || []).filter((t) => t.key !== req.params.key);
+    await u.save();
+    return ok(res, { deleted: true });
+  } catch (err) { return fail(res, err.message, 500); }
 });
 
 // GET /admin/api/sav/message-templates — bibliothèque de modèles de réponse

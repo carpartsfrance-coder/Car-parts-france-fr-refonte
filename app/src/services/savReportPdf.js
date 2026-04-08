@@ -6,10 +6,25 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
 const PDFDocument = require('pdfkit');
+let QRCode = null;
+try { QRCode = require('qrcode'); } catch (_) { /* optionnel */ }
+
+function reportSignature(ticket, template) {
+  const secret = process.env.REPORT_SIGNATURE_SECRET || process.env.SAV_API_TOKEN || 'sav-secret';
+  const payload = `${ticket.numero}|${template || 'client'}|${(ticket.analyse && ticket.analyse.conclusion) || ''}`;
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
+}
+
+async function buildQrDataUrl(text) {
+  if (!QRCode) return null;
+  try { return await QRCode.toDataURL(text, { margin: 1, width: 140 }); }
+  catch (_) { return null; }
+}
 
 const REPORTS_DIR = path.join(__dirname, '..', '..', '..', 'uploads', 'sav-reports');
 
@@ -255,11 +270,35 @@ async function generateAnalysisReport(ticket, options = {}) {
   }
   } // end showConclusion
 
-  // ----- Signature -----
+  // ----- Signature + QR vérification -----
+  const sig = reportSignature(ticket, template);
+  const verifyUrl = (process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr') +
+    `/api/sav/verify-report/${ticket.numero}?h=${sig}&t=${template}`;
+  const qrDataUrl = await buildQrDataUrl(verifyUrl);
+
   doc.fontSize(10).fillColor('#1a1a1a').text('Technicien : ____________________________   Date : ____ / ____ / ________');
   doc.moveDown(0.4);
   doc.text('Signature :');
-  doc.moveDown(2);
+  doc.moveDown(0.8);
+
+  if (qrDataUrl) {
+    const qrBuf = Buffer.from(qrDataUrl.split(',')[1], 'base64');
+    try {
+      const qrY = doc.y;
+      doc.image(qrBuf, 48, qrY, { width: 70 });
+      doc.fontSize(8).fillColor('#475569').text(
+        'Document signé numériquement.\nScannez ce QR code pour vérifier l\'authenticité.\nID de signature : ' + sig.slice(0, 12) + '…',
+        130, qrY + 4, { width: 380 }
+      );
+      doc.moveDown(2);
+    } catch (_) { /* image insertion fail silent */ }
+  } else {
+    doc.fontSize(8).fillColor('#475569').text(
+      'Signature numérique : ' + sig + '\nVérification : ' + verifyUrl,
+      { width: 499 }
+    );
+    doc.moveDown(1);
+  }
 
   // ----- Footer mentions légales -----
   if (tpl.showLegal) {
@@ -284,4 +323,4 @@ async function generateAnalysisReport(ticket, options = {}) {
   return `/uploads/sav-reports/${fileName}`;
 }
 
-module.exports = { generateAnalysisReport, getTemplateSummary, TEMPLATES };
+module.exports = { generateAnalysisReport, getTemplateSummary, TEMPLATES, reportSignature };

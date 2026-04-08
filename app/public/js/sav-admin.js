@@ -1361,15 +1361,21 @@
         var meta = [];
         if (x.size) meta.push(fmtSize(x.size));
         if (x.uploadedAt) meta.push(new Date(x.uploadedAt).toLocaleDateString('fr-FR'));
+        var annotateBtn = img ? '<button type="button" data-annotate="' + escapeHtml(x.url) + '" class="flex-1 text-center text-[11px] rounded-lg bg-primary text-white px-2 py-1" title="Annoter cette photo"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle;">edit</span> Annoter</button>' : '';
         return '<div class="rounded-xl border border-slate-200 p-2 flex flex-col gap-2 bg-white">' + thumb +
           '<div class="text-xs font-semibold text-slate-700 truncate">' + escapeHtml(x.kind || 'doc') + '</div>' +
           '<div class="text-[11px] text-slate-500 truncate">' + name + '</div>' +
           (meta.length ? '<div class="text-[10px] text-slate-400">' + escapeHtml(meta.join(' · ')) + '</div>' : '') +
-          '<div class="flex gap-1 mt-auto">' +
+          '<div class="flex gap-1 mt-auto flex-wrap">' +
             '<a href="' + escapeHtml(x.url) + '" target="_blank" class="flex-1 text-center text-[11px] rounded-lg border border-slate-200 px-2 py-1 hover:bg-slate-50">Ouvrir</a>' +
             '<a href="' + escapeHtml(x.url) + '" download class="flex-1 text-center text-[11px] rounded-lg bg-slate-900 text-white px-2 py-1">Télécharger</a>' +
+            annotateBtn +
           '</div></div>';
       }).join('');
+      // Bind annotate buttons
+      box.querySelectorAll('[data-annotate]').forEach(function (btn) {
+        btn.addEventListener('click', function () { openAnnotateModal(btn.getAttribute('data-annotate')); });
+      });
     }
 
     function avatarColor(name) {
@@ -1729,24 +1735,72 @@
       chip.addEventListener('click', function () { applyTemplate(chip.getAttribute('data-template')); });
     });
 
+    function appendTemplateChip(host, t, isPerso) {
+      if (TEMPLATES[t.key]) return;
+      TEMPLATES[t.key] = t.body;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sav-tpl-chip' + (isPerso ? ' sav-tpl-chip--perso' : '');
+      btn.setAttribute('data-template', t.key);
+      btn.setAttribute('title', t.title);
+      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">' + escapeHtml(t.icon || 'description') + '</span><span>' + escapeHtml(t.title) + '</span>' +
+        (isPerso ? '<button type="button" class="sav-tpl-del" data-del-tpl="' + escapeHtml(t.key) + '" aria-label="Supprimer ce favori">×</button>' : '');
+      btn.addEventListener('click', function (e) {
+        if (e.target && e.target.matches('[data-del-tpl]')) return;
+        applyTemplate(t.key);
+      });
+      host.appendChild(btn);
+    }
+
     // Charge la bibliothèque de templates depuis l'API et ajoute les chips
     api('/message-templates').then(function (res) {
       if (!res.ok || !res.j.success) return;
       var list = (res.j.data && res.j.data.templates) || [];
       var host = document.getElementById('sav-templates-chips');
       if (!host) return;
-      list.forEach(function (t) {
-        if (TEMPLATES[t.key]) return; // déjà présent
-        TEMPLATES[t.key] = t.body;
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'sav-tpl-chip';
-        btn.setAttribute('data-template', t.key);
-        btn.setAttribute('title', t.title);
-        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">' + escapeHtml(t.icon || 'description') + '</span><span>' + escapeHtml(t.title) + '</span>';
-        btn.addEventListener('click', function () { applyTemplate(t.key); });
-        host.appendChild(btn);
+      list.forEach(function (t) { appendTemplateChip(host, t, false); });
+    });
+
+    // Charge les templates personnels de l'agent connecté
+    function loadPersonalTemplates() {
+      if (!CURRENT_USER_ID) return;
+      api('/personal-templates?userId=' + encodeURIComponent(CURRENT_USER_ID)).then(function (res) {
+        if (!res.ok || !res.j.success) return;
+        var list = (res.j.data && res.j.data.templates) || [];
+        var host = document.getElementById('sav-templates-chips');
+        if (!host) return;
+        // Remove existing perso chips before re-rendering
+        host.querySelectorAll('.sav-tpl-chip--perso').forEach(function (n) { n.remove(); });
+        list.forEach(function (t) { delete TEMPLATES[t.key]; appendTemplateChip(host, t, true); });
       });
+    }
+    loadPersonalTemplates();
+
+    // Bouton "Sauver comme favori" : ajoute un chip avec le contenu courant
+    var saveFavBtn = document.getElementById('sav-save-favorite');
+    if (saveFavBtn) saveFavBtn.addEventListener('click', function () {
+      if (!CURRENT_USER_ID) { toast('Connecte-toi en tant qu\'agent pour sauver un favori', 'error'); return; }
+      var content = editor && editor.innerText ? editor.innerText.trim() : '';
+      if (!content) { toast('Le message est vide', 'error'); return; }
+      var title = window.prompt('Nom du favori ?', content.split('\n')[0].slice(0, 40));
+      if (!title) return;
+      api('/personal-templates', { method: 'POST', body: JSON.stringify({ userId: CURRENT_USER_ID, title: title, body: content }) }).then(function (res) {
+        if (res.ok && res.j.success) { toast('Favori ajouté', 'success'); loadPersonalTemplates(); }
+        else toast((res.j && res.j.error) || 'Erreur', 'error');
+      });
+    });
+
+    // Suppression d'un favori
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.matches && e.target.matches('[data-del-tpl]') ? e.target : null;
+      if (!btn || !CURRENT_USER_ID) return;
+      e.preventDefault(); e.stopPropagation();
+      var key = btn.getAttribute('data-del-tpl');
+      if (!confirm('Supprimer ce favori ?')) return;
+      api('/personal-templates/' + encodeURIComponent(key) + '?userId=' + encodeURIComponent(CURRENT_USER_ID), { method: 'DELETE' })
+        .then(function (res) {
+          if (res.ok && res.j.success) { toast('Supprimé'); loadPersonalTemplates(); }
+        });
     });
 
     // Pills toggle canaux
@@ -2165,6 +2219,142 @@
           });
       });
     });
+    // -------- Modal annotations photos (canvas overlay) --------
+    function openAnnotateModal(imageUrl) {
+      var modal = document.getElementById('sav-annotate-modal');
+      if (!modal) return;
+      openModal(modal);
+      var img = modal.querySelector('[data-annotate-img]');
+      var canvas = modal.querySelector('[data-annotate-canvas]');
+      var saveBtn = modal.querySelector('[data-annotate-save]');
+      var clearBtn = modal.querySelector('[data-annotate-clear]');
+      var colorBtns = modal.querySelectorAll('[data-annotate-color]');
+      var toolBtns = modal.querySelectorAll('[data-annotate-tool]');
+      var ctx = canvas.getContext('2d');
+      var state = { color: '#ef4444', tool: 'pen', drawing: false, startX: 0, startY: 0, lastX: 0, lastY: 0, snapshot: null };
+
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.style.width = img.clientWidth + 'px';
+        canvas.style.height = img.clientHeight + 'px';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+      img.src = imageUrl;
+
+      function getPos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var sx = canvas.width / rect.width;
+        var sy = canvas.height / rect.height;
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+      }
+
+      function start(e) {
+        e.preventDefault();
+        var p = getPos(e);
+        state.drawing = true;
+        state.startX = p.x; state.startY = p.y;
+        state.lastX = p.x; state.lastY = p.y;
+        state.snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = state.color;
+        ctx.fillStyle = state.color;
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        if (state.tool === 'text') {
+          var t = window.prompt('Texte ?');
+          state.drawing = false;
+          if (t) {
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillText(t, p.x, p.y);
+          }
+        }
+      }
+      function move(e) {
+        if (!state.drawing) return;
+        e.preventDefault();
+        var p = getPos(e);
+        if (state.tool === 'pen') {
+          ctx.beginPath();
+          ctx.moveTo(state.lastX, state.lastY);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+          state.lastX = p.x; state.lastY = p.y;
+        } else {
+          ctx.putImageData(state.snapshot, 0, 0);
+          if (state.tool === 'rect') {
+            ctx.strokeRect(state.startX, state.startY, p.x - state.startX, p.y - state.startY);
+          } else if (state.tool === 'circle') {
+            ctx.beginPath();
+            var r = Math.hypot(p.x - state.startX, p.y - state.startY);
+            ctx.arc(state.startX, state.startY, r, 0, 2 * Math.PI);
+            ctx.stroke();
+          } else if (state.tool === 'arrow') {
+            ctx.beginPath();
+            ctx.moveTo(state.startX, state.startY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            // arrowhead
+            var ang = Math.atan2(p.y - state.startY, p.x - state.startX);
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - 14 * Math.cos(ang - Math.PI / 7), p.y - 14 * Math.sin(ang - Math.PI / 7));
+            ctx.lineTo(p.x - 14 * Math.cos(ang + Math.PI / 7), p.y - 14 * Math.sin(ang + Math.PI / 7));
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+      }
+      function end() { state.drawing = false; }
+
+      canvas.onmousedown = start; canvas.onmousemove = move; canvas.onmouseup = end; canvas.onmouseleave = end;
+      canvas.ontouchstart = start; canvas.ontouchmove = move; canvas.ontouchend = end;
+
+      colorBtns.forEach(function (b) {
+        b.onclick = function () {
+          state.color = b.getAttribute('data-annotate-color');
+          colorBtns.forEach(function (x) { x.classList.remove('ring-2', 'ring-offset-2', 'ring-slate-900'); });
+          b.classList.add('ring-2', 'ring-offset-2', 'ring-slate-900');
+        };
+      });
+      toolBtns.forEach(function (b) {
+        b.onclick = function () {
+          state.tool = b.getAttribute('data-annotate-tool');
+          toolBtns.forEach(function (x) { x.classList.remove('bg-primary', 'text-white'); x.classList.add('bg-slate-100'); });
+          b.classList.add('bg-primary', 'text-white'); b.classList.remove('bg-slate-100');
+        };
+      });
+      clearBtn.onclick = function () { ctx.clearRect(0, 0, canvas.width, canvas.height); };
+
+      saveBtn.onclick = function () {
+        // Compose la photo + overlay sur un canvas hors-écran
+        var out = document.createElement('canvas');
+        out.width = canvas.width; out.height = canvas.height;
+        var octx = out.getContext('2d');
+        octx.drawImage(img, 0, 0, out.width, out.height);
+        octx.drawImage(canvas, 0, 0);
+        out.toBlob(function (blob) {
+          var fd = new FormData();
+          fd.append('file', blob, 'annotation-' + Date.now() + '.png');
+          fd.append('kind', 'annotation');
+          fetch('/admin/api/sav/tickets/' + encodeURIComponent(numero) + '/upload', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + TOKEN },
+            body: fd,
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j.success) { toast('Annotation enregistrée', 'success'); closeModal(modal); loadTicket(); }
+            else toast(j.error || 'Erreur', 'error');
+          });
+        }, 'image/png');
+      };
+    }
+    var annotateModal = document.getElementById('sav-annotate-modal');
+    if (annotateModal) annotateModal.addEventListener('click', function (e) {
+      if (e.target === annotateModal || (e.target.matches && e.target.matches('[data-close-annotate]'))) closeModal(annotateModal);
+    });
+
     // -------- Modal rapport PDF : choix de template + preview iframe --------
     var pdfTemplatesCache = null;
     function openPdfModal() {
