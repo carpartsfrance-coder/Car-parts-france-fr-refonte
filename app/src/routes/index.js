@@ -27,7 +27,13 @@ router.post('/devis', (req, res, next) => {
 
 router.get('/notre-histoire', aboutController.getAboutPage);
 
-router.get('/sav', savController.getSavHome);
+// Entrée principale : sélection du motif SAV
+router.get('/sav', savController.getMotifSelect);
+// Ancien wizard (pièce défectueuse 6 étapes) — accessible via motif=piece_defectueuse
+router.get('/sav/piece-defectueuse', savController.getSavHome);
+// Formulaire court pour les 9 autres motifs
+router.get('/sav/demande/:motif', savController.getSimpleForm);
+router.post('/sav/demande', express.json({ limit: '2mb' }), savController.postSimpleForm);
 router.get('/sav/notre-engagement', (req, res) => {
   res.render('sav-engagement', {
     title: 'Notre engagement SAV — CarParts France',

@@ -408,11 +408,26 @@
             }
           }
           var pinDot = pinCount ? '<span title="' + pinCount + ' note(s) épinglée(s)" class="inline-flex items-center justify-center w-3 h-3 rounded-full mr-1 align-middle text-white text-[8px] font-bold" style="background:' + pinColor + '">' + (pinCount > 1 ? pinCount : '') + '</span>' : '';
+          // Badge motif SAV
+          var MOTIF_LABELS = {
+            piece_defectueuse: { icon: '🔧', label: 'Pièce déf.', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+            retard_livraison:  { icon: '🚚', label: 'Retard',     cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+            colis_abime:       { icon: '📦', label: 'Abîmé',      cls: 'bg-orange-50 text-orange-700 border-orange-200' },
+            colis_non_recu:    { icon: '📭', label: 'Non reçu',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+            erreur_preparation:{ icon: '🔀', label: 'Erreur prép',cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+            retractation:      { icon: '↩️', label: 'Rétract.',   cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+            non_compatible:    { icon: '❌', label: 'Non compat', cls: 'bg-slate-50 text-slate-700 border-slate-200' },
+            facture_document:  { icon: '📄', label: 'Facture',    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            remboursement:     { icon: '💳', label: 'Rembours.',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            autre:             { icon: '❓', label: 'Autre',      cls: 'bg-slate-50 text-slate-700 border-slate-200' },
+          };
+          var mInfo = MOTIF_LABELS[t.motifSav] || MOTIF_LABELS.piece_defectueuse;
+          var motifBadge = '<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] font-medium ' + mInfo.cls + '" title="' + escapeHtml(t.motifSav || '') + '">' + mInfo.icon + ' ' + mInfo.label + '</span>';
           return '<tr class="hover:bg-slate-50 cursor-pointer ' + rowPulse + '" data-row="' + i + '" data-numero="' + escapeHtml(t.numero) + '">' +
             '<td class="px-3 py-2 sav-col-sticky-l"><input type="checkbox" class="rounded sav-row-cb" data-numero="' + escapeHtml(t.numero) + '" ' + (selected.has(t.numero) ? 'checked' : '') + '></td>' +
             '<td class="px-3 py-2 font-mono text-xs font-semibold sav-col-sticky-l2">' + pinDot + awaitingDot + escapeHtml(t.numero) + '</td>' +
             '<td class="px-3 py-2"><div class="text-xs font-medium">' + escapeHtml((t.client && t.client.nom) || '') + '</div><div class="text-[10px] text-slate-500">' + escapeHtml((t.client && t.client.email) || '') + '</div></td>' +
-            '<td class="px-3 py-2">' + pieceBadge(t.pieceType) + '</td>' +
+            '<td class="px-3 py-2"><div class="flex flex-col gap-0.5">' + motifBadge + (t.pieceType ? pieceBadge(t.pieceType) : '') + '</div></td>' +
             '<td class="px-3 py-2 text-xs">' + (vstr ? escapeHtml(vstr) : '<span class="text-slate-400">—</span>') + (v.vin ? '<div class="text-[10px] font-mono text-slate-400">' + escapeHtml(v.vin) + '</div>' : '') + '</td>' +
             '<td class="px-3 py-2">' + assignHtml + '</td>' +
             '<td class="px-3 py-2 sav-col-sticky-r2">' + statutBadge(t.statut) + '</td>' +

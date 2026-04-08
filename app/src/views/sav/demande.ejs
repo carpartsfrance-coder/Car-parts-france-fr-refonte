@@ -1,0 +1,209 @@
+<%- include('../partials/head') %>
+<link rel="stylesheet" href="/css/sav.css?v=4">
+<%- include('../partials/header') %>
+
+<%
+  const needsTracking = ['retard_livraison', 'colis_non_recu'].includes(motifKey);
+  const needsPhotos   = ['colis_abime', 'erreur_preparation'].includes(motifKey);
+  const needsDelivery = ['retard_livraison', 'colis_abime', 'colis_non_recu', 'erreur_preparation'].includes(motifKey);
+%>
+
+<main class="sav-module flex-1 bg-background-light text-slate-900">
+  <div class="mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12">
+
+    <div class="mb-4">
+      <a href="/sav" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary">
+        <span class="material-symbols-rounded" style="font-size:16px;" aria-hidden="true">arrow_back</span>
+        Changer de motif
+      </a>
+    </div>
+
+    <header class="mb-6">
+      <div class="inline-flex items-center gap-3">
+        <div class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+          <span class="material-symbols-rounded text-primary text-3xl" aria-hidden="true"><%= motif.icon %></span>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight"><%= motif.title %></h1>
+          <p class="text-sm text-slate-600"><%= motif.desc %></p>
+        </div>
+      </div>
+      <% if (motif.legal) { %>
+        <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <%= motif.legal %>
+        </div>
+      <% } %>
+    </header>
+
+    <form id="sav-simple-form" class="space-y-5">
+      <input type="hidden" name="motifSav" value="<%= motifKey %>">
+
+      <!-- Identité -->
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold mb-3">Vos informations</h2>
+        <% if (currentUser) { %>
+          <input type="hidden" name="email" value="<%= currentUser.email %>">
+          <input type="hidden" name="clientNom" value="<%= [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || currentUser.email %>">
+          <p class="text-sm text-slate-600">Connecté en tant que <strong><%= currentUser.email %></strong></p>
+        <% } else { %>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-xs text-slate-500">Nom complet</span>
+              <input type="text" name="clientNom" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-500">Email</span>
+              <input type="email" name="email" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="text-xs text-slate-500">Téléphone (optionnel)</span>
+              <input type="tel" name="telephone" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </label>
+          </div>
+        <% } %>
+      </section>
+
+      <!-- Commande -->
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold mb-3">Votre commande</h2>
+        <% if (eligibleOrders && eligibleOrders.length) { %>
+          <label class="block mb-2 text-xs text-slate-500">Sélectionnez la commande concernée</label>
+          <select name="numeroCommande" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">— Aucune / je n'ai pas le numéro —</option>
+            <% eligibleOrders.forEach(function(o) { %>
+              <option value="<%= o.number %>"><%= o.number %> — <%= new Date(o.date).toLocaleDateString('fr-FR') %><%= o.label ? ' — ' + o.label : '' %></option>
+            <% }) %>
+          </select>
+        <% } else { %>
+          <label class="block">
+            <span class="text-xs text-slate-500">Numéro de commande (si vous l'avez)</span>
+            <input type="text" name="numeroCommande" placeholder="ex : CPF-2026-001234" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          </label>
+        <% } %>
+      </section>
+
+      <!-- Bloc livraison conditionnel -->
+      <% if (needsDelivery) { %>
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold mb-3">Informations de livraison</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block">
+            <span class="text-xs text-slate-500">Transporteur</span>
+            <select name="transporteur" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">—</option>
+              <option value="chronopost">Chronopost</option>
+              <option value="colissimo">Colissimo</option>
+              <option value="ups">UPS</option>
+              <option value="dhl">DHL</option>
+              <option value="dpd">DPD</option>
+              <option value="other">Autre</option>
+            </select>
+          </label>
+          <% if (needsTracking) { %>
+            <label class="block">
+              <span class="text-xs text-slate-500">N° de suivi</span>
+              <input type="text" name="numeroSuivi" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </label>
+          <% } %>
+          <% if (motifKey === 'retard_livraison' || motifKey === 'colis_non_recu') { %>
+            <label class="block">
+              <span class="text-xs text-slate-500">Date de livraison annoncée</span>
+              <input type="date" name="dateReceptionPrevue" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </label>
+          <% } %>
+          <% if (motifKey === 'colis_abime' || motifKey === 'erreur_preparation') { %>
+            <label class="block">
+              <span class="text-xs text-slate-500">Date de réception du colis</span>
+              <input type="date" name="dateReceptionReelle" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </label>
+          <% } %>
+        </div>
+      </section>
+      <% } %>
+
+      <!-- Description -->
+      <section class="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 class="text-base font-semibold mb-3">
+          <% if (motifKey === 'colis_abime') { %>Description des dommages
+          <% } else if (motifKey === 'erreur_preparation') { %>Quelle pièce avez-vous reçue&nbsp;?
+          <% } else if (motifKey === 'non_compatible') { %>Pourquoi la pièce n'est pas compatible&nbsp;?
+          <% } else if (motifKey === 'retractation') { %>Motif de la rétractation (facultatif)
+          <% } else if (motifKey === 'facture_document') { %>Quel document souhaitez-vous&nbsp;?
+          <% } else if (motifKey === 'remboursement') { %>Détails du remboursement attendu
+          <% } else { %>Décrivez votre demande
+          <% } %>
+        </h2>
+        <textarea name="description" rows="5" required minlength="10" maxlength="5000"
+          placeholder="Le plus de détails possible nous aide à traiter rapidement…"
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-y"></textarea>
+        <% if (needsPhotos) { %>
+          <p class="mt-2 text-xs text-slate-500">
+            <span class="material-symbols-rounded align-middle" style="font-size:14px;">info</span>
+            Vous pourrez ajouter des photos après la création du ticket depuis votre espace de suivi.
+          </p>
+        <% } %>
+      </section>
+
+      <!-- Consentements -->
+      <section class="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+        <label class="flex items-start gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="cgvAccepted" required class="mt-0.5">
+          <span>J'accepte les <a href="/legal/cgv-sav" target="_blank" class="text-primary underline">CGV SAV</a>.</span>
+        </label>
+        <label class="flex items-start gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="rgpdAccepted" required class="mt-0.5">
+          <span>J'accepte le traitement de mes données pour le suivi de cette demande (RGPD).</span>
+        </label>
+      </section>
+
+      <div id="sav-simple-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
+
+      <button type="submit" id="sav-simple-submit" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-6 py-3 text-base font-semibold hover:bg-primary-dark disabled:opacity-50">
+        <span class="material-symbols-rounded" aria-hidden="true">send</span>
+        Envoyer ma demande
+      </button>
+    </form>
+
+  </div>
+</main>
+
+<script>
+(function () {
+  var form = document.getElementById('sav-simple-form');
+  if (!form) return;
+  var errBox = document.getElementById('sav-simple-error');
+  var submit = document.getElementById('sav-simple-submit');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errBox.classList.add('hidden');
+    submit.disabled = true;
+    submit.textContent = 'Envoi en cours…';
+    var fd = new FormData(form);
+    var data = {};
+    fd.forEach(function (v, k) { data[k] = v; });
+    fetch('/sav/demande', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.j.success) {
+          window.location.href = res.j.data.redirect;
+        } else {
+          errBox.textContent = (res.j && res.j.error) || 'Erreur lors de l\'envoi.';
+          errBox.classList.remove('hidden');
+          submit.disabled = false;
+          submit.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">send</span> Envoyer ma demande';
+        }
+      })
+      .catch(function () {
+        errBox.textContent = 'Erreur réseau. Réessayez.';
+        errBox.classList.remove('hidden');
+        submit.disabled = false;
+        submit.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">send</span> Envoyer ma demande';
+      });
+  });
+})();
+</script>
+
+<%- include('../partials/footer') %>

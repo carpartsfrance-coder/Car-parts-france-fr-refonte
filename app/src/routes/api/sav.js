@@ -145,7 +145,9 @@ publicRouter.post('/tickets', async (req, res) => {
       return fail(res, 'client.email requis');
     }
     if (!body.client.nom) body.client.nom = body.client.email.split('@')[0];
-    if (!body.pieceType) return fail(res, 'pieceType requis');
+    // motifSav par défaut = piece_defectueuse (rétro-compat avec wizard existant)
+    const motifSav = body.motifSav || 'piece_defectueuse';
+    if (motifSav === 'piece_defectueuse' && !body.pieceType) return fail(res, 'pieceType requis');
 
     const clientIp =
       (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
@@ -155,6 +157,7 @@ publicRouter.post('/tickets', async (req, res) => {
     const userAgent = (req.headers['user-agent'] || '').toString().slice(0, 500);
 
     const ticket = new SavTicket({
+      motifSav,
       pieceType: body.pieceType,
       referencePiece: body.referencePiece,
       numeroSerie: body.numeroSerie,
@@ -344,6 +347,13 @@ adminRouter.get('/tickets', async (req, res) => {
     if (req.query.pieceType) {
       const arr = String(req.query.pieceType).split(',').filter(Boolean);
       q.pieceType = arr.length > 1 ? { $in: arr } : arr[0];
+    }
+    if (req.query.motifSav) {
+      const arr = String(req.query.motifSav).split(',').filter(Boolean);
+      q.motifSav = arr.length > 1 ? { $in: arr } : arr[0];
+    }
+    if (req.query.assignedTeam) {
+      q.assignedTeam = req.query.assignedTeam;
     }
     if (req.query.assignedToUserId) {
       if (req.query.assignedToUserId === '__none__') {

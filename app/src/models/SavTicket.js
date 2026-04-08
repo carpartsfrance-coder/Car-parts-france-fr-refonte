@@ -14,9 +14,29 @@ const PIECE_TYPES = [
   'autre',
 ];
 
+const MOTIFS_SAV = [
+  'piece_defectueuse',
+  'retard_livraison',
+  'colis_abime',
+  'colis_non_recu',
+  'erreur_preparation',
+  'retractation',
+  'non_compatible',
+  'facture_document',
+  'remboursement',
+  'autre',
+];
+
+const TEAMS = ['atelier', 'logistique', 'commercial', 'compta', 'sav_general'];
+
 const STATUTS = [
   'ouvert',
   'pre_qualification',
+  'enquete_transporteur',
+  'reserve_transporteur',
+  'retractation_recue',
+  'echange_en_cours',
+  'remboursement_initie',
   'en_attente_documents',
   'relance_1',
   'relance_2',
@@ -52,7 +72,21 @@ const savTicketSchema = new mongoose.Schema(
   {
     numero: { type: String, unique: true, index: true },
 
-    pieceType: { type: String, enum: PIECE_TYPES, required: true },
+    // Motif du SAV (ajouté 2026-04, défaut rétro-compat)
+    motifSav: { type: String, enum: MOTIFS_SAV, default: 'piece_defectueuse', index: true },
+    // Équipe en charge (auto-routing par motif)
+    assignedTeam: { type: String, enum: TEAMS, default: 'atelier', index: true },
+
+    // Données spécifiques aux motifs livraison/colis
+    livraison: {
+      transporteur: { type: String, trim: true },
+      numeroSuivi: { type: String, trim: true },
+      dateReceptionPrevue: { type: Date },
+      dateReceptionReelle: { type: Date },
+      descriptionDommage: { type: String, trim: true },
+    },
+
+    pieceType: { type: String, enum: PIECE_TYPES },
     referencePiece: { type: String, trim: true },
     numeroSerie: { type: String, trim: true },
     dateAchat: { type: Date },
@@ -336,6 +370,25 @@ function addBusinessDays(startDate, days) {
   return date;
 }
 
+// ---------- Motif → team / SLA / statut initial ----------
+const MOTIF_CONFIG = {
+  piece_defectueuse:  { team: 'atelier',     slaDays: 5,   slaHours: null, statut: 'pre_qualification' },
+  retard_livraison:   { team: 'logistique',  slaDays: null, slaHours: 24,  statut: 'enquete_transporteur' },
+  colis_abime:        { team: 'logistique',  slaDays: null, slaHours: 48,  statut: 'reserve_transporteur' },
+  colis_non_recu:     { team: 'logistique',  slaDays: null, slaHours: 72,  statut: 'enquete_transporteur' },
+  erreur_preparation: { team: 'logistique',  slaDays: null, slaHours: 48,  statut: 'ouvert' },
+  retractation:       { team: 'commercial',  slaDays: 14,  slaHours: null, statut: 'retractation_recue' },
+  non_compatible:     { team: 'commercial',  slaDays: 5,   slaHours: null, statut: 'ouvert' },
+  facture_document:   { team: 'compta',      slaDays: null, slaHours: 24,  statut: 'ouvert' },
+  remboursement:      { team: 'compta',      slaDays: null, slaHours: 48,  statut: 'ouvert' },
+  autre:              { team: 'sav_general', slaDays: null, slaHours: 48,  statut: 'ouvert' },
+};
+savTicketSchema.statics.MOTIFS_SAV = MOTIFS_SAV;
+savTicketSchema.statics.MOTIF_CONFIG = MOTIF_CONFIG;
+savTicketSchema.statics.getMotifConfig = function (motif) {
+  return MOTIF_CONFIG[motif] || MOTIF_CONFIG.piece_defectueuse;
+};
+
 // ---------- Statics ----------
 
 savTicketSchema.statics.generateNumero = async function generateNumero() {
@@ -363,7 +416,16 @@ savTicketSchema.pre('save', async function preSave(next) {
     if (!this.sla) this.sla = {};
     if (!this.sla.dateOuverture) this.sla.dateOuverture = new Date();
     if (!this.sla.dateLimite) {
-      this.sla.dateLimite = addBusinessDays(this.sla.dateOuverture, 5);
+      const cfg = MOTIF_CONFIG[this.motifSav] || MOTIF_CONFIG.piece_defectueuse;
+      if (cfg.slaHours) {
+        this.sla.dateLimite = new Date(this.sla.dateOuverture.getTime() + cfg.slaHours * 3600 * 1000);
+      } else {
+        this.sla.dateLimite = addBusinessDays(this.sla.dateOuverture, cfg.slaDays || 5);
+      }
+    }
+    if (this.isNew && !this.assignedTeam) {
+      const cfg = MOTIF_CONFIG[this.motifSav] || MOTIF_CONFIG.piece_defectueuse;
+      this.assignedTeam = cfg.team;
     }
     next();
   } catch (err) {

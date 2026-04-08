@@ -745,6 +745,7 @@
     var numeroCmd = val('numeroCommande').trim() || (radio && radio.value) || val('numeroCommandeManual').trim();
 
     var payload = {
+      motifSav: 'piece_defectueuse',
       pieceType: val('pieceType'),
       numeroCommande: numeroCmd,
       dateAchat: orderInfo && orderInfo.dateCommande,

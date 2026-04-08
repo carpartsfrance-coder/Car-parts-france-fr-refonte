@@ -101,6 +101,27 @@
           <% }); %>
         </div>
       </div>
+      <select name="motifSav" id="sav-filter-motif" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <option value="">Tous motifs</option>
+        <option value="piece_defectueuse">🔧 Pièce défectueuse</option>
+        <option value="retard_livraison">🚚 Retard livraison</option>
+        <option value="colis_abime">📦 Colis abîmé</option>
+        <option value="colis_non_recu">📭 Colis non reçu</option>
+        <option value="erreur_preparation">🔀 Erreur préparation</option>
+        <option value="retractation">↩️ Rétractation</option>
+        <option value="non_compatible">❌ Non compatible</option>
+        <option value="facture_document">📄 Facture/document</option>
+        <option value="remboursement">💳 Remboursement</option>
+        <option value="autre">❓ Autre</option>
+      </select>
+      <select name="assignedTeam" id="sav-filter-team" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <option value="">Toutes équipes</option>
+        <option value="atelier">🔧 Atelier</option>
+        <option value="logistique">📦 Logistique</option>
+        <option value="commercial">💼 Commercial</option>
+        <option value="compta">💰 Compta</option>
+        <option value="sav_general">🎧 SAV général</option>
+      </select>
       <select name="assignedToUserId" id="sav-filter-assignee" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
         <option value="">Assigné : tous</option>
         <option value="__none__">Non assigné</option>

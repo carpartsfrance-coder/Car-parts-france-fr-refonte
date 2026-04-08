@@ -99,6 +99,132 @@ exports.postCheckCommande = async (req, res) => {
   }
 };
 
+// ============================================================
+// SÉLECTION DU MOTIF SAV (entrée principale /sav)
+// ============================================================
+const MOTIFS = [
+  { key: 'piece_defectueuse',  icon: 'build_circle',     title: 'Pièce défectueuse',           desc: "La pièce reçue ne fonctionne pas correctement après montage.",                  legal: null,                                                            redirect: '/sav/piece-defectueuse' },
+  { key: 'retard_livraison',   icon: 'schedule',         title: 'Retard de livraison',         desc: "Votre commande n'est pas arrivée dans les délais annoncés.",                    legal: null,                                                            redirect: null },
+  { key: 'colis_abime',        icon: 'broken_image',     title: 'Colis reçu abîmé',            desc: "Carton ou pièce endommagés à la réception.",                                    legal: '⚠️ Vous devez nous le signaler dans les 48 h après la réception (art. L133-3).', redirect: null },
+  { key: 'colis_non_recu',     icon: 'local_shipping',   title: 'Colis non reçu',              desc: "Le colis est marqué livré mais introuvable, ou bloqué chez le transporteur.",  legal: null,                                                            redirect: null },
+  { key: 'erreur_preparation', icon: 'swap_horiz',       title: 'Erreur de préparation',       desc: "Vous avez reçu une pièce différente de celle commandée.",                       legal: null,                                                            redirect: null },
+  { key: 'retractation',       icon: 'undo',             title: 'Rétractation 14 jours',       desc: "Vous souhaitez retourner la pièce sans motif (droit légal).",                   legal: 'ℹ️ Vous avez 14 jours à compter de la réception (art. L221-18).',  redirect: null },
+  { key: 'non_compatible',     icon: 'block',            title: 'Pièce non compatible',        desc: "La pièce ne correspond pas à votre véhicule.",                                  legal: null,                                                            redirect: null },
+  { key: 'facture_document',   icon: 'description',      title: 'Facture / document',          desc: "Demande de facture, duplicata ou document manquant.",                            legal: null,                                                            redirect: null },
+  { key: 'remboursement',      icon: 'payments',         title: 'Remboursement non reçu',      desc: "Un remboursement promis n'a pas été crédité sur votre compte.",                  legal: null,                                                            redirect: null },
+  { key: 'autre',              icon: 'help',             title: 'Autre demande',               desc: "Toute autre demande qui ne rentre pas dans les catégories ci-dessus.",          legal: null,                                                            redirect: null },
+];
+
+exports.MOTIFS = MOTIFS;
+
+exports.getMotifSelect = async (req, res) => {
+  res.render('sav/motif-select', {
+    ...baseLocals(req),
+    title: 'Quel est votre problème ? — SAV CarParts France',
+    motifs: MOTIFS,
+    currentUser: req.session && req.session.user,
+  });
+};
+
+exports.getSimpleForm = async (req, res) => {
+  const motifKey = req.params.motif;
+  const motif = MOTIFS.find((m) => m.key === motifKey);
+  if (!motif) return res.redirect('/sav');
+  // Pièce défectueuse → wizard complet
+  if (motif.redirect) return res.redirect(motif.redirect);
+
+  // Charger commandes éligibles si user connecté
+  const sessionUser = req.session && req.session.user;
+  let eligibleOrders = [];
+  if (sessionUser) {
+    try {
+      const cutoff = new Date(Date.now() - 24 * 30.44 * 24 * 60 * 60 * 1000);
+      const orders = await Order.find({
+        userId: sessionUser._id,
+        createdAt: { $gte: cutoff },
+        status: { $in: ['paid', 'processing', 'shipped', 'delivered', 'completed'] },
+      }).sort({ createdAt: -1 }).limit(30).select('number createdAt items totalCents status').lean();
+      eligibleOrders = orders.map((o) => {
+        const items = Array.isArray(o.items) ? o.items : [];
+        return {
+          number: o.number,
+          date: o.createdAt,
+          label: items.slice(0, 2).map((i) => i.name).join(', ').slice(0, 120),
+          itemsCount: items.length,
+        };
+      });
+    } catch (_) {}
+  }
+
+  res.render('sav/demande', {
+    ...baseLocals(req),
+    title: motif.title + ' — SAV CarParts France',
+    motif,
+    motifKey,
+    currentUser: sessionUser || null,
+    eligibleOrders,
+  });
+};
+
+exports.postSimpleForm = async (req, res) => {
+  try {
+    const b = req.body || {};
+    const motifKey = String(b.motifSav || '').trim();
+    const motif = MOTIFS.find((m) => m.key === motifKey);
+    if (!motif || motif.key === 'piece_defectueuse') {
+      return res.status(400).json({ success: false, error: 'Motif invalide.' });
+    }
+    const email = String(b.email || '').trim().toLowerCase();
+    const nom = String(b.clientNom || '').trim() || (email ? email.split('@')[0] : '');
+    const description = String(b.description || '').trim();
+    const numeroCommande = String(b.numeroCommande || '').trim();
+    if (!email) return res.status(400).json({ success: false, error: 'Email requis.' });
+    if (!description || description.length < 10) return res.status(400).json({ success: false, error: 'Merci de décrire le problème (min. 10 caractères).' });
+
+    const livraison = {
+      transporteur: String(b.transporteur || '').trim() || undefined,
+      numeroSuivi: String(b.numeroSuivi || '').trim() || undefined,
+      dateReceptionPrevue: b.dateReceptionPrevue ? new Date(b.dateReceptionPrevue) : undefined,
+      dateReceptionReelle: b.dateReceptionReelle ? new Date(b.dateReceptionReelle) : undefined,
+      descriptionDommage: ['colis_abime', 'colis_non_recu', 'erreur_preparation'].includes(motifKey) ? description.slice(0, 2000) : undefined,
+    };
+
+    const clientIp = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() || req.ip || '';
+    const userAgent = (req.headers['user-agent'] || '').toString().slice(0, 500);
+
+    const ticket = new SavTicket({
+      motifSav: motifKey,
+      numeroCommande: numeroCommande || undefined,
+      client: { nom, email, telephone: String(b.telephone || '').trim() || undefined, type: 'B2C' },
+      diagnostic: { description: description.slice(0, 5000) },
+      livraison,
+      cgvAcceptance: b.cgvAccepted ? { version: 'cgv-sav-v2-2026-04', acceptedAt: new Date(), ip: clientIp, userAgent } : undefined,
+      rgpdAcceptance: b.rgpdAccepted ? { version: 'rgpd-v1-2026-04', acceptedAt: new Date(), ip: clientIp, userAgent } : undefined,
+      // statut sera défini par le hook pre-save via MOTIF_CONFIG
+    });
+    // Définir statut initial selon motif
+    const cfg = SavTicket.getMotifConfig(motifKey);
+    ticket.statut = cfg.statut;
+    ticket.workflow = { track: 'retour_systematique', etape: cfg.statut };
+
+    ticket.addMessage('client', 'interne', `Ticket créé via formulaire court (motif : ${motif.title})`);
+    await ticket.save();
+
+    try { require('../services/slackNotifier').notifyTicketCreated(ticket); } catch (_) {}
+    try {
+      const notif = require('../services/savNotifications');
+      if (typeof notif.sendConfirmationToClient === 'function') {
+        notif.sendConfirmationToClient(ticket).catch(() => {});
+      }
+    } catch (_) {}
+
+    return res.json({ success: true, data: { numero: ticket.numero, redirect: `/sav/confirmation/${ticket.numero}` } });
+  } catch (err) {
+    console.error('[sav] postSimpleForm', err);
+    return res.status(500).json({ success: false, error: err.message || 'Erreur serveur.' });
+  }
+};
+
 // GET /sav/suivi/:numero — page de suivi
 exports.getSuivi = async (req, res) => {
   const numero = req.params.numero;
