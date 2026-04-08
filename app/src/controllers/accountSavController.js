@@ -6,7 +6,32 @@
  * - Export et suppression RGPD
  */
 
+const fs = require('fs');
+const path = require('path');
 const SavTicket = require('../models/SavTicket');
+
+const UPLOAD_BASE = path.join(__dirname, '..', '..', '..', 'uploads', 'sav');
+
+function saveAttachments(numero, files) {
+  if (!files || !files.length) return [];
+  const dir = path.join(UPLOAD_BASE, numero);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+  const out = [];
+  files.forEach((f) => {
+    const safe = `${Date.now()}_${(f.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    try {
+      fs.writeFileSync(path.join(dir, safe), f.buffer);
+      out.push({
+        kind: 'client_message',
+        url: `/uploads/sav/${numero}/${safe}`,
+        originalName: f.originalname,
+        size: f.size,
+        mime: f.mimetype,
+      });
+    } catch (_) {}
+  });
+  return out;
+}
 
 const STATUTS_LABELS = {
   ouvert: ['Ouvert', 'bg-sky-100 text-sky-800'],
@@ -26,14 +51,19 @@ const STATUTS_LABELS = {
 
 exports.STATUTS_LABELS = STATUTS_LABELS;
 
+const STATUS_GROUPS = {
+  ouverts: ['ouvert', 'pre_qualification', 'en_attente_documents', 'retour_demande', 'en_transit_retour', 'recu_atelier', 'en_analyse', 'en_attente_decision_client'],
+  clos: ['clos', 'clos_sans_reponse', 'refuse', 'resolu_garantie', 'resolu_facture'],
+};
+
 exports.getSavList = async (req, res) => {
   const user = req.session.user;
+  const filter = String(req.query.filter || 'tous');
+  const q = { 'client.email': (user.email || '').toLowerCase() };
+  if (STATUS_GROUPS[filter]) q.statut = { $in: STATUS_GROUPS[filter] };
   let tickets = [];
   try {
-    tickets = await SavTicket.find({ 'client.email': (user.email || '').toLowerCase() })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
+    tickets = await SavTicket.find(q).sort({ createdAt: -1 }).limit(50).lean();
   } catch (e) {
     console.error('[compte/sav] list', e.message);
   }
@@ -43,6 +73,7 @@ exports.getSavList = async (req, res) => {
     currentUser: user,
     tickets,
     STATUTS_LABELS,
+    filter,
   });
 };
 
@@ -84,7 +115,16 @@ exports.postSavMessage = async (req, res) => {
       'client.email': (user.email || '').toLowerCase(),
     });
     if (!ticket) return res.status(404).redirect('/compte/sav?error=notfound');
-    ticket.addMessage('client', 'email', contenu);
+    // Pièces jointes
+    const saved = saveAttachments(numero, req.files || []);
+    if (saved.length) {
+      ticket.documentsList = ticket.documentsList || [];
+      saved.forEach((d) => ticket.documentsList.push(d));
+    }
+    const finalContenu = saved.length
+      ? `${contenu}\n\n📎 ${saved.length} pièce(s) jointe(s) :\n${saved.map((d) => '• ' + d.originalName).join('\n')}`
+      : contenu;
+    ticket.addMessage('client', 'email', finalContenu);
     await ticket.save();
 
     // Notif équipe SAV (fire-and-forget)

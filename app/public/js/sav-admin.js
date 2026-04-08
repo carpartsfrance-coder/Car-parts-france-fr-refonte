@@ -393,9 +393,11 @@
           var assignHtml = t.assignedToName
             ? '<div class="flex items-center gap-1">' + avatar(t.assignedToName) + '<span class="text-[11px] truncate max-w-[110px]">' + escapeHtml(t.assignedToName) + '</span></div>'
             : '<span class="text-[11px] text-slate-400 italic">Non assigné</span>';
+          var awaiting = t.lastClientMessageAt && (!t.lastAdminReadAt || new Date(t.lastClientMessageAt) > new Date(t.lastAdminReadAt));
+          var awaitingDot = awaiting ? '<span title="Réponse client en attente" class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1 align-middle animate-pulse"></span>' : '';
           return '<tr class="hover:bg-slate-50 cursor-pointer ' + rowPulse + '" data-row="' + i + '" data-numero="' + escapeHtml(t.numero) + '">' +
             '<td class="px-3 py-2 sav-col-sticky-l"><input type="checkbox" class="rounded sav-row-cb" data-numero="' + escapeHtml(t.numero) + '" ' + (selected.has(t.numero) ? 'checked' : '') + '></td>' +
-            '<td class="px-3 py-2 font-mono text-xs font-semibold sav-col-sticky-l2">' + escapeHtml(t.numero) + '</td>' +
+            '<td class="px-3 py-2 font-mono text-xs font-semibold sav-col-sticky-l2">' + awaitingDot + escapeHtml(t.numero) + '</td>' +
             '<td class="px-3 py-2"><div class="text-xs font-medium">' + escapeHtml((t.client && t.client.nom) || '') + '</div><div class="text-[10px] text-slate-500">' + escapeHtml((t.client && t.client.email) || '') + '</div></td>' +
             '<td class="px-3 py-2">' + pieceBadge(t.pieceType) + '</td>' +
             '<td class="px-3 py-2 text-xs">' + (vstr ? escapeHtml(vstr) : '<span class="text-slate-400">—</span>') + (v.vin ? '<div class="text-[10px] font-mono text-slate-400">' + escapeHtml(v.vin) + '</div>' : '') + '</td>' +
@@ -697,7 +699,8 @@
         setV('ouverts', d.ouverts || 0);
         setV('attenteClient', d.enAttenteClient || d.enAttenteDoc || 0);
         setV('attenteFournisseur', d.enAttenteFournisseur || 0);
-        setV('slaDepasse', d.slaDepasse || 0);
+        setV('slaDepasse', d.slaDepasse || d.sla_depasse || 0);
+        setV('awaitingClient', d.awaiting_client || 0);
       });
     }
     loadMiniKpis();
@@ -1416,7 +1419,11 @@
         var safe = sanitizeHtml(rawHtml);
         var sujet = m.sujet ? '<div class="font-semibold text-slate-900 mb-1">' + escapeHtml(m.sujet) + '</div>' : '';
         var label = canalKey === 'interne' ? '<div class="sav-msg__intlabel">🔒 INTERNE</div>' : '';
-        return '<article class="sav-msg sav-msg--' + canalKey + '" data-msg-idx="' + idx + '">' +
+        var isClient = author === 'client';
+        var clientCls = isClient ? ' sav-msg--client' : '';
+        var clientLabel = isClient ? '<div class="sav-msg__intlabel" style="background:#dbeafe;color:#1e40af;">🗨 CLIENT</div>' : '';
+        return '<article class="sav-msg sav-msg--' + canalKey + clientCls + '" data-msg-idx="' + idx + '">' +
+          clientLabel +
           label +
           '<header class="sav-msg__head">' +
             '<span class="sav-msg__avatar" style="background:' + color + '">' + escapeHtml(initials(author)) + '</span>' +

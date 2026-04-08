@@ -356,6 +356,18 @@ adminRouter.get('/tickets', async (req, res) => {
       q['sla.dateLimite'] = { $lt: new Date() };
       q.statut = q.statut || { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'] };
     }
+    // Réponse client en attente : un message client posté après la dernière lecture admin
+    if (req.query.awaitingClient === 'true') {
+      q.$expr = {
+        $and: [
+          { $ne: ['$lastClientMessageAt', null] },
+          { $or: [
+            { $eq: ['$lastAdminReadAt', null] },
+            { $gt: ['$lastClientMessageAt', '$lastAdminReadAt'] },
+          ] },
+        ],
+      };
+    }
     if (req.query.search) {
       const s = String(req.query.search).trim();
       if (s) {
@@ -1049,6 +1061,25 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
     if (!canal || !contenu) return fail(res, 'canal et contenu requis');
     ticket.addMessage(auteur || 'admin', canal, contenu);
     await ticket.save();
+
+    // Notifie le client par email à chaque réponse publique de l'admin
+    if (canal === 'email' && ticket.client && ticket.client.email) {
+      try {
+        const { sendEmail } = require('../../services/emailService');
+        const baseUrl = process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr';
+        const link = `${baseUrl}/sav/suivi/${ticket.numero}`;
+        sendEmail({
+          toEmail: ticket.client.email,
+          subject: `Réponse de notre équipe SAV — ${ticket.numero}`,
+          html: `<p>Bonjour ${(ticket.client.nom) || ''},</p>
+                 <p>Notre équipe SAV vient de vous répondre sur votre dossier <strong>${ticket.numero}</strong>.</p>
+                 <blockquote style="border-left:3px solid #cbd5e1;padding:8px 12px;color:#475569;">${String(contenu).replace(/</g, '&lt;').slice(0, 800)}</blockquote>
+                 <p><a href="${link}" style="display:inline-block;background:#ec1313;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Voir la conversation</a></p>
+                 <p style="color:#64748b;font-size:12px;">Vous pouvez répondre directement depuis votre espace SAV.</p>`,
+          text: `Notre équipe vient de vous répondre sur ${ticket.numero}. Voir : ${link}`,
+        }).catch(() => {});
+      } catch (_) {}
+    }
     return ok(res, { ok: true, count: ticket.messages.length });
   } catch (err) {
     return fail(res, err.message, 500);
@@ -1238,6 +1269,7 @@ adminRouter.get('/dashboard', async (req, res) => {
       facturesImpayees,
       mesTickets,
       tousResolus,
+      awaitingClient,
     ] = await Promise.all([
       SavTicket.countDocuments({ statut: { $in: STATUTS_ACTIFS } }),
       SavTicket.countDocuments({ statut: { $in: ['en_attente_documents', 'relance_1', 'relance_2'] } }),
@@ -1255,6 +1287,9 @@ adminRouter.get('/dashboard', async (req, res) => {
       SavTicket.find({ statut: { $in: STATUTS_CLOS }, createdAt: { $gte: new Date(Date.now() - 365 * 24 * 3600 * 1000) } })
         .select('createdAt updatedAt statut')
         .lean(),
+      SavTicket.countDocuments({
+        $expr: { $and: [ { $ne: ['$lastClientMessageAt', null] }, { $or: [ { $eq: ['$lastAdminReadAt', null] }, { $gt: ['$lastClientMessageAt', '$lastAdminReadAt'] } ] } ] },
+      }),
     ]);
 
     // Temps moyen de résolution (jours) sur les tickets clos cette année
@@ -1327,6 +1362,7 @@ adminRouter.get('/dashboard', async (req, res) => {
       avg_resolution_days: avgResolutionDays,
       sav_recurrents: savRecurrents,
       mes_tickets: mesTickets || 0,
+      awaiting_client: awaitingClient || 0,
       chart: { labels, ouverts: ouvertsArr, clos: closArr },
     });
   } catch (err) {

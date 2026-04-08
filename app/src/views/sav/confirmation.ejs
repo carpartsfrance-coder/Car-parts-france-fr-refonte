@@ -73,9 +73,9 @@
             Accéder à mon dossier
           </a>
         <% } else { %>
-          <a href="/compte/connexion?redirect=%2Fcompte%2Fsav%2F<%= encodeURIComponent(ticket.numero) %>" class="flex-1 text-center inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3">
-            <span class="material-symbols-rounded" aria-hidden="true">login</span>
-            Connectez-vous pour suivre votre dossier
+          <a href="/sav/suivi?numero=<%= encodeURIComponent(ticket.numero) %>" class="flex-1 text-center inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-semibold px-5 py-3">
+            <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+            Suivre mon dossier
           </a>
         <% } %>
         <a href="/" class="flex-1 text-center inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 text-slate-700 font-semibold px-5 py-3 hover:bg-slate-50">

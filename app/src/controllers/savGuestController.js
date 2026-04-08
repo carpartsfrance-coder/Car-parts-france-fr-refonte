@@ -4,8 +4,26 @@
  * Rate limit : 5 tentatives / 15 min / IP.
  */
 
+const fs = require('fs');
+const path = require('path');
 const SavTicket = require('../models/SavTicket');
 const { STATUTS_LABELS } = require('./accountSavController');
+
+const UPLOAD_BASE = path.join(__dirname, '..', '..', '..', 'uploads', 'sav');
+function saveAttachments(numero, files) {
+  if (!files || !files.length) return [];
+  const dir = path.join(UPLOAD_BASE, numero);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+  const out = [];
+  files.forEach((f) => {
+    const safe = `${Date.now()}_${(f.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    try {
+      fs.writeFileSync(path.join(dir, safe), f.buffer);
+      out.push({ kind: 'client_message', url: `/uploads/sav/${numero}/${safe}`, originalName: f.originalname, size: f.size, mime: f.mimetype });
+    } catch (_) {}
+  });
+  return out;
+}
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -109,7 +127,15 @@ exports.postSuiviMessage = async (req, res) => {
   try {
     const ticket = await SavTicket.findOne({ numero, 'client.email': auth.email });
     if (!ticket) return res.redirect('/sav/suivi?error=notfound');
-    ticket.addMessage('client', 'email', contenu);
+    const saved = saveAttachments(numero, req.files || []);
+    if (saved.length) {
+      ticket.documentsList = ticket.documentsList || [];
+      saved.forEach((d) => ticket.documentsList.push(d));
+    }
+    const finalContenu = saved.length
+      ? `${contenu}\n\n📎 ${saved.length} pièce(s) jointe(s) :\n${saved.map((d) => '• ' + d.originalName).join('\n')}`
+      : contenu;
+    ticket.addMessage('client', 'email', finalContenu);
     await ticket.save();
 
     try {

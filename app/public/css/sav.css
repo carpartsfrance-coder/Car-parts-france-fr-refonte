@@ -446,6 +446,7 @@
 .sav-msg--whatsapp  { border-left-color: var(--sav-emerald-500); background: var(--sav-success-50); }
 .sav-msg--tel       { border-left-color: var(--sav-slate-500); background: var(--sav-white); }
 .sav-msg--interne   { border-left-color: var(--sav-amber-500); background: var(--sav-amber-50); }
+.sav-msg--client    { border-left-color: #2563eb; border-left-width: 4px; background: #eff6ff; }
 
 .sav-msg__intlabel {
   display: inline-block;

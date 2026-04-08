@@ -1754,6 +1754,21 @@ async function getAccount(req, res, next) {
       }));
     }
 
+    // SAV : compteur ouverts + nouvelles réponses
+    let savOpen = 0; let savUnread = 0;
+    try {
+      const SavTicket = require('../models/SavTicket');
+      const email = (req.session.user.email || '').toLowerCase();
+      const SAV_OPEN = ['ouvert','pre_qualification','en_attente_documents','retour_demande','en_transit_retour','recu_atelier','en_analyse','en_attente_decision_client'];
+      [savOpen, savUnread] = await Promise.all([
+        SavTicket.countDocuments({ 'client.email': email, statut: { $in: SAV_OPEN } }),
+        SavTicket.countDocuments({
+          'client.email': email,
+          $expr: { $and: [ { $ne: ['$lastAdminMessageAt', null] }, { $or: [ { $eq: ['$lastClientReadAt', null] }, { $gt: ['$lastAdminMessageAt', '$lastClientReadAt'] } ] } ] },
+        }),
+      ]);
+    } catch (_) {}
+
     return res.render('account/index', {
       title: 'Mon compte - CarParts France',
       dbConnected,
@@ -1765,6 +1780,8 @@ async function getAccount(req, res, next) {
       vehicleCount: 0,
       orders: recentOrders,
       vehicles: [],
+      savOpen,
+      savUnread,
     });
   } catch (err) {
     return next(err);

@@ -41,10 +41,16 @@
         <div class="sav-mini-kpi__icon bg-red-100 text-red-700"><span class="material-symbols-outlined text-base">warning</span></div>
         <div><div class="sav-mini-kpi__value" data-mini-kpi="slaDepasse">—</div><div class="sav-mini-kpi__label">SLA dépassé</div></div>
       </button>
+      <button type="button" data-mini-kpi-filter="awaitingClient=true" class="sav-mini-kpi">
+        <div class="sav-mini-kpi__icon bg-rose-100 text-rose-700"><span class="material-symbols-outlined text-base">mark_unread_chat_alt</span></div>
+        <div><div class="sav-mini-kpi__value" data-mini-kpi="awaitingClient">—</div><div class="sav-mini-kpi__label">Réponse client</div></div>
+      </button>
     </div>
 
     <!-- Filtres + recherche -->
     <form id="sav-filters" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+      <input type="hidden" name="awaitingClient">
+      <input type="hidden" name="sla_depasse">
       <div class="lg:col-span-2 relative">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
         <input id="sav-search" type="text" name="search" placeholder="N°, email, VIN, plaque…" autocomplete="off"
@@ -276,5 +282,5 @@
 </div>
 
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=11" defer></script>
+<script src="/js/sav-admin.js?v=12" defer></script>
 <%- include('./partials/footer') %>

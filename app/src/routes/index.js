@@ -46,10 +46,26 @@ router.post('/sav/check-commande', savController.postCheckCommande);
 
 // Suivi invité
 const savGuestController = require('../controllers/savGuestController');
+const multer = require('multer');
+const guestUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (req, file, cb) => {
+    var ok = ['image/jpeg','image/png','image/webp','application/pdf'].indexOf(file.mimetype) >= 0;
+    cb(ok ? null : new Error('Format non autorisé'), ok);
+  },
+});
 router.get('/sav/suivi', savGuestController.getSuiviForm);
 router.post('/sav/suivi', savGuestController.postSuiviForm);
 router.get('/sav/suivi/:numero', savGuestController.getSuiviDetail);
-router.post('/sav/suivi/:numero/messages', savGuestController.postSuiviMessage);
+router.post(
+  '/sav/suivi/:numero/messages',
+  (req, res, next) => guestUpload.array('attachments', 5)(req, res, (err) => {
+    if (err) return res.redirect(`/sav/suivi/${encodeURIComponent(req.params.numero)}?error=upload`);
+    next();
+  }),
+  savGuestController.postSuiviMessage,
+);
 router.get('/sav/confirmation/:numero', savController.getConfirmation);
 router.get('/sav/feedback/:numero', savController.getFeedback);
 router.post('/sav/feedback/:numero', savController.postFeedback);
