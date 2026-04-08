@@ -4,7 +4,7 @@
     {
       "name": "dev",
       "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": ["-lc", "export PATH=/usr/local/bin:$PATH && cd app && npm run dev"],
+      "runtimeArgs": ["-lc", "export PATH=/usr/local/bin:$PATH && export MONGODB_URI='mongodb+srv://carparts_admin:ycB1HypgLDNTrPuG@cluster3.d9lwt.mongodb.net/carpartsfrance?retryWrites=true&w=majority&appName=Cluster3' && export SAV_API_TOKEN='dev-token' && cd app && npm run dev"],
       "port": 3000,
       "autoPort": true
     }
