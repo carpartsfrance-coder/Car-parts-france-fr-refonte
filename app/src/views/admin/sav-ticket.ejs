@@ -59,6 +59,32 @@
   <!-- STEPPER CYCLE SAV -->
   <nav id="sav-stepper" class="sav-stepper" aria-label="Cycle de vie du ticket SAV"></nav>
 
+  <!-- NOTES ÉPINGLÉES (résumé interne) -->
+  <section id="sav-pinned-notes-section" class="px-6 lg:px-10 pt-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1">
+        <span class="material-symbols-outlined" style="font-size:16px;">push_pin</span>
+        Notes épinglées
+      </h2>
+      <button type="button" id="sav-pinned-add-btn" class="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1">
+        <span class="material-symbols-outlined" style="font-size:14px;">add</span> Ajouter
+      </button>
+    </div>
+    <div id="sav-pinned-notes" class="flex flex-wrap gap-2"></div>
+    <form id="sav-pinned-add-form" class="hidden mt-2 flex flex-col sm:flex-row gap-2">
+      <input type="text" id="sav-pinned-input" maxlength="500" placeholder="Ex: client difficile, dossier lié #SAV-2025-0042…" class="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary" />
+      <select id="sav-pinned-color" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+        <option value="amber">🟡 Attention</option>
+        <option value="rose">🔴 Urgent</option>
+        <option value="blue">🔵 Info</option>
+        <option value="emerald">🟢 OK</option>
+        <option value="slate">⚪ Neutre</option>
+      </select>
+      <button type="submit" class="rounded-lg bg-primary text-white px-3 py-1.5 text-sm font-medium hover:bg-primary-dark">Épingler</button>
+      <button type="button" id="sav-pinned-cancel" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">Annuler</button>
+    </form>
+  </section>
+
   <div class="px-6 lg:px-10 py-6">
     <div id="sav-detail-error" class="hidden mt-2 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
 

@@ -1117,6 +1117,40 @@ adminRouter.post('/tickets/:numero/rapport-pdf', async (req, res) => {
   }
 });
 
+// POST /admin/api/sav/tickets/:numero/pinned-notes — ajouter note épinglée
+adminRouter.post('/tickets/:numero/pinned-notes', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const texte = (req.body && req.body.texte || '').trim();
+    if (!texte) return fail(res, 'texte requis');
+    const couleur = ['amber', 'rose', 'blue', 'emerald', 'slate'].includes(req.body.couleur) ? req.body.couleur : 'amber';
+    const auteur = (req.user && (req.user.name || req.user.email)) || 'admin';
+    ticket.pinnedNotes.push({ texte: texte.slice(0, 500), couleur, auteur, createdAt: new Date() });
+    await ticket.save();
+    audit.log({ req, action: 'sav.pinnedNote.add', entityType: 'sav_ticket', entityId: ticket.numero, after: { texte, couleur } });
+    return ok(res, { pinnedNotes: ticket.pinnedNotes });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// DELETE /admin/api/sav/tickets/:numero/pinned-notes/:noteId
+adminRouter.delete('/tickets/:numero/pinned-notes/:noteId', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const before = ticket.pinnedNotes.length;
+    ticket.pinnedNotes = ticket.pinnedNotes.filter((n) => String(n._id) !== String(req.params.noteId));
+    if (ticket.pinnedNotes.length === before) return fail(res, 'Note introuvable', 404);
+    await ticket.save();
+    audit.log({ req, action: 'sav.pinnedNote.delete', entityType: 'sav_ticket', entityId: ticket.numero, before: { noteId: req.params.noteId } });
+    return ok(res, { pinnedNotes: ticket.pinnedNotes });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
 // POST /admin/api/sav/tickets — création interne (commercial au téléphone, etc.)
 adminRouter.post('/tickets', async (req, res) => {
   try {

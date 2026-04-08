@@ -786,6 +786,7 @@
         }
         ticket = res.j.data;
         renderHeader();
+        renderPinnedNotes();
         renderDossier();
         renderTimeline();
         renderDocuments();
@@ -1100,6 +1101,86 @@
         if (assignIcon) assignIcon.classList.remove('hidden');
       }
     }
+
+    // -------- Notes épinglées --------
+    var PIN_COLORS = {
+      amber:   { bg: '#fef3c7', border: '#f59e0b', text: '#78350f' },
+      rose:    { bg: '#ffe4e6', border: '#e11d48', text: '#881337' },
+      blue:    { bg: '#dbeafe', border: '#2563eb', text: '#1e3a8a' },
+      emerald: { bg: '#d1fae5', border: '#059669', text: '#064e3b' },
+      slate:   { bg: '#f1f5f9', border: '#64748b', text: '#0f172a' },
+    };
+    function renderPinnedNotes() {
+      var box = document.getElementById('sav-pinned-notes');
+      if (!box) return;
+      var notes = (ticket && ticket.pinnedNotes) || [];
+      if (!notes.length) {
+        box.innerHTML = '<span class="text-xs text-slate-400 italic">Aucune note épinglée</span>';
+        return;
+      }
+      box.innerHTML = notes.map(function (n) {
+        var c = PIN_COLORS[n.couleur] || PIN_COLORS.amber;
+        var date = n.createdAt ? new Date(n.createdAt).toLocaleDateString('fr-FR') : '';
+        var auteur = n.auteur ? escapeHtml(n.auteur) + ' · ' : '';
+        return '<div class="inline-flex items-start gap-2 rounded-lg px-3 py-2 text-xs shadow-sm" ' +
+          'style="background:' + c.bg + ';border-left:3px solid ' + c.border + ';color:' + c.text + ';max-width:320px;">' +
+          '<span class="material-symbols-outlined" style="font-size:14px;flex-shrink:0;margin-top:1px;">push_pin</span>' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="font-medium break-words">' + escapeHtml(n.texte || '') + '</div>' +
+            '<div class="text-[10px] opacity-70 mt-0.5">' + auteur + escapeHtml(date) + '</div>' +
+          '</div>' +
+          '<button type="button" data-pin-del="' + escapeHtml(String(n._id)) + '" title="Retirer" class="opacity-60 hover:opacity-100" style="color:' + c.text + ';">' +
+            '<span class="material-symbols-outlined" style="font-size:14px;">close</span>' +
+          '</button>' +
+        '</div>';
+      }).join('');
+      box.querySelectorAll('[data-pin-del]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-pin-del');
+          if (!confirm('Retirer cette note ?')) return;
+          api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes/' + encodeURIComponent(id), { method: 'DELETE' }).then(function (res) {
+            if (res.ok && res.j.success) {
+              ticket.pinnedNotes = res.j.data.pinnedNotes;
+              renderPinnedNotes();
+              toast('Note retirée', 'success');
+            } else {
+              toast((res.j && res.j.error) || 'Erreur', 'error');
+            }
+          });
+        });
+      });
+    }
+    // Wire add form
+    (function wirePinnedAdd() {
+      var addBtn = document.getElementById('sav-pinned-add-btn');
+      var form = document.getElementById('sav-pinned-add-form');
+      var cancel = document.getElementById('sav-pinned-cancel');
+      var input = document.getElementById('sav-pinned-input');
+      var color = document.getElementById('sav-pinned-color');
+      if (!addBtn || !form) return;
+      addBtn.addEventListener('click', function () { form.classList.remove('hidden'); input && input.focus(); });
+      cancel && cancel.addEventListener('click', function () { form.classList.add('hidden'); if (input) input.value = ''; });
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var texte = (input && input.value || '').trim();
+        if (!texte) return;
+        api('/tickets/' + encodeURIComponent(numero) + '/pinned-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texte: texte, couleur: color ? color.value : 'amber' }),
+        }).then(function (res) {
+          if (res.ok && res.j.success) {
+            ticket.pinnedNotes = res.j.data.pinnedNotes;
+            renderPinnedNotes();
+            form.classList.add('hidden');
+            if (input) input.value = '';
+            toast('Note épinglée', 'success');
+          } else {
+            toast((res.j && res.j.error) || 'Erreur', 'error');
+          }
+        });
+      });
+    })();
 
     // -------- Dossier (Aperçu : KPIs + 4 cards) --------
     function businessDaysSince(date) {

@@ -224,6 +224,16 @@ const savTicketSchema = new mongoose.Schema(
 
     messages: [messageSchema],
 
+    // Notes internes épinglées (résumé visible en haut du ticket admin)
+    pinnedNotes: [
+      {
+        texte: { type: String, trim: true, required: true, maxlength: 500 },
+        couleur: { type: String, enum: ['amber', 'rose', 'blue', 'emerald', 'slate'], default: 'amber' },
+        auteur: { type: String, trim: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+
     // Suivi lecture/écriture client ↔ admin (badges "nouvelle réponse")
     lastClientMessageAt: { type: Date, default: null },
     lastAdminMessageAt: { type: Date, default: null },
