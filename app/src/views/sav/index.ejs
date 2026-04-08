@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/sav.css?v=8">
+<link rel="stylesheet" href="/css/sav.css?v=9">
 <%- include('../partials/header') %>
 
 <a href="#sav-form" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">
@@ -9,12 +9,12 @@
 <%
   // Étapes du wizard (titres pour stepper + récapitulatif)
   const STEPS = [
-    { i: 1, label: tSav('wizard.step_labels.1') },
-    { i: 2, label: tSav('wizard.step_labels.2') },
-    { i: 3, label: tSav('wizard.step_labels.3') },
-    { i: 4, label: tSav('wizard.step_labels.4') },
-    { i: 5, label: tSav('wizard.step_labels.5') },
-    { i: 6, label: tSav('wizard.step_labels.6') },
+    { i: 1, label: tSav('wizard.step_labels.1'), icon: 'receipt_long' },
+    { i: 2, label: tSav('wizard.step_labels.2'), icon: 'settings' },
+    { i: 3, label: tSav('wizard.step_labels.3'), icon: 'warning' },
+    { i: 4, label: tSav('wizard.step_labels.4'), icon: 'description' },
+    { i: 5, label: tSav('wizard.step_labels.5'), icon: 'verified_user' },
+    { i: 6, label: tSav('wizard.step_labels.6'), icon: 'task_alt' },
   ];
   const TOTAL = STEPS.length;
 %>
@@ -35,7 +35,7 @@
     <aside class="sav-sidebar" aria-label="Progression du formulaire">
       <div class="sav-sidebar__brand">
         <div class="sav-sidebar__brand-label">DEMANDE SAV</div>
-        <div class="sav-sidebar__brand-progress">Étape <span id="sav-sidebar-current">1</span> sur <%= TOTAL %></div>
+        <div class="sav-sidebar__brand-progress"><span id="sav-sidebar-remaining"><%= TOTAL - 1 %></span> étapes restantes</div>
       </div>
       <nav role="progressbar" aria-valuemin="1" aria-valuemax="<%= TOTAL %>" aria-valuenow="1" id="sav-progress">
         <ol class="sav-sidebar__list">
@@ -44,8 +44,9 @@
                 data-step-indicator="<%= s.i %>">
               <button type="button" class="sav-sidebar__btn" aria-label="Étape <%= s.i %> : <%= s.label %>" data-go-step="<%= s.i %>">
                 <span class="sav-sidebar__icon">
-                  <span class="sav-stepper-v2__num"><%= s.i %></span>
-                  <span class="sav-stepper-v2__check material-symbols-rounded" aria-hidden="true">check</span>
+                  <span class="material-symbols-rounded sav-sidebar__icon-main" aria-hidden="true"><%= s.icon %></span>
+                  <span class="sav-stepper-v2__num sr-only"><%= s.i %></span>
+                  <span class="sav-stepper-v2__check sr-only" aria-hidden="true">check</span>
                 </span>
                 <span class="sav-sidebar__label sav-stepper-v2__label"><%= s.label %></span>
               </button>

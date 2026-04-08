@@ -71,6 +71,8 @@
     // Mobile bar
     var sc = document.getElementById('sav-sidebar-current');
     if (sc) sc.textContent = String(n);
+    var sr = document.getElementById('sav-sidebar-remaining');
+    if (sr) sr.textContent = String(Math.max(0, TOTAL - n));
     var heroTag = document.getElementById('sav-hero-step');
     if (heroTag) heroTag.textContent = 'ÉTAPE ' + n;
     var mc = document.getElementById('sav-mobile-current');
