@@ -1483,3 +1483,71 @@
   justify-content: center;
 }
 .sav-tpl-del:hover { background: #f59e0b; color: #fff; }
+
+/* ====================================================================== */
+/* === MOBILE UX OPTIMISATIONS (≤ 768px) ================================ */
+/* ====================================================================== */
+@media (max-width: 768px) {
+  /* Empêche le zoom iOS sur focus input (font-size ≥ 16px) */
+  .sav-module input,
+  .sav-module select,
+  .sav-module textarea {
+    font-size: 16px !important;
+  }
+  /* Tap targets ≥ 44px */
+  .sav-module button,
+  .sav-module .sav-cta,
+  .sav-module a.sav-cta,
+  .sav-module input[type="submit"] {
+    min-height: 48px;
+  }
+  /* Padding plus généreux sur cartes */
+  .sav-status-card { padding: 1rem; border-radius: 0.875rem; }
+  /* Stepper compact : on cache les labels, on garde les ronds */
+  .sav-stepper-v2__label { display: none; }
+  .sav-stepper-v2__circle { width: 30px; height: 30px; font-size: 12px; }
+  .sav-stepper-v2__bar { top: 14px; }
+  .sav-stepper { padding: 0.625rem 1rem; }
+  /* Titres plus mesurés */
+  .sav-module h1 { font-size: 1.5rem; line-height: 1.2; }
+  .sav-module h2 { font-size: 1.125rem; }
+  /* Drop-zone fichiers plus petite */
+  .sav-dropzone, .sav-drop { min-height: 110px; padding: 0.875rem; }
+  /* Cartes motif : icône plus petite, full bleed */
+  .sav-module .grid > a {
+    padding: 0.875rem;
+  }
+  /* Boutons radio/checkbox pleine largeur tap target */
+  .sav-module label.flex {
+    padding: 0.25rem 0;
+  }
+  /* Sticky CTA bar pour le formulaire court */
+  .sav-sticky-cta {
+    position: sticky;
+    bottom: 0;
+    left: 0; right: 0;
+    background: linear-gradient(to top, #fff 70%, rgba(255,255,255,0));
+    padding: 0.75rem 0 0.5rem;
+    margin: 0 -1rem;
+    padding-left: 1rem; padding-right: 1rem;
+    z-index: 20;
+  }
+  /* File input natif lisible */
+  .sav-module input[type="file"] {
+    width: 100%;
+    padding: 0.5rem 0;
+  }
+  /* Espaces verticaux resserrés */
+  .sav-module main .py-8 { padding-top: 1.25rem; padding-bottom: 1.25rem; }
+  /* Mini-checklist docs : 1 col sur mobile, plus respirante */
+  #sav-docs-checklist { grid-template-columns: 1fr !important; }
+  /* Liste fichiers : labels et selects empilés */
+  .sav-file-item { flex-wrap: wrap; }
+}
+
+/* Très petits écrans (iPhone SE etc.) */
+@media (max-width: 380px) {
+  .sav-stepper-v2__circle { width: 26px; height: 26px; font-size: 11px; }
+  .sav-stepper-v2__bar { top: 12px; }
+  .sav-module h1 { font-size: 1.375rem; }
+}

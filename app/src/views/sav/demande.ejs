@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/sav.css?v=4">
+<link rel="stylesheet" href="/css/sav.css?v=6">
 <%- include('../partials/header') %>
 
 <%
@@ -161,10 +161,12 @@
 
       <div id="sav-simple-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"></div>
 
-      <button type="submit" id="sav-simple-submit" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-6 py-3 text-base font-semibold hover:bg-primary-dark disabled:opacity-50">
-        <span class="material-symbols-rounded" aria-hidden="true">send</span>
-        Envoyer ma demande
-      </button>
+      <div class="sav-sticky-cta">
+        <button type="submit" id="sav-simple-submit" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-white px-6 py-3 text-base font-semibold hover:bg-primary-dark disabled:opacity-50">
+          <span class="material-symbols-rounded" aria-hidden="true">send</span>
+          Envoyer ma demande
+        </button>
+      </div>
     </form>
 
   </div>
