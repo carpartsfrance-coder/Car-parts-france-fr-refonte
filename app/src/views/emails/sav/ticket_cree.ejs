@@ -1,7 +1,6 @@
 <%
-  const baseUrl = (process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '');
-  const { buildGuestLink } = require('../../controllers/savGuestController');
-  const guestLink = buildGuestLink(ticket) || (baseUrl + '/sav/suivi');
+  const baseUrl = (typeof process !== 'undefined' && process.env && process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '');
+  const gl = (typeof guestLink !== 'undefined' && guestLink) ? guestLink : (baseUrl + '/sav/suivi');
   const body = `
   <p>Bonjour <strong>${(ticket.client && ticket.client.nom) || ''}</strong>,</p>
   <p>Nous avons bien enregistré votre demande SAV <strong>${ticket.numero}</strong>. <strong>Vous n'avez rien à payer à cette étape.</strong></p>
@@ -15,7 +14,7 @@
     </ul>
   </div>
   <p style="margin:18px 0;text-align:center;">
-    <a href="${guestLink}"
+    <a href="${gl}"
        style="display:inline-block;padding:12px 22px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">
       Suivre mon dossier
     </a>
