@@ -818,11 +818,14 @@ adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5
     if (canal === 'email') {
       try {
         const { sendEmail } = require('../../services/emailService');
-        const stripped = String(html || contenu).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const ejs = require('ejs');
+        const tplPath = path.join(__dirname, '..', '..', 'views', 'emails', 'sav', 'reponse_agent.ejs');
+        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu: contenu }, { async: true });
+        const stripped = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         emailResult = await sendEmail({
           toEmail: ticket.client && ticket.client.email,
-          subject: sujet || `[SAV ${ticket.numero}]`,
-          html: html || `<p>${stripped}</p>`,
+          subject: sujet || `Réponse SAV — ${ticket.numero}`,
+          html: emailHtml,
           text: stripped,
           attachments: emailAttachments.length ? emailAttachments : undefined,
         });
