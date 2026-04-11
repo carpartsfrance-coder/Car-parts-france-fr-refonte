@@ -1419,8 +1419,9 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
     ticket.addMessage(auteur || 'admin', canal, contenu);
     await ticket.save();
 
-    // Notifie le client par email à chaque réponse publique de l'admin
-    if (canal === 'email' && ticket.client && ticket.client.email) {
+    // Notifie le client par email à chaque réponse publique de l'admin (pas quand c'est le client lui-même)
+    const messageAuteur = auteur || 'admin';
+    if (canal === 'email' && messageAuteur !== 'client' && ticket.client && ticket.client.email) {
       try {
         const { sendEmail } = require('../../services/emailService');
         const { buildGuestLink } = require('../../controllers/savGuestController');
