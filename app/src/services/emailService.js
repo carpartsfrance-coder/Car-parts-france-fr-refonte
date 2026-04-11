@@ -176,7 +176,7 @@ function getFrom() {
   };
 }
 
-async function sendEmail({ toEmail, subject, html, text, attachments } = {}) {
+async function sendEmail({ toEmail, subject, html, text, attachments, replyTo } = {}) {
   const apiKey = getMailerSendApiKey();
   const from = getFrom();
 
@@ -205,6 +205,21 @@ async function sendEmail({ toEmail, subject, html, text, attachments } = {}) {
     html: typeof html === 'string' && html.trim() ? html : undefined,
     text: typeof text === 'string' && text.trim() ? text : undefined,
   };
+
+  // Reply-To header (MailerSend accepts an array of { email, name })
+  if (replyTo) {
+    if (Array.isArray(replyTo) && replyTo.length) {
+      payload.reply_to = replyTo.filter((r) => r && r.email).map((r) => ({
+        email: r.email,
+        ...(r.name ? { name: r.name } : {}),
+      }));
+    } else if (typeof replyTo === 'object' && replyTo.email) {
+      payload.reply_to = [{ email: replyTo.email, ...(replyTo.name ? { name: replyTo.name } : {}) }];
+    } else if (typeof replyTo === 'string' && replyTo.trim()) {
+      payload.reply_to = [{ email: replyTo.trim() }];
+    }
+    if (payload.reply_to && !payload.reply_to.length) delete payload.reply_to;
+  }
 
   if (Array.isArray(attachments) && attachments.length) {
     payload.attachments = attachments

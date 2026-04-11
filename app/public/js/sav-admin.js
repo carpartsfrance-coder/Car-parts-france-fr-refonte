@@ -170,6 +170,12 @@
   var LBL = (window.SAV_LABELS || {});
   function labelStatut(s) { return (LBL.statutLabel && LBL.statutLabel(s)) || s || '—'; }
   function labelPiece(t)  { return (LBL.pieceLabel  && LBL.pieceLabel(t))  || t || '—'; }
+  var MOTIF_LABELS = {
+    piece_defectueuse: 'Pièce défectueuse', colis_abime: 'Colis abîmé', colis_non_recu: 'Colis non reçu',
+    retard_livraison: 'Retard livraison', erreur_preparation: 'Erreur préparation', retractation: 'Rétractation 14j',
+    non_compatible: 'Non compatible', facture_document: 'Facture / document', remboursement: 'Remboursement', autre: 'Autre',
+  };
+  function labelMotif(m) { return MOTIF_LABELS[m] || m || '—'; }
   function classStatut(s) { return (LBL.statutClass && LBL.statutClass(s)) || 'bg-slate-100 text-slate-700'; }
   function pieceBadge(t) {
     var cls = PIECE_COLORS[t] || PIECE_COLORS.autre;
@@ -333,6 +339,58 @@
           '<div class="sav-sla-badge sav-sla-badge--late">en retard</div></a>';
       }).join('');
     });
+
+    // --- KPI Performance SAV (Sprint 3) ---
+    function loadPerfKpis(days) {
+      var sel = document.getElementById('sav-perf-days');
+      var d = days || (sel && sel.value) || 30;
+      var win = document.getElementById('sav-perf-window');
+      if (win) win.textContent = d + ' jours';
+      api('/kpi?days=' + encodeURIComponent(d)).then(function (res) {
+        if (!res.ok || !res.j.success) return;
+        var k = res.j.data || {};
+        var frt = document.getElementById('sav-perf-frt');
+        var rt  = document.getElementById('sav-perf-rt');
+        var br  = document.getElementById('sav-perf-breach');
+        var bk  = document.getElementById('sav-perf-backlog');
+        if (frt) frt.textContent = (k.frtHoursMedian != null) ? (Math.round(k.frtHoursMedian) + ' h') : '—';
+        if (rt)  rt.textContent  = (k.rtHoursMedian != null)  ? (Math.round(k.rtHoursMedian / 24) + ' j') : '—';
+        if (br) {
+          var rate = (k.breachRate != null) ? k.breachRate : null;
+          br.textContent = (rate != null) ? (rate + ' %') : '—';
+          br.classList.remove('text-emerald-600', 'text-amber-600', 'text-red-600', 'text-slate-900');
+          if (rate == null) br.classList.add('text-slate-900');
+          else if (rate < 10) br.classList.add('text-emerald-600');
+          else if (rate < 25) br.classList.add('text-amber-600');
+          else br.classList.add('text-red-600');
+        }
+        if (bk) bk.textContent = (k.totals && k.totals.openNow != null) ? k.totals.openNow : '—';
+
+        // Pyramide d'âges
+        var aging = document.getElementById('sav-perf-aging');
+        if (aging && k.aging) {
+          var order = [['lt1','<1j'],['1-3','1-3j'],['3-7','3-7j'],['7-14','7-14j'],['14plus','>14j']];
+          var colors = ['bg-emerald-400','bg-sky-400','bg-amber-400','bg-orange-500','bg-red-500'];
+          var max = 0;
+          order.forEach(function (o) { if ((k.aging[o[0]] || 0) > max) max = k.aging[o[0]]; });
+          if (max < 1) max = 1;
+          aging.innerHTML = order.map(function (o, i) {
+            var val = k.aging[o[0]] || 0;
+            var pct = Math.round((val / max) * 100);
+            return '<div class="flex-1 flex flex-col items-center justify-end gap-1">' +
+              '<div class="text-[10px] font-bold text-slate-700">' + val + '</div>' +
+              '<div class="w-full rounded-t ' + colors[i] + '" style="height:' + pct + '%"></div>' +
+              '<div class="text-[9px] text-slate-500">' + o[1] + '</div>' +
+              '</div>';
+          }).join('');
+        }
+      });
+    }
+    if (document.getElementById('sav-perf-kpis')) {
+      loadPerfKpis();
+      var selDays = document.getElementById('sav-perf-days');
+      if (selDays) selDays.addEventListener('change', function () { loadPerfKpis(); });
+    }
   }
 
   // ============================================================
@@ -351,7 +409,7 @@
       // Coalesce multi-values into comma-separated for statut & pieceType
       var multi = { statut: [], pieceType: [] };
       fd.forEach(function (v, k) {
-        if (!v || k === 'assignedToMe') return;
+        if (!v || k === 'assignedToMe' || k === 'priority') return;
         if (multi[k]) { multi[k].push(v); return; }
         qs.append(k, v);
       });
@@ -360,8 +418,14 @@
       });
       qs.append('page', state.page);
       qs.append('perPage', state.perPage);
-      qs.append('sort', state.sort);
-      qs.append('dir', state.dir);
+      // Mode priorité : override le tri
+      var priorityOn = fd.get('priority') === 'true';
+      if (priorityOn) {
+        qs.set('sort', 'priority');
+      } else {
+        qs.append('sort', state.sort);
+        qs.append('dir', state.dir);
+      }
       if (fd.get('assignedToMe') === 'true' && CURRENT_USER_ID) qs.append('assignedToUserId', CURRENT_USER_ID);
       return qs;
     }
@@ -894,22 +958,29 @@
           return;
         }
         var html = '';
-        html += '<div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">';
-        html += '<a href="/admin/orders/' + encodeURIComponent(o.number) + '" target="_blank" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">'
-              + escapeHtml(o.number) + ' <span class="material-symbols-outlined" style="font-size:12px;">open_in_new</span></a>';
-        if (o.status) html += '<span class="text-[10px] uppercase tracking-wide font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">' + escapeHtml(o.status) + '</span>';
-        html += '</div>';
+        // Header : numéro + statut sur une ligne
+        var statusHtml = o.status
+          ? '<span class="sav-order-status">' + escapeHtml(o.status) + '</span>'
+          : '';
+        html += '<a href="/admin/orders/' + encodeURIComponent(o.number) + '" target="_blank" class="sav-order-link">'
+              + '<span class="sav-order-num">' + escapeHtml(o.number) + '</span>'
+              + '<span class="material-symbols-outlined" style="font-size:11px;">open_in_new</span>'
+              + statusHtml
+              + '</a>';
+        // Items
         if (o.items && o.items.length) {
-          html += '<div class="space-y-1.5 mb-2">';
+          html += '<div class="sav-order-items">';
           o.items.forEach(function (it) {
-            html += '<div class="flex items-start gap-1.5">';
-            html += '<span class="text-slate-400 font-mono text-[10px] mt-0.5">' + (it.quantity || 1) + '×</span>';
-            html += '<div class="flex-1 min-w-0"><div class="truncate text-slate-700">' + escapeHtml(it.name || '—') + '</div>';
-            if (it.sku) html += '<div class="text-[10px] text-slate-400 font-mono">' + escapeHtml(it.sku) + '</div>';
-            html += '</div></div>';
+            var name = it.name || '—';
+            html += '<div class="sav-order-item">'
+              + '<span class="sav-order-qty">' + (it.quantity || 1) + '×</span>'
+              + '<span class="sav-order-name" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>'
+              + '</div>';
+            if (it.sku) html += '<div class="sav-order-sku">' + escapeHtml(it.sku) + '</div>';
           });
           html += '</div>';
         }
+        // Tracking
         var trackings = [];
         (o.shipments || []).forEach(function (s) {
           if (s.trackingNumber) trackings.push({ label: s.label || s.carrier || 'Envoi', carrier: s.carrier, num: s.trackingNumber });
@@ -918,14 +989,15 @@
           trackings.push({ label: 'Clonage', carrier: o.cloningTracking.carrier, num: o.cloningTracking.trackingNumber, url: o.cloningTracking.trackingUrl });
         }
         if (trackings.length) {
-          html += '<div class="pt-2 border-t border-slate-100 space-y-1">';
+          html += '<div class="sav-order-tracking">';
           trackings.forEach(function (t) {
-            html += '<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-slate-400" style="font-size:14px;">local_shipping</span>';
-            html += '<span class="text-[11px] text-slate-500">' + escapeHtml(t.label) + (t.carrier ? ' · ' + escapeHtml(t.carrier) : '') + '</span></div>';
             var trackUrl = t.url || '';
-            html += '<div class="font-mono text-[11px] ' + (trackUrl ? '' : 'text-slate-700') + '">';
-            if (trackUrl) html += '<a href="' + escapeHtml(trackUrl) + '" target="_blank" class="text-primary hover:underline">' + escapeHtml(t.num) + '</a>';
-            else html += escapeHtml(t.num);
+            html += '<div class="sav-order-track-row">'
+              + '<span class="material-symbols-outlined" style="font-size:13px;">local_shipping</span>'
+              + '<span>' + escapeHtml(t.label) + (t.carrier ? ' · ' + escapeHtml(t.carrier) : '') + '</span>'
+              + ' — ';
+            if (trackUrl) html += '<a href="' + escapeHtml(trackUrl) + '" target="_blank" class="sav-order-track-link">' + escapeHtml(t.num) + '</a>';
+            else html += '<span class="font-mono">' + escapeHtml(t.num) + '</span>';
             html += '</div>';
           });
           html += '</div>';
@@ -1076,7 +1148,22 @@
       var host = document.getElementById('sav-next-action');
       var hint = document.getElementById('sav-next-action-hint');
       if (!host) return;
-      var def = NEXT_ACTIONS[t.statut] || { label: 'Aucune action suggérée', icon: 'help', hint: '', type: 'none', disabled: true };
+
+      // Si le playbook a une macro recommandée, on l'utilise en priorité
+      var recommendedMacro = (playbookData && playbookData.macros || []).find(function (m) { return m.recommended; });
+      var def;
+      if (recommendedMacro) {
+        def = {
+          label: recommendedMacro.label,
+          icon: recommendedMacro.icon || 'star',
+          hint: 'Action recommandée par le playbook pour cette étape.',
+          type: 'macro',
+          macro: recommendedMacro,
+          disabled: false,
+        };
+      } else {
+        def = NEXT_ACTIONS[t.statut] || { label: 'Aucune action suggérée', icon: 'help', hint: '', type: 'none', disabled: true };
+      }
       var disabled = def.disabled ? 'disabled' : '';
       var btnClass = def.disabled
         ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
@@ -1092,7 +1179,9 @@
       var btn = document.getElementById('sav-next-action-btn');
       if (!btn || def.disabled) return;
       btn.addEventListener('click', function () {
-        if (def.type === 'statut') {
+        if (def.type === 'macro' && def.macro) {
+          runPlaybookMacro(def.macro);
+        } else if (def.type === 'statut') {
           if (def.confirm && !window.confirm(def.confirm)) return;
           var target = document.querySelector('[data-action-statut="' + def.target + '"]');
           if (target) { target.click(); return; }
@@ -1104,8 +1193,14 @@
             else { toast((res.j && res.j.error) || 'Erreur', 'error'); }
           });
         } else if (def.type === 'tab') {
-          var tabBtn = document.querySelector('[data-tab="' + def.target + '"]');
-          if (tabBtn) tabBtn.click();
+          // Legacy tab → scroll to corresponding accordion/section
+          var accMap = { communications: 'sav-messages', diagnostic: 'sav-diag-form', fournisseur: 'panel-fournisseur', documents: 'sav-documents' };
+          var targetEl = document.getElementById(accMap[def.target] || def.target);
+          if (targetEl) {
+            var det = targetEl.closest('details.sav-sidebar-accordion');
+            if (det) det.open = true;
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         } else if (def.type === 'scroll') {
           var el = document.getElementById(def.target);
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1694,11 +1789,32 @@
         lastMsgLine = '<span class="text-slate-400">Aucun échange client/agent pour l\'instant</span>';
       }
 
-      // Action attendue : déduite du statut
+      // Action attendue : déduite du statut + contexte réel du dossier
       var statut = t.statut || '';
+      var docs = t.documents || {};
+      var docsList = t.documentsList || [];
+      var hasPhotos = (docs.photosObd && docs.photosObd.length > 0) ||
+                      (docs.photosVisuelles && docs.photosVisuelles.length > 0) ||
+                      docsList.some(function(d) { return /photo|obd|visuel/i.test(d.type || d.label || ''); });
+      var hasFacture = !!docs.factureMontage || docsList.some(function(d) { return /facture/i.test(d.type || d.label || ''); });
+      var hasDocs = hasPhotos || hasFacture || docsList.length > 0;
+      var hasDiag = diag && (diag.description || (diag.codesDefaut && diag.codesDefaut.filter(Boolean).length) || diag.symptomes);
+
+      // Actions intelligentes pour pre_qualification et ouvert
+      var smartPreQual;
+      if (hasDocs && hasDiag) {
+        smartPreQual = { who: '👤 Nous', what: 'Analyser le dossier et décider : demander un retour pièce ou résoudre directement' };
+      } else if (hasDocs) {
+        smartPreQual = { who: '👤 Nous', what: 'Analyser les documents reçus et qualifier le problème' };
+      } else {
+        smartPreQual = { who: '👤 Nous', what: 'Demander les documents au client (photos, facture montage…)' };
+      }
+
       var actionMap = {
-        'ouvert': { who: '👤 Nous', what: 'Qualifier le dossier et demander les documents manquants' },
-        'pre_qualification': { who: '👤 Nous', what: 'Qualifier et envoyer la demande documents' },
+        'ouvert': hasDocs
+          ? { who: '👤 Nous', what: 'Qualifier le dossier — documents déjà fournis par le client' }
+          : { who: '👤 Nous', what: 'Qualifier le dossier et demander les documents manquants' },
+        'pre_qualification': smartPreQual,
         'en_attente_documents': { who: '🧍 Client', what: 'Envoyer les documents demandés (on relance à J+3)' },
         'retour_demande': { who: '🧍 Client', what: 'Expédier la pièce avec l\'étiquette retour' },
         'en_transit_retour': { who: '🚚 Transporteur', what: 'Acheminement en cours vers l\'atelier' },
@@ -1715,6 +1831,22 @@
       };
       var act = actionMap[statut] || { who: '—', what: '—' };
 
+      // Motif
+      var motifLabel = t.motifSav ? labelMotif(t.motifSav) : '';
+
+      // Codes défaut et symptômes (critiques pour le diagnostic rapide)
+      var quickDiag = [];
+      if (diag.symptomes && diag.symptomes.length) {
+        quickDiag.push(diag.symptomes.join(', '));
+      }
+      if (diag.codesDefaut && diag.codesDefaut.filter(Boolean).length) {
+        quickDiag.push('OBD: ' + diag.codesDefaut.filter(Boolean).join(', '));
+      }
+
+      // Garage et réglage de base (critique pour DSG)
+      var garage = t.garage || {};
+      var montage = t.montage || {};
+
       // Assemble
       var head =
         '<div class="flex items-start gap-2 flex-wrap">' +
@@ -1722,11 +1854,50 @@
           '<div class="font-semibold text-slate-900">' + escapeHtml(clientName) + '</div>' +
           (vehLabel ? '<span class="text-slate-400">·</span><span class="text-slate-700">' + escapeHtml(vehLabel) + '</span>' : '') +
           '<span class="text-slate-400">·</span><span class="text-slate-700">' + escapeHtml(pieceLabel) + '</span>' +
+          (motifLabel ? '<span class="text-slate-400">·</span><span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">' + escapeHtml(motifLabel) + '</span>' : '') +
         '</div>';
 
       var probLine = probleme
         ? '<div class="flex items-start gap-2 text-slate-700"><span class="material-symbols-outlined text-slate-400 shrink-0" style="font-size:16px;">format_quote</span><em>' + escapeHtml(probleme) + '</em></div>'
         : '<div class="flex items-start gap-2 text-slate-400"><span class="material-symbols-outlined shrink-0" style="font-size:16px;">format_quote</span><em>Pas de description fournie par le client</em></div>';
+
+      // Ligne diagnostic rapide (symptômes + codes)
+      var diagLine = quickDiag.length
+        ? '<div class="flex items-start gap-2 text-slate-600"><span class="material-symbols-outlined text-amber-500 shrink-0" style="font-size:16px;">warning</span><div class="text-[13px]">' + escapeHtml(quickDiag.join(' — ')) + '</div></div>'
+        : '';
+
+      // Ligne garage/montage (si pertinent)
+      var garageLine = '';
+      if (garage.nom || montage.reglageBase || montage.momentPanne) {
+        var gParts = [];
+        if (garage.nom) gParts.push('Garage : ' + garage.nom);
+        if (montage.date) gParts.push('Monté le ' + new Date(montage.date).toLocaleDateString('fr-FR'));
+        if (montage.reglageBase) {
+          var rbText = montage.reglageBase === 'oui' ? '✅ Réglage de base fait' : (montage.reglageBase === 'non' ? '❌ Réglage de base NON fait' : '❓ Réglage de base inconnu');
+          gParts.push(rbText);
+        }
+        if (montage.huileQuantite || montage.huileType) {
+          var hParts = [];
+          if (montage.huileQuantite) hParts.push(montage.huileQuantite + 'L');
+          if (montage.huileType) hParts.push(montage.huileType);
+          gParts.push('Huile : ' + hParts.join(' '));
+        }
+        if (montage.momentPanne) {
+          var mpMap = { au_montage:'au montage', premier_demarrage:'1er démarrage', moins_100km:'<100km', '100_500km':'100-500km', '500_1000km':'500-1000km', '1000_5000km':'1-5kkm', plus_5000km:'>5000km', inconnu:'?' };
+          gParts.push('Panne : ' + (mpMap[montage.momentPanne] || montage.momentPanne));
+        }
+        garageLine = '<div class="flex items-start gap-2 text-slate-600"><span class="material-symbols-outlined text-slate-400 shrink-0" style="font-size:16px;">home_repair_service</span><div class="text-[13px]">' + escapeHtml(gParts.join(' — ')) + '</div></div>';
+      }
+
+      // Ligne livraison (si transporteur renseigné)
+      var livLine = '';
+      var liv = t.livraison || {};
+      if (liv.transporteur || liv.numeroSuivi) {
+        var livParts = [];
+        if (liv.transporteur) livParts.push(liv.transporteur);
+        if (liv.numeroSuivi) livParts.push('Suivi : ' + liv.numeroSuivi);
+        livLine = '<div class="flex items-start gap-2 text-slate-600"><span class="material-symbols-outlined text-slate-400 shrink-0" style="font-size:16px;">local_shipping</span><div class="text-[13px]">' + escapeHtml(livParts.join(' — ')) + '</div></div>';
+      }
 
       var msgLine = '<div class="flex items-start gap-2 text-slate-600"><span class="material-symbols-outlined text-slate-400 shrink-0" style="font-size:16px;">schedule</span><div class="text-[13px]">' + lastMsgLine + '</div></div>';
 
@@ -1737,9 +1908,339 @@
           '<strong>' + escapeHtml(act.who) + '</strong> — ' + escapeHtml(act.what) + '</div>' +
         '</div>';
 
-      body.innerHTML = head + probLine + msgLine + actLine;
+      body.innerHTML = head + probLine + diagLine + garageLine + livLine + msgLine + actLine;
       box.setAttribute('aria-busy', 'false');
+      // Show toggle button if briefing overflows
+      setTimeout(function() {
+        var toggle = document.getElementById('sav-briefing-toggle');
+        if (toggle && body.scrollHeight > body.clientHeight + 4) {
+          toggle.classList.remove('hidden');
+        }
+      }, 50);
     }
+
+    // ------------------------------------------------------------
+    // PLAYBOOK — stepper + actions 1-clic + transitions manuelles
+    // ------------------------------------------------------------
+    var playbookData = null;            // dernier payload reçu de l'API
+    var playbookPendingNextStatut = null; // statut cible après envoi d'une macro email
+
+    function interpolateMacro(text, t) {
+      var c = t.client || {}, v = t.vehicule || {}, p = t.piece || {};
+      var nom = ((c.prenom || c.firstName || '') + ' ' + (c.nom || c.lastName || '')).trim() || 'Client';
+      var veh = [v.marque, v.modele, v.annee].filter(Boolean).join(' ');
+      return String(text || '')
+        .replace(/\{nom\}/g, nom)
+        .replace(/\{numero\}/g, t.numero || '')
+        .replace(/\{piece\}/g, p.designation || t.pieceType || 'la pièce')
+        .replace(/\{vehicule\}/g, veh || 'votre véhicule');
+    }
+
+    function renderPlaybook() {
+      var box = document.getElementById('sav-playbook');
+      if (!box) return;
+      api('/tickets/' + encodeURIComponent(numero) + '/playbook').then(function (res) {
+        if (!(res.ok && res.j.success)) {
+          box.classList.add('hidden');
+          return;
+        }
+        playbookData = res.j.data;
+        box.classList.remove('hidden');
+        box.setAttribute('aria-busy', 'false');
+
+        // Titre + owner
+        var titleEl = document.getElementById('sav-playbook-title');
+        var ownerEl = document.getElementById('sav-playbook-owner');
+        if (titleEl) titleEl.textContent = 'Playbook · ' + (playbookData.title || '');
+        if (ownerEl) ownerEl.textContent = playbookData.owner || '';
+
+        // Stepper
+        var stepper = document.getElementById('sav-playbook-stepper');
+        if (stepper) {
+          stepper.innerHTML = '';
+          (playbookData.steps || []).forEach(function (s, i) {
+            var li = document.createElement('li');
+            li.className = 'flex-1 min-w-0';
+            var state = s.done ? 'done' : (s.current ? 'current' : 'todo');
+            var colorDot = state === 'done' ? 'bg-emerald-500 text-white'
+              : state === 'current' ? 'bg-primary text-white ring-4 ring-primary/20'
+              : 'bg-slate-200 text-slate-500';
+            var colorLabel = state === 'current' ? 'text-primary font-semibold'
+              : state === 'done' ? 'text-emerald-700'
+              : 'text-slate-500';
+            var icon = state === 'done' ? 'check' : String(i + 1);
+            li.innerHTML =
+              '<div class="flex items-center gap-1.5">' +
+                '<div class="h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-bold ' + colorDot + '">' +
+                  (state === 'done' ? '<span class="material-symbols-outlined" style="font-size:14px;">check</span>' : icon) +
+                '</div>' +
+                (i < (playbookData.steps.length - 1) ? '<div class="flex-1 h-0.5 ' + (s.done ? 'bg-emerald-400' : 'bg-slate-200') + '"></div>' : '') +
+              '</div>' +
+              '<div class="mt-1 text-[11px] leading-tight ' + colorLabel + '">' + escapeHtml(s.label) + '</div>';
+            stepper.appendChild(li);
+          });
+        }
+
+        // Hint étape courante + arbre de décision
+        var hintEl = document.getElementById('sav-playbook-hint');
+        var currentStep = (playbookData.steps || []).find(function (s) { return s.current; });
+        if (hintEl) {
+          if (currentStep && (currentStep.hint || (currentStep.decisionTree && currentStep.decisionTree.length))) {
+            var hintHtml = currentStep.hint ? '<div>' + escapeHtml(currentStep.hint) + '</div>' : '';
+            // Arbre de décision contextuel
+            var tree = currentStep.decisionTree || playbookData.decisionTree || [];
+            if (tree.length) {
+              hintHtml += '<div class="mt-2 space-y-1.5">';
+              tree.forEach(function (d) {
+                var hasMacro = d.macroId ? ' data-decision-macro="' + escapeHtml(d.macroId) + '"' : '';
+                hintHtml += '<div class="flex items-start gap-1.5 text-[11px] leading-snug cursor-default group/decision rounded-md px-2 py-1 -mx-2 hover:bg-slate-100 transition"' + hasMacro + '>' +
+                  '<span class="text-amber-500 font-bold shrink-0">Si</span>' +
+                  '<span class="text-slate-600">' + escapeHtml(d.si) + '</span>' +
+                  '<span class="text-emerald-600 font-semibold shrink-0 ml-auto whitespace-nowrap">' + escapeHtml(d.alors) + '</span>' +
+                  '</div>';
+              });
+              hintHtml += '</div>';
+            }
+            hintEl.innerHTML = hintHtml;
+            hintEl.classList.remove('hidden');
+            // Rendre les lignes du decision tree cliquables si elles ont un macroId
+            hintEl.querySelectorAll('[data-decision-macro]').forEach(function (row) {
+              row.style.cursor = 'pointer';
+              row.addEventListener('click', function () {
+                var macroId = row.getAttribute('data-decision-macro');
+                var macro = (playbookData.macros || []).find(function (m) { return m.id === macroId; });
+                if (macro) runPlaybookMacro(macro);
+              });
+            });
+          } else {
+            hintEl.innerHTML = '';
+            hintEl.classList.add('hidden');
+          }
+        }
+
+        // Macros contextuelles (filtrées par étape + FSM côté serveur)
+        var macrosEl = document.getElementById('sav-playbook-macros');
+        if (macrosEl) {
+          macrosEl.innerHTML = '';
+          var macros = playbookData.macros || [];
+          if (!macros.length) {
+            macrosEl.innerHTML = '<div class="text-xs text-slate-400">Aucune action rapide disponible à cette étape.</div>';
+          } else {
+            // Trier : recommandée en premier
+            var sorted = macros.slice().sort(function (a, b) { return (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0); });
+            sorted.forEach(function (m) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              if (m.recommended) {
+                btn.className = 'inline-flex items-center gap-1.5 rounded-lg border-2 border-primary bg-primary/5 text-primary hover:bg-primary hover:text-white transition-colors px-3 py-1.5 text-xs font-bold shadow-sm';
+              } else {
+                btn.className = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-primary hover:text-white hover:border-primary transition-colors px-3 py-1.5 text-xs font-medium';
+              }
+              btn.innerHTML = (m.recommended ? '<span class="material-symbols-outlined" style="font-size:16px;">star</span>' : '') +
+                '<span class="material-symbols-outlined" style="font-size:16px;">' + (m.icon || 'bolt') + '</span><span>' + escapeHtml(m.label) + '</span>';
+              btn.addEventListener('click', function () { runPlaybookMacro(m); });
+              macrosEl.appendChild(btn);
+            });
+          }
+        }
+
+        // Templates du playbook (dans l'onglet Répondre)
+        var tplWrap = document.getElementById('sav-playbook-templates-wrap');
+        var tplChips = document.getElementById('sav-playbook-templates-chips');
+        if (tplWrap && tplChips) {
+          var tpls = playbookData.templates || [];
+          tplChips.innerHTML = '';
+          if (!tpls.length) {
+            tplWrap.classList.add('hidden');
+          } else {
+            tplWrap.classList.remove('hidden');
+            tpls.forEach(function (tp) {
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'sav-tpl-chip sav-tpl-chip--sm';
+              b.innerHTML = '<span>#' + escapeHtml(tp.label) + '</span>';
+              b.addEventListener('click', function () {
+                var body = interpolateMacro(tp.body || '', ticket || {});
+                var ed = document.getElementById('sav-msg-editor');
+                if (!ed) return;
+                // Insertion : remplace si vide, sinon append en fin
+                var current = (ed.innerHTML || '').trim();
+                ed.innerHTML = current ? (current + '<br><br>' + body) : body;
+                var htmlField = document.getElementById('sav-msg-html');
+                var textField = document.getElementById('sav-msg-contenu');
+                if (htmlField) htmlField.value = ed.innerHTML;
+                if (textField) textField.value = ed.innerText;
+                toast('Modèle inséré : ' + tp.label);
+                ed.focus();
+              });
+              tplChips.appendChild(b);
+            });
+          }
+        }
+
+        // Re-render "ACTION SUIVANTE" maintenant que playbookData est dispo
+        if (ticket) renderNextAction(ticket);
+
+        // Transitions manuelles autorisées (fallback)
+        var transEl = document.getElementById('sav-playbook-transitions');
+        if (transEl) {
+          transEl.innerHTML = '';
+          (playbookData.allowedNextStatuts || []).forEach(function (tr) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'rounded-full border border-slate-300 bg-white hover:bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600';
+            b.textContent = '→ ' + tr.label;
+            b.addEventListener('click', function () {
+              // Si la cible est un statut terminal → ouvre la modale de clôture qualifiée
+              if (isTerminalStatut(tr.key)) {
+                openCloseModal(tr.key);
+                return;
+              }
+              if (!confirm('Changer le statut vers "' + tr.label + '" ?')) return;
+              api('/tickets/' + encodeURIComponent(numero) + '/statut', {
+                method: 'PATCH',
+                body: JSON.stringify({ statut: tr.key, auteur: 'admin' }),
+              }).then(function (r) {
+                if (r.ok && r.j.success) { toast('Statut → ' + tr.label); loadTicket(); }
+                else toast((r.j && r.j.error) || 'Transition refusée', 'error');
+              });
+            });
+            transEl.appendChild(b);
+          });
+        }
+      }).catch(function () {
+        box.classList.add('hidden');
+      });
+    }
+
+    function runPlaybookMacro(macro) {
+      if (!macro) return;
+      var t = ticket || {};
+
+      // Macro sans email : change juste le statut (ex: clôture directe).
+      if (macro.action === 'status_only') {
+        if (!macro.nextStatut) return;
+        // Si la macro mène à un statut terminal → passe par la modale de clôture qualifiée
+        if (isTerminalStatut(macro.nextStatut)) {
+          openCloseModal(macro.nextStatut);
+          return;
+        }
+        if (!confirm('Exécuter : ' + macro.label + ' ?')) return;
+        api('/tickets/' + encodeURIComponent(numero) + '/macro', {
+          method: 'POST',
+          body: JSON.stringify({ macroId: macro.id }),
+        }).then(function (r) {
+          if (r.ok && r.j.success) { toast(macro.label + ' ✓'); loadTicket(); }
+          else toast((r.j && r.j.error) || 'Erreur', 'error');
+        });
+        return;
+      }
+
+      // Macro email / return_label : pré-remplit le composer et bascule sur Répondre.
+      var subjectFilled = interpolateMacro(macro.subject || '', t);
+      var bodyFilled = interpolateMacro(macro.body || '', t);
+
+      // Ouvrir le composer et scroller vers la zone chat
+      var composerWrap = document.getElementById('sav-composer-wrap');
+      if (composerWrap) composerWrap.classList.remove('hidden');
+      var chatArea = document.getElementById('sav-messages');
+      if (chatArea) chatArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      // Remplit sujet + éditeur
+      setTimeout(function () {
+        var sujetInput = document.querySelector('[name="sujet"]');
+        if (sujetInput) sujetInput.value = subjectFilled;
+        var ed = document.getElementById('sav-msg-editor');
+        if (ed) {
+          ed.innerHTML = bodyFilled;
+          // sync hidden fields
+          var htmlField = document.getElementById('sav-msg-html');
+          var textField = document.getElementById('sav-msg-contenu');
+          if (htmlField) htmlField.value = bodyFilled;
+          if (textField) textField.value = ed.innerText;
+        }
+        // Mémorise le statut cible pour être appliqué après envoi
+        playbookPendingNextStatut = macro.nextStatut || null;
+
+        // Si c'est une étiquette retour, on délègue au bouton existant pour
+        // générer et attacher le PDF, puis on pré-remplit quand même le body.
+        if (macro.action === 'return_label') {
+          var labelBtn = document.getElementById('sav-attach-label-btn');
+          if (labelBtn) labelBtn.click();
+        }
+
+        toast('Action pré-remplie : ' + macro.label + ' — vérifie et envoie');
+      }, 80);
+    }
+    // ------------------------------------------------------------
+    // Modale Clôture qualifiée (checklist + cause racine)
+    // ------------------------------------------------------------
+    function openCloseModal(defaultStatut) {
+      var modal = document.getElementById('sav-close-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      var form = document.getElementById('sav-close-form');
+      if (form) {
+        form.reset();
+        var sel = form.querySelector('[name="targetStatut"]');
+        if (sel && defaultStatut) sel.value = defaultStatut;
+      }
+    }
+    function closeCloseModal() {
+      var modal = document.getElementById('sav-close-modal');
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    (function wireCloseModal() {
+      var form = document.getElementById('sav-close-form');
+      if (!form) return;
+      var btnCancel1 = document.getElementById('sav-close-cancel');
+      var btnCancel2 = document.getElementById('sav-close-cancel-2');
+      if (btnCancel1) btnCancel1.addEventListener('click', closeCloseModal);
+      if (btnCancel2) btnCancel2.addEventListener('click', closeCloseModal);
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(form);
+        var payload = {
+          targetStatut: fd.get('targetStatut'),
+          clientNotified: fd.get('clientNotified') === 'on',
+          refundDone: fd.get('refundDone') === 'on',
+          docsArchived: fd.get('docsArchived') === 'on',
+          rootCause: fd.get('rootCause'),
+          rootCauseDetail: fd.get('rootCauseDetail') || '',
+        };
+        api('/tickets/' + encodeURIComponent(numero) + '/close', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }).then(function (r) {
+          if (r.ok && r.j.success) {
+            toast('Ticket clôturé · cause : ' + payload.rootCause);
+            closeCloseModal();
+            loadTicket();
+          } else {
+            toast((r.j && r.j.error) || 'Erreur de clôture', 'error');
+          }
+        });
+      });
+    })();
+
+    // Helper : détecte si un statut est terminal → déclenche la modale
+    function isTerminalStatut(s) {
+      return ['clos', 'resolu_garantie', 'resolu_facture', 'refuse'].indexOf(s) !== -1;
+    }
+
+    // Exposé pour pouvoir être consulté depuis doSend()
+    function consumePlaybookPendingStatut() {
+      var s = playbookPendingNextStatut;
+      playbookPendingNextStatut = null;
+      return s;
+    }
+    // On attache la fonction au scope de l'IIFE via une closure capture :
+    // doSend() la lira via cette fonction locale.
+    // (déclaration plus haut nécessaire car doSend est défini après)
+    window.__savConsumePlaybookPending = consumePlaybookPendingStatut;
 
     function renderDossier() {
       var box = document.getElementById('sav-dossier');
@@ -1748,6 +2249,7 @@
       var v = t.vehicule || {};
 
       renderBriefing();
+      renderPlaybook();
 
       // --- Masquage conditionnel onglet Fournisseur ---
       // On ne l'affiche que si un nom fournisseur est saisi OU si le ticket est en attente fournisseur
@@ -1820,11 +2322,130 @@
           ].filter(Boolean).join('')
         : '<span class="text-slate-400">Aucune commande liée</span>';
 
-      box.innerHTML =
-        cardTpl('person',       'Client',         clientBody) +
-        cardTpl('directions_car','Véhicule',      vehBody) +
-        cardTpl('settings',     'Pièce SAV',      pieceBody) +
-        cardTpl('receipt_long', 'Commande liée',  cmdBody);
+      // --- Card 5 : Diagnostic (symptômes + codes défaut + description) ---
+      var diag = t.diagnostic || {};
+      var diagParts = [];
+      if (diag.description) {
+        diagParts.push('<div class="text-slate-900 font-medium">' + escapeHtml(diag.description) + '</div>');
+      }
+      if (diag.symptomes && diag.symptomes.length) {
+        diagParts.push('<div class="flex flex-wrap gap-1 mt-1">' + diag.symptomes.map(function (s) {
+          return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800">' + escapeHtml(s) + '</span>';
+        }).join('') + '</div>');
+      }
+      if (diag.codesDefaut && diag.codesDefaut.length) {
+        var codes = diag.codesDefaut.filter(Boolean);
+        if (codes.length) {
+          diagParts.push('<div class="mt-1"><span class="text-slate-500">Codes OBD :</span> <span class="font-mono text-red-700 font-semibold">' + codes.map(escapeHtml).join(', ') + '</span></div>');
+        }
+      }
+      // Description dommage (pour colis_abime, etc.)
+      if (t.descriptionDommage) {
+        diagParts.push('<div><span class="text-slate-500">Dommage :</span> ' + escapeHtml(t.descriptionDommage) + '</div>');
+      }
+      var diagBody = diagParts.length
+        ? diagParts.join('')
+        : '<span class="text-slate-400">Aucune info diagnostic</span>';
+
+      // --- Card 6 : Garage & Montage ---
+      var garage = t.garage || {};
+      var montage = t.montage || {};
+      var garageParts = [];
+      if (garage.nom) garageParts.push('<div class="font-medium text-slate-900">' + escapeHtml(garage.nom) + '</div>');
+      if (garage.adresse) garageParts.push('<div class="text-slate-600">' + escapeHtml(garage.adresse) + '</div>');
+      if (montage.date) {
+        var dateMontStr = new Date(montage.date).toLocaleDateString('fr-FR');
+        garageParts.push('<div><span class="text-slate-500">Monté le :</span> ' + dateMontStr + '</div>');
+      }
+      if (montage.reglageBase) {
+        var rbColor = montage.reglageBase === 'oui' ? 'bg-emerald-100 text-emerald-800' : (montage.reglageBase === 'non' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700');
+        var rbLabel = montage.reglageBase === 'oui' ? 'Oui ✓' : (montage.reglageBase === 'non' ? 'Non ✗' : 'Inconnu');
+        garageParts.push('<div class="flex items-center gap-2"><span class="text-slate-500">Réglage de base :</span> <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ' + rbColor + '">' + rbLabel + '</span></div>');
+      }
+      // Huile
+      if (montage.huileQuantite || montage.huileType) {
+        var huileText = [];
+        if (montage.huileQuantite) huileText.push(montage.huileQuantite + ' L');
+        if (montage.huileType) huileText.push(escapeHtml(montage.huileType));
+        garageParts.push('<div><span class="text-slate-500">Huile :</span> <span class="font-medium">' + huileText.join(' — ') + '</span></div>');
+      }
+      // Moment de la panne
+      if (montage.momentPanne) {
+        var mpLabels = {
+          au_montage: 'Pendant le montage', premier_demarrage: 'Au premier démarrage',
+          moins_100km: '< 100 km', '100_500km': '100-500 km',
+          '500_1000km': '500-1000 km', '1000_5000km': '1000-5000 km',
+          plus_5000km: '> 5000 km', inconnu: 'Inconnu'
+        };
+        var mpLabel = mpLabels[montage.momentPanne] || montage.momentPanne;
+        var mpColor = ['au_montage', 'premier_demarrage', 'moins_100km'].indexOf(montage.momentPanne) !== -1
+          ? 'bg-red-100 text-red-800'
+          : 'bg-slate-100 text-slate-700';
+        garageParts.push('<div class="flex items-center gap-2"><span class="text-slate-500">Panne :</span> <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ' + mpColor + '">' + mpLabel + '</span></div>');
+      }
+      var showGarage = garageParts.length > 0;
+
+      // --- Card 7 : Livraison (transporteur, suivi, dates) ---
+      var liv = t.livraison || {};
+      var livParts = [];
+      if (liv.transporteur) livParts.push('<div><span class="text-slate-500">Transporteur :</span> <strong>' + escapeHtml(liv.transporteur) + '</strong></div>');
+      if (liv.numeroSuivi) {
+        livParts.push('<div class="flex items-center gap-1"><span class="text-slate-500">N° suivi :</span> <span class="font-mono">' + escapeHtml(liv.numeroSuivi) + '</span>' +
+          '<button type="button" data-copy="' + escapeHtml(liv.numeroSuivi) + '" class="sav-copy-mini text-slate-400 hover:text-primary"><span class="material-symbols-outlined" style="font-size:14px;">content_copy</span></button></div>');
+      }
+      if (liv.dateReceptionPrevue) livParts.push('<div><span class="text-slate-500">Réception prévue :</span> ' + new Date(liv.dateReceptionPrevue).toLocaleDateString('fr-FR') + '</div>');
+      if (liv.dateReceptionReelle) livParts.push('<div><span class="text-slate-500">Réception réelle :</span> ' + new Date(liv.dateReceptionReelle).toLocaleDateString('fr-FR') + '</div>');
+      var showLiv = livParts.length > 0;
+
+      // --- Card 8 : Documents joints ---
+      var docs = t.documentsList || [];
+      var docParts = [];
+      if (docs.length) {
+        docs.forEach(function (d) {
+          var label = d.kind || d.originalName || 'Document';
+          var kindLabels = {
+            factureMontage: 'Facture montage',
+            photoObd: 'Photo OBD',
+            confirmationReglageBase: 'Confirmation réglage',
+            photoPiece: 'Photo pièce',
+            photoColisExterieur: 'Photo colis ext.',
+            photoBordereau: 'Photo bordereau',
+            photoPieceEndommagee: 'Photo pièce endommagée',
+          };
+          var displayLabel = kindLabels[d.kind] || label;
+          var icon = /photo|image/i.test(d.kind || '') ? 'image' : 'description';
+          docParts.push('<div class="flex items-center gap-2">' +
+            '<span class="material-symbols-outlined text-slate-400" style="font-size:16px;">' + icon + '</span>' +
+            (d.url ? '<a href="' + escapeHtml(d.url) + '" target="_blank" class="text-primary hover:underline text-[13px]">' + escapeHtml(displayLabel) + '</a>' : '<span class="text-[13px]">' + escapeHtml(displayLabel) + '</span>') +
+            '</div>');
+        });
+      }
+      var showDocs = docParts.length > 0;
+
+      // --- Card : N° série (si existe) ---
+      if (t.numeroSerie) {
+        var serieLine = '<div class="flex items-center gap-1"><span class="text-slate-500">N° série :</span> <span class="font-mono font-medium">' + escapeHtml(t.numeroSerie) + '</span>' +
+          '<button type="button" data-copy="' + escapeHtml(t.numeroSerie) + '" class="sav-copy-mini text-slate-400 hover:text-primary"><span class="material-symbols-outlined" style="font-size:14px;">content_copy</span></button></div>';
+        pieceBody += serieLine;
+      }
+      // Ajouter referencePiece si pas dans piece.reference
+      if (t.referencePiece && !p.reference) {
+        pieceBody = '<div class="font-mono text-slate-900">' + escapeHtml(t.referencePiece) + '</div>' + pieceBody;
+      }
+
+      // --- Assemble ALL cards ---
+      var html =
+        cardTpl('person',        'Client',                clientBody) +
+        cardTpl('error',         'Problème signalé',      diagBody) +
+        cardTpl('directions_car','Véhicule',              vehBody) +
+        cardTpl('settings',      'Pièce SAV',             pieceBody) +
+        cardTpl('receipt_long',  'Commande liée',         cmdBody);
+
+      if (showGarage) html += cardTpl('home_repair_service', 'Garage & montage', garageParts.join(''));
+      if (showLiv)    html += cardTpl('local_shipping',      'Livraison',        livParts.join(''));
+      if (showDocs)   html += cardTpl('attach_file',         'Documents client (' + docs.length + ')', docParts.join(''));
+
+      box.innerHTML = html;
 
       // Wire copy mini buttons
       box.querySelectorAll('.sav-copy-mini').forEach(function (b) {
@@ -2158,91 +2779,214 @@
       return div.innerHTML;
     }
 
+    // ── Communications filter state ──
+    var commFilter = 'messages'; // 'messages' | 'all'
+
     function renderMessages() {
       var box = document.getElementById('sav-messages');
       if (!box) return;
       var msgs = ticket.messages || [];
-      if (!msgs.length) { box.innerHTML = '<div class="text-sm text-slate-500">Aucun message.</div>'; return; }
-      box.innerHTML = msgs.map(function (m, idx) {
+      if (!msgs.length) {
+        box.innerHTML = '<div style="text-align:center;padding:2rem 0;color:#94a3b8;font-size:0.875rem;">' +
+          '<span class="material-symbols-outlined" style="display:block;margin-bottom:0.25rem;font-size:32px;color:#cbd5e1;">forum</span>' +
+          'Aucun message pour le moment.</div>';
+        return;
+      }
+
+      var showAll = commFilter === 'all';
+      var realMsgCount = 0;
+
+      var html = msgs.map(function (m, idx) {
         var p = parseTlEntry(m);
         var dateAbs = new Date(m.date).toLocaleString('fr-FR');
         var dateRel = fmtRelative(m.date);
-        var relHtml = '<span class="sav-tl-time" title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>';
 
-        // Events système → ligne compacte (pas de carte, pas de "Répondre")
-        if (p.kind === 'statut') {
-          return '<div class="sav-tl-compact">' +
-            '<span class="material-symbols-outlined sav-tl-compact__icon">flag</span>' +
-            '<span class="sav-tl-compact__text"><strong>Statut :</strong> ' +
-              '<span class="sav-tl-statutpill">' + escapeHtml(labelStatut(p.from)) + '</span> ' +
-              '<span class="text-slate-400">→</span> ' +
-              '<span class="sav-tl-statutpill sav-tl-statutpill--to">' + escapeHtml(labelStatut(p.to)) + '</span>' +
-            '</span>' + relHtml +
-          '</div>';
-        }
-        if (p.kind === 'doc') {
-          return '<div class="sav-tl-compact">' +
-            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#6366f1;">attach_file</span>' +
-            '<span class="sav-tl-compact__text"><strong>' + escapeHtml(p.action === 'uploadé' ? 'Doc client' : 'Doc ajouté') + '</strong> <span class="text-slate-400">·</span> ' +
-              '<span class="text-slate-600">' + escapeHtml(p.docKind) + '</span> <span class="text-slate-400">·</span> ' +
-              '<span class="font-mono text-[11px]">' + escapeHtml(p.filename) + '</span>' +
-              (p.size ? ' <span class="text-slate-400 text-[11px]">(' + fmtSizeShort(p.size) + ')</span>' : '') +
-            '</span>' + relHtml +
-          '</div>';
-        }
-        if (p.kind === 'procedure') {
-          return '<div class="sav-tl-compact">' +
-            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#e11d48;">menu_book</span>' +
-            '<span class="sav-tl-compact__text"><strong>Procédure envoyée :</strong> ' + escapeHtml(p.title) + '</span>' + relHtml +
-          '</div>';
-        }
-        if (p.kind === 'assign') {
-          return '<div class="sav-tl-compact">' +
-            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#64748b;">person</span>' +
-            '<span class="sav-tl-compact__text">' + escapeHtml(p.text) + '</span>' + relHtml +
-          '</div>';
-        }
-        if (p.kind === 'refund') {
-          return '<div class="sav-tl-compact">' +
-            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#059669;">payments</span>' +
-            '<span class="sav-tl-compact__text">' + escapeHtml(p.text) + '</span>' + relHtml +
-          '</div>';
-        }
-        if (p.kind === 'systeme') {
-          return '<div class="sav-tl-compact">' +
-            '<span class="material-symbols-outlined sav-tl-compact__icon" style="color:#94a3b8;">info</span>' +
-            '<span class="sav-tl-compact__text text-slate-500">' + escapeHtml(p.text || '') + '</span>' + relHtml +
+        // Auto-generated system messages masquerading as "messages"
+        // e.g. "Ticket créé via formulaire public" — treat as system
+        var isAutoMsg = p.kind === 'message' && /^(Ticket créé|Ticket crée|Ticket cré)/i.test(p.text || '');
+
+        // ── System events (compact inline) ──
+        if (p.kind !== 'message' || isAutoMsg) {
+          // In "messages" mode, skip system events entirely
+          if (!showAll) return '';
+          var icon = 'info'; var iconColor = '#94a3b8'; var label = '';
+          if (p.kind === 'statut') {
+            icon = 'flag'; iconColor = '#3b82f6';
+            label = '<span class="sav-tl-statutpill">' + escapeHtml(labelStatut(p.from)) + '</span> ' +
+              '<span style="color:#cbd5e1;">&rarr;</span> ' +
+              '<span class="sav-tl-statutpill sav-tl-statutpill--to">' + escapeHtml(labelStatut(p.to)) + '</span>';
+          } else if (p.kind === 'doc') {
+            icon = 'attach_file'; iconColor = '#6366f1';
+            label = '<strong>' + escapeHtml(p.action === 'uploadé' ? 'Doc client' : 'Doc') + '</strong> · ' +
+              '<span style="color:#64748b;">' + escapeHtml(p.docKind) + '</span> · ' +
+              '<span style="font-family:monospace;font-size:11px;">' + escapeHtml(p.filename) + '</span>' +
+              (p.size ? ' <span style="color:#94a3b8;font-size:11px;">(' + fmtSizeShort(p.size) + ')</span>' : '');
+          } else if (p.kind === 'procedure') {
+            icon = 'menu_book'; iconColor = '#e11d48';
+            label = '<strong>Procédure</strong> ' + escapeHtml(p.title);
+          } else if (p.kind === 'assign') {
+            icon = 'person'; iconColor = '#64748b';
+            label = escapeHtml(p.text);
+          } else if (p.kind === 'refund') {
+            icon = 'payments'; iconColor = '#059669';
+            label = escapeHtml(p.text);
+          } else if (isAutoMsg) {
+            icon = 'smart_toy'; iconColor = '#94a3b8';
+            label = escapeHtml(p.text || '');
+          } else {
+            label = escapeHtml(p.text || '');
+          }
+          return '<div class="sav-chat-sep" data-msg-type="system">' +
+            '<span class="material-symbols-outlined" style="font-size:13px;color:' + iconColor + ';">' + icon + '</span> ' +
+            '<span>' + label + '</span> ' +
+            '<span style="font-size:10px;white-space:nowrap;color:#94a3b8;" title="' + escapeHtml(dateAbs) + '">' + escapeHtml(dateRel) + '</span>' +
           '</div>';
         }
 
-        // Vraie conversation (email / whatsapp / tel / interne) : carte avec "Répondre"
+        // ── Message bubble (chat row with avatar) ──
+        realMsgCount++;
         var isClient = p.isClient;
-        var canalLabel = p.canal.charAt(0).toUpperCase() + p.canal.slice(1);
-        var dirIcon = isClient ? 'call_received' : 'send';
-        var sideCls = isClient ? 'sav-tl-msg--client' : (p.isIntern ? 'sav-tl-msg--intern' : 'sav-tl-msg--admin');
-        var authorLabel = isClient ? 'Client' : (m.auteur || 'Admin');
-        var preview = (p.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
-        var needExpand = (p.text || '').length > 140 || /<[^>]+>/.test(p.text || '') || p.html;
+        var isIntern = p.isIntern;
+        var side = isClient ? 'client' : (isIntern ? 'intern' : 'admin');
+
+        // Author name
+        var authorLabel;
+        if (isClient) {
+          if (ticket.client && ticket.client.prenom) {
+            authorLabel = ticket.client.prenom + ' ' + (ticket.client.nom || '');
+          } else if (ticket.client && ticket.client.garage) {
+            authorLabel = ticket.client.garage;
+          } else {
+            authorLabel = 'Client';
+          }
+        } else {
+          authorLabel = (m.auteur && m.auteur !== 'admin') ? m.auteur : 'Agent';
+        }
+
+        // Time formatting
+        var msgDate = new Date(m.date);
+        var timeStr = msgDate.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+
+        // Date separator: check if different day from previous message
+        var dateSepHtml = '';
+        var msgDateStr = msgDate.toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'});
+        if (idx === 0 || !msgs[idx - 1] || new Date(msgs[idx - 1].date).toDateString() !== msgDate.toDateString()) {
+          dateSepHtml = '<div class="sav-chat-date">' + msgDateStr + '</div>';
+        }
+
+        var rawText = p.text || '';
+        // Separate attachment lines from message text
+        var textParts = rawText.split(/\n*---\s*Pièces jointes\s*---\n*/);
+        var mainText = textParts[0] || '';
+        var pjText = textParts[1] || '';
+
         var fullBody = p.html
           ? sanitizeHtml(p.html)
-          : '<div>' + escapeHtml(p.text || '').replace(/\n/g, '</div><div>') + '</div>';
-        return '<div class="sav-tl-msg ' + sideCls + '" data-msg-idx="' + idx + '">' +
-          '<div class="sav-tl-msg__head">' +
-            '<span class="material-symbols-outlined sav-tl-msg__dir">' + dirIcon + '</span>' +
-            '<span class="sav-tl-msg__author">' + escapeHtml(authorLabel) + '</span>' +
-            '<span class="sav-tl-msg__pill sav-tl-msg__pill--' + p.canal + '">' + escapeHtml(canalLabel) + '</span>' +
-            (p.isIntern ? '<span class="sav-tl-msg__pill sav-tl-msg__pill--intern">Interne</span>' : '') +
-            relHtml +
-            '<button type="button" class="sav-tl-msg__reply" data-reply-idx="' + idx + '" title="Répondre">' +
-              '<span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">reply</span> Répondre' +
+          : '<div>' + escapeHtml(mainText).replace(/\n/g, '</div><div>') + '</div>';
+
+        // Render attachments as clickable chips
+        if (pjText) {
+          var pjLines = pjText.split('\n').filter(function(l) { return l.trim(); });
+          var pjHtml = '<div class="sav-bubble__attachments">';
+          pjLines.forEach(function(line) {
+            var parts = line.replace(/^📎\s*/, '').split(' — ');
+            var label = parts[0] || '';
+            var url = (parts[1] || '').trim();
+            if (url) {
+              pjHtml += '<a href="' + escapeHtml(url) + '" target="_blank" class="sav-bubble__pj">' +
+                '<span class="material-symbols-outlined" style="font-size:14px;">attach_file</span>' +
+                '<span>' + escapeHtml(label) + '</span></a>';
+            }
+          });
+          pjHtml += '</div>';
+          fullBody += pjHtml;
+        }
+        var plainText = (p.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        var isLong = plainText.length > 300 || (p.html && p.html.length > 500);
+
+        var bodyHtml;
+        if (isLong) {
+          bodyHtml = '<div class="sav-bubble__body sav-bubble__body--collapsed" data-bubble-body="' + idx + '">' + fullBody + '</div>' +
+            '<button type="button" class="sav-bubble__expand" data-expand-idx="' + idx + '">Voir tout</button>';
+        } else {
+          bodyHtml = '<div class="sav-bubble__body">' + fullBody + '</div>';
+        }
+
+        // Avatar icons per side
+        var avatarIcon = isClient ? 'chat_bubble' : (isIntern ? 'sticky_note_2' : 'headset_mic');
+
+        // Build bubble content
+        var bubbleHtml = '<div class="sav-bubble sav-bubble--' + side + '">' +
+          (p.sujet ? '<div class="sav-bubble__subject">' + escapeHtml(p.sujet) + '</div>' : '') +
+          (isIntern ? '<div class="sav-bubble__body" style="font-style:italic;">' + fullBody + '</div>' : bodyHtml) +
+        '</div>';
+
+        // Meta line
+        var metaHtml;
+        if (isIntern) {
+          metaHtml = '<div class="sav-chat-meta sav-chat-meta--intern">' +
+            '<span>NOTE INTERNE</span> &middot; <span>' + timeStr + '</span>' +
+          '</div>';
+        } else if (isClient) {
+          metaHtml = '<div class="sav-chat-meta sav-chat-meta--client">' +
+            '<span>' + timeStr + '</span> &middot; <span>' + escapeHtml(authorLabel) + '</span>' +
+          '</div>';
+        } else {
+          metaHtml = '<div class="sav-chat-meta sav-chat-meta--admin">' +
+            '<span>' + timeStr + '</span> &middot; <span>' + escapeHtml(authorLabel) + '</span>' +
+          '</div>';
+        }
+
+        // Reply button (not for internal notes)
+        var replyHtml = !isIntern ? '<div class="sav-bubble__actions">' +
+            '<button type="button" class="sav-bubble__reply" data-reply-idx="' + idx + '">' +
+              '<span class="material-symbols-outlined" style="font-size:13px;">reply</span> Répondre' +
             '</button>' +
-          '</div>' +
-          (p.sujet ? '<div class="sav-tl-msg__subject">' + escapeHtml(p.sujet) + '</div>' : '') +
-          (needExpand
-            ? '<details class="sav-tl-msg__details"' + (isClient ? ' open' : '') + '><summary class="sav-tl-msg__preview">' + escapeHtml(preview) + (preview.length === 140 ? '…' : '') + '</summary><div class="sav-tl-msg__full">' + fullBody + '</div></details>'
-            : '<div class="sav-tl-msg__preview sav-tl-msg__preview--static">' + escapeHtml(preview) + '</div>') +
+          '</div>' : '';
+
+        // Avatar element
+        var avatarHtml = '<div class="sav-chat-avatar sav-chat-avatar--' + side + '">' +
+          '<span class="material-symbols-outlined">' + avatarIcon + '</span>' +
+        '</div>';
+
+        // Content block
+        var contentHtml = '<div class="sav-chat-content">' + bubbleHtml + metaHtml + replyHtml + '</div>';
+
+        // Row: client = avatar left, admin/intern = avatar right
+        var rowInner;
+        if (isClient) {
+          rowInner = avatarHtml + contentHtml;
+        } else {
+          rowInner = contentHtml + avatarHtml;
+        }
+
+        return dateSepHtml + '<div class="sav-chat-row sav-chat-row--' + side + '" data-msg-idx="' + idx + '" data-msg-type="message">' +
+          rowInner +
         '</div>';
       }).join('');
+
+      // If messages-only mode and no real messages, show hint
+      if (!showAll && realMsgCount === 0) {
+        html = '<div style="text-align:center;padding:2rem 0;color:#94a3b8;font-size:0.875rem;">' +
+          '<span class="material-symbols-outlined" style="display:block;margin-bottom:0.25rem;font-size:28px;color:#cbd5e1;">chat_bubble_outline</span>' +
+          'Aucune conversation. Seuls des événements système existent.' +
+          '<br><button type="button" style="color:#3b82f6;font-size:0.75rem;margin-top:0.5rem;background:none;border:none;cursor:pointer;text-decoration:underline;" ' +
+          'onclick="document.querySelector(\'[data-comm-filter=all]\').click();">Voir tout l\'historique</button></div>';
+      }
+
+      box.innerHTML = html;
+
+      // Wire expand buttons
+      box.querySelectorAll('[data-expand-idx]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var idx = b.getAttribute('data-expand-idx');
+          var body = box.querySelector('[data-bubble-body="' + idx + '"]');
+          if (body) {
+            body.classList.remove('sav-bubble__body--collapsed');
+            b.style.display = 'none';
+          }
+        });
+      });
 
       // Wire reply buttons
       box.querySelectorAll('[data-reply-idx]').forEach(function (b) {
@@ -2256,10 +3000,17 @@
             escapeHtml(quoted).replace(/\n/g, '<br>') + '</blockquote><div><br></div>';
           syncContenu();
           editor.focus();
-          var tabBtn = document.querySelector('[data-tab-btn="communications"]');
-          if (tabBtn) tabBtn.click();
+          // Open composer if closed
+          var wrap = document.getElementById('sav-composer-wrap');
+          if (wrap && wrap.classList.contains('hidden')) wrap.classList.remove('hidden');
+          // Scroll to chat (no more tabs)
+          var chatEl = document.getElementById('sav-messages');
+          if (chatEl) chatEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
       });
+
+      // Scroll to bottom (latest messages)
+      box.scrollTop = box.scrollHeight;
     }
 
     function deriveP149State(p) {
@@ -2407,7 +3158,7 @@
       });
     }
 
-    // -------- Onglets --------
+    // -------- Onglets (legacy — no-op si pas de [data-tab] dans le DOM) --------
     document.querySelectorAll('[data-tab]').forEach(function (b) {
       b.addEventListener('click', function () {
         var k = b.getAttribute('data-tab');
@@ -2434,7 +3185,14 @@
             n += (d.photosVisuelles || []).length;
             return n;
           })();
-      var nbMsgs = (t.messages || []).length;
+      // Count only real messages (not system events like status changes, docs, etc.)
+      var nbMsgs = (t.messages || []).filter(function (m) {
+        var p = parseTlEntry(m);
+        if (p.kind !== 'message') return false;
+        // Exclude auto-generated system messages
+        if (/^(Ticket créé|Ticket crée|Ticket cré)/i.test(p.text || '')) return false;
+        return true;
+      }).length;
       var counts = { documents: nbDocs, communications: nbMsgs };
 
       Object.keys(counts).forEach(function (k) {
@@ -2551,10 +3309,10 @@
       TEMPLATES[t.key] = t.body;
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'sav-tpl-chip' + (isPerso ? ' sav-tpl-chip--perso' : '');
+      btn.className = 'sav-tpl-chip sav-tpl-chip--sm' + (isPerso ? ' sav-tpl-chip--perso' : '');
       btn.setAttribute('data-template', t.key);
       btn.setAttribute('title', t.title);
-      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">' + escapeHtml(t.icon || 'description') + '</span><span>' + escapeHtml(t.title) + '</span>' +
+      btn.innerHTML = '<span>#' + escapeHtml(t.title) + '</span>' +
         (isPerso ? '<button type="button" class="sav-tpl-del" data-del-tpl="' + escapeHtml(t.key) + '" aria-label="Supprimer ce favori">×</button>' : '');
       btn.addEventListener('click', function (e) {
         if (e.target && e.target.matches('[data-del-tpl]')) return;
@@ -2614,8 +3372,44 @@
         });
     });
 
-    // Pills toggle canaux
+    // ── Communications filter (Conversation / Tout) ──
+    document.querySelectorAll('.sav-comm-filter').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.sav-comm-filter').forEach(function (x) { x.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        commFilter = btn.getAttribute('data-comm-filter');
+        renderMessages();
+      });
+    });
+
+    // ── Composer open/close ──
+    var composerWrap = document.getElementById('sav-composer-wrap');
+    var openComposerBtn = document.getElementById('sav-open-composer');
+    var closeComposerBtn = document.getElementById('sav-close-composer');
+    if (openComposerBtn && composerWrap) {
+      openComposerBtn.addEventListener('click', function () {
+        composerWrap.classList.remove('hidden');
+        var ed = document.getElementById('sav-msg-editor');
+        if (ed) ed.focus();
+      });
+    }
+    if (closeComposerBtn && composerWrap) {
+      closeComposerBtn.addEventListener('click', function () {
+        composerWrap.classList.add('hidden');
+      });
+    }
+
+    // Pills toggle canaux + show/hide subject & preview
     var canalInput = document.getElementById('sav-canal-input');
+    var subjectInput = document.getElementById('sav-msg-subject');
+    var emailPreviewWrap = document.getElementById('sav-email-preview-wrap');
+
+    function updateCanalUI(canal) {
+      var isEmail = canal === 'email';
+      if (subjectInput) subjectInput.classList.toggle('is-hidden', !isEmail);
+      if (emailPreviewWrap) emailPreviewWrap.classList.toggle('hidden', !isEmail);
+    }
+
     document.querySelectorAll('.sav-canal-pill').forEach(function (p) {
       p.addEventListener('click', function () {
         document.querySelectorAll('.sav-canal-pill').forEach(function (x) {
@@ -2624,9 +3418,14 @@
         });
         p.classList.add('is-active');
         p.setAttribute('aria-checked', 'true');
-        if (canalInput) canalInput.value = p.getAttribute('data-canal');
+        var canal = p.getAttribute('data-canal');
+        if (canalInput) canalInput.value = canal;
+        updateCanalUI(canal);
       });
     });
+
+    // Init canal UI on page load
+    updateCanalUI(canalInput ? canalInput.value : 'email');
 
     // -------- Brouillon localStorage --------
     var DRAFT_KEY = 'sav-draft-' + numero;
@@ -2826,10 +3625,24 @@
         clearDraft();
         attachFiles = [];
         renderAttachList();
+        // Collapse composer after send
+        var cw = document.getElementById('sav-composer-wrap');
+        if (cw) cw.classList.add('hidden');
         if (action === 'send_and_status' && nextStatut) {
           return api('/tickets/' + encodeURIComponent(numero) + '/statut', {
             method: 'PATCH', body: JSON.stringify({ statut: nextStatut, auteur: 'admin' }),
           }).then(function () { toast('Statut → ' + nextStatut); loadTicket(); });
+        }
+        // Si une macro playbook est en attente, applique son statut cible
+        var pbNext = (typeof consumePlaybookPendingStatut === 'function') ? consumePlaybookPendingStatut() : null;
+        if (pbNext) {
+          return api('/tickets/' + encodeURIComponent(numero) + '/statut', {
+            method: 'PATCH', body: JSON.stringify({ statut: pbNext, auteur: 'admin' }),
+          }).then(function (r) {
+            if (r.ok && r.j.success) toast('Statut → ' + pbNext);
+            else if (r.j && r.j.error) toast(r.j.error, 'error');
+            loadTicket();
+          });
         }
         loadTicket();
       });
@@ -3413,12 +4226,18 @@
     document.addEventListener('keydown', function (e) {
       if (e.target.matches('input,textarea,select,[contenteditable]')) return;
       if (e.key >= '1' && e.key <= '6') {
-        var tabs = document.querySelectorAll('[data-tab]');
+        // Legacy tab shortcuts — scroll to accordion sections instead
+        var accIds = ['sav-messages', 'sav-pinned-notes-section', 'sav-documents', 'sav-diag-form', 'panel-fournisseur', 'sav-timeline-box'];
         var idx = parseInt(e.key, 10) - 1;
-        if (tabs[idx]) tabs[idx].click();
+        var tgt = document.getElementById(accIds[idx]);
+        if (tgt) {
+          var det = tgt.closest('details.sav-sidebar-accordion');
+          if (det) det.open = true;
+          tgt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
       if (e.key === 'a') { openAssign(); }
-      if (e.key === 'e') { var c = document.querySelector('#sav-diag-form [name="conclusion"]'); if (c) { document.querySelector('[data-tab="diagnostic"]').click(); c.focus(); } }
+      if (e.key === 'e') { var c = document.querySelector('#sav-diag-form [name="conclusion"]'); if (c) { var det = c.closest('details.sav-sidebar-accordion'); if (det) det.open = true; c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.focus(); } }
       if (e.key === 's') { var b = document.querySelector('[data-action-statut]'); if (b) b.focus(); }
       if (e.key === '?' || (e.shiftKey && e.key === '/')) { e.preventDefault(); openKbdDetail(); }
       // Escape : géré par chaque modal individuellement via le focus trap

@@ -28,13 +28,13 @@
         <h2 class="text-lg font-semibold mb-3">Récapitulatif</h2>
         <dl class="text-sm text-slate-700 space-y-1">
           <% if (ticket.numeroCommande) { %><div><strong>Commande&nbsp;:</strong> <%= ticket.numeroCommande %></div><% } %>
-          <div><strong>Pièce&nbsp;:</strong> <%= ticket.pieceType %></div>
+          <% if (ticket.pieceType) { %><div><strong>Pièce&nbsp;:</strong> <%= ticket.pieceType %></div><% } %>
           <% if (ticket.vehicule && (ticket.vehicule.marque || ticket.vehicule.modele)) { %>
             <div><strong>Véhicule&nbsp;:</strong> <%= [ticket.vehicule.marque, ticket.vehicule.modele, ticket.vehicule.annee].filter(Boolean).join(' ') %></div>
           <% } %>
           <% if (ticket.vehicule && ticket.vehicule.vin) { %><div><strong>VIN&nbsp;:</strong> <span class="font-mono"><%= ticket.vehicule.vin %></span></div><% } %>
           <% if (ticket.vehicule && ticket.vehicule.kilometrage) { %><div><strong>Kilométrage&nbsp;:</strong> <%= ticket.vehicule.kilometrage %> km</div><% } %>
-          <div><strong>Statut&nbsp;:</strong> <span class="px-2 py-0.5 rounded-full bg-slate-100 text-xs"><%= ticket.statut %></span></div>
+          <div><strong>Statut&nbsp;:</strong> <span class="px-2 py-0.5 rounded-full bg-slate-100 text-xs"><%= (typeof statutLabel !== 'undefined' && statutLabel) ? statutLabel : ticket.statut %></span></div>
         </dl>
       </section>
 
@@ -42,27 +42,25 @@
       <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 mb-5">
         <h2 class="text-lg font-semibold text-emerald-900 mb-3">Prochaines étapes</h2>
         <ol class="space-y-2 text-sm text-emerald-900 list-decimal pl-5">
-          <li>Notre équipe pré-qualifie votre dossier sous <strong>48 h ouvrées</strong>.</li>
-          <li>Vous recevez un bon de retour gratuit pour nous expédier la pièce.</li>
-          <li>Une fois en atelier, l'analyse sur banc démarre sous 5 jours ouvrés.</li>
-          <li>Vous recevez le rapport et la décision (garantie ou forfait 149&nbsp;€).</li>
+          <% (motifSteps && motifSteps.steps || []).forEach(function(s) { %>
+            <li><%- s %></li>
+          <% }) %>
         </ol>
       </section>
 
       <!-- FAQ -->
+      <% var faqItems = (motifSteps && motifSteps.faq) || []; %>
       <section class="rounded-2xl border border-slate-200 bg-white p-5 mb-5">
         <h2 class="text-lg font-semibold mb-3">Questions fréquentes</h2>
-        <details class="border-b border-slate-100 py-2">
-          <summary class="cursor-pointer text-sm font-medium">Combien de temps dure l'analyse&nbsp;?</summary>
-          <p class="mt-2 text-sm text-slate-600">5 jours ouvrés à compter de la réception de votre pièce à notre atelier.</p>
-        </details>
-        <details class="border-b border-slate-100 py-2">
-          <summary class="cursor-pointer text-sm font-medium">Quand suis-je facturé&nbsp;?</summary>
-          <p class="mt-2 text-sm text-slate-600">Uniquement à la fin si l'analyse conclut que la pièce n'est pas défectueuse (149 € TTC). Aucun frais à l'ouverture.</p>
-        </details>
+        <% faqItems.forEach(function(f) { %>
+          <details class="border-b border-slate-100 py-2">
+            <summary class="cursor-pointer text-sm font-medium"><%- f.q %></summary>
+            <p class="mt-2 text-sm text-slate-600"><%- f.a %></p>
+          </details>
+        <% }) %>
         <details class="py-2">
           <summary class="cursor-pointer text-sm font-medium">Comment suivre mon dossier&nbsp;?</summary>
-          <p class="mt-2 text-sm text-slate-600">Connectez-vous à votre compte client et rendez-vous dans <a href="/compte/sav" class="underline text-primary">Mes SAV</a>.</p>
+          <p class="mt-2 text-sm text-slate-600">Connectez-vous à votre compte client et rendez-vous dans <a href="/compte/sav" class="underline text-primary">Mes SAV</a>, ou utilisez le <a href="/sav/suivi?numero=<%= encodeURIComponent(ticket.numero) %>" class="underline text-primary">suivi public</a>.</p>
         </details>
       </section>
 

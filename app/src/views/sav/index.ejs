@@ -1,5 +1,5 @@
 <%- include('../partials/head') %>
-<link rel="stylesheet" href="/css/sav.css?v=7">
+<link rel="stylesheet" href="/css/sav.css?v=15">
 <%- include('../partials/header') %>
 
 <a href="#sav-form" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg">
@@ -278,6 +278,35 @@
               </label>
             </div>
           </fieldset>
+
+          <!-- Huile utilisée -->
+          <fieldset class="rounded-xl border border-slate-200 p-4">
+            <legend class="px-2 text-sm font-medium text-slate-700">Huile utilisée lors du montage</legend>
+            <div class="mt-2 grid grid-cols-2 gap-3">
+              <div>
+                <label for="huileQuantite" class="block text-xs font-medium text-slate-600 mb-1">Quantité (litres)</label>
+                <input id="huileQuantite" name="huileQuantite" type="number" step="0.1" min="0" max="30" placeholder="ex: 5.2"
+                       class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]">
+              </div>
+              <div>
+                <label for="huileType" class="block text-xs font-medium text-slate-600 mb-1">Référence / type d'huile</label>
+                <input id="huileType" name="huileType" type="text" placeholder="ex: DCTF-1, G 052 182"
+                       class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px]"
+                       list="huileTypeList">
+                <datalist id="huileTypeList">
+                  <option value="DCTF-1 (DSG DQ200)">
+                  <option value="G 052 182 A2 (DSG DQ250)">
+                  <option value="G 055 529 A2 (DSG DQ381)">
+                  <option value="G 052 171 (Haldex)">
+                  <option value="75W-80 (Boîte manuelle)">
+                  <option value="75W-90 (Pont / Différentiel)">
+                  <option value="ATF Dexron VI (BVA)">
+                  <option value="Autre / Je ne sais pas">
+                </datalist>
+              </div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Cette information aide nos techniciens à vérifier la compatibilité huile/pièce.</p>
+          </fieldset>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-2">
@@ -294,6 +323,23 @@
       <section class="sav-form-step sav-status-card" data-step="3" aria-labelledby="step3-title" hidden>
         <h2 id="step3-title" class="text-lg font-semibold mb-1">3. Décrivez le problème</h2>
         <p class="text-sm text-slate-600 mb-4">Plus c'est précis, plus l'analyse va vite.</p>
+
+        <!-- Moment de la panne -->
+        <div class="mb-4">
+          <label for="momentPanne" class="block text-sm font-medium text-slate-700 mb-1">Quand le problème est-il apparu ?</label>
+          <select id="momentPanne" name="momentPanne" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base min-h-[44px] bg-white">
+            <option value="">-- Sélectionner --</option>
+            <option value="au_montage">Pendant le montage</option>
+            <option value="premier_demarrage">Au premier démarrage</option>
+            <option value="moins_100km">Moins de 100 km après montage</option>
+            <option value="100_500km">Entre 100 et 500 km</option>
+            <option value="500_1000km">Entre 500 et 1 000 km</option>
+            <option value="1000_5000km">Entre 1 000 et 5 000 km</option>
+            <option value="plus_5000km">Plus de 5 000 km après montage</option>
+            <option value="inconnu">Je ne sais pas</option>
+          </select>
+          <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="momentPanne"></p>
+        </div>
 
         <fieldset class="space-y-2 mb-4">
           <legend class="text-sm font-medium text-slate-700 mb-2">Symptômes observés (cochez tout ce qui s'applique)</legend>
@@ -378,7 +424,7 @@
             </div>
             <div>
               <label for="vAnnee" class="block text-xs font-medium text-slate-700 mb-1">Année</label>
-              <input id="vAnnee" name="vAnnee" type="number" min="1980" max="2099" class="sav-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <input id="vAnnee" name="vAnnee" type="number" inputmode="numeric" min="1980" max="2099" class="sav-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
             </div>
             <div>
               <label for="vMotor" class="block text-xs font-medium text-slate-700 mb-1">Motorisation</label>
@@ -388,7 +434,8 @@
 
           <div>
             <label for="kilometrage" class="block text-sm font-medium text-slate-700 mb-1">Kilométrage actuel</label>
-            <input id="kilometrage" name="kilometrage" type="number" min="0" max="1500000" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base" placeholder="ex: 145000">
+            <input id="kilometrage" name="kilometrage" type="number" inputmode="numeric" min="0" max="1500000" class="sav-input w-full rounded-xl border border-slate-300 px-4 py-3 text-base" placeholder="ex: 145000">
+            <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="kilometrage"></p>
           </div>
         </div>
         <!-- /Sous-section 4A -->
@@ -399,40 +446,90 @@
             <span class="sav-substep__badge">B</span>
             <div>
               <div class="sav-substep__title">Documents justificatifs</div>
-              <div class="sav-substep__hint">Ces 4 pièces sont obligatoires pour ouvrir votre dossier.</div>
+              <div class="sav-substep__hint">3 documents obligatoires + 1 photo facultative.</div>
             </div>
           </div>
 
-          <ul id="sav-docs-checklist" class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <li data-doc="factureMontage" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
-              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
-              <span>Facture du garage</span>
-            </li>
-            <li data-doc="photoPiece" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
-              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
-              <span>Photo de la pièce défectueuse</span>
-            </li>
-            <li data-doc="photoObd" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
-              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
-              <span>Photo valise diagnostic (OBD)</span>
-            </li>
-            <li data-doc="photoCompteur" class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
-              <span class="material-symbols-rounded text-base" aria-hidden="true">radio_button_unchecked</span>
-              <span>Photo du compteur kilométrique</span>
-            </li>
-          </ul>
+          <p class="text-sm text-slate-600 mb-4">Ajoutez chaque document à son emplacement. Cliquez sur une case pour téléverser le fichier correspondant.</p>
 
-          <div id="sav-drop" class="sav-drop" tabindex="0" aria-label="Zone de dépôt de fichiers">
-            <input id="sav-file-input" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/heic,image/heif" class="sr-only">
-            <span class="material-symbols-rounded text-4xl text-primary" aria-hidden="true">cloud_upload</span>
-            <div class="mt-1 text-sm font-semibold text-slate-700">Glissez vos fichiers ici ou cliquez pour parcourir</div>
-            <div class="text-xs text-slate-500">PDF, JPG, PNG, HEIC · 10 Mo max · 5 fichiers max</div>
+          <div id="sav-doc-slots" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="sav-doc-slot" data-kind="factureMontage">
+              <input type="file" class="sr-only sav-doc-slot__input" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif">
+              <div class="sav-doc-slot__icon"><span class="material-symbols-rounded" aria-hidden="true">receipt_long</span></div>
+              <div class="sav-doc-slot__body">
+                <div class="sav-doc-slot__title">Facture du garage</div>
+                <div class="sav-doc-slot__hint">PDF ou photo de la facture de montage</div>
+                <div class="sav-doc-slot__cta"><span class="material-symbols-rounded" aria-hidden="true">add</span>Ajouter le fichier</div>
+              </div>
+              <div class="sav-doc-slot__filled" hidden>
+                <img class="sav-doc-slot__thumb" alt="">
+                <div class="sav-doc-slot__file">
+                  <div class="sav-doc-slot__name"></div>
+                  <div class="sav-doc-slot__meta"></div>
+                </div>
+                <button type="button" class="sav-doc-slot__rm" aria-label="Retirer ce fichier"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+              </div>
+            </div>
+
+            <div class="sav-doc-slot" data-kind="photoPiece">
+              <input type="file" class="sr-only sav-doc-slot__input" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif">
+              <div class="sav-doc-slot__icon"><span class="material-symbols-rounded" aria-hidden="true">precision_manufacturing</span></div>
+              <div class="sav-doc-slot__body">
+                <div class="sav-doc-slot__title">Photo de la pièce <span class="sav-doc-slot__optional">facultatif</span></div>
+                <div class="sav-doc-slot__hint">Pièce installée sur le véhicule (si possible)</div>
+                <div class="sav-doc-slot__cta"><span class="material-symbols-rounded" aria-hidden="true">add</span>Ajouter la photo</div>
+              </div>
+              <div class="sav-doc-slot__filled" hidden>
+                <img class="sav-doc-slot__thumb" alt="">
+                <div class="sav-doc-slot__file">
+                  <div class="sav-doc-slot__name"></div>
+                  <div class="sav-doc-slot__meta"></div>
+                </div>
+                <button type="button" class="sav-doc-slot__rm" aria-label="Retirer ce fichier"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+              </div>
+            </div>
+
+            <div class="sav-doc-slot" data-kind="photoObd">
+              <input type="file" class="sr-only sav-doc-slot__input" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif">
+              <div class="sav-doc-slot__icon"><span class="material-symbols-rounded" aria-hidden="true">tablet_mac</span></div>
+              <div class="sav-doc-slot__body">
+                <div class="sav-doc-slot__title">Photo valise diagnostic (OBD)</div>
+                <div class="sav-doc-slot__hint">Écran OBD montrant les codes défaut</div>
+                <div class="sav-doc-slot__cta"><span class="material-symbols-rounded" aria-hidden="true">add</span>Ajouter la photo</div>
+              </div>
+              <div class="sav-doc-slot__filled" hidden>
+                <img class="sav-doc-slot__thumb" alt="">
+                <div class="sav-doc-slot__file">
+                  <div class="sav-doc-slot__name"></div>
+                  <div class="sav-doc-slot__meta"></div>
+                </div>
+                <button type="button" class="sav-doc-slot__rm" aria-label="Retirer ce fichier"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+              </div>
+            </div>
+
+            <div class="sav-doc-slot" data-kind="photoCompteur">
+              <input type="file" class="sr-only sav-doc-slot__input" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif">
+              <div class="sav-doc-slot__icon"><span class="material-symbols-rounded" aria-hidden="true">speed</span></div>
+              <div class="sav-doc-slot__body">
+                <div class="sav-doc-slot__title">Photo du compteur kilométrique</div>
+                <div class="sav-doc-slot__hint">Tableau de bord avec le kilométrage lisible</div>
+                <div class="sav-doc-slot__cta"><span class="material-symbols-rounded" aria-hidden="true">add</span>Ajouter la photo</div>
+              </div>
+              <div class="sav-doc-slot__filled" hidden>
+                <img class="sav-doc-slot__thumb" alt="">
+                <div class="sav-doc-slot__file">
+                  <div class="sav-doc-slot__name"></div>
+                  <div class="sav-doc-slot__meta"></div>
+                </div>
+                <button type="button" class="sav-doc-slot__rm" aria-label="Retirer ce fichier"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+              </div>
+            </div>
           </div>
-          <p class="sav-error mt-1 text-sm text-red-600 hidden" data-error-for="files"></p>
-          <ul id="sav-file-list" class="mt-3 space-y-2"></ul>
-          <p class="mt-2 text-xs text-slate-500 flex items-start gap-1.5">
+
+          <p class="sav-error mt-3 text-sm text-red-600 hidden" data-error-for="files"></p>
+          <p class="mt-3 text-xs text-slate-500 flex items-start gap-1.5">
             <span class="material-symbols-rounded text-sm text-slate-400 mt-px" aria-hidden="true">info</span>
-            <span>Après l'ajout, sélectionnez la catégorie de chaque fichier dans le menu déroulant à droite de son nom.</span>
+            <span>Formats acceptés : PDF, JPG, PNG, HEIC · 10 Mo max par fichier.</span>
           </p>
         </div>
         <!-- /Sous-section 4B -->
@@ -449,35 +546,50 @@
 
       <!-- ============== ÉTAPE 5 : Engagement ============== -->
       <section class="sav-form-step sav-status-card" data-step="5" aria-labelledby="step5-title" hidden>
-        <h2 id="step5-title" class="text-lg font-semibold mb-1">5. La règle du jeu</h2>
-        <p class="text-sm text-slate-600 mb-4">Trois cases à cocher, et c'est parti.</p>
+        <h2 id="step5-title" class="text-lg font-semibold mb-1">5. Comment ça se passe</h2>
+        <p class="text-sm text-slate-600 mb-4">Aucun paiement à l'ouverture du dossier. Votre pièce est analysée sur banc dans notre atelier, puis deux issues sont possibles&nbsp;:</p>
 
-        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5 text-sm leading-relaxed space-y-3">
-          <p class="font-semibold text-slate-900">Une analyse sur banc est nécessaire pour diagnostiquer votre pièce.</p>
-          <ul class="space-y-2">
-            <li class="flex gap-2"><span class="material-symbols-rounded text-emerald-600 text-base mt-0.5" aria-hidden="true">check_circle</span><span><strong>Si l'analyse confirme un défaut produit :</strong> 0 € pour vous, échange ou remboursement intégral, retour offert.</span></li>
-            <li class="flex gap-2"><span class="material-symbols-rounded text-amber-600 text-base mt-0.5" aria-hidden="true">euro</span><span><strong>Mauvais montage / usure / non défectueux :</strong> 149 € TTC à votre charge.</span></li>
-            <li class="flex gap-2"><span class="material-symbols-rounded text-sky-600 text-base mt-0.5" aria-hidden="true">payments</span><span>Vous ne payez <strong>RIEN</strong> à l'ouverture.</span></li>
-          </ul>
-        </div>
+        <ul class="sav-issues">
+          <li class="sav-issue">
+            <span class="sav-issue__dot sav-issue__dot--ok" aria-hidden="true"></span>
+            <div>
+              <div class="sav-issue__title">Si le défaut est confirmé</div>
+              <div class="sav-issue__desc">Échange ou remboursement intégral, frais de retour offerts, traitement sous 5 jours ouvrés. <strong>Aucun frais.</strong></div>
+            </div>
+          </li>
+          <li class="sav-issue">
+            <span class="sav-issue__dot sav-issue__dot--fee" aria-hidden="true"></span>
+            <div>
+              <div class="sav-issue__title">Si la pièce s'avère conforme</div>
+              <div class="sav-issue__desc">Mauvais montage, usure normale ou aucun défaut détecté&nbsp;: des frais d'analyse de <strong>149&nbsp;€&nbsp;TTC</strong> s'appliquent (banc + main d'œuvre + rapport technique).</div>
+            </div>
+          </li>
+        </ul>
 
-        <div class="mt-5 space-y-3">
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input id="cgvSav" name="cgvSav" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
-            <span class="text-sm">J'ai lu et j'accepte les <a href="/legal/cgv-sav" target="_blank" class="text-primary underline">conditions générales du SAV</a> (version <strong>cgv-sav-v2-2026-04</strong>).</span>
-          </label>
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input id="accept149" name="accept149" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
-            <span class="text-sm">J'accepte que <strong>149 € TTC</strong> me soient facturés <strong>uniquement</strong> si l'analyse conclut que la pièce n'est pas défectueuse.</span>
-          </label>
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input id="rgpdSav" name="rgpdSav" type="checkbox" required class="mt-1 rounded text-primary focus:ring-primary">
-            <span class="text-sm">
-              J'accepte le traitement de mes données personnelles aux fins du traitement de ma demande SAV
-              (<a href="/compte/rgpd" target="_blank" class="text-primary underline">politique RGPD</a>).
+        <!-- Acceptations -->
+        <div class="sav-engage-accept">
+          <label class="sav-engage-check">
+            <input id="accept149" name="accept149" type="checkbox" required>
+            <span class="sav-engage-check__box" aria-hidden="true"></span>
+            <span class="sav-engage-check__txt">
+              <strong>J'accepte les frais de 149 € TTC</strong> uniquement si la pièce s'avère non défectueuse après analyse.
             </span>
           </label>
-          <p class="sav-error text-sm text-red-600 hidden" data-error-for="acceptances"></p>
+          <label class="sav-engage-check">
+            <input id="cgvSav" name="cgvSav" type="checkbox" required>
+            <span class="sav-engage-check__box" aria-hidden="true"></span>
+            <span class="sav-engage-check__txt">
+              J'ai lu et j'accepte les <a href="/legal/cgv-sav" target="_blank" class="text-primary underline">conditions générales du SAV</a> (v. <strong>cgv-sav-v2-2026-04</strong>).
+            </span>
+          </label>
+          <label class="sav-engage-check">
+            <input id="rgpdSav" name="rgpdSav" type="checkbox" required>
+            <span class="sav-engage-check__box" aria-hidden="true"></span>
+            <span class="sav-engage-check__txt">
+              J'accepte le traitement de mes données pour le suivi de ma demande (<a href="/compte/rgpd" target="_blank" class="text-primary underline">politique RGPD</a>).
+            </span>
+          </label>
+          <p class="sav-error text-sm text-red-600 hidden mt-2" data-error-for="acceptances"></p>
         </div>
 
         <div class="mt-6 flex items-center justify-between gap-2">
@@ -515,6 +627,6 @@
 
 <!-- browser-image-compression UMD via CDN (compression auto > 2 Mo) -->
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js" defer></script>
-<script src="/js/sav-form.js?v=4" defer></script>
+<script src="/js/sav-form.js?v=12" defer></script>
 
 <%- include('../partials/footer') %>

@@ -162,6 +162,9 @@ const savTicketSchema = new mongoose.Schema(
     montage: {
       date: { type: Date },
       reglageBase: { type: String, enum: ['oui', 'non', 'inconnu'] },
+      momentPanne: { type: String, trim: true }, // ex: "montage", "100km", "500km", "1000km", "5000km", etc.
+      huileQuantite: { type: String, trim: true }, // ex: "5.0", "5.2" (litres)
+      huileType: { type: String, trim: true }, // ex: "DCTF-1", "G 052 182", "Fuchs Titan"
     },
 
     cgvAcceptance: {
@@ -225,6 +228,37 @@ const savTicketSchema = new mongoose.Schema(
       },
       montant: { type: Number, min: 0 },
       dateResolution: { type: Date },
+    },
+
+    // ──────────────────────────────────────────────────────────
+    // Checklist de clôture (qualité + reporting)
+    // Rempli par l'agent juste avant de passer le ticket en clos /
+    // resolu_garantie / resolu_facture / refuse. Les champs booleans
+    // sont cochés dans la modale, et rootCause alimente le reporting
+    // mensuel (catégorisation des causes récurrentes).
+    // ──────────────────────────────────────────────────────────
+    closure: {
+      clientNotified: { type: Boolean, default: false },
+      refundDone: { type: Boolean, default: false },
+      docsArchived: { type: Boolean, default: false },
+      rootCause: {
+        type: String,
+        enum: [
+          '',
+          'defaut_produit',
+          'defaut_fournisseur',
+          'erreur_preparation',
+          'erreur_client',
+          'dommage_transport',
+          'incompatibilite',
+          'rétractation_client',
+          'autre',
+        ],
+        default: '',
+      },
+      rootCauseDetail: { type: String, trim: true, default: '' },
+      closedBy: { type: String, trim: true },
+      closedAt: { type: Date },
     },
 
     paiements: {
@@ -460,8 +494,19 @@ savTicketSchema.methods.addMessage = function addMessage(auteur, canal, contenu)
   return this;
 };
 
-savTicketSchema.methods.changerStatut = function changerStatut(nouveauStatut, auteur) {
+savTicketSchema.methods.changerStatut = function changerStatut(nouveauStatut, auteur, opts) {
   const ancien = this.statut;
+  const options = opts || {};
+  // Garde FSM : refuse les transitions illégales, sauf si opts.force === true
+  try {
+    const fsm = require('../config/savStateMachine');
+    if (!options.force && ancien && ancien !== nouveauStatut) {
+      fsm.assertTransition(ancien, nouveauStatut);
+    }
+  } catch (e) {
+    // Propage l'erreur pour qu'elle soit catchée par la route API
+    if (!options.force) throw e;
+  }
   this.statut = nouveauStatut;
   this.addMessage(
     auteur || 'systeme',

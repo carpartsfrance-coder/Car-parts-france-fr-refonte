@@ -99,6 +99,21 @@ publicRouter.post('/mollie-webhook', express.urlencoded({ extended: false }), as
   }
 });
 
+// POST /api/sav/inbound-email — MailerSend inbound webhook (NO AUTH)
+publicRouter.post('/inbound-email', express.json({ limit: '10mb' }), async (req, res) => {
+  try {
+    const { processInboundEmail } = require('../../services/savInboundEmail');
+    const result = await processInboundEmail(req);
+    console.log('[sav-inbound]', JSON.stringify(result));
+    // Always return 200 to prevent MailerSend retries
+    return res.status(200).json({ ok: true, result });
+  } catch (err) {
+    console.error('[sav-inbound] ERROR', err.message);
+    // Always return 200 even on error to prevent retries
+    return res.status(200).json({ ok: false, error: err.message });
+  }
+});
+
 // POST /api/sav/tickets — création
 // GET /api/sav/verify-report/:numero — vérification signature PDF (QR code)
 publicRouter.get('/verify-report/:numero', async (req, res) => {
@@ -423,6 +438,11 @@ adminRouter.get('/tickets', async (req, res) => {
       }
     }
 
+    // Raccourci "mine" : tickets assignés au user courant
+    if (req.query.mine === 'true' && req.session && req.session.user) {
+      q.assignedToUserId = String(req.session.user._id || req.session.user.id || '');
+    }
+
     // Tri
     const sortField = String(req.query.sort || 'createdAt');
     const sortDir = String(req.query.dir || 'desc') === 'asc' ? 1 : -1;
@@ -435,13 +455,38 @@ adminRouter.get('/tickets', async (req, res) => {
       createdAt: 'createdAt',
       assignedTo: 'assignedToName',
     };
-    const sort = { [sortMap[sortField] || 'createdAt']: sortDir };
 
     // Pagination
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage, 10) || 20));
     const skip = (page - 1) * perPage;
 
+    // Tri spécial "priority" : calcul applicatif (car dépend du temps courant)
+    if (sortField === 'priority') {
+      // Exclut les statuts terminaux sauf si explicitement filtrés
+      if (!q.statut) {
+        q.statut = { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture'] };
+      }
+      // On charge un périmètre raisonnable puis on trie en mémoire
+      const LIMIT_PRIORITY = 500;
+      const [allMatching, total] = await Promise.all([
+        SavTicket.find(q).limit(LIMIT_PRIORITY).lean(),
+        SavTicket.countDocuments(q),
+      ]);
+      const priority = require('../../config/savPriority');
+      const sorted = priority.sortByPriority(allMatching);
+      // Enrichit chaque ticket avec l'explain score pour debug UI
+      sorted.forEach((t) => { t._priorityExplain = priority.explainScore(t); });
+      const sliced = sorted.slice(skip, skip + perPage);
+      return ok(res, {
+        count: sliced.length, total, page, perPage,
+        totalPages: Math.ceil(total / perPage),
+        tickets: sliced,
+        sortMode: 'priority',
+      });
+    }
+
+    const sort = { [sortMap[sortField] || 'createdAt']: sortDir };
     const [tickets, total] = await Promise.all([
       SavTicket.find(q).sort(sort).skip(skip).limit(perPage).lean(),
       SavTicket.countDocuments(q),
@@ -634,7 +679,7 @@ adminRouter.post('/tickets/:numero/fournisseur', async (req, res) => {
     if (f.coutRefacture != null) ticket.fournisseur.coutRefacture = Number(f.coutRefacture) || 0;
     if (f.dateEnvoi) ticket.fournisseur.dateEnvoi = new Date(f.dateEnvoi);
     if (f.dateRetour) ticket.fournisseur.dateRetour = new Date(f.dateRetour);
-    if (f.changeStatutToEnAttente) ticket.changerStatut('en_attente_fournisseur', 'admin');
+    if (f.changeStatutToEnAttente) ticket.changerStatut('en_attente_fournisseur', 'admin', { force: true });
     await ticket.save();
     audit.log({ req, action: 'sav.fournisseur', entityType: 'sav_ticket', entityId: ticket.numero, before, after: ticket.fournisseur });
     return ok(res, { numero: ticket.numero, fournisseur: ticket.fournisseur });
@@ -721,7 +766,7 @@ adminRouter.post('/tickets/:numero/diagnostic-complet', async (req, res) => {
 
     if (b.conclusion) {
       ticket.analyse.facture149 = { status: b.conclusion === 'defaut_produit' ? 'na' : 'a_facturer' };
-      ticket.changerStatut('analyse_terminee', 'admin');
+      ticket.changerStatut('analyse_terminee', 'admin', { force: true });
     }
 
     await ticket.save();
@@ -773,13 +818,16 @@ adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5
     if (canal === 'email') {
       try {
         const { sendEmail } = require('../../services/emailService');
+        const { buildReplyToAddress } = require('../../services/savInboundEmail');
         const stripped = String(html || contenu).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
         emailResult = await sendEmail({
           toEmail: ticket.client && ticket.client.email,
           subject: sujet || `[SAV ${ticket.numero}]`,
           html: html || `<p>${stripped}</p>`,
           text: stripped,
           attachments: emailAttachments.length ? emailAttachments : undefined,
+          replyTo,
         });
       } catch (e) {
         console.error('[sav-comm email]', e.message);
@@ -1085,15 +1133,204 @@ adminRouter.get('/tickets/:numero', async (req, res) => {
 // PATCH /admin/api/sav/tickets/:numero/statut
 adminRouter.patch('/tickets/:numero/statut', async (req, res) => {
   try {
-    const { statut, auteur } = req.body || {};
+    const { statut, auteur, force } = req.body || {};
     if (!statut) return fail(res, 'statut requis');
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
     const before = { statut: ticket.statut };
-    ticket.changerStatut(statut, auteur || 'admin');
+    try {
+      ticket.changerStatut(statut, auteur || 'admin', { force: !!force });
+    } catch (fsmErr) {
+      // Erreur FSM → 409 Conflict (transition refusée)
+      return fail(res, fsmErr.message, 409);
+    }
     await ticket.save();
     audit.log({ req, action: 'sav.statut', entityType: 'sav_ticket', entityId: ticket.numero, before, after: { statut: ticket.statut } });
     return ok(res, { numero: ticket.numero, statut: ticket.statut });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/tickets/:numero/playbook
+// Retourne le playbook sérialisé pour le ticket (stepper + macros + templates).
+adminRouter.get('/tickets/:numero/playbook', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero }).lean();
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const pbEngine = require('../../config/savPlaybooks');
+    return ok(res, pbEngine.playbookForTicket(ticket));
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/close
+// Clôture qualifiée : valide la checklist puis passe le ticket dans un
+// statut terminal. Exige rootCause renseigné pour alimenter le reporting.
+adminRouter.post('/tickets/:numero/close', async (req, res) => {
+  try {
+    const {
+      targetStatut,        // 'clos' | 'resolu_garantie' | 'resolu_facture' | 'refuse'
+      clientNotified,
+      refundDone,
+      docsArchived,
+      rootCause,
+      rootCauseDetail,
+    } = req.body || {};
+    const ALLOWED = ['clos', 'resolu_garantie', 'resolu_facture', 'refuse'];
+    if (!ALLOWED.includes(targetStatut)) {
+      return fail(res, 'targetStatut invalide (clos|resolu_garantie|resolu_facture|refuse)');
+    }
+    if (!rootCause) {
+      return fail(res, 'rootCause requise (sélectionnez la cause racine)');
+    }
+    if (!clientNotified || !docsArchived) {
+      return fail(res, 'La checklist n\'est pas complète : client notifié + documents archivés sont obligatoires.');
+    }
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+
+    const before = { statut: ticket.statut };
+    ticket.closure = ticket.closure || {};
+    ticket.closure.clientNotified = !!clientNotified;
+    ticket.closure.refundDone = !!refundDone;
+    ticket.closure.docsArchived = !!docsArchived;
+    ticket.closure.rootCause = rootCause;
+    ticket.closure.rootCauseDetail = rootCauseDetail || '';
+    ticket.closure.closedBy = (req.session && req.session.user && req.session.user.email) || 'admin';
+    ticket.closure.closedAt = new Date();
+
+    try {
+      ticket.changerStatut(targetStatut, ticket.closure.closedBy, { force: true });
+    } catch (fsmErr) {
+      return fail(res, fsmErr.message, 409);
+    }
+    ticket.addMessage('systeme', 'interne',
+      `Clôture qualifiée — ${targetStatut} · cause: ${rootCause}` + (rootCauseDetail ? ` (${rootCauseDetail})` : ''));
+    await ticket.save();
+    audit.log({ req, action: 'sav.close', entityType: 'sav_ticket', entityId: ticket.numero,
+      before, after: { statut: ticket.statut, rootCause, closedBy: ticket.closure.closedBy } });
+    return ok(res, { numero: ticket.numero, statut: ticket.statut, closure: ticket.closure });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// GET /admin/api/sav/kpi
+// Dashboard : calcule les 4 KPIs essentiels sur une fenêtre glissante.
+//   - FRT  (First Response Time)  : médiane des délais de première
+//                                    réponse admin, en heures.
+//   - RT   (Resolution Time)       : médiane des délais de résolution.
+//   - breachRate : % de tickets clos avec SLA dépassé.
+//   - backlog    : pyramide des âges des tickets ouverts.
+adminRouter.get('/kpi', async (req, res) => {
+  try {
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+    const since = new Date(Date.now() - days * 86400000);
+    const TERMINAL = ['clos', 'resolu_garantie', 'resolu_facture', 'refuse'];
+
+    const [allTickets, openTickets] = await Promise.all([
+      SavTicket.find({ createdAt: { $gte: since } })
+        .select('numero createdAt statut messages sla updatedAt')
+        .lean(),
+      SavTicket.find({ statut: { $nin: TERMINAL } })
+        .select('numero createdAt statut sla')
+        .lean(),
+    ]);
+
+    // FRT : temps entre createdAt et premier message admin non-système
+    const frtSamples = [];
+    const rtSamples = [];
+    let breached = 0;
+    let resolved = 0;
+    for (const t of allTickets) {
+      // FRT
+      const firstAdminMsg = (t.messages || []).find((m) =>
+        m && m.auteur === 'admin' && !/^(Statut|Document|Assignation|Macro|Clôture)/i.test(m.contenu || ''));
+      if (firstAdminMsg && firstAdminMsg.createdAt && t.createdAt) {
+        const h = (new Date(firstAdminMsg.createdAt) - new Date(t.createdAt)) / 3600000;
+        if (h >= 0) frtSamples.push(h);
+      }
+      // Resolution time + breach rate
+      if (TERMINAL.includes(t.statut)) {
+        resolved++;
+        if (t.updatedAt && t.createdAt) {
+          const h = (new Date(t.updatedAt) - new Date(t.createdAt)) / 3600000;
+          if (h >= 0) rtSamples.push(h);
+        }
+        if (t.sla && t.sla.dateLimite && t.updatedAt && new Date(t.updatedAt) > new Date(t.sla.dateLimite)) {
+          breached++;
+        }
+      }
+    }
+
+    const median = (arr) => {
+      if (!arr.length) return null;
+      const s = arr.slice().sort((a, b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    };
+
+    // Backlog aging
+    const buckets = { lt1: 0, '1-3': 0, '3-7': 0, '7-14': 0, '14plus': 0 };
+    for (const t of openTickets) {
+      if (!t.createdAt) continue;
+      const d = (Date.now() - new Date(t.createdAt).getTime()) / 86400000;
+      if (d < 1) buckets.lt1++;
+      else if (d < 3) buckets['1-3']++;
+      else if (d < 7) buckets['3-7']++;
+      else if (d < 14) buckets['7-14']++;
+      else buckets['14plus']++;
+    }
+
+    return ok(res, {
+      windowDays: days,
+      totals: {
+        created: allTickets.length,
+        resolved,
+        openNow: openTickets.length,
+      },
+      frtHoursMedian: median(frtSamples),
+      rtHoursMedian: median(rtSamples),
+      breachRate: resolved ? Math.round((breached / resolved) * 1000) / 10 : 0,
+      backlogAging: buckets,
+    });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /admin/api/sav/tickets/:numero/macro
+// Exécute une macro du playbook (action 1-clic) :
+//   { macroId }
+// La macro décrit côté config : subject, body, nextStatut, action.
+// On se contente ici de changer le statut + logger la timeline interne.
+// Les envois email restent gérés par l'endpoint /communication existant,
+// que le frontend appelle après avoir récupéré le payload pré-rempli.
+adminRouter.post('/tickets/:numero/macro', async (req, res) => {
+  try {
+    const { macroId, forceStatut } = req.body || {};
+    if (!macroId) return fail(res, 'macroId requis');
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const pbEngine = require('../../config/savPlaybooks');
+    const pb = pbEngine.getPlaybook(ticket.motifSav || 'autre');
+    const macro = (pb.macros || []).find((m) => m.id === macroId);
+    if (!macro) return fail(res, 'Macro inconnue pour ce motif', 404);
+    // Changement de statut (si la macro en déclare un)
+    const target = forceStatut || macro.nextStatut;
+    if (target && target !== ticket.statut) {
+      try {
+        ticket.changerStatut(target, 'admin');
+      } catch (fsmErr) {
+        return fail(res, fsmErr.message, 409);
+      }
+    }
+    ticket.addMessage('systeme', 'interne', `Macro exécutée : ${macro.label}`);
+    await ticket.save();
+    audit.log({ req, action: 'sav.macro', entityType: 'sav_ticket', entityId: ticket.numero, after: { macroId, statut: ticket.statut } });
+    return ok(res, { numero: ticket.numero, statut: ticket.statut, macroId });
   } catch (err) {
     return fail(res, err.message, 500);
   }
@@ -1124,7 +1361,7 @@ adminRouter.post('/tickets/:numero/diagnostic', async (req, res) => {
     } else {
       ticket.analyse.facture149 = { status: 'na' };
     }
-    ticket.changerStatut('analyse_terminee', 'admin');
+    ticket.changerStatut('analyse_terminee', 'admin', { force: true });
     await ticket.save();
     audit.log({ req, action: 'sav.diagnostic', entityType: 'sav_ticket', entityId: ticket.numero, after: { conclusion: ticket.analyse.conclusion } });
 
@@ -1161,7 +1398,7 @@ adminRouter.post('/tickets/:numero/resolution', async (req, res) => {
       ticket.analyse && ticket.analyse.conclusion === 'defaut_produit'
         ? 'resolu_garantie'
         : 'resolu_facture';
-    ticket.changerStatut(nouveauStatut, 'admin');
+    ticket.changerStatut(nouveauStatut, 'admin', { force: true });
     await ticket.save();
     audit.log({ req, action: 'sav.resolution', entityType: 'sav_ticket', entityId: ticket.numero, after: ticket.resolution });
     return ok(res, { numero: ticket.numero, resolution: ticket.resolution, statut: ticket.statut });
@@ -1184,8 +1421,10 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
     if (canal === 'email' && ticket.client && ticket.client.email) {
       try {
         const { sendEmail } = require('../../services/emailService');
+        const { buildReplyToAddress } = require('../../services/savInboundEmail');
         const baseUrl = process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr';
         const link = `${baseUrl}/sav/suivi/${ticket.numero}`;
+        const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
         sendEmail({
           toEmail: ticket.client.email,
           subject: `Réponse de notre équipe SAV — ${ticket.numero}`,
@@ -1193,8 +1432,9 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
                  <p>Notre équipe SAV vient de vous répondre sur votre dossier <strong>${ticket.numero}</strong>.</p>
                  <blockquote style="border-left:3px solid #cbd5e1;padding:8px 12px;color:#475569;">${String(contenu).replace(/</g, '&lt;').slice(0, 800)}</blockquote>
                  <p><a href="${link}" style="display:inline-block;background:#ec1313;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Voir la conversation</a></p>
-                 <p style="color:#64748b;font-size:12px;">Vous pouvez répondre directement depuis votre espace SAV.</p>`,
+                 <p style="color:#64748b;font-size:12px;">Vous pouvez répondre directement à cet email ou depuis votre espace SAV.</p>`,
           text: `Notre équipe vient de vous répondre sur ${ticket.numero}. Voir : ${link}`,
+          replyTo,
         }).catch(() => {});
       } catch (_) {}
     }
@@ -1525,12 +1765,15 @@ adminRouter.post('/tickets/:numero/send-procedure', async (req, res) => {
 
     try {
       const { sendEmail } = require('../../services/emailService');
+      const { buildReplyToAddress } = require('../../services/savInboundEmail');
+      const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
       await sendEmail({
         toEmail: clientEmail,
         subject: '[SAV ' + ticket.numero + '] Procédure : ' + proc.title,
         html: html,
         text: bodyText,
         attachments: attachments,
+        replyTo,
       });
     } catch (e) {
       console.error('[sav-send-procedure]', e.message);

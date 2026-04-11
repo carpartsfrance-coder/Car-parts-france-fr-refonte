@@ -19,4 +19,24 @@ const auditLogSchema = new mongoose.Schema(
 // TTL : 2 ans
 auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 365 * 2 });
 
+// Append-only : une fois créé, un log ne peut être ni modifié ni supprimé
+// (hormis l'expiration TTL automatique). Garantit la valeur probante en cas
+// de litige SAV ou contrôle RGPD.
+function blockMutation(next) {
+  const err = new Error('AuditLog est append-only : modification interdite.');
+  err.code = 'AUDIT_IMMUTABLE';
+  next(err);
+}
+auditLogSchema.pre('updateOne', blockMutation);
+auditLogSchema.pre('updateMany', blockMutation);
+auditLogSchema.pre('findOneAndUpdate', blockMutation);
+auditLogSchema.pre('deleteOne', blockMutation);
+auditLogSchema.pre('deleteMany', blockMutation);
+auditLogSchema.pre('findOneAndDelete', blockMutation);
+auditLogSchema.pre('save', function (next) {
+  // Autorise l'insertion, bloque toute modification ultérieure
+  if (!this.isNew) return blockMutation(next);
+  next();
+});
+
 module.exports = mongoose.model('AuditLog', auditLogSchema);

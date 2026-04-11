@@ -19,6 +19,52 @@
   var orderInfo = null;
   var STORAGE_KEY = 'sav:draft:v2';
 
+  // ----------------- IndexedDB (persistance des pièces jointes) -----------------
+  var IDB_NAME = 'sav-draft';
+  var IDB_STORE = 'files';
+  function idbOpen() {
+    return new Promise(function (resolve, reject) {
+      if (!('indexedDB' in window)) return reject(new Error('no idb'));
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: 'kind' });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function idbTx(mode) {
+    return idbOpen().then(function (db) { return db.transaction(IDB_STORE, mode).objectStore(IDB_STORE); });
+  }
+  function idbPutFile(kind, file) {
+    return idbTx('readwrite').then(function (store) {
+      return new Promise(function (resolve, reject) {
+        var r = store.put({ kind: kind, file: file, name: file.name, type: file.type, size: file.size });
+        r.onsuccess = resolve; r.onerror = function () { reject(r.error); };
+      });
+    }).catch(function () {});
+  }
+  function idbDeleteFile(kind) {
+    return idbTx('readwrite').then(function (store) {
+      return new Promise(function (resolve) { var r = store.delete(kind); r.onsuccess = resolve; r.onerror = resolve; });
+    }).catch(function () {});
+  }
+  function idbClearFiles() {
+    return idbTx('readwrite').then(function (store) {
+      return new Promise(function (resolve) { var r = store.clear(); r.onsuccess = resolve; r.onerror = resolve; });
+    }).catch(function () {});
+  }
+  function idbGetAllFiles() {
+    return idbTx('readonly').then(function (store) {
+      return new Promise(function (resolve) {
+        var out = []; var r = store.openCursor();
+        r.onsuccess = function () { var c = r.result; if (c) { out.push(c.value); c.continue(); } else resolve(out); };
+        r.onerror = function () { resolve(out); };
+      });
+    }).catch(function () { return []; });
+  }
+
   // ----------------- Helpers -----------------
   function $(sel, ctx) { return (ctx || document).querySelector(sel); }
   function $$(sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
@@ -82,7 +128,18 @@
     if (prog) prog.setAttribute('aria-valuenow', String(n));
     window.scrollTo({ top: 0, behavior: 'smooth' });
     revalidateCurrentStep();
-    if (n === TOTAL) renderRecap();
+    if (n === TOTAL) {
+      renderRecap();
+      // Reset le bouton submit au cas où un envoi précédent l'a laissé en état loading
+      var submitBtn = document.getElementById('sav-submit');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        var sl = submitBtn.querySelector('[data-submit-label]');
+        var ss = submitBtn.querySelector('[data-submit-spinner]');
+        if (sl) sl.textContent = 'Envoyer ma demande';
+        if (ss) ss.classList.add('hidden');
+      }
+    }
   }
 
   // Stepper : clic sur étape passée pour revenir
@@ -163,7 +220,7 @@
       }
     } catch (_) {}
   }
-  function clearDraft() { try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} }
+  function clearDraft() { try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} idbClearFiles(); }
 
   // ----------------- Validation inline -----------------
   function setError(name, msg) {
@@ -199,7 +256,8 @@
   // Plaque FR moderne (AA-123-AA) ou ancien (1234 AB 56 — souple)
   var PLAQUE_FR_RE = /^([A-Z]{2}-?\d{3}-?[A-Z]{2}|\d{1,4}\s?[A-Z]{1,3}\s?\d{1,3})$/;
   // Code OBD-II
-  var OBD_RE = /^[PCBU][0-9A-F]{4}$/i;
+  // Codes standard (P0741 = 5 car) + codes constructeur étendus (P0617E = 6 car, ex VW/Audi)
+  var OBD_RE = /^[PCBU][0-9A-F]{4,5}$/i;
 
   function validateField(name) {
     var v = function (id) { var el = document.getElementById(id); return el ? el.value : ''; };
@@ -243,6 +301,22 @@
       var im = v('immatriculation').trim().toUpperCase();
       if (!im) return ''; // optionnel si VIN
       if (!PLAQUE_FR_RE.test(im)) return 'Plaque française invalide (ex: AA-123-AA).';
+      return '';
+    }
+    if (name === 'kilometrage') {
+      var km = v('kilometrage').trim();
+      if (!km) return '';
+      var n = parseInt(km, 10);
+      if (isNaN(n) || n < 0) return 'Kilométrage invalide.';
+      if (n > 1500000) return 'Kilométrage trop élevé.';
+      return '';
+    }
+    if (name === 'vAnnee') {
+      var y = v('vAnnee').trim();
+      if (!y) return '';
+      var yi = parseInt(y, 10);
+      var cy = new Date().getFullYear();
+      if (isNaN(yi) || yi < 1980 || yi > cy + 1) return 'Année invalide.';
       return '';
     }
     return '';
@@ -307,24 +381,10 @@
       droppedFiles.forEach(function (f) { hasKinds[f.kind] = true; });
       var REQ = [
         { k: 'factureMontage', l: 'Facture du garage' },
-        { k: 'photoPiece',     l: 'Photo de la pièce' },
         { k: 'photoObd',       l: 'Photo OBD' },
         { k: 'photoCompteur',  l: 'Photo du compteur' },
       ];
-      // MAJ checklist visuelle
-      REQ.forEach(function (r) {
-        var li = document.querySelector('#sav-docs-checklist [data-doc="' + r.k + '"]');
-        if (!li) return;
-        var done = !!hasKinds[r.k];
-        li.classList.toggle('bg-emerald-50', done);
-        li.classList.toggle('border-emerald-300', done);
-        li.classList.toggle('text-emerald-800', done);
-        li.classList.toggle('bg-slate-50', !done);
-        li.classList.toggle('border-slate-200', !done);
-        li.classList.toggle('text-slate-600', !done);
-        var ic = li.querySelector('.material-symbols-rounded');
-        if (ic) ic.textContent = done ? 'check_circle' : 'radio_button_unchecked';
-      });
+      // (état visuel des slots géré par renderFileList)
       var missing = REQ.filter(function (r) { return !hasKinds[r.k]; }).map(function (r) { return r.l; });
       if (missing.length) {
         setError('files', 'Il manque encore : ' + missing.join(', ') + '. Ajoutez le(s) fichier(s) puis choisissez leur catégorie dans le menu à droite.');
@@ -376,13 +436,13 @@
     return ok;
   }
 
-  // Validation au blur
+  // Validation au blur — tous les champs ayant une règle dans validateField
+  var BLUR_FIELDS = ['email','numeroCommande','pieceType','dateMontage','garageNom','description','vin','immatriculation','kilometrage','vAnnee'];
   form.addEventListener('blur', function (e) {
     var t = e.target;
     if (!t || !t.name) return;
-    if (['email','numeroCommande','pieceType','dateMontage','garageNom','description','vin','immatriculation'].indexOf(t.name) >= 0
-        || ['email','numeroCommande','pieceType','dateMontage','garageNom','description','vin','immatriculation'].indexOf(t.id) >= 0) {
-      var key = t.name || t.id;
+    var key = t.name || t.id;
+    if (BLUR_FIELDS.indexOf(key) >= 0) {
       var msg = validateField(key);
       setError(key, msg);
     }
@@ -413,8 +473,13 @@
     saveDraft();
     revalidateCurrentStep();
   }
+  // Nettoie un texte collé : supprime tous les caractères non alphanumériques sauf séparateurs
+  function cleanObdText(raw) {
+    // Supprime caractères invisibles (zero-width, BOM, etc.) mais garde lettres/chiffres/séparateurs
+    return raw.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').replace(/[^\w,;\s-]/g, '');
+  }
   function addCode(code) {
-    code = String(code || '').trim().toUpperCase();
+    code = cleanObdText(String(code || '')).trim().toUpperCase();
     if (!code) return;
     var codes = getCodes();
     if (codes.length >= 10) { toast('10 codes maximum', 'error'); return; }
@@ -428,35 +493,76 @@
   function renderTags() {
     var box = document.getElementById('obdTagBox');
     if (!box) return;
-    // Garde uniquement l'input et reconstruit les chips devant
     var input = document.getElementById('obdInput');
-    box.innerHTML = '';
+    // Détacher l'input AVANT de vider le conteneur (sinon innerHTML='' le détruit)
+    if (input && input.parentNode === box) box.removeChild(input);
+    // Supprimer tous les chips existants
+    while (box.firstChild) box.removeChild(box.firstChild);
+    // Recréer les chips
     getCodes().forEach(function (c) {
       var chip = document.createElement('span');
       var bad = !OBD_RE.test(c);
       chip.className = 'sav-tag' + (bad ? ' sav-tag--bad' : '');
-      chip.innerHTML = '<span>' + escapeHtml(c) + '</span><button type="button" class="sav-tag__rm" aria-label="Retirer">×</button>';
+      chip.innerHTML = '<span>' + escapeHtml(c) + '</span><button type="button" class="sav-tag__rm" aria-label="Retirer">\u00d7</button>';
       chip.querySelector('.sav-tag__rm').addEventListener('click', function () { removeCode(c); });
       box.appendChild(chip);
     });
-    box.appendChild(input);
+    // Remettre l'input à la fin
+    if (input) box.appendChild(input);
   }
   var obdInput = document.getElementById('obdInput');
   if (obdInput) {
+    // Empêcher Enter de soumettre le formulaire ET ajouter le code comme tag
     obdInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
-        var v = obdInput.value.trim();
-        if (v) { addCode(v); obdInput.value = ''; }
+        e.stopPropagation();
+        var v = cleanObdText(obdInput.value).trim();
+        // Vider l'input AVANT renderTags pour éviter que blur ne re-ajoute
+        obdInput.value = '';
+        // Gérer le cas où le texte contient plusieurs codes (collé avant Enter)
+        if (v) {
+          var parts = v.split(/[\s,;\n\r]+/).filter(Boolean);
+          parts.forEach(function (p) { addCode(p); });
+        }
       } else if (e.key === 'Backspace' && !obdInput.value) {
         var codes = getCodes();
         if (codes.length) removeCode(codes[codes.length - 1]);
       }
     });
+    // Sécurité : bloquer aussi keypress Enter (soumission implicite navigateur)
+    obdInput.addEventListener('keypress', function (e) {
+      if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); e.stopPropagation(); }
+    });
+    // Gestion du copier-coller : nettoyer et séparer les codes collés
+    obdInput.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
+      // Séparer par virgule, espace, point-virgule, retour à la ligne
+      var parts = cleanObdText(pasted).split(/[\s,;\n\r]+/).filter(Boolean);
+      if (parts.length === 0) return;
+      if (parts.length === 1) {
+        // Un seul code : le mettre dans l'input pour que l'utilisateur puisse valider
+        obdInput.value = parts[0].trim().toUpperCase();
+        obdInput.dispatchEvent(new Event('input', {bubbles: true}));
+      } else {
+        // Plusieurs codes : les ajouter tous directement comme tags
+        parts.forEach(function (p) { addCode(p); });
+        obdInput.value = '';
+      }
+    });
     obdInput.addEventListener('blur', function () {
-      if (obdInput.value.trim()) { addCode(obdInput.value.trim()); obdInput.value = ''; }
+      var v = cleanObdText(obdInput.value).trim();
+      if (v) { obdInput.value = ''; addCode(v); }
     });
   }
+
+  // Protection globale : empêcher Enter dans les inputs texte de soumettre le form
+  form.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT' && e.target.type !== 'submit') {
+      e.preventDefault();
+    }
+  });
   var sg = document.getElementById('obdSuggest');
   if (sg) {
     sg.innerHTML = SUGGESTIONS_OBD.slice(0, 6).map(function (c) {
@@ -490,36 +596,27 @@
   }
 
   function renderFileList() {
-    var ul = document.getElementById('sav-file-list');
-    if (!ul) return;
-    ul.innerHTML = '';
-    droppedFiles.forEach(function (entry, idx) {
-      var li = document.createElement('li');
-      li.className = 'sav-file-item';
-      var thumb = entry.preview
-        ? '<img src="' + entry.preview + '" alt="" class="sav-file-item__thumb">'
-        : '<div class="sav-file-item__thumb sav-file-item__thumb--icon"><span class="material-symbols-rounded">picture_as_pdf</span></div>';
-      var sel = '<select class="sav-file-item__kind" aria-label="Catégorie">' +
-        KIND_OPTIONS.map(function (o) {
-          return '<option value="' + o.v + '"' + (entry.kind === o.v ? ' selected' : '') + '>' + o.l + '</option>';
-        }).join('') + '</select>';
-      li.innerHTML =
-        thumb +
-        '<div class="sav-file-item__body">' +
-          '<div class="sav-file-item__name" title="' + escapeHtml(entry.file.name) + '">' + escapeHtml(entry.file.name) + '</div>' +
-          '<div class="sav-file-item__meta">' + escapeHtml(fmtSize(entry.file.size)) + (entry.file.type ? ' · ' + escapeHtml(entry.file.type) : '') + '</div>' +
-          '<div class="sav-file-item__progress"><div class="sav-file-item__bar" style="width:' + (entry.progress || 0) + '%"></div></div>' +
-        '</div>' +
-        '<div class="sav-file-item__actions">' + sel + '<button type="button" class="sav-file-item__rm" aria-label="Retirer">×</button></div>';
-      li.querySelector('.sav-file-item__rm').addEventListener('click', function () {
-        droppedFiles.splice(idx, 1);
-        renderFileList(); revalidateCurrentStep(); saveDraft();
-      });
-      li.querySelector('.sav-file-item__kind').addEventListener('change', function (e) {
-        droppedFiles[idx].kind = e.target.value;
-        revalidateCurrentStep(); saveDraft();
-      });
-      ul.appendChild(li);
+    // Met à jour l'état visuel de chaque slot (rempli / vide)
+    $$('.sav-doc-slot').forEach(function (slot) {
+      var kind = slot.getAttribute('data-kind');
+      var entry = droppedFiles.find(function (f) { return f.kind === kind; });
+      var filled = slot.querySelector('.sav-doc-slot__filled');
+      if (entry) {
+        slot.classList.add('is-filled');
+        var thumb = filled.querySelector('.sav-doc-slot__thumb');
+        if (entry.preview) {
+          thumb.src = entry.preview;
+          thumb.style.display = '';
+        } else {
+          thumb.style.display = 'none';
+        }
+        filled.querySelector('.sav-doc-slot__name').textContent = entry.file.name;
+        filled.querySelector('.sav-doc-slot__meta').textContent = fmtSize(entry.file.size);
+        filled.removeAttribute('hidden');
+      } else {
+        slot.classList.remove('is-filled');
+        filled.setAttribute('hidden', '');
+      }
     });
   }
 
@@ -544,7 +641,7 @@
     }).catch(function () { return file; });
   }
 
-  function addFiles(files) {
+  function addFiles(files, forcedKind) {
     var arr = Array.from(files || []);
     var errors = [];
     arr.forEach(function (file) {
@@ -555,7 +652,13 @@
       if (file.size > 10 * 1024 * 1024) { errors.push(file.name + ' : > 10 Mo'); return; }
       compressIfNeeded(file).then(function (final) {
         readPreview(final).then(function (preview) {
-          droppedFiles.push({ file: final, kind: guessKind(final), preview: preview, progress: 0 });
+          var kind = forcedKind || guessKind(final);
+          // Si un fichier existe déjà pour ce kind, on le remplace
+          var existingIdx = droppedFiles.findIndex(function (f) { return f.kind === kind; });
+          var entry = { file: final, kind: kind, preview: preview, progress: 0 };
+          if (existingIdx >= 0) droppedFiles[existingIdx] = entry;
+          else droppedFiles.push(entry);
+          idbPutFile(kind, final);
           renderFileList();
           revalidateCurrentStep();
           saveDraft();
@@ -565,16 +668,53 @@
     if (errors.length) toast(errors.join(' · '), 'error');
   }
 
-  var drop = document.getElementById('sav-drop');
-  var fileInput = document.getElementById('sav-file-input');
-  if (drop && fileInput) {
-    drop.addEventListener('click', function () { fileInput.click(); });
-    drop.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
-    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('is-drop'); });
-    drop.addEventListener('dragleave', function () { drop.classList.remove('is-drop'); });
-    drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('is-drop'); addFiles(e.dataTransfer.files); });
-    fileInput.addEventListener('change', function () { addFiles(fileInput.files); fileInput.value = ''; });
-  }
+  // Wire chaque slot indépendamment
+  $$('.sav-doc-slot').forEach(function (slot) {
+    var kind = slot.getAttribute('data-kind');
+    var input = slot.querySelector('.sav-doc-slot__input');
+    var rmBtn = slot.querySelector('.sav-doc-slot__rm');
+    if (!input) return;
+
+    function openPicker() { input.click(); }
+    // Clic sur la zone ou sur le filled
+    slot.addEventListener('click', function (e) {
+      if (e.target.closest('.sav-doc-slot__rm')) return;
+      if (e.target.closest('.sav-doc-slot__input')) return;
+      openPicker();
+    });
+    slot.setAttribute('tabindex', '0');
+    slot.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); }
+    });
+
+    // Drag & drop sur le slot
+    slot.addEventListener('dragover', function (e) { e.preventDefault(); slot.classList.add('is-drop'); });
+    slot.addEventListener('dragleave', function () { slot.classList.remove('is-drop'); });
+    slot.addEventListener('drop', function (e) {
+      e.preventDefault();
+      slot.classList.remove('is-drop');
+      if (e.dataTransfer.files.length) addFiles([e.dataTransfer.files[0]], kind);
+    });
+
+    input.addEventListener('change', function () {
+      if (input.files.length) addFiles([input.files[0]], kind);
+      input.value = '';
+    });
+
+    if (rmBtn) {
+      rmBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var idx = droppedFiles.findIndex(function (f) { return f.kind === kind; });
+        if (idx >= 0) {
+          droppedFiles.splice(idx, 1);
+          idbDeleteFile(kind);
+          renderFileList();
+          revalidateCurrentStep();
+          saveDraft();
+        }
+      });
+    }
+  });
 
   // ----------------- Sélection commande : recherche + saisie manuelle -----------------
   var searchInput = document.getElementById('sav-orders-search');
@@ -616,11 +756,14 @@
         garage: val('garageNom'),
         garageAdresse: val('garageAdresse'),
         reglageBase: (form.querySelector('input[name="reglageBase"]:checked') || {}).value || '',
+        huileQuantite: val('huileQuantite'),
+        huileType: val('huileType'),
       },
       symptomes: {
         list: $$('input[name="symptomes"]:checked').map(function (i) { return i.value; }),
         codes: getCodes(),
         description: val('description'),
+        momentPanne: val('momentPanne'),
       },
       vehicule: {
         vin: val('vin').toUpperCase(),
@@ -643,39 +786,106 @@
     var box = document.getElementById('sav-recap');
     if (!box) return;
     var d = buildRecap();
-    function section(title, body, step) {
-      return '<div class="sav-recap__section">' +
-        '<div class="sav-recap__head"><h3>' + escapeHtml(title) + '</h3>' +
-          '<button type="button" class="sav-recap__edit" data-go-step="' + step + '">Modifier</button></div>' +
-        '<div class="sav-recap__body">' + body + '</div></div>';
+    // Masquer le bandeau "brouillon restauré" — plus pertinent à l'étape récap
+    var rb = document.getElementById('sav-restore-banner');
+    if (rb) rb.classList.add('hidden');
+
+    // Bandeau de statut : OK ou champs manquants
+    var missing = [];
+    if (!d.commande.numero) missing.push({ label: 'Commande', step: 1 });
+    if (!d.piece.type || !d.piece.dateMontage || !d.piece.garage || !d.piece.reglageBase) missing.push({ label: 'Pièce / garage', step: 2 });
+    if (!d.symptomes.description || d.symptomes.description.length < 20) missing.push({ label: 'Description', step: 3 });
+    if (!d.vehicule.vin && !d.vehicule.immatriculation) missing.push({ label: 'VIN ou plaque', step: 4 });
+    var hasReqDocs = ['factureMontage','photoObd','photoCompteur'].every(function (k) {
+      return d.documents.some(function (f) { return f.kind === k; });
+    });
+    if (!hasReqDocs) missing.push({ label: 'Documents obligatoires', step: 4 });
+    if (!d.engagement.cgv || !d.engagement.accept149 || !d.engagement.rgpd) missing.push({ label: 'Engagements', step: 5 });
+
+    var banner = '';
+    if (missing.length === 0) {
+      banner = '<div class="sav-recap__strip sav-recap__strip--ok">' +
+        '<span class="material-symbols-rounded" aria-hidden="true">check_circle</span>' +
+        'Tout est prêt — vérifiez ci-dessous puis envoyez.</div>';
+    } else {
+      banner = '<div class="sav-recap__strip sav-recap__strip--warn">' +
+        '<span class="material-symbols-rounded" aria-hidden="true">warning</span>' +
+        'Il manque ' + missing.length + ' élément' + (missing.length > 1 ? 's' : '') + ' : ' +
+        missing.map(function (m) {
+          return '<button type="button" class="sav-recap__jump" data-go-step="' + m.step + '">' + escapeHtml(m.label) + '</button>';
+        }).join(' · ') + '</div>';
     }
-    function row(k, v) { return v ? '<div><strong>' + escapeHtml(k) + '&nbsp;:</strong> ' + escapeHtml(v) + '</div>' : ''; }
-    var html = '';
-    html += section('Commande',
-      row('N°', d.commande.numero) + row('Email', d.commande.email), 1);
-    html += section('Pièce',
+
+    function section(title, icon, body, step) {
+      return '<div class="sav-recap__section">' +
+        '<div class="sav-recap__head">' +
+          '<span class="sav-recap__head-icon material-symbols-rounded" aria-hidden="true">' + icon + '</span>' +
+          '<h3>' + escapeHtml(title) + '</h3>' +
+          '<button type="button" class="sav-recap__edit" data-go-step="' + step + '" aria-label="Modifier ' + escapeHtml(title) + '">' +
+            '<span class="material-symbols-rounded" aria-hidden="true">edit</span>' +
+          '</button>' +
+        '</div>' +
+        '<dl class="sav-recap__dl">' + body + '</dl></div>';
+    }
+    function row(k, v) {
+      if (!v) return '';
+      return '<dt>' + escapeHtml(k) + '</dt><dd>' + escapeHtml(v) + '</dd>';
+    }
+    function rowHtml(k, html) {
+      if (!html) return '';
+      return '<dt>' + escapeHtml(k) + '</dt><dd>' + html + '</dd>';
+    }
+
+    // Vignettes des pièces jointes
+    var docsHtml = '';
+    if (droppedFiles.length) {
+      docsHtml = '<div class="sav-recap__files">' +
+        droppedFiles.map(function (f) {
+          var labelMap = { factureMontage: 'Facture', photoObd: 'Photo OBD', photoCompteur: 'Compteur', photoPiece: 'Pièce', bonGarantie: 'Garantie' };
+          var label = labelMap[f.kind] || f.kind;
+          var thumb = f.preview
+            ? '<img src="' + f.preview + '" alt="">'
+            : '<span class="material-symbols-rounded" aria-hidden="true">description</span>';
+          return '<div class="sav-recap__file">' +
+            '<div class="sav-recap__file-thumb">' + thumb + '</div>' +
+            '<div class="sav-recap__file-meta">' +
+              '<div class="sav-recap__file-label">' + escapeHtml(label) + '</div>' +
+              '<div class="sav-recap__file-name">' + escapeHtml(f.file.name) + '</div>' +
+              '<div class="sav-recap__file-size">' + fmtSize(f.file.size) + '</div>' +
+            '</div></div>';
+        }).join('') +
+        '</div>';
+    } else {
+      docsHtml = '<div class="sav-recap__empty">Aucun document ajouté</div>';
+    }
+
+    var html = banner;
+    html += section('Commande', 'receipt_long',
+      row('Numéro', d.commande.numero) + row('Email', d.commande.email), 1);
+    html += section('Pièce & montage', 'build',
       row('Type', d.piece.type) + row('Date de montage', d.piece.dateMontage) +
       row('Garage', d.piece.garage) + row('Adresse garage', d.piece.garageAdresse) +
-      row('Réglage de base', d.piece.reglageBase), 2);
-    html += section('Symptômes',
-      (d.symptomes.list.length ? '<div><strong>Symptômes&nbsp;:</strong> ' + d.symptomes.list.map(escapeHtml).join(', ') + '</div>' : '') +
-      (d.symptomes.codes.length ? '<div><strong>Codes OBD&nbsp;:</strong> ' + d.symptomes.codes.map(escapeHtml).join(', ') + '</div>' : '') +
-      (d.symptomes.description ? '<div class="mt-1 italic text-slate-600">"' + escapeHtml(d.symptomes.description) + '"</div>' : ''),
-      3);
-    html += section('Documents et véhicule',
+      row('Réglage de base', d.piece.reglageBase) +
+      (d.piece.huileQuantite ? row('Huile (quantité)', d.piece.huileQuantite + ' L') : '') +
+      (d.piece.huileType ? row('Huile (type)', d.piece.huileType) : ''), 2);
+    var MOMENT_LABELS = {
+      au_montage: 'Pendant le montage', premier_demarrage: 'Au premier démarrage',
+      moins_100km: 'Moins de 100 km', '100_500km': '100 - 500 km',
+      '500_1000km': '500 - 1 000 km', '1000_5000km': '1 000 - 5 000 km',
+      plus_5000km: 'Plus de 5 000 km', inconnu: 'Inconnu'
+    };
+    var sympBody =
+      (d.symptomes.momentPanne ? row('Moment de la panne', MOMENT_LABELS[d.symptomes.momentPanne] || d.symptomes.momentPanne) : '') +
+      (d.symptomes.list.length ? row('Symptômes', d.symptomes.list.join(', ')) : '') +
+      (d.symptomes.codes.length ? row('Codes OBD', d.symptomes.codes.join(', ')) : '') +
+      (d.symptomes.description ? rowHtml('Description', '<span class="sav-recap__quote">' + escapeHtml(d.symptomes.description) + '</span>') : '');
+    html += section('Symptômes', 'stethoscope', sympBody, 3);
+    html += section('Véhicule & documents', 'directions_car',
       row('VIN', d.vehicule.vin) + row('Plaque', d.vehicule.immatriculation) +
       row('Véhicule', [d.vehicule.marque, d.vehicule.modele, d.vehicule.annee].filter(Boolean).join(' ')) +
-      row('Motorisation', d.vehicule.motorisation) + row('Kilométrage', d.vehicule.kilometrage ? d.vehicule.kilometrage + ' km' : '') +
-      (d.documents.length
-        ? '<div class="mt-2"><strong>Fichiers&nbsp;:</strong><ul class="list-disc ml-5 mt-1 text-sm">' +
-            d.documents.map(function (f) { return '<li>' + escapeHtml(f.name) + ' <span class="text-slate-400">(' + escapeHtml(f.kind) + ', ' + fmtSize(f.size) + ')</span></li>'; }).join('') +
-          '</ul></div>'
-        : '<div class="text-amber-700">Aucun document ajouté</div>'),
-      4);
-    html += section('Engagement',
-      '<div>CGV SAV : ' + (d.engagement.cgv ? '✅' : '❌') + '</div>' +
-      '<div>Forfait 149 € : ' + (d.engagement.accept149 ? '✅' : '❌') + '</div>' +
-      '<div>RGPD : ' + (d.engagement.rgpd ? '✅' : '❌') + '</div>', 5);
+      row('Motorisation', d.vehicule.motorisation) +
+      row('Kilométrage', d.vehicule.kilometrage ? d.vehicule.kilometrage + ' km' : '') +
+      rowHtml('Pièces jointes', docsHtml), 4);
     box.innerHTML = html;
   }
 
@@ -777,6 +987,9 @@
       montage: {
         date: val('dateMontage'),
         reglageBase: (form.querySelector('input[name="reglageBase"]:checked') || {}).value || '',
+        momentPanne: val('momentPanne'),
+        huileQuantite: val('huileQuantite'),
+        huileType: val('huileType'),
       },
       diagnostic: {
         symptomes: $$('input[name="symptomes"]:checked').map(function (i) { return i.value; }),
@@ -812,15 +1025,40 @@
 
     function resetBtn() { btn.disabled = false; lbl.textContent = 'Envoyer ma demande'; sp.classList.add('hidden'); }
 
-    fetch('/api/sav/tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).then(function (r) {
-      return r.text().then(function (txt) { var j = {}; try { j = JSON.parse(txt); } catch (_) {} return { ok: r.ok, status: r.status, j: j }; });
-    }).then(function (res) {
-      if (!res.ok || !res.j.success) {
-        toast((res.j && res.j.error) || ('Erreur serveur ' + res.status), 'error');
+    function postTicket(force) {
+      var p = Object.assign({}, payload);
+      if (force) p.forceNew = true;
+      return fetch('/api/sav/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(p),
+      }).then(function (r) {
+        return r.text().then(function (txt) { var j = {}; try { j = JSON.parse(txt); } catch (_) {} return { ok: r.ok, status: r.status, j: j }; });
+      });
+    }
+    postTicket(false).then(function (res) {
+      // Détection de doublon : 409 avec un ticket existant
+      if (res.status === 409 && res.j && res.j.error === 'duplicate') {
+        var ex = (res.j.data && res.j.data.existingTicket) || {};
+        var msg = "Vous avez déjà un ticket sur cette commande (" + (ex.numero || '?') + ").\n\n" +
+                  "OK = créer un nouveau ticket\nAnnuler = suivre le ticket existant";
+        if (window.confirm(msg)) {
+          return postTicket(true).then(handleResponse);
+        } else {
+          window.location.href = '/sav/suivi?numero=' + encodeURIComponent(ex.numero || '');
+          return;
+        }
+      }
+      handleResponse(res);
+    }).catch(function (err) {
+      console.error('[SAV] exception', err);
+      toast('Erreur réseau : ' + (err && err.message ? err.message : 'inconnue'), 'error');
+      resetBtn();
+    });
+
+    function handleResponse(res) {
+      if (!res || !res.ok || !res.j.success) {
+        toast((res && res.j && res.j.error) || ('Erreur serveur ' + (res && res.status)), 'error');
         resetBtn();
         return;
       }
@@ -837,14 +1075,48 @@
         toast("Ticket créé mais l'envoi de certains documents a échoué. Notre équipe vous contactera.", 'error');
         setTimeout(function () { window.location.href = '/sav/confirmation/' + encodeURIComponent(numero); }, 1500);
       });
-    }).catch(function (err) {
-      console.error('[SAV] exception', err);
-      toast('Erreur réseau : ' + (err && err.message ? err.message : 'inconnue'), 'error');
-      resetBtn();
-    });
+    }
   });
+
+  // ----------------- Auto-sélection commande unique (utilisateur connecté) -----------------
+  function autoPickSingleOrder() {
+    var radios = $$('input[type="radio"][name="numeroCommande"]', form);
+    if (radios.length !== 1) return;
+    if (radios[0].checked) return;
+    radios[0].checked = true;
+    var card = radios[0].closest('.sav-order-card');
+    if (card) card.classList.add('is-auto-selected');
+    // Indique au client que c'est pré-rempli
+    var note = document.createElement('div');
+    note.className = 'mt-2 text-xs text-emerald-700 inline-flex items-center gap-1';
+    note.innerHTML = '<span class="material-symbols-rounded text-base" aria-hidden="true">auto_awesome</span>Commande pré-sélectionnée — vous pouvez continuer.';
+    var list = document.getElementById('sav-orders-list');
+    if (list && !list.parentNode.querySelector('.sav-auto-pick-note')) {
+      note.classList.add('sav-auto-pick-note');
+      list.parentNode.insertBefore(note, list.nextSibling);
+    }
+    saveDraft();
+    revalidateCurrentStep();
+  }
 
   // ----------------- Init -----------------
   restoreDraft();
+  autoPickSingleOrder();
   showStep(current);
+
+  // Restaure les pièces jointes depuis IndexedDB
+  idbGetAllFiles().then(function (rows) {
+    if (!rows || !rows.length) return;
+    var pending = rows.length;
+    rows.forEach(function (row) {
+      if (!row || !row.file) { if (--pending === 0) { renderFileList(); revalidateCurrentStep(); } return; }
+      readPreview(row.file).then(function (preview) {
+        var existingIdx = droppedFiles.findIndex(function (f) { return f.kind === row.kind; });
+        var entry = { file: row.file, kind: row.kind, preview: preview, progress: 0 };
+        if (existingIdx >= 0) droppedFiles[existingIdx] = entry;
+        else droppedFiles.push(entry);
+        if (--pending === 0) { renderFileList(); revalidateCurrentStep(); }
+      });
+    });
+  });
 })();
