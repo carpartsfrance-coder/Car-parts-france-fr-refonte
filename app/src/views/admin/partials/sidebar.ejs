@@ -1,6 +1,7 @@
 <% const activeKey = typeof active !== 'undefined' ? active : ''; %>
 <% const pendingCount = typeof sidebarPendingCount !== 'undefined' ? sidebarPendingCount : 0; %>
 <% const returnsCount = typeof sidebarReturnsCount !== 'undefined' ? sidebarReturnsCount : 0; %>
+<% const savCount = typeof sidebarSavCount !== 'undefined' ? sidebarSavCount : 0; %>
 
 <!-- Overlay -->
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden"></div>
@@ -109,6 +110,9 @@
       <a class="sidebar-link <%= activeKey === 'sav' ? 'sidebar-link--active' : '' %>" href="/admin/sav" title="SAV">
         <span class="material-symbols-outlined">build_circle</span>
         <span class="sidebar-link-text flex-1">SAV</span>
+        <% if (typeof savCount !== 'undefined' && savCount > 0) { %>
+          <span class="sidebar-badge"><%= savCount %></span>
+        <% } %>
       </a>
       <a class="sidebar-link <%= activeKey === 'returns' ? 'sidebar-link--active' : '' %>" href="/admin/retours" title="Consignes & retours">
         <span class="material-symbols-outlined">assignment_return</span>

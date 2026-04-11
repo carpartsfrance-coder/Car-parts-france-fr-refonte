@@ -132,6 +132,9 @@ app.use((req, res, next) => {
   return next();
 });
 
+// En dev, on désactive upgrade-insecure-requests et HSTS : Safari les applique
+// strictement même sur http://localhost, ce qui casse le chargement des CSS/JS
+// (Chrome est plus permissif sur localhost mais on ne peut pas s'y fier).
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -143,8 +146,13 @@ app.use(helmet({
       connectSrc: ["'self'"],
       frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://js.mollie.com"],
       formAction: ["'self'", "https://*.mollie.com", "https://*.scalapay.com"],
+      // null = ne pas émettre la directive (important en dev sur http://localhost)
+      upgradeInsecureRequests: isProd ? [] : null,
     },
   },
+  // HSTS uniquement en prod derrière HTTPS. En dev, Safari mémoriserait le host
+  // et refuserait le HTTP pendant 1 an.
+  strictTransportSecurity: isProd ? { maxAge: 31536000, includeSubDomains: true } : false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));

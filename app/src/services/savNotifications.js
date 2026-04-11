@@ -11,6 +11,7 @@ const path = require('path');
 const ejs = require('ejs');
 
 const { sendEmail } = require('./emailService');
+const { buildReplyToAddress } = require('./savInboundEmail');
 
 const LOG_DIR = path.join(__dirname, '..', '..', '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'sav-emails.log');
@@ -40,14 +41,155 @@ async function renderTemplate(name, data) {
 // Mapping statut → template + sujet
 // ============================================================
 
+// Contenu générique (template statut_update.ejs) pour les statuts
+// logistique / commercial / compta qui ne passent pas par le flow DSG.
+function genericExtra(heading, intro, bullets) {
+  return { heading, intro, bullets: bullets || [] };
+}
+
 const STATUT_TO_TEMPLATE = {
-  ouvert: { template: 'ticket_cree', subject: (t) => `Votre demande SAV ${t.numero} est enregistrée` },
+  // ----- Flow DSG / mécatronique (templates dédiés) -----
+  // `ouvert` est utilisé par plusieurs motifs non-DSG → template générique neutre.
+  ouvert: {
+    template: 'statut_update',
+    subject: (t) => `Votre demande SAV ${t.numero} est enregistrée`,
+    extra: () => genericExtra(
+      'Votre demande SAV est bien enregistrée.',
+      "Notre équipe prend votre dossier en charge et revient vers vous rapidement.",
+      ["Vous serez notifié à chaque évolution de votre dossier."]
+    ),
+  },
+  // `pre_qualification` = flow DSG uniquement (pièce défectueuse sur banc).
   pre_qualification: { template: 'ticket_cree', subject: (t) => `Votre demande SAV ${t.numero} est enregistrée` },
   en_attente_documents: { template: 'documents_recus', subject: () => 'Documents bien reçus' },
   recu_atelier: { template: 'piece_recue_atelier', subject: () => 'Votre pièce est arrivée à notre atelier' },
   en_analyse: { template: 'analyse_en_cours', subject: () => 'Votre pièce est sur notre banc d\'analyse' },
   resolu_garantie: { template: 'analyse_defaut_produit', subject: () => 'Bonne nouvelle : défaut produit confirmé' },
   resolu_facture: { template: 'analyse_pas_de_defaut', subject: () => 'Rapport d\'analyse de votre pièce' },
+
+  // ----- Flow logistique / transporteur -----
+  reserve_transporteur: {
+    template: 'statut_update',
+    subject: (t) => `Réserve transporteur enregistrée — ${t.numero}`,
+    extra: () => genericExtra(
+      'Votre réserve transporteur est bien enregistrée.',
+      "Nous avons pris en compte votre déclaration de colis endommagé. Une enquête est ouverte auprès du transporteur.",
+      [
+        "Conservez le colis, l'emballage et les photos — nous pouvons vous les redemander.",
+        "Notre équipe logistique revient vers vous sous <strong>48 h ouvrées</strong>.",
+        "Aucun frais n'est à votre charge pour un colis endommagé au transport.",
+      ]
+    ),
+  },
+  enquete_transporteur: {
+    template: 'statut_update',
+    subject: (t) => `Enquête transporteur en cours — ${t.numero}`,
+    extra: () => genericExtra(
+      'Enquête transporteur ouverte.',
+      "Nous avons interrogé le transporteur pour localiser votre colis.",
+      [
+        "L'enquête prend généralement <strong>24 à 72 h ouvrées</strong>.",
+        "Dès son retour, nous vous proposerons un renvoi ou un remboursement.",
+        "Aucun frais à votre charge.",
+      ]
+    ),
+  },
+
+  // ----- Flow commercial -----
+  retractation_recue: {
+    template: 'statut_update',
+    subject: (t) => `Rétractation enregistrée — ${t.numero}`,
+    extra: () => genericExtra(
+      'Votre rétractation est enregistrée.',
+      "Vous disposez de 14 jours pour nous retourner la pièce dans son emballage d'origine.",
+      [
+        "Vous recevez les instructions de retour sous <strong>24 h ouvrées</strong>.",
+        "Les frais de retour sont à la charge du client en cas de rétractation.",
+        "Le remboursement intervient sous 14 jours après réception.",
+      ]
+    ),
+  },
+
+  // ----- Flow générique de transition -----
+  retour_demande: {
+    template: 'statut_update',
+    subject: (t) => `Retour demandé — ${t.numero}`,
+    extra: () => genericExtra(
+      'Nous vous invitons à nous retourner la pièce.',
+      "Vous allez recevoir (ou avez déjà reçu) un bon de retour prépayé par email.",
+      [
+        "Imprimez l'étiquette et collez-la sur le colis.",
+        "Déposez le colis au point relais indiqué.",
+        "Suivez l'acheminement depuis votre espace suivi.",
+      ]
+    ),
+  },
+  en_transit_retour: {
+    template: 'statut_update',
+    subject: (t) => `Votre colis est en transit — ${t.numero}`,
+    extra: () => genericExtra(
+      'Votre retour est en cours d\'acheminement.',
+      "Nous attendons la réception de votre colis par nos équipes.",
+      ["Vous serez notifié dès l'arrivée à destination."]
+    ),
+  },
+  analyse_terminee: {
+    template: 'statut_update',
+    subject: (t) => `Analyse terminée — ${t.numero}`,
+    extra: () => genericExtra(
+      'Votre dossier a été analysé.',
+      "Notre équipe revient vers vous très prochainement avec la conclusion et les options possibles.",
+      []
+    ),
+  },
+  en_attente_decision_client: {
+    template: 'statut_update',
+    subject: (t) => `Votre décision est attendue — ${t.numero}`,
+    extra: () => genericExtra(
+      'Nous attendons votre décision.',
+      "Plusieurs options vous ont été proposées pour votre dossier. Merci de nous confirmer votre choix.",
+      ["Répondez simplement à notre dernier email pour valider votre choix."]
+    ),
+  },
+  en_attente_fournisseur: {
+    template: 'statut_update',
+    subject: (t) => `En attente de notre fournisseur — ${t.numero}`,
+    extra: () => genericExtra(
+      'Nous avons interpellé notre fournisseur.',
+      "Votre dossier est transmis à notre fournisseur. Nous revenons vers vous dès sa réponse.",
+      []
+    ),
+  },
+  remboursement_initie: {
+    template: 'statut_update',
+    subject: (t) => `Votre remboursement est lancé — ${t.numero}`,
+    extra: () => genericExtra(
+      'Votre remboursement a été initié.',
+      "Le virement est en cours de traitement par notre service comptabilité.",
+      [
+        "Délai habituel : <strong>3 à 5 jours ouvrés</strong> selon votre banque.",
+        "Vous recevrez un avis de remboursement dès finalisation.",
+      ]
+    ),
+  },
+  clos: {
+    template: 'statut_update',
+    subject: (t) => `Votre dossier ${t.numero} est clos`,
+    extra: () => genericExtra(
+      'Votre dossier SAV est désormais clôturé.',
+      "Merci de votre confiance. Si vous avez des questions, écrivez-nous à sav@carpartsfrance.fr.",
+      []
+    ),
+  },
+  refuse: {
+    template: 'statut_update',
+    subject: (t) => `Votre demande ${t.numero} n'a pas pu être retenue`,
+    extra: () => genericExtra(
+      'Votre demande n\'a pas pu être retenue.',
+      "Vous recevrez les motifs détaillés dans un email de notre équipe.",
+      []
+    ),
+  },
 };
 
 // ============================================================
@@ -61,9 +203,11 @@ async function sendForTicket(ticket, templateKey, extra) {
   }
   const cfg = STATUT_TO_TEMPLATE[templateKey] || { template: templateKey, subject: () => 'Suivi de votre demande SAV' };
   try {
-    const html = await renderTemplate(cfg.template, { ticket, ...(extra || {}) });
+    const cfgExtra = (typeof cfg.extra === 'function') ? (cfg.extra(ticket) || {}) : (cfg.extra || {});
+    const html = await renderTemplate(cfg.template, { ticket, ...cfgExtra, ...(extra || {}) });
     const subject = typeof cfg.subject === 'function' ? cfg.subject(ticket) : cfg.subject;
-    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html) });
+    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
+    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html), replyTo });
     log(`SEND ${cfg.template} → ${ticket.client.email} ticket=${ticket.numero} ok=${!!(res && res.ok)}`);
     return res;
   } catch (err) {
@@ -109,7 +253,8 @@ async function notifyStatusChange(ticket, nouveauStatut) {
         <p>Merci pour votre retour, il nous aide à progresser.</p>
         <p>L'équipe SAV CarParts France</p>
       `;
-      sendEmail({ toEmail: ticket.client && ticket.client.email, subject, html, text: stripHtml(html) }).catch(() => {});
+      const satReplyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
+      sendEmail({ toEmail: ticket.client && ticket.client.email, subject, html, text: stripHtml(html), replyTo: satReplyTo }).catch(() => {});
       log(`SEND satisfaction → ${ticket.client && ticket.client.email} ticket=${ticket.numero}`);
     } catch (e) {
       log(`ERROR satisfaction ticket=${ticket && ticket.numero} ${e.message}`);
@@ -130,7 +275,8 @@ async function notifyRelancePaiement(ticket, jour) {
     const subject = jour === 15
       ? `Mise en demeure — Facture ${ticket.numero}`
       : `Relance — Facture analyse ${ticket.numero}`;
-    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html) });
+    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
+    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html), replyTo });
     log(`SEND ${tpl} → ${ticket.client.email} ticket=${ticket.numero}`);
     return res;
   } catch (err) {
@@ -142,10 +288,12 @@ async function notifyRelancePaiement(ticket, jour) {
 async function notifyRelanceDocuments(ticket) {
   try {
     const html = await renderTemplate('relance_documents', { ticket });
+    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
     const res = await sendEmail({
       toEmail: ticket.client.email,
       subject: `Documents manquants — Demande ${ticket.numero}`,
       html, text: stripHtml(html),
+      replyTo,
     });
     log(`SEND relance_documents → ${ticket.client.email} ticket=${ticket.numero}`);
     return res;
@@ -221,12 +369,14 @@ async function sendConfirmationToClient(ticket) {
     } catch (e) {
       log(`WARN cgv pdf attach ticket=${ticket.numero} ${e.message}`);
     }
+    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
     const res = await sendEmail({
       toEmail: ticket.client.email,
       subject,
       html,
       text: stripHtml(html),
       attachments,
+      replyTo,
     });
     log(`SEND confirmation_client → ${ticket.client.email} ticket=${ticket.numero} ok=${!!(res && res.ok)} attach=${attachments.length}`);
     return res;

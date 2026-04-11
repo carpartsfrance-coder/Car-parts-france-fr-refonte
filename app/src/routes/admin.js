@@ -23,6 +23,7 @@ const analyticsController = require('../controllers/analyticsController');
 const AdminUser = require('../models/AdminUser');
 const Order = require('../models/Order');
 const ReturnRequest = require('../models/ReturnRequest');
+const SavTicket = require('../models/SavTicket');
 const { handleProductImageUpload } = require('../middlewares/adminProductUpload');
 const { handleBlogCoverUpload, handleBlogMediaUpload } = require('../middlewares/adminBlogUpload');
 const { handleInvoiceLogoUpload } = require('../middlewares/adminInvoiceUpload');
@@ -119,15 +120,18 @@ router.post('/reinitialiser', adminController.postAdminResetPassword);
 router.use(async (req, res, next) => {
   if (req.session && req.session.admin) {
     try {
-      const [pendingOrders, pendingReturns] = await Promise.all([
+      const [pendingOrders, pendingReturns, savActionNeeded] = await Promise.all([
         Order.countDocuments({ status: 'pending_payment' }),
         ReturnRequest.countDocuments({ status: 'en_attente' }),
+        SavTicket.countDocuments({ statut: { $nin: ['clos', 'refuse', 'resolu_garantie', 'resolu_facture', 'clos_sans_reponse'] } }),
       ]);
       res.locals.sidebarPendingCount = pendingOrders;
       res.locals.sidebarReturnsCount = pendingReturns;
+      res.locals.sidebarSavCount = savActionNeeded;
     } catch (e) {
       res.locals.sidebarPendingCount = 0;
       res.locals.sidebarReturnsCount = 0;
+      res.locals.sidebarSavCount = 0;
     }
   }
   next();
