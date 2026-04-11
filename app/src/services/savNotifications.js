@@ -34,7 +34,7 @@ async function renderTemplate(name, data) {
   if (!fs.existsSync(file)) {
     throw new Error(`Template SAV introuvable : ${name}`);
   }
-  return ejs.renderFile(file, data, { async: true });
+  return ejs.renderFile(file, data);
 }
 
 // ============================================================

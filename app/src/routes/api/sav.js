@@ -822,7 +822,7 @@ adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5
         const ejs = require('ejs');
         const guestLink = buildGuestLink(ticket) || `${process.env.SITE_URL || 'https://carpartsfrance.fr'}/sav/suivi`;
         const tplPath = path.join(__dirname, '..', '..', 'views', 'emails', 'sav', 'reponse_agent.ejs');
-        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu, guestLink }, { async: true });
+        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu, guestLink });
         const stripped = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         emailResult = await sendEmail({
           toEmail: ticket.client && ticket.client.email,
@@ -1427,7 +1427,7 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
         const ejs = require('ejs');
         const guestLink = buildGuestLink(ticket) || `${process.env.SITE_URL || 'https://carpartsfrance.fr'}/sav/suivi`;
         const tplPath = path.join(__dirname, '..', '..', 'views', 'emails', 'sav', 'reponse_agent.ejs');
-        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu, guestLink }, { async: true });
+        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu, guestLink });
         const stripped = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         sendEmail({
           toEmail: ticket.client.email,
