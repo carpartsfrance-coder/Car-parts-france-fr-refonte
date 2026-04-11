@@ -1,4 +1,7 @@
-<% const body = `
+<%
+  const baseUrl = (typeof process !== 'undefined' && process.env && process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '');
+  const gl = (typeof guestLink !== 'undefined' && guestLink) ? guestLink : (baseUrl + '/sav/suivi');
+  const body = `
   <p>Bonjour <strong>${(ticket.client && ticket.client.nom) || ''}</strong>,</p>
   <p>Notre analyse sur banc est terminée pour votre dossier <strong>${ticket.numero}</strong>.</p>
   <p>Après tests approfondis, <strong>la pièce ne présente pas de défaut de fabrication</strong>. La cause identifiée est d'origine externe (usure normale, conditions de montage ou d'utilisation). Vous trouverez le rapport détaillé en pièce jointe.</p>
@@ -12,10 +15,13 @@
     <li><strong>Abandonner la pièce</strong> : aucun frais de retour supplémentaire.</li>
   </ul>
   <p style="margin:18px 0;">
-    <a href="${(typeof process !== 'undefined' && process.env && process.env.SITE_URL) || ''}/sav/suivi/${ticket.numero}"
+    <a href="${gl}"
        style="display:inline-block;background:#ec1313;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;">
       Accéder à mon dossier
     </a>
+  </p>
+  <p style="font-size:13px;color:#475569;text-align:center;">
+    Ce lien est personnel et vous permet d'accéder directement à votre dossier sans connexion.
   </p>
   <p style="font-size:13px;color:#64748b;">Si vous contestez cette décision, vous pouvez nous écrire ou saisir gratuitement le <strong>médiateur de la consommation</strong> dont les coordonnées figurent dans nos CGV. Vous conservez également la possibilité d'invoquer la garantie des vices cachés (art. 1641 du Code civil) si vous estimez que le défaut était caché au moment de l'achat.</p>
 ` %>
