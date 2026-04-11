@@ -1,6 +1,6 @@
 <%
-  const { buildGuestLink } = require('../../controllers/savGuestController');
-  const guestLink = buildGuestLink(ticket) || ((process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '') + '/sav/suivi');
+  const fallbackUrl = ((typeof process !== 'undefined' && process.env && process.env.SITE_URL) || 'https://carpartsfrance.fr').replace(/\/$/, '') + '/sav/suivi';
+  const gl = (typeof guestLink !== 'undefined' && guestLink) ? guestLink : fallbackUrl;
   const nom = (ticket.client && ticket.client.nom) || '';
   const contenuSafe = String(typeof contenu !== 'undefined' ? contenu : '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
 
@@ -13,7 +13,7 @@
     </div>
 
     <p style="margin:24px 0;text-align:center;">
-      <a href="${guestLink}"
+      <a href="${gl}"
          style="display:inline-block;padding:14px 28px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;">
         Voir et répondre
       </a>

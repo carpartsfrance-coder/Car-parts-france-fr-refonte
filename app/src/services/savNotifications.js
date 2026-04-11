@@ -11,6 +11,7 @@ const path = require('path');
 const ejs = require('ejs');
 
 const { sendEmail } = require('./emailService');
+const { buildGuestLink } = require('../controllers/savGuestController');
 
 const LOG_DIR = path.join(__dirname, '..', '..', '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'sav-emails.log');
@@ -203,7 +204,8 @@ async function sendForTicket(ticket, templateKey, extra) {
   const cfg = STATUT_TO_TEMPLATE[templateKey] || { template: templateKey, subject: () => 'Suivi de votre demande SAV' };
   try {
     const cfgExtra = (typeof cfg.extra === 'function') ? (cfg.extra(ticket) || {}) : (cfg.extra || {});
-    const html = await renderTemplate(cfg.template, { ticket, ...cfgExtra, ...(extra || {}) });
+    const guestLink = buildGuestLink(ticket) || ((process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '') + '/sav/suivi');
+    const html = await renderTemplate(cfg.template, { ticket, guestLink, ...cfgExtra, ...(extra || {}) });
     const subject = typeof cfg.subject === 'function' ? cfg.subject(ticket) : cfg.subject;
     const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html) });
     log(`SEND ${cfg.template} → ${ticket.client.email} ticket=${ticket.numero} ok=${!!(res && res.ok)}`);
@@ -346,7 +348,8 @@ async function sendConfirmationToClient(ticket) {
   }
   try {
     const motifInfo = MOTIF_SUBJECTS[ticket.motifSav] || MOTIF_SUBJECTS.piece_defectueuse;
-    const html = await renderTemplate('confirmation_client', { ticket, motifIntro: motifInfo.sla });
+    const guestLink = buildGuestLink(ticket) || ((process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '') + '/sav/suivi');
+    const html = await renderTemplate('confirmation_client', { ticket, guestLink, motifIntro: motifInfo.sla });
     const subject = motifInfo.subject.replace('{n}', ticket.numero);
     const attachments = [];
     // Joindre le PDF d'acceptation CGV s'il existe (créé juste avant l'envoi)
