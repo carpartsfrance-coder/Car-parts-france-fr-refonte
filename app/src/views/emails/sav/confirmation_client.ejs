@@ -1,5 +1,7 @@
 <%
   const baseUrl = (process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '');
+  const { buildGuestLink } = require('../../controllers/savGuestController');
+  const guestLink = buildGuestLink(ticket) || (baseUrl + '/sav/suivi');
   const v = (ticket && ticket.vehicule) || {};
   const motif = ticket.motifSav || 'autre';
 
@@ -79,14 +81,14 @@
     </div>
 
     <p style="margin:18px 0;text-align:center;">
-      <a href="${baseUrl}/compte/sav/${encodeURIComponent(ticket.numero)}"
+      <a href="${guestLink}"
          style="display:inline-block;padding:12px 22px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">
         Accéder à mon dossier
       </a>
     </p>
 
     <p style="font-size:13px;color:#475569;text-align:center;">
-      Répondez directement depuis votre espace client pour un traitement plus rapide.
+      Ce lien est personnel et vous permet d'accéder directement à votre dossier sans connexion.
     </p>
   `;
 %>
