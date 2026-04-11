@@ -16,14 +16,13 @@
       </div>
     ` : ''}
     <p style="margin:18px 0;text-align:center;">
-      <a href="${baseUrl}/sav/suivi?numero=${encodeURIComponent(ticket.numero)}"
+      <a href="${baseUrl}/compte/sav/${encodeURIComponent(ticket.numero)}"
          style="display:inline-block;padding:12px 22px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">
         ${cta}
       </a>
     </p>
-    <p style="font-size:13px;color:#475569;">
-      Besoin d'aide ? Répondez simplement à cet email ou écrivez à
-      <a href="mailto:sav@carpartsfrance.fr" style="color:#ec1313;">sav@carpartsfrance.fr</a>.
+    <p style="font-size:13px;color:#475569;text-align:center;">
+      Répondez directement depuis votre espace client pour un traitement plus rapide.
     </p>
   `;
 %>
