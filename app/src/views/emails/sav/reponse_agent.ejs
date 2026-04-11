@@ -1,0 +1,27 @@
+<%
+  const { buildGuestLink } = require('../../controllers/savGuestController');
+  const guestLink = buildGuestLink(ticket) || ((process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '') + '/sav/suivi');
+  const nom = (ticket.client && ticket.client.nom) || '';
+  const contenuSafe = String(typeof contenu !== 'undefined' ? contenu : '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+
+  const body = `
+    <p>Bonjour <strong>${nom}</strong>,</p>
+    <p>Notre équipe SAV vient de vous répondre sur votre dossier <strong>${ticket.numero}</strong> :</p>
+
+    <div style="margin:18px 0;padding:16px;background:#f8fafc;border-left:4px solid #ec1313;border-radius:8px;font-size:14px;color:#334155;line-height:1.6;">
+      ${contenuSafe}
+    </div>
+
+    <p style="margin:24px 0;text-align:center;">
+      <a href="${guestLink}"
+         style="display:inline-block;padding:14px 28px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;">
+        Voir et répondre
+      </a>
+    </p>
+
+    <p style="font-size:13px;color:#475569;text-align:center;">
+      Ce lien est personnel et vous permet d'accéder directement à votre dossier sans connexion.
+    </p>
+  `;
+%>
+<%- include('./_layout', { ticket: ticket, subject: 'Réponse de notre équipe SAV — ' + ticket.numero, body: body }) %>
