@@ -713,11 +713,15 @@
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   padding: 0.375rem 0.75rem;
   border-bottom: 1px solid #f1f5f9;
   background: #f8fafc;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.sav-composer__topbar::-webkit-scrollbar { display: none; }
 .sav-composer__subject {
   width: 100%;
   border: none;
@@ -810,6 +814,8 @@
   background: #fff !important;
   color: #64748b !important;
   border-radius: 1rem !important;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .sav-tpl-chip--sm:hover {
   background: #f1f5f9 !important;
