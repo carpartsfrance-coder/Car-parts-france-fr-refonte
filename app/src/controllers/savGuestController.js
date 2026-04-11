@@ -1,9 +1,11 @@
 /*
  * /sav/suivi — Suivi invité (sans compte).
  * Auth = ticket numéro + email client → stocké en session 24h.
+ *        OU lien magique avec token HMAC (depuis les emails).
  * Rate limit : 5 tentatives / 15 min / IP.
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const SavTicket = require('../models/SavTicket');
@@ -26,6 +28,41 @@ function saveAttachments(numero, files) {
 }
 
 const TTL_MS = 24 * 60 * 60 * 1000;
+
+// ---- Magic link token (HMAC-SHA256) ----
+const TOKEN_SECRET = process.env.SAV_GUEST_TOKEN_SECRET || process.env.SESSION_SECRET || 'cpf-sav-guest-default-secret';
+
+/**
+ * Generate a deterministic token for a ticket.
+ * Token = first 32 chars of HMAC-SHA256(numero + email, secret)
+ */
+function generateGuestToken(numero, email) {
+  const payload = `${String(numero).toUpperCase()}:${String(email).toLowerCase().trim()}`;
+  return crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('hex').slice(0, 32);
+}
+
+/**
+ * Verify a token against a ticket's numero + email.
+ */
+function verifyGuestToken(token, numero, email) {
+  if (!token || !numero || !email) return false;
+  const expected = generateGuestToken(numero, email);
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token, 'utf8'), Buffer.from(expected, 'utf8'));
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Build the full magic link URL for a ticket.
+ */
+function buildGuestLink(ticket) {
+  if (!ticket || !ticket.numero || !ticket.client || !ticket.client.email) return null;
+  const baseUrl = (process.env.SITE_URL || 'https://www.carpartsfrance.fr').replace(/\/$/, '');
+  const tk = generateGuestToken(ticket.numero, ticket.client.email);
+  return `${baseUrl}/sav/suivi/${encodeURIComponent(ticket.numero)}?tk=${tk}`;
+}
 
 function getGuestAuth(req, numero) {
   const g = req.session && req.session.savGuest;
@@ -88,7 +125,21 @@ exports.postSuiviForm = async (req, res) => {
 
 exports.getSuiviDetail = async (req, res) => {
   const numero = req.params.numero;
-  const auth = getGuestAuth(req, numero);
+  const tk = req.query.tk || '';
+  let auth = getGuestAuth(req, numero);
+
+  // Magic link: auto-authenticate via token
+  if (!auth && tk) {
+    try {
+      const ticket = await SavTicket.findOne({ numero }).select('numero client').lean();
+      if (ticket && ticket.client && ticket.client.email && verifyGuestToken(tk, numero, ticket.client.email)) {
+        // Token valid → create session
+        req.session.savGuest = { numero, email: ticket.client.email, exp: Date.now() + TTL_MS };
+        auth = req.session.savGuest;
+      }
+    } catch (_) {}
+  }
+
   if (!auth) {
     return res.redirect(`/sav/suivi?error=auth&numero=${encodeURIComponent(numero)}`);
   }
@@ -155,3 +206,7 @@ exports.postSuiviMessage = async (req, res) => {
     return res.redirect(`/sav/suivi/${encodeURIComponent(numero)}?error=server`);
   }
 };
+
+// ---- Exports utilitaires pour les emails ----
+exports.buildGuestLink = buildGuestLink;
+exports.generateGuestToken = generateGuestToken;

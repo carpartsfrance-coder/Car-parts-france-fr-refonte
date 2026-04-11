@@ -1,5 +1,7 @@
 <%
   const baseUrl = (process.env.SITE_URL || 'https://carpartsfrance.fr').replace(/\/$/, '');
+  const { buildGuestLink } = require('../../controllers/savGuestController');
+  const guestLink = buildGuestLink(ticket) || (baseUrl + '/sav/suivi');
   const body = `
   <p>Bonjour <strong>${(ticket.client && ticket.client.nom) || ''}</strong>,</p>
   <p>Nous avons bien enregistré votre demande SAV <strong>${ticket.numero}</strong>. <strong>Vous n'avez rien à payer à cette étape.</strong></p>
@@ -13,13 +15,13 @@
     </ul>
   </div>
   <p style="margin:18px 0;text-align:center;">
-    <a href="${baseUrl}/compte/sav/${encodeURIComponent(ticket.numero)}"
+    <a href="${guestLink}"
        style="display:inline-block;padding:12px 22px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">
       Suivre mon dossier
     </a>
   </p>
   <p style="font-size:13px;color:#475569;text-align:center;">
-    Répondez directement depuis votre espace client pour un traitement plus rapide.
+    Ce lien est personnel et vous permet d'accéder directement à votre dossier sans connexion.
   </p>
   <p style="font-size:13px;color:#64748b;">Conformément à la garantie légale de conformité (art. L217-9), vous avez le <strong>choix entre le remplacement et le remboursement</strong> de votre pièce en cas de défaut confirmé.</p>
   <p>Réponse garantie sous <strong>5 jours ouvrés</strong> après réception de votre pièce.</p>
