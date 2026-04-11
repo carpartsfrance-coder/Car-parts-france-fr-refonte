@@ -818,16 +818,13 @@ adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5
     if (canal === 'email') {
       try {
         const { sendEmail } = require('../../services/emailService');
-        const { buildReplyToAddress } = require('../../services/savInboundEmail');
         const stripped = String(html || contenu).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
         emailResult = await sendEmail({
           toEmail: ticket.client && ticket.client.email,
           subject: sujet || `[SAV ${ticket.numero}]`,
           html: html || `<p>${stripped}</p>`,
           text: stripped,
           attachments: emailAttachments.length ? emailAttachments : undefined,
-          replyTo,
         });
       } catch (e) {
         console.error('[sav-comm email]', e.message);
@@ -1421,20 +1418,17 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
     if (canal === 'email' && ticket.client && ticket.client.email) {
       try {
         const { sendEmail } = require('../../services/emailService');
-        const { buildReplyToAddress } = require('../../services/savInboundEmail');
         const baseUrl = process.env.PUBLIC_URL || 'https://www.carpartsfrance.fr';
-        const link = `${baseUrl}/sav/suivi/${ticket.numero}`;
-        const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
+        const link = `${baseUrl}/compte/sav/${ticket.numero}`;
         sendEmail({
           toEmail: ticket.client.email,
           subject: `Réponse de notre équipe SAV — ${ticket.numero}`,
           html: `<p>Bonjour ${(ticket.client.nom) || ''},</p>
                  <p>Notre équipe SAV vient de vous répondre sur votre dossier <strong>${ticket.numero}</strong>.</p>
                  <blockquote style="border-left:3px solid #cbd5e1;padding:8px 12px;color:#475569;">${String(contenu).replace(/</g, '&lt;').slice(0, 800)}</blockquote>
-                 <p><a href="${link}" style="display:inline-block;background:#ec1313;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Voir la conversation</a></p>
-                 <p style="color:#64748b;font-size:12px;">Vous pouvez répondre directement à cet email ou depuis votre espace SAV.</p>`,
-          text: `Notre équipe vient de vous répondre sur ${ticket.numero}. Voir : ${link}`,
-          replyTo,
+                 <p><a href="${link}" style="display:inline-block;background:#ec1313;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Répondre depuis mon espace</a></p>
+                 <p style="color:#64748b;font-size:12px;">Connectez-vous à votre espace client pour répondre.</p>`,
+          text: `Notre équipe vient de vous répondre sur ${ticket.numero}. Répondre : ${link}`,
         }).catch(() => {});
       } catch (_) {}
     }
@@ -1765,15 +1759,12 @@ adminRouter.post('/tickets/:numero/send-procedure', async (req, res) => {
 
     try {
       const { sendEmail } = require('../../services/emailService');
-      const { buildReplyToAddress } = require('../../services/savInboundEmail');
-      const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
       await sendEmail({
         toEmail: clientEmail,
         subject: '[SAV ' + ticket.numero + '] Procédure : ' + proc.title,
         html: html,
         text: bodyText,
         attachments: attachments,
-        replyTo,
       });
     } catch (e) {
       console.error('[sav-send-procedure]', e.message);

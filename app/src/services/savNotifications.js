@@ -11,7 +11,6 @@ const path = require('path');
 const ejs = require('ejs');
 
 const { sendEmail } = require('./emailService');
-const { buildReplyToAddress } = require('./savInboundEmail');
 
 const LOG_DIR = path.join(__dirname, '..', '..', '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'sav-emails.log');
@@ -148,7 +147,7 @@ const STATUT_TO_TEMPLATE = {
     extra: () => genericExtra(
       'Nous attendons votre décision.',
       "Plusieurs options vous ont été proposées pour votre dossier. Merci de nous confirmer votre choix.",
-      ["Répondez simplement à notre dernier email pour valider votre choix."]
+      ["Connectez-vous à votre espace client pour valider votre choix."]
     ),
   },
   en_attente_fournisseur: {
@@ -177,7 +176,7 @@ const STATUT_TO_TEMPLATE = {
     subject: (t) => `Votre dossier ${t.numero} est clos`,
     extra: () => genericExtra(
       'Votre dossier SAV est désormais clôturé.',
-      "Merci de votre confiance. Si vous avez des questions, écrivez-nous à sav@carpartsfrance.fr.",
+      "Merci de votre confiance. Si vous avez des questions, connectez-vous à votre espace client.",
       []
     ),
   },
@@ -206,8 +205,7 @@ async function sendForTicket(ticket, templateKey, extra) {
     const cfgExtra = (typeof cfg.extra === 'function') ? (cfg.extra(ticket) || {}) : (cfg.extra || {});
     const html = await renderTemplate(cfg.template, { ticket, ...cfgExtra, ...(extra || {}) });
     const subject = typeof cfg.subject === 'function' ? cfg.subject(ticket) : cfg.subject;
-    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
-    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html), replyTo });
+    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html) });
     log(`SEND ${cfg.template} → ${ticket.client.email} ticket=${ticket.numero} ok=${!!(res && res.ok)}`);
     return res;
   } catch (err) {
@@ -253,8 +251,7 @@ async function notifyStatusChange(ticket, nouveauStatut) {
         <p>Merci pour votre retour, il nous aide à progresser.</p>
         <p>L'équipe SAV CarParts France</p>
       `;
-      const satReplyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
-      sendEmail({ toEmail: ticket.client && ticket.client.email, subject, html, text: stripHtml(html), replyTo: satReplyTo }).catch(() => {});
+      sendEmail({ toEmail: ticket.client && ticket.client.email, subject, html, text: stripHtml(html) }).catch(() => {});
       log(`SEND satisfaction → ${ticket.client && ticket.client.email} ticket=${ticket.numero}`);
     } catch (e) {
       log(`ERROR satisfaction ticket=${ticket && ticket.numero} ${e.message}`);
@@ -275,8 +272,7 @@ async function notifyRelancePaiement(ticket, jour) {
     const subject = jour === 15
       ? `Mise en demeure — Facture ${ticket.numero}`
       : `Relance — Facture analyse ${ticket.numero}`;
-    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
-    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html), replyTo });
+    const res = await sendEmail({ toEmail: ticket.client.email, subject, html, text: stripHtml(html) });
     log(`SEND ${tpl} → ${ticket.client.email} ticket=${ticket.numero}`);
     return res;
   } catch (err) {
@@ -288,12 +284,10 @@ async function notifyRelancePaiement(ticket, jour) {
 async function notifyRelanceDocuments(ticket) {
   try {
     const html = await renderTemplate('relance_documents', { ticket });
-    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
     const res = await sendEmail({
       toEmail: ticket.client.email,
       subject: `Documents manquants — Demande ${ticket.numero}`,
       html, text: stripHtml(html),
-      replyTo,
     });
     log(`SEND relance_documents → ${ticket.client.email} ticket=${ticket.numero}`);
     return res;
@@ -369,14 +363,12 @@ async function sendConfirmationToClient(ticket) {
     } catch (e) {
       log(`WARN cgv pdf attach ticket=${ticket.numero} ${e.message}`);
     }
-    const replyTo = ticket.numero ? { email: buildReplyToAddress(ticket.numero), name: 'SAV CarParts France' } : undefined;
     const res = await sendEmail({
       toEmail: ticket.client.email,
       subject,
       html,
       text: stripHtml(html),
       attachments,
-      replyTo,
     });
     log(`SEND confirmation_client → ${ticket.client.email} ticket=${ticket.numero} ok=${!!(res && res.ok)} attach=${attachments.length}`);
     return res;
