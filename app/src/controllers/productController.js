@@ -1070,26 +1070,28 @@ async function getProduct(req, res, next) {
         worstRating: '1',
         ratingCount: '37',
       },
-      offers: {
-        '@type': 'Offer',
-        url: canonicalUrl,
-        priceCurrency: 'EUR',
-        price,
-        priceValidUntil: priceValidUntil || undefined,
-        availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-        seller: { '@type': 'Organization', name: 'Car Parts France' },
-        warranty: warrantyYears
-          ? {
-              '@type': 'WarrantyPromise',
-              durationOfWarranty: {
-                '@type': 'QuantitativeValue',
-                value: warrantyYears,
-                unitCode: 'ANN',
-              },
-              warrantyScope: 'https://schema.org/BrokenCondition',
-            }
-          : undefined,
-      },
+      offers: price
+        ? {
+            '@type': 'Offer',
+            url: canonicalUrl,
+            priceCurrency: 'EUR',
+            price,
+            priceValidUntil: priceValidUntil || undefined,
+            availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            seller: { '@type': 'Organization', name: 'Car Parts France' },
+            warranty: warrantyYears
+              ? {
+                  '@type': 'WarrantyPromise',
+                  durationOfWarranty: {
+                    '@type': 'QuantitativeValue',
+                    value: warrantyYears,
+                    unitCode: 'ANN',
+                  },
+                  warrantyScope: 'https://schema.org/BrokenCondition',
+                }
+              : undefined,
+          }
+        : undefined,
     };
     const schemaFaqPage = Array.isArray(product.faqs) && product.faqs.length
       ? {
