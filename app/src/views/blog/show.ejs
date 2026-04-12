@@ -75,7 +75,7 @@
                 <div class="flex gap-3 group">
                   <a class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-slate-100 dark:border-slate-800" href="<%= p.url %>">
                     <% if (p.imageUrl) { %>
-                      <img alt="<%= p.name %>" class="w-full h-full object-cover" src="<%= p.imageUrl %>"/>
+                      <img alt="<%= p.name %>" class="w-full h-full object-cover" loading="lazy" decoding="async" width="80" height="80" src="<%= p.imageUrl %>"/>
                     <% } else { %>
                       <div class="w-full h-full bg-slate-100 dark:bg-slate-800"></div>
                     <% } %>
@@ -110,7 +110,7 @@
                 <a class="flex gap-3 group" href="<%= s.url %>">
                   <div class="w-16 h-12 rounded overflow-hidden flex-shrink-0">
                     <% if (s.imageUrl) { %>
-                      <img alt="<%= s.title %>" class="w-full h-full object-cover" src="<%= s.imageUrl %>"/>
+                      <img alt="<%= s.title %>" class="w-full h-full object-cover" loading="lazy" decoding="async" width="64" height="48" src="<%= s.imageUrl %>"/>
                     <% } else { %>
                       <div class="w-full h-full bg-slate-100 dark:bg-slate-800"></div>
                     <% } %>

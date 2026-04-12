@@ -6,6 +6,9 @@ function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * Serve media by raw ObjectId: GET /media/:id
+ */
 async function getMediaById(req, res, next) {
   try {
     const id = getTrimmedString(req.params && req.params.id);
@@ -13,6 +16,38 @@ async function getMediaById(req, res, next) {
       return res.status(404).end();
     }
 
+    return serveMedia(id, res, next);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Serve media by SEO URL: GET /media/:slug-:id.:ext
+ * Extracts the 24-char hex ObjectId from the filename portion.
+ */
+async function getMediaBySeoUrl(req, res, next) {
+  try {
+    const seoName = getTrimmedString(req.params && req.params.seoName);
+    if (!seoName) return res.status(404).end();
+
+    /* Extract ObjectId from patterns like "slug-{24hex}.ext" or "{24hex}.ext" */
+    const match = seoName.match(/(?:^|-)([a-f0-9]{24})(?:\.[a-z0-9]+)?$/i);
+    if (!match || !mongoose.Types.ObjectId.isValid(match[1])) {
+      return res.status(404).end();
+    }
+
+    return serveMedia(match[1], res, next);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Common media serving logic.
+ */
+async function serveMedia(id, res, next) {
+  try {
     const file = await mediaStorage.findFileById(id);
     if (!file) {
       return res.status(404).end();
@@ -42,4 +77,5 @@ async function getMediaById(req, res, next) {
 
 module.exports = {
   getMediaById,
+  getMediaBySeoUrl,
 };

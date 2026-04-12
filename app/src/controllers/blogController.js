@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const { buildProductPublicPath, getPublicBaseUrlFromReq } = require('../services/productPublic');
 const { markdownToHtml, escapeHtml } = require('../services/blogContent');
 const { buildHreflangSet } = require('../services/i18n');
+const { buildSeoMediaUrl } = require('../services/mediaStorage');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -423,7 +424,7 @@ function getBlogIndex(req, res) {
         slug: d.slug,
         title: d.title,
         excerpt: d.excerpt,
-        imageUrl: d.coverImageUrl,
+        imageUrl: buildSeoMediaUrl(d.coverImageUrl, d.title),
         category: d.category && d.category.slug ? { slug: d.category.slug, label: d.category.label || d.category.slug } : null,
         dateLabel: formatDateFR(publishedAt),
         readTimeLabel: `${minutes} min`,
@@ -443,7 +444,7 @@ function getBlogIndex(req, res) {
           slug: featuredDoc.slug,
           title: featuredDoc.title,
           excerpt: featuredDoc.excerpt,
-          imageUrl: featuredDoc.coverImageUrl,
+          imageUrl: buildSeoMediaUrl(featuredDoc.coverImageUrl, featuredDoc.title),
           category: featuredDoc.category && featuredDoc.category.slug ? { slug: featuredDoc.category.slug, label: featuredDoc.category.label || featuredDoc.category.slug } : null,
           dateLabel: formatDateFR(featuredDoc.publishedAt || featuredDoc.createdAt),
           readTimeLabel: `${Number.isFinite(featuredDoc.readingTimeMinutes) && featuredDoc.readingTimeMinutes > 0 ? featuredDoc.readingTimeMinutes : estimateReadingTimeMinutes(getPostContentHtml(featuredDoc) || '')} min`,
@@ -596,7 +597,7 @@ async function getBlogPost(req, res) {
         id: String(p._id),
         name: p.name || '',
         priceLabel: priceEuros ? `${priceEuros} €` : '',
-        imageUrl: p.imageUrl || '',
+        imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
         url: buildProductPublicPath(p),
       };
     });
@@ -642,7 +643,7 @@ async function getBlogPost(req, res) {
     const similarPosts = (similarDocs || []).map((s) => ({
       slug: s.slug,
       title: s.title,
-      imageUrl: s.coverImageUrl || '',
+      imageUrl: buildSeoMediaUrl(s.coverImageUrl, s.title),
       url: `/blog/${encodeURIComponent(s.slug)}`,
     }));
 
@@ -763,7 +764,7 @@ async function getBlogPost(req, res) {
         title: post.title,
         slug: post.slug,
         excerpt: excerptForView,
-        coverImageUrl: post.coverImageUrl || '',
+        coverImageUrl: buildSeoMediaUrl(post.coverImageUrl, post.title),
         category: post.category && post.category.slug ? { slug: post.category.slug, label: post.category.label || post.category.slug } : null,
         authorName: post.authorName || 'Expert CarParts',
         dateLabel: formatDateFR(publishedAt),

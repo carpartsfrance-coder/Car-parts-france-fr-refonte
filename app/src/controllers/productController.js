@@ -15,6 +15,7 @@ const {
   getPublicBaseUrlFromReq,
 } = require('../services/productPublic');
 const { buildHreflangSet } = require('../services/i18n');
+const { buildSeoMediaUrl } = require('../services/mediaStorage');
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -861,6 +862,7 @@ async function listProducts(req, res, next) {
     const productsWithPublicPath = (products || []).map((p) => ({
       ...p,
       publicPath: buildProductPublicPath(p),
+      imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
     }));
 
     const baseUrl = getPublicBaseUrlFromReq(req);
@@ -1030,10 +1032,10 @@ async function getProduct(req, res, next) {
     const metaDescription = truncateText(normalizeMetaText(toPlainText(descriptionOverride) || baseDescPlain || autoDesc), 160);
 
     const images = [];
-    if (product.imageUrl) images.push(product.imageUrl);
+    if (product.imageUrl) images.push(buildSeoMediaUrl(product.imageUrl, product.name));
     if (Array.isArray(product.galleryUrls)) {
       for (const u of product.galleryUrls) {
-        if (typeof u === 'string' && u.trim()) images.push(u.trim());
+        if (typeof u === 'string' && u.trim()) images.push(buildSeoMediaUrl(u.trim(), product.name));
       }
     }
     const mainImage = images.find(Boolean) || '';
@@ -1061,13 +1063,6 @@ async function getProduct(req, res, next) {
       additionalProperty: compatibleReferences.length
         ? compatibleReferences.map((r) => ({ '@type': 'PropertyValue', name: 'Référence compatible', value: r }))
         : undefined,
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: '4.2',
-        bestRating: '5',
-        worstRating: '1',
-        ratingCount: '37',
-      },
       offers: {
         '@type': 'Offer',
         url: canonicalUrl,
@@ -1267,6 +1262,7 @@ async function getProduct(req, res, next) {
     relatedProducts = (relatedProducts || []).map((p) => ({
       ...p,
       publicPath: buildProductPublicPath(p),
+      imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
     }));
 
     const descriptionRaw = product.description || product.shortDescription || '';
