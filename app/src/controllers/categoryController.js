@@ -50,11 +50,15 @@ function normalizeProductForList(product) {
   const stockQty = Number.isFinite(p.stockQty) ? p.stockQty : null;
   const inStock = stockQty !== null ? stockQty > 0 : p.inStock !== false;
 
+  const rawImage = p.imageUrl
+    || (Array.isArray(p.galleryUrls) && p.galleryUrls.find((u) => typeof u === 'string' && u.trim()))
+    || '';
+
   return {
     ...p,
     inStock,
     publicPath: buildProductPublicPath(p),
-    imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
+    imageUrl: buildSeoMediaUrl(rawImage, p.name),
   };
 }
 

@@ -859,11 +859,17 @@ async function listProducts(req, res, next) {
 
     const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
 
-    const productsWithPublicPath = (products || []).map((p) => ({
-      ...p,
-      publicPath: buildProductPublicPath(p),
-      imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
-    }));
+    const productsWithPublicPath = (products || []).map((p) => {
+      /* Fallback: if imageUrl is missing, use first gallery image */
+      const rawImage = p.imageUrl
+        || (Array.isArray(p.galleryUrls) && p.galleryUrls.find((u) => typeof u === 'string' && u.trim()))
+        || '';
+      return {
+        ...p,
+        publicPath: buildProductPublicPath(p),
+        imageUrl: buildSeoMediaUrl(rawImage, p.name),
+      };
+    });
 
     const baseUrl = getPublicBaseUrlFromReq(req);
     const langPrefix = req.lang === 'en' ? '/en' : '';
@@ -1268,11 +1274,16 @@ async function getProduct(req, res, next) {
         .map(normalizeProduct);
     }
 
-    relatedProducts = (relatedProducts || []).map((p) => ({
-      ...p,
-      publicPath: buildProductPublicPath(p),
-      imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
-    }));
+    relatedProducts = (relatedProducts || []).map((p) => {
+      const rawImage = p.imageUrl
+        || (Array.isArray(p.galleryUrls) && p.galleryUrls.find((u) => typeof u === 'string' && u.trim()))
+        || '';
+      return {
+        ...p,
+        publicPath: buildProductPublicPath(p),
+        imageUrl: buildSeoMediaUrl(rawImage, p.name),
+      };
+    });
 
     const descriptionRaw = product.description || product.shortDescription || '';
     const descriptionNormalized = normalizeImportedText(descriptionRaw);
