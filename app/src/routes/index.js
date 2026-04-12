@@ -7,6 +7,7 @@ const savController = require('../controllers/savController');
 const productController = require('../controllers/productController');
 const contactController = require('../controllers/contactController');
 const legacyRedirectController = require('../controllers/legacyRedirectController');
+const { getSiteUrlFromReq } = require('../services/siteUrl');
 
 const router = express.Router();
 
@@ -52,14 +53,14 @@ router.get('/sav/notre-engagement', (req, res) => {
   res.render('sav-engagement', {
     title: 'Notre engagement SAV — CarParts France',
     metaDescription: 'Transparence, banc dédié, réponse sous 5 jours, équité. Découvrez notre engagement Service Après-Vente.',
-    canonicalUrl: `${process.env.SITE_URL || 'https://www.carpartsfrance.fr'}/sav/notre-engagement`,
+    canonicalUrl: `${getSiteUrlFromReq(req)}/sav/notre-engagement`,
   });
 });
 router.get('/legal/cgv-sav', (req, res) => {
   res.render('legal/cgv-sav', {
     title: 'CGV SAV — CarParts France',
     metaDescription: 'Conditions générales du Service Après-Vente CarParts France.',
-    canonicalUrl: `${process.env.SITE_URL || 'https://www.carpartsfrance.fr'}/legal/cgv-sav`,
+    canonicalUrl: `${getSiteUrlFromReq(req)}/legal/cgv-sav`,
   });
 });
 router.post('/sav/check-commande', savController.postCheckCommande);
@@ -93,7 +94,7 @@ router.get('/faq', (req, res) => {
   res.render('faq/index', {
     title: 'FAQ - Questions fréquentes | CarParts France',
     metaDescription: 'Retrouvez les réponses aux questions les plus fréquentes : livraison, échange standard, garantie, compatibilité, paiement et retours.',
-    canonicalUrl: `${process.env.BASE_URL || 'https://www.carpartsfrance.fr'}/faq`,
+    canonicalUrl: `${getSiteUrlFromReq(req)}/faq`,
   });
 });
 

@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const wpRedirects = require('./middlewares/wpRedirects');
+const wwwCanonical = require('./middlewares/wwwCanonical');
 const i18nMiddleware = require('./middlewares/i18n');
 
 const app = express();
@@ -36,6 +37,9 @@ app.use((req, res, next) => {
 if (isProd) {
   app.set('trust proxy', 1);
 }
+
+// Canonical www redirect (301) — must be before all other routes
+app.use(wwwCanonical);
 
 function isSameOrigin(req) {
   const host = typeof req.headers.host === 'string' ? req.headers.host : '';

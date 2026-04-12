@@ -28,7 +28,30 @@ function getRequestOrigin(req) {
 }
 
 function getSiteUrlFromReq(req) {
-  return getSiteUrlFromEnv() || getRequestOrigin(req);
+  const envUrl = getSiteUrlFromEnv();
+  if (!envUrl) return getRequestOrigin(req);
+
+  // If request is available, check for www mismatch and prefer request origin
+  // so that hreflang / canonical URLs always match the domain the visitor sees.
+  if (req) {
+    const reqOrigin = getRequestOrigin(req);
+    if (reqOrigin) {
+      try {
+        const envHost = new URL(envUrl).hostname;
+        const reqHost = new URL(reqOrigin).hostname;
+        // Same domain except one has www and the other doesn't → use request origin
+        if (envHost !== reqHost) {
+          const envBase = envHost.replace(/^www\./, '');
+          const reqBase = reqHost.replace(/^www\./, '');
+          if (envBase === reqBase) return reqOrigin;
+        }
+      } catch (_) {
+        /* ignore parse errors */
+      }
+    }
+  }
+
+  return envUrl;
 }
 
 function resolveSiteUrl(value, { req, baseUrl } = {}) {
