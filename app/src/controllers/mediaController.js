@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs');
 
 const mediaStorage = require('../services/mediaStorage');
+
+/* Placeholder SVG served when a GridFS file is missing (avoids 404 for SEO) */
+const PLACEHOLDER_PATH = path.join(__dirname, '..', '..', 'public', 'images', 'placeholder-product.svg');
+let placeholderBuf = null;
+try { placeholderBuf = fs.readFileSync(PLACEHOLDER_PATH); } catch (_) { /* ignore */ }
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -46,11 +53,20 @@ async function getMediaBySeoUrl(req, res, next) {
 /**
  * Common media serving logic.
  */
+function servePlaceholder(res) {
+  if (placeholderBuf) {
+    res.set('Content-Type', 'image/svg+xml');
+    res.set('Cache-Control', 'public, max-age=3600');
+    return res.status(200).send(placeholderBuf);
+  }
+  return res.status(404).end();
+}
+
 async function serveMedia(id, res, next) {
   try {
     const file = await mediaStorage.findFileById(id);
     if (!file) {
-      return res.status(404).end();
+      return servePlaceholder(res);
     }
 
     const contentType = typeof file.contentType === 'string' && file.contentType.trim()
@@ -67,7 +83,7 @@ async function serveMedia(id, res, next) {
 
     const stream = mediaStorage.openDownloadStream(id);
     stream.on('error', () => {
-      res.status(404).end();
+      servePlaceholder(res);
     });
     stream.pipe(res);
   } catch (err) {
