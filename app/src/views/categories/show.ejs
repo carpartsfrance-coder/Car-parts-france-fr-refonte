@@ -43,7 +43,7 @@
             <div class="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-800">
               <a href="<%= productUrl %>">
                 <% if (imgUrl) { %>
-                  <img alt="<%= p.name %>" class="w-full h-full object-cover hover:scale-110 transition-transform duration-700" decoding="async" loading="lazy" src="<%= imgUrl %>"/>
+                  <img alt="<%= p.name %>" class="w-full h-full object-cover hover:scale-110 transition-transform duration-700" decoding="async" loading="lazy" width="400" height="300" src="<%= imgUrl %>"/>
                 <% } else { %>
                   <div class="w-full h-full flex items-center justify-center text-slate-400">
                     <span class="material-symbols-outlined text-5xl">inventory_2</span>

@@ -104,10 +104,11 @@ function extractMediaIdFromUrl(url) {
     }
   }
 
-  const match = path.match(/^\/media\/([a-f0-9]{24})$/i);
-  if (!match) return null;
+  /* Support both /media/{id} and /media/{slug}-{id}.{ext} SEO URLs */
+  const seoMatch = path.match(/^\/media\/(?:.+-)?([a-f0-9]{24})(?:\.[a-z0-9]+)?$/i);
+  if (!seoMatch) return null;
 
-  const id = match[1];
+  const id = seoMatch[1];
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
   return new mongoose.Types.ObjectId(id);
 }
@@ -162,6 +163,45 @@ function openDownloadStream(objectId) {
   return bucket.openDownloadStream(id);
 }
 
+/**
+ * Build an SEO-friendly media URL from a raw /media/{id} URL and a label (product name, article title…).
+ * Example: /media/mecatronique-dsg7-dq200-69c04f97e322b45070853f43.jpeg
+ * Falls back to the original URL if no label is provided.
+ */
+function slugifyForMedia(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+const MIME_TO_EXT = {
+  'image/jpeg': 'jpeg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/svg+xml': 'svg',
+  'image/avif': 'avif',
+};
+
+function buildSeoMediaUrl(rawUrl, label, contentType) {
+  if (!rawUrl || typeof rawUrl !== 'string') return rawUrl || '';
+  const id = extractMediaIdFromUrl(rawUrl);
+  if (!id) return rawUrl;
+
+  const slug = slugifyForMedia(label);
+  const ext = (contentType && MIME_TO_EXT[contentType]) || 'jpeg';
+
+  if (slug) {
+    return `/media/${slug}-${String(id)}.${ext}`;
+  }
+  return `/media/${String(id)}.${ext}`;
+}
+
 module.exports = {
   saveBuffer,
   saveMulterFile,
@@ -170,4 +210,6 @@ module.exports = {
   deleteFromUrl,
   findFileById,
   openDownloadStream,
+  buildSeoMediaUrl,
+  slugifyForMedia,
 };

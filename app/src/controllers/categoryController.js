@@ -10,6 +10,7 @@ const {
   getPublicBaseUrlFromReq,
 } = require('../services/categoryPublic');
 const { buildHreflangSet } = require('../services/i18n');
+const { buildSeoMediaUrl } = require('../services/mediaStorage');
 
 function getTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -53,6 +54,7 @@ function normalizeProductForList(product) {
     ...p,
     inStock,
     publicPath: buildProductPublicPath(p),
+    imageUrl: buildSeoMediaUrl(p.imageUrl, p.name),
   };
 }
 

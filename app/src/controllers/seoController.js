@@ -8,6 +8,7 @@ const demoProducts = require('../demoProducts');
 const { buildProductPublicUrl, getPublicBaseUrlFromReq } = require('../services/productPublic');
 const { buildCategoryPublicUrl } = require('../services/categoryPublic');
 const { DEFAULT_LEGAL_PAGES } = require('../services/legalPages');
+const { buildSeoMediaUrl } = require('../services/mediaStorage');
 
 function escapeXml(value) {
   return String(value)
@@ -40,7 +41,7 @@ async function getSitemapXml(req, res, next) {
     let blogPosts = [];
     if (dbConnected) {
       products = await Product.find({})
-        .select('_id slug name updatedAt')
+        .select('_id slug name updatedAt imageUrl galleryUrls')
         .sort({ updatedAt: -1 })
         .lean();
 
@@ -55,7 +56,7 @@ async function getSitemapXml(req, res, next) {
         .lean();
 
       blogPosts = await BlogPost.find({ isPublished: true })
-        .select('_id slug updatedAt publishedAt')
+        .select('_id slug title updatedAt publishedAt coverImageUrl')
         .sort({ publishedAt: -1, updatedAt: -1 })
         .lean();
     } else {
@@ -83,28 +84,21 @@ async function getSitemapXml(req, res, next) {
 
     const urls = [];
 
-    if (baseUrl) {
-      urls.push({ loc: `${baseUrl}/`, lastmod: '' });
-      urls.push({ loc: `${baseUrl}/produits`, lastmod: '' });
-      urls.push({ loc: `${baseUrl}/categorie`, lastmod: '' });
-      urls.push({ loc: `${baseUrl}/blog`, lastmod: '' });
-      urls.push({ loc: `${baseUrl}/contact`, lastmod: '' });
-      urls.push({ loc: `${baseUrl}/devis`, lastmod: '' });
-      urls.push({ loc: `${baseUrl}/legal`, lastmod: '' });
-    } else {
-      urls.push({ loc: '/', lastmod: '' });
-      urls.push({ loc: '/produits', lastmod: '' });
-      urls.push({ loc: '/categorie', lastmod: '' });
-      urls.push({ loc: '/blog', lastmod: '' });
-      urls.push({ loc: '/contact', lastmod: '' });
-      urls.push({ loc: '/devis', lastmod: '' });
-      urls.push({ loc: '/legal', lastmod: '' });
+    function resolveUrl(path) {
+      return baseUrl ? `${baseUrl}${path}` : path;
     }
+
+    urls.push({ loc: resolveUrl('/'), lastmod: '' });
+    urls.push({ loc: resolveUrl('/produits'), lastmod: '' });
+    urls.push({ loc: resolveUrl('/categorie'), lastmod: '' });
+    urls.push({ loc: resolveUrl('/blog'), lastmod: '' });
+    urls.push({ loc: resolveUrl('/contact'), lastmod: '' });
+    urls.push({ loc: resolveUrl('/devis'), lastmod: '' });
+    urls.push({ loc: resolveUrl('/legal'), lastmod: '' });
 
     for (const lp of legalPages || []) {
       if (!lp || !lp.slug) continue;
-      const loc = baseUrl ? `${baseUrl}/legal/${encodeURIComponent(lp.slug)}` : `/legal/${encodeURIComponent(lp.slug)}`;
-      urls.push({ loc, lastmod: toIsoDate(lp.updatedAt) });
+      urls.push({ loc: resolveUrl(`/legal/${encodeURIComponent(lp.slug)}`), lastmod: toIsoDate(lp.updatedAt) });
     }
 
     for (const c of categories || []) {
@@ -118,23 +112,43 @@ async function getSitemapXml(req, res, next) {
       if (!p || !p._id) continue;
       const loc = buildProductPublicUrl(p, { req });
       if (!loc) continue;
-      urls.push({ loc, lastmod: toIsoDate(p.updatedAt) });
+
+      /* Collect all product images for the image sitemap */
+      const imageUrls = [];
+      if (p.imageUrl) imageUrls.push(buildSeoMediaUrl(p.imageUrl, p.name));
+      if (Array.isArray(p.galleryUrls)) {
+        for (const u of p.galleryUrls) {
+          if (typeof u === 'string' && u.trim()) imageUrls.push(buildSeoMediaUrl(u.trim(), p.name));
+        }
+      }
+
+      urls.push({ loc, lastmod: toIsoDate(p.updatedAt), images: imageUrls, imageTitle: p.name || '' });
     }
 
     for (const bp of blogPosts || []) {
       if (!bp || !bp.slug) continue;
-      const path = `/blog/${encodeURIComponent(String(bp.slug))}`;
-      const loc = baseUrl ? `${baseUrl}${path}` : path;
+      const loc = resolveUrl(`/blog/${encodeURIComponent(String(bp.slug))}`);
       const last = bp.updatedAt || bp.publishedAt || null;
-      urls.push({ loc, lastmod: toIsoDate(last) });
+      const blogImages = [];
+      if (bp.coverImageUrl) blogImages.push(buildSeoMediaUrl(bp.coverImageUrl, bp.title));
+      urls.push({ loc, lastmod: toIsoDate(last), images: blogImages, imageTitle: bp.title || '' });
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
-      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n` +
+      `        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n` +
       urls
         .map((u) => {
           const lastmod = u.lastmod ? `\n    <lastmod>${escapeXml(u.lastmod)}</lastmod>` : '';
-          return `  <url>\n    <loc>${escapeXml(u.loc)}</loc>${lastmod}\n  </url>`;
+          const imageXml = (u.images || [])
+            .filter(Boolean)
+            .map((imgUrl) => {
+              const absImgUrl = baseUrl ? `${baseUrl}${imgUrl}` : imgUrl;
+              const title = u.imageTitle ? `\n      <image:title>${escapeXml(u.imageTitle)}</image:title>` : '';
+              return `\n    <image:image>\n      <image:loc>${escapeXml(absImgUrl)}</image:loc>${title}\n    </image:image>`;
+            })
+            .join('');
+          return `  <url>\n    <loc>${escapeXml(u.loc)}</loc>${lastmod}${imageXml}\n  </url>`;
         })
         .join('\n') +
       `\n</urlset>\n`;
