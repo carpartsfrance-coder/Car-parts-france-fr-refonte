@@ -6580,7 +6580,16 @@ async function postAdminUpdateProduct(req, res, next) {
       || (Array.isArray(req.files) && req.files.length)
       || req.file
     );
-    const requiredContentError = getRequiredProductContentError({ form, hasMainImage });
+
+    /* ── When removing the main image, auto-promote first gallery image ── */
+    const galleryUrlsForCheck = parseLinesToArray(form.galleryUrls);
+    let autoPromotedMainFromGallery = '';
+    if (!hasMainImage && removeMainImage && galleryUrlsForCheck.length > 0) {
+      autoPromotedMainFromGallery = galleryUrlsForCheck[0];
+    }
+    const effectiveHasMainImage = hasMainImage || !!autoPromotedMainFromGallery;
+
+    const requiredContentError = getRequiredProductContentError({ form, hasMainImage: effectiveHasMainImage });
 
     if (!form.name || priceCents === null || (form.compareAtPrice && compareAtPriceCents === null) || consigneAmountCents === null || !parsedStock.ok || !parsedOptions.ok || requiredContentError) {
       cleanupUploadedFiles(req);
@@ -6659,14 +6668,24 @@ async function postAdminUpdateProduct(req, res, next) {
 
     const uploadedImageUrl = savedUploads.length ? savedUploads[0].url : '';
     const shouldRemoveMain = removeMainImage && !uploadedImageUrl;
-    const nextImageUrl = uploadedImageUrl || (shouldRemoveMain ? '' : (form.imageUrl || existing.imageUrl || ''));
+    let nextImageUrl = uploadedImageUrl || (shouldRemoveMain ? '' : (form.imageUrl || existing.imageUrl || ''));
+
+    /* ── Auto-promote first gallery image when main is removed ── */
+    if (!nextImageUrl && autoPromotedMainFromGallery) {
+      nextImageUrl = autoPromotedMainFromGallery;
+    }
 
     const stockQty = parsedStock.qty;
     const inStock = stockQty !== null ? stockQty > 0 : form.inStock;
 
     const galleryUrlsFromForm = parseLinesToArray(form.galleryUrls);
     const extraGalleryUrls = savedUploads.slice(1).map((s) => s.url);
-    const galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
+    let galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
+
+    /* Remove promoted image from gallery to avoid duplicate */
+    if (autoPromotedMainFromGallery && nextImageUrl === autoPromotedMainFromGallery) {
+      galleryUrls = galleryUrls.filter((u) => u !== autoPromotedMainFromGallery);
+    }
     const keyPoints = hasKeyPoints ? parseLinesToArray(form.keyPoints) : null;
     const specs = hasSpecs ? parsePairsFromLines(form.specs) : null;
     if (hasSpecs && specs) {
