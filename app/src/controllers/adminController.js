@@ -3134,23 +3134,17 @@ async function postAdminAddOrderShipment(req, res, next) {
           }
         }
 
-        // Save file to disk
-        const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'shipping-docs', String(orderId));
-        fs.mkdirSync(uploadsDir, { recursive: true });
-
-        const ext = '.pdf';
-        const storedName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
-        const storedPath = path.join(uploadsDir, storedName);
-
-        fs.writeFileSync(storedPath, Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes));
+        // Store file data in MongoDB instead of disk (Render has ephemeral filesystem)
+        const fileBuffer = Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes);
 
         documentData = {
           originalName: req.file.originalname || 'document.pdf',
-          storedName,
-          storedPath,
+          storedName: '',
+          storedPath: '',
           mimeType: 'application/pdf',
-          sizeBytes: pdfBytes.length || pdfBytes.byteLength || 0,
+          sizeBytes: fileBuffer.length,
           stamped,
+          fileData: fileBuffer,
           uploadedAt: new Date(),
         };
       } catch (docErr) {
@@ -3261,8 +3255,8 @@ async function postAdminAddOrderShipment(req, res, next) {
           try {
             const clientUser = orderForClonage.userId ? await User.findById(orderForClonage.userId).lean() : null;
             if (clientUser && clientUser.email) {
-              const labelPdfBuffer = documentData && documentData.storedPath && fs.existsSync(documentData.storedPath)
-                ? fs.readFileSync(documentData.storedPath)
+              const labelPdfBuffer = documentData && documentData.fileData
+                ? documentData.fileData
                 : null;
               const { sendCloningLabelEmail } = require('../services/emailService');
               await sendCloningLabelEmail({
@@ -3327,32 +3321,40 @@ async function getAdminShipmentDocument(req, res, next) {
       return res.status(404).send('Document introuvable.');
     }
 
-    const order = await Order.findById(orderId).select('shipments').lean();
+    // Use MongoDB native projection to bypass Mongoose select:false on nested subdocs
+    const order = await Order.collection.findOne(
+      { _id: new mongoose.Types.ObjectId(orderId) },
+      { projection: { shipments: 1 } }
+    );
     if (!order) return res.status(404).send('Commande introuvable.');
 
     const shipment = Array.isArray(order.shipments)
       ? order.shipments.find((s) => s && String(s._id) === String(shipmentId))
       : null;
 
-    if (!shipment || !shipment.document || !shipment.document.storedPath) {
+    if (!shipment || !shipment.document) {
       return res.status(404).send('Document introuvable.');
-    }
-
-    const filePath = shipment.document.storedPath;
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).send('Fichier introuvable sur le serveur.');
     }
 
     const action = req.query.action || 'view';
     const disposition = action === 'download' ? 'attachment' : 'inline';
     const filename = shipment.document.originalName || 'document.pdf';
 
+    // Try to serve from MongoDB fileData first, fallback to disk for legacy files
+    let fileBuffer = shipment.document.fileData
+      ? (shipment.document.fileData.buffer || shipment.document.fileData)
+      : null;
+    if (!fileBuffer && shipment.document.storedPath && fs.existsSync(shipment.document.storedPath)) {
+      fileBuffer = fs.readFileSync(shipment.document.storedPath);
+    }
+
+    if (!fileBuffer) {
+      return res.status(404).send('Fichier introuvable sur le serveur.');
+    }
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+    return res.send(fileBuffer);
   } catch (err) {
     return next(err);
   }
@@ -3424,23 +3426,20 @@ async function postAdminUploadOrderDocument(req, res, next) {
       }
     }
 
-    const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'order-docs', String(orderId));
-    fs.mkdirSync(uploadsDir, { recursive: true });
-
-    const storedName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.pdf`;
-    const storedPath = path.join(uploadsDir, storedName);
-    fs.writeFileSync(storedPath, Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes));
+    // Store file data in MongoDB instead of disk (Render has ephemeral filesystem)
+    const fileBuffer = Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes);
 
     await Order.findByIdAndUpdate(orderId, {
       $push: {
         documents: {
           docType: safeDocType,
           originalName: req.file.originalname || 'document.pdf',
-          storedName,
-          storedPath,
+          storedName: '',
+          storedPath: '',
           mimeType: 'application/pdf',
-          sizeBytes: pdfBytes.length || pdfBytes.byteLength || 0,
+          sizeBytes: fileBuffer.length,
           stamped,
+          fileData: fileBuffer,
           note,
           uploadedAt: new Date(),
           uploadedBy: adminUserId && mongoose.Types.ObjectId.isValid(adminUserId) ? adminUserId : null,
@@ -3503,20 +3502,31 @@ async function getAdminOrderDocument(req, res, next) {
       return res.status(404).send('Document introuvable.');
     }
 
-    const order = await Order.findById(orderId).select('documents').lean();
+    // Use MongoDB native projection to bypass Mongoose select:false on nested subdocs
+    const order = await Order.collection.findOne(
+      { _id: new mongoose.Types.ObjectId(orderId) },
+      { projection: { documents: 1 } }
+    );
     if (!order) return res.status(404).send('Commande introuvable.');
 
     const doc = Array.isArray(order.documents)
       ? order.documents.find((d) => d && String(d._id) === String(docId))
       : null;
 
-    if (!doc || !doc.storedPath) return res.status(404).send('Document introuvable.');
-    if (!fs.existsSync(doc.storedPath)) return res.status(404).send('Fichier introuvable sur le serveur.');
+    if (!doc) return res.status(404).send('Document introuvable.');
+
+    let fileBuffer = doc.fileData
+      ? (doc.fileData.buffer || doc.fileData)
+      : null;
+    if (!fileBuffer && doc.storedPath && fs.existsSync(doc.storedPath)) {
+      fileBuffer = fs.readFileSync(doc.storedPath);
+    }
+    if (!fileBuffer) return res.status(404).send('Fichier introuvable sur le serveur.');
 
     const filename = doc.originalName || 'document.pdf';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    fs.createReadStream(doc.storedPath).pipe(res);
+    return res.send(fileBuffer);
   } catch (err) {
     return next(err);
   }
@@ -3529,20 +3539,31 @@ async function getAdminOrderDocumentDownload(req, res, next) {
       return res.status(404).send('Document introuvable.');
     }
 
-    const order = await Order.findById(orderId).select('documents').lean();
+    // Use MongoDB native projection to bypass Mongoose select:false on nested subdocs
+    const order = await Order.collection.findOne(
+      { _id: new mongoose.Types.ObjectId(orderId) },
+      { projection: { documents: 1 } }
+    );
     if (!order) return res.status(404).send('Commande introuvable.');
 
     const doc = Array.isArray(order.documents)
       ? order.documents.find((d) => d && String(d._id) === String(docId))
       : null;
 
-    if (!doc || !doc.storedPath) return res.status(404).send('Document introuvable.');
-    if (!fs.existsSync(doc.storedPath)) return res.status(404).send('Fichier introuvable sur le serveur.');
+    if (!doc) return res.status(404).send('Document introuvable.');
+
+    let fileBuffer = doc.fileData
+      ? (doc.fileData.buffer || doc.fileData)
+      : null;
+    if (!fileBuffer && doc.storedPath && fs.existsSync(doc.storedPath)) {
+      fileBuffer = fs.readFileSync(doc.storedPath);
+    }
+    if (!fileBuffer) return res.status(404).send('Fichier introuvable sur le serveur.');
 
     const filename = doc.originalName || 'document.pdf';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    fs.createReadStream(doc.storedPath).pipe(res);
+    return res.send(fileBuffer);
   } catch (err) {
     return next(err);
   }
@@ -3570,7 +3591,7 @@ async function postAdminDeleteOrderDocument(req, res, next) {
       return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
     }
 
-    // Delete file from disk
+    // Delete legacy file from disk if it exists
     if (doc.storedPath && fs.existsSync(doc.storedPath)) {
       try {
         fs.unlinkSync(doc.storedPath);
@@ -3579,6 +3600,7 @@ async function postAdminDeleteOrderDocument(req, res, next) {
       }
     }
 
+    // Remove document entry from MongoDB (fileData is removed with it)
     await Order.findByIdAndUpdate(orderId, {
       $pull: { documents: { _id: doc._id } },
     });

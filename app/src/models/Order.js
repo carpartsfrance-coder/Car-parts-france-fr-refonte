@@ -27,6 +27,7 @@ const shipmentDocumentSchema = new mongoose.Schema(
     mimeType: { type: String, default: 'application/pdf', trim: true },
     sizeBytes: { type: Number, default: 0 },
     stamped: { type: Boolean, default: false },
+    fileData: { type: Buffer, default: null, select: false },
     uploadedAt: { type: Date, default: null },
   },
   { _id: false }
@@ -125,6 +126,7 @@ const orderDocumentSchema = new mongoose.Schema(
     mimeType: { type: String, default: 'application/pdf', trim: true },
     sizeBytes: { type: Number, default: 0 },
     stamped: { type: Boolean, default: false },
+    fileData: { type: Buffer, default: null, select: false },
     note: { type: String, default: '', trim: true },
     uploadedAt: { type: Date, default: null },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser', default: null },
