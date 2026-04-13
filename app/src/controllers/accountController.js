@@ -2728,20 +2728,31 @@ async function getOrderDocumentForClient(req, res, next) {
       return res.status(404).send('Document introuvable.');
     }
 
-    const order = await Order.findOne({ _id: orderId, userId: sessionUser._id }).select('documents').lean();
+    // Use MongoDB native query to bypass Mongoose select:false on nested subdocs
+    const order = await Order.collection.findOne(
+      { _id: new mongoose.Types.ObjectId(orderId), userId: new mongoose.Types.ObjectId(sessionUser._id) },
+      { projection: { documents: 1 } }
+    );
     if (!order) return res.status(404).send('Commande introuvable.');
 
     const doc = Array.isArray(order.documents)
       ? order.documents.find((d) => d && String(d._id) === String(docId))
       : null;
 
-    if (!doc || !doc.storedPath) return res.status(404).send('Document introuvable.');
-    if (!fs.existsSync(doc.storedPath)) return res.status(404).send('Fichier introuvable.');
+    if (!doc) return res.status(404).send('Document introuvable.');
+
+    let fileBuffer = doc.fileData
+      ? (doc.fileData.buffer || doc.fileData)
+      : null;
+    if (!fileBuffer && doc.storedPath && fs.existsSync(doc.storedPath)) {
+      fileBuffer = fs.readFileSync(doc.storedPath);
+    }
+    if (!fileBuffer) return res.status(404).send('Fichier introuvable.');
 
     const filename = doc.originalName || 'document.pdf';
     res.setHeader('Content-Type', doc.mimeType || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    fs.createReadStream(doc.storedPath).pipe(res);
+    return res.send(fileBuffer);
   } catch (err) {
     return next(err);
   }
@@ -2757,20 +2768,31 @@ async function getOrderShipmentDocForClient(req, res, next) {
       return res.status(404).send('Document introuvable.');
     }
 
-    const order = await Order.findOne({ _id: orderId, userId: sessionUser._id }).select('shipments').lean();
+    // Use MongoDB native query to bypass Mongoose select:false on nested subdocs
+    const order = await Order.collection.findOne(
+      { _id: new mongoose.Types.ObjectId(orderId), userId: new mongoose.Types.ObjectId(sessionUser._id) },
+      { projection: { shipments: 1 } }
+    );
     if (!order) return res.status(404).send('Commande introuvable.');
 
     const shipment = Array.isArray(order.shipments)
-      ? order.shipments.find((s) => s && String(s._id) === String(shipmentId) && s.document && s.document.storedPath)
+      ? order.shipments.find((s) => s && String(s._id) === String(shipmentId) && s.document)
       : null;
 
     if (!shipment) return res.status(404).send('Document introuvable.');
-    if (!fs.existsSync(shipment.document.storedPath)) return res.status(404).send('Fichier introuvable.');
+
+    let fileBuffer = shipment.document.fileData
+      ? (shipment.document.fileData.buffer || shipment.document.fileData)
+      : null;
+    if (!fileBuffer && shipment.document.storedPath && fs.existsSync(shipment.document.storedPath)) {
+      fileBuffer = fs.readFileSync(shipment.document.storedPath);
+    }
+    if (!fileBuffer) return res.status(404).send('Fichier introuvable.');
 
     const filename = shipment.document.originalName || 'document.pdf';
     res.setHeader('Content-Type', shipment.document.mimeType || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    fs.createReadStream(shipment.document.storedPath).pipe(res);
+    return res.send(fileBuffer);
   } catch (err) {
     return next(err);
   }

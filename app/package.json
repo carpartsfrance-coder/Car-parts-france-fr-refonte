@@ -25,6 +25,8 @@
     "migrate:order-statuses:dry": "node scripts/migrate-order-statuses.js",
     "migrate:order-statuses": "node scripts/migrate-order-statuses.js --apply",
     "migrate:wp-images:dry": "node scripts/migrate-wp-images.js --dry-run",
+    "migrate:files-to-mongodb:dry": "node scripts/migrate-files-to-mongodb.js",
+    "migrate:files-to-mongodb": "node scripts/migrate-files-to-mongodb.js --apply",
     "import:ovoko:dry": "node src/seed/importOvokoVehicleMakes.js --limitMakes=25",
     "import:ovoko": "node src/seed/importOvokoVehicleMakes.js --apply",
     "import:ovoko:urls:dry": "node src/seed/importOvokoVehicleMakesFromUrlsFile.js --input=src/seed/ovoko-make-model-urls.json --limitMakes=25",
