@@ -280,6 +280,10 @@ function getMollieWebhookToken() {
   return getTrimmedString(process.env.MOLLIE_WEBHOOK_TOKEN);
 }
 
+function getScalapayWebhookToken() {
+  return getTrimmedString(process.env.SCALAPAY_WEBHOOK_TOKEN);
+}
+
 function getMollieWebhookBaseUrl() {
   return getTrimmedString(process.env.MOLLIE_WEBHOOK_URL);
 }
@@ -564,6 +568,107 @@ async function applyMolliePaymentToOrder(order, payment) {
   }
 
   return refreshed;
+}
+
+/**
+ * Réconcilie une commande Scalapay : interroge l'API pour le statut courant,
+ * tente la capture si nécessaire, et met à jour la commande en BDD.
+ *
+ * Utilisée par :
+ *  - getPaymentReturn (retour client)
+ *  - postScalapayWebhook (notification Scalapay)
+ *  - reconcilePendingScalapayOrders (job CRON de retry)
+ *  - postAdminRecaptureScalapayOrder (action admin manuelle)
+ *
+ * Renvoie : { ok, order, captured, paymentStatus, scalapayStatus, error? }
+ */
+async function reconcileScalapayOrder(order, { wasCancelled = false } = {}) {
+  if (!order || !order._id) {
+    return { ok: false, error: 'order_missing' };
+  }
+  if (!order.scalapayOrderToken) {
+    return { ok: false, error: 'no_scalapay_token' };
+  }
+
+  const orderRef = `${order.number || order._id}`;
+
+  let details = null;
+  try {
+    details = await scalapay.getPayment(order.scalapayOrderToken);
+  } catch (err) {
+    console.error(
+      `[scalapay] getPayment échec pour commande ${orderRef} (token=${order.scalapayOrderToken}) :`,
+      err && err.message ? err.message : err
+    );
+    return { ok: false, error: 'getPayment_failed', errorMessage: err && err.message ? err.message : String(err) };
+  }
+
+  const status = details && details.status ? String(details.status) : '';
+  let paymentStatus = mapScalapayStatusToPaymentStatus(status);
+
+  if (wasCancelled && paymentStatus !== 'paid') {
+    paymentStatus = 'failed';
+  }
+
+  let captured = Boolean(order.scalapayCapturedAt);
+  let captureError = null;
+  let captureResponse = null;
+
+  // Si Scalapay a approuvé/chargé la commande mais qu'on n'a pas encore capturé
+  // côté serveur, on capture maintenant. C'est l'étape qui déclenche le
+  // prélèvement réel sur la carte du client.
+  if (paymentStatus === 'paid' && !captured) {
+    try {
+      captureResponse = await scalapay.capturePayment({
+        token: order.scalapayOrderToken,
+        merchantReference: order.number,
+        amountCents: order.totalCents,
+        currency: order.currency || 'EUR',
+      });
+      captured = true;
+      console.log(`[scalapay] Capture réussie pour commande ${orderRef} (token=${order.scalapayOrderToken})`);
+    } catch (err) {
+      captureError = err && err.message ? err.message : String(err);
+      console.error(
+        `[scalapay] Capture ÉCHOUÉE pour commande ${orderRef} (token=${order.scalapayOrderToken}) :`,
+        captureError
+      );
+      // On garde paymentStatus en 'pending' pour que le job de retry puisse retenter
+      paymentStatus = 'pending';
+    }
+  }
+
+  let updated = null;
+  try {
+    updated = await applyScalapayPaymentToOrder(order, {
+      scalapayStatus: status,
+      paymentStatus,
+      captured,
+    });
+  } catch (err) {
+    console.error(
+      `[scalapay] applyScalapayPaymentToOrder échec pour commande ${orderRef} :`,
+      err && err.message ? err.message : err
+    );
+    return {
+      ok: false,
+      error: 'apply_failed',
+      errorMessage: err && err.message ? err.message : String(err),
+      scalapayStatus: status,
+      paymentStatus,
+      captured,
+    };
+  }
+
+  return {
+    ok: true,
+    order: updated,
+    scalapayStatus: status,
+    paymentStatus,
+    captured,
+    captureError,
+    captureResponse,
+  };
 }
 
 async function applyScalapayPaymentToOrder(order, { scalapayStatus, paymentStatus, captured } = {}) {
@@ -2114,62 +2219,41 @@ async function getPaymentReturn(req, res, next) {
     const wasCancelled = getTrimmedString(req.query && req.query.cancel) === '1';
 
     if (order.scalapayOrderToken) {
-      try {
-        const details = await scalapay.getPayment(order.scalapayOrderToken);
-        const status = details && details.status ? String(details.status) : '';
-        let paymentStatus = mapScalapayStatusToPaymentStatus(status);
+      const result = await reconcileScalapayOrder(order, { wasCancelled });
 
-        if (wasCancelled && paymentStatus !== 'paid') {
-          paymentStatus = 'failed';
-        }
-
-        let captured = Boolean(order.scalapayCapturedAt);
-
-        if (paymentStatus === 'paid' && !captured) {
-          try {
-            await scalapay.capturePayment({
-              token: order.scalapayOrderToken,
-              merchantReference: order.number,
-              amountCents: order.totalCents,
-              currency: order.currency || 'EUR',
-            });
-            captured = true;
-          } catch (err) {
-            paymentStatus = 'pending';
-          }
-        }
-
-        const updated = await applyScalapayPaymentToOrder(order, {
-          scalapayStatus: status,
-          paymentStatus,
-          captured,
-        });
-
-        if (updated && updated.paymentStatus === 'paid') {
-          req.session.cart = { items: {} };
-          delete req.session.checkout;
-          delete req.session.promoCode;
-          return res.redirect(`/compte/commandes/${encodeURIComponent(String(order._id))}`);
-        }
-
-        if (updated && updated.paymentStatus === 'pending') {
-          checkout.pendingOrderId = String(order._id);
-          req.session.checkoutError = wasCancelled
-            ? 'Le paiement a été annulé. Vous pouvez réessayer.'
-            : "Le paiement n'a pas été finalisé. Vous pouvez réessayer.";
-          return res.redirect('/commande/paiement');
-        }
-
-        checkout.pendingOrderId = '';
-        req.session.checkoutError = wasCancelled
-          ? 'Le paiement a été annulé. Vous pouvez réessayer.'
-          : 'Le paiement a échoué ou a été annulé. Vous pouvez réessayer.';
-        return res.redirect('/commande/paiement');
-      } catch (err) {
+      if (!result.ok) {
+        console.error(
+          `[scalapay] Réconciliation échouée pour commande ${order.number || order._id} (retour client) :`,
+          result.error,
+          result.errorMessage || ''
+        );
         checkout.pendingOrderId = String(order._id);
         req.session.checkoutError = 'Impossible de vérifier le paiement pour le moment. Réessayez.';
         return res.redirect('/commande/paiement');
       }
+
+      const updated = result.order;
+
+      if (updated && updated.paymentStatus === 'paid') {
+        req.session.cart = { items: {} };
+        delete req.session.checkout;
+        delete req.session.promoCode;
+        return res.redirect(`/compte/commandes/${encodeURIComponent(String(order._id))}`);
+      }
+
+      if (updated && updated.paymentStatus === 'pending') {
+        checkout.pendingOrderId = String(order._id);
+        req.session.checkoutError = wasCancelled
+          ? 'Le paiement a été annulé. Vous pouvez réessayer.'
+          : "Le paiement n'a pas été finalisé. Vous pouvez réessayer.";
+        return res.redirect('/commande/paiement');
+      }
+
+      checkout.pendingOrderId = '';
+      req.session.checkoutError = wasCancelled
+        ? 'Le paiement a été annulé. Vous pouvez réessayer.'
+        : 'Le paiement a échoué ou a été annulé. Vous pouvez réessayer.';
+      return res.redirect('/commande/paiement');
     }
 
     if (order.molliePaymentId) {
@@ -2240,6 +2324,77 @@ async function postPaymentWebhook(req, res, next) {
   }
 }
 
+/**
+ * Webhook Scalapay : reçu quand Scalapay nous notifie d'un changement de
+ * statut sur une commande (typiquement quand le client valide le paiement).
+ *
+ * Format Scalapay : POST avec body JSON contenant au minimum un identifiant
+ * de l'ordre. Selon la version, ce peut être : token, orderToken, merchantReference.
+ *
+ * Sécurité : on vérifie un token partagé via query string (?token=xxx) — à
+ * configurer côté Scalapay. Si SCALAPAY_WEBHOOK_TOKEN est vide, le webhook
+ * n'est pas protégé (déconseillé en prod).
+ *
+ * On répond TOUJOURS 200 pour éviter que Scalapay retente en boucle, sauf
+ * si le token de sécurité est invalide (401).
+ */
+async function postScalapayWebhook(req, res, next) {
+  try {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) return res.status(200).send('OK');
+
+    const expectedToken = getScalapayWebhookToken();
+    if (expectedToken) {
+      const providedToken = getTrimmedString(req.query && req.query.token);
+      if (!providedToken || providedToken !== expectedToken) {
+        console.warn('[scalapay-webhook] Token invalide ou manquant — refus.');
+        return res.status(401).send('Unauthorized');
+      }
+    }
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const token = getTrimmedString(body.token || body.orderToken || body.payment_token || (body.payment && body.payment.token));
+    const merchantReference = getTrimmedString(body.merchantReference || body.merchant_reference || (body.payment && body.payment.merchantReference));
+
+    console.log('[scalapay-webhook] Reçu :', JSON.stringify({
+      token: token || '(absent)',
+      merchantReference: merchantReference || '(absent)',
+      status: body.status || (body.payment && body.payment.status) || '(absent)',
+    }));
+
+    let order = null;
+    if (token) {
+      order = await Order.findOne({ scalapayOrderToken: token }).lean();
+    }
+    if (!order && merchantReference) {
+      order = await Order.findOne({ number: merchantReference, paymentProvider: 'scalapay' }).lean();
+    }
+
+    if (!order) {
+      console.warn('[scalapay-webhook] Commande introuvable pour token/ref :', token || merchantReference);
+      return res.status(200).send('OK');
+    }
+
+    const result = await reconcileScalapayOrder(order, { wasCancelled: false });
+    if (!result.ok) {
+      console.error(
+        `[scalapay-webhook] Réconciliation échouée pour commande ${order.number || order._id} :`,
+        result.error,
+        result.errorMessage || ''
+      );
+    } else {
+      console.log(
+        `[scalapay-webhook] Commande ${order.number || order._id} réconciliée — paymentStatus=${result.paymentStatus}, captured=${result.captured}, scalapayStatus=${result.scalapayStatus}`
+      );
+    }
+
+    return res.status(200).send('OK');
+  } catch (err) {
+    console.error('[scalapay-webhook] Exception :', err && err.message ? err.message : err);
+    return res.status(200).send('OK');
+  }
+}
+
 module.exports = {
   getShipping,
   postShipping,
@@ -2248,4 +2403,6 @@ module.exports = {
   postPayment,
   getPaymentReturn,
   postPaymentWebhook,
+  postScalapayWebhook,
+  reconcileScalapayOrder,
 };

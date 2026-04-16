@@ -6,6 +6,7 @@ const { expireDraftOrders } = require('./expireDraftOrders');
 const { checkOrderAlerts } = require('./checkOrderAlerts');
 const { sendConsigneReminders } = require('./sendConsigneReminders');
 const { checkSavSlaEscalation, runSavDailyReminders, runSavAutomations } = require('./savCronJobs');
+const { reconcileScalapayOrders } = require('./reconcileScalapayOrders');
 
 function startScheduler() {
   // Detect abandoned carts every hour (at minute 0)
@@ -88,11 +89,23 @@ function startScheduler() {
     }
   });
 
+  // Réconciliation Scalapay toutes les 15 min — capture les commandes
+  // autorisées qui n'ont pas été capturées (typiquement quand le client
+  // n'est pas revenu sur le site après validation Scalapay).
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      await reconcileScalapayOrders();
+    } catch (err) {
+      console.error('[scheduler] Erreur réconciliation Scalapay:', err.message || err);
+    }
+  });
+
   console.log('[scheduler] CRON paniers abandonnés programmé (détection :00, relances :05)');
   console.log('[scheduler] CRON SAV programmé (SLA :15, relances 09:05)');
   console.log('[scheduler] CRON alertes commandes programmé (:10)');
   console.log('[scheduler] CRON relances consigne programmé (09:00 quotidien)');
   console.log('[scheduler] CRON expiration brouillons programmé (03:00 quotidien)');
+  console.log('[scheduler] CRON réconciliation Scalapay programmé (toutes les 15 min)');
 }
 
 module.exports = { startScheduler };

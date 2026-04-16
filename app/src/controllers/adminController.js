@@ -9123,6 +9123,58 @@ async function postDisableTwoFactor(req, res) {
   return res.redirect('/admin/profil/securite');
 }
 
+/**
+ * Re-capture manuelle d'une commande Scalapay autorisée mais non capturée.
+ * Utile pour rattraper les commandes orphelines (client qui n'est pas revenu
+ * sur le site après avoir validé son paiement Scalapay).
+ */
+async function postAdminRecaptureScalapayOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      req.session.adminOrderError = 'Identifiant de commande invalide.';
+      return res.redirect('/admin/commandes');
+    }
+
+    const order = await Order.findById(orderId).lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect('/admin/commandes');
+    }
+
+    if (order.paymentProvider !== 'scalapay' || !order.scalapayOrderToken) {
+      req.session.adminOrderError = 'Cette commande n\'est pas une commande Scalapay.';
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
+    if (order.scalapayCapturedAt) {
+      req.session.adminOrderSuccess = 'Cette commande a déjà été capturée.';
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
+    // Délégué au controller checkout pour mutualiser la logique
+    const { reconcileScalapayOrder } = require('./checkoutController');
+    const result = await reconcileScalapayOrder(order, { wasCancelled: false });
+
+    if (!result.ok) {
+      req.session.adminOrderError = `Échec de la réconciliation Scalapay : ${result.error}${result.errorMessage ? ' — ' + result.errorMessage : ''}`;
+      return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+    }
+
+    if (result.captured) {
+      req.session.adminOrderSuccess = `Commande capturée avec succès (statut Scalapay : ${result.scalapayStatus}).`;
+    } else if (result.captureError) {
+      req.session.adminOrderError = `Capture Scalapay refusée : ${result.captureError}`;
+    } else {
+      req.session.adminOrderSuccess = `Statut Scalapay mis à jour : ${result.scalapayStatus} (paymentStatus: ${result.paymentStatus}). Aucune capture nécessaire.`;
+    }
+
+    return res.redirect(`/admin/commandes/${encodeURIComponent(orderId)}`);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   getAdminLogin,
   postAdminLogin,
@@ -9155,6 +9207,7 @@ module.exports = {
   postAdminDeleteOrderShipment,
   postAdminDeleteOrder,
   postAdminCreateReturnFromOrder,
+  postAdminRecaptureScalapayOrder,
   getAdminCatalogPage,
   getAdminCategoriesPage,
   postAdminCreateCategory,
