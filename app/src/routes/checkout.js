@@ -37,5 +37,6 @@ router.post('/paiement', requireCheckoutAccess, checkoutController.postPayment);
 
 router.get('/paiement/retour', requireCheckoutAccess, checkoutController.getPaymentReturn);
 router.post('/paiement/webhook', checkoutController.postPaymentWebhook);
+router.post('/paiement/webhook/scalapay', checkoutController.postScalapayWebhook);
 
 module.exports = router;
