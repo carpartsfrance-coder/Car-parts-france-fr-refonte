@@ -425,6 +425,8 @@ async function getCommercialKpis(since, until) {
       $match: {
         createdAt: dateFilter,
         status: { $nin: ['draft', 'cancelled', 'refunded'] },
+        archived: { $ne: true },
+        deletedAt: null,
         $or: [
           { paymentStatus: { $in: paidStatuses } },
           { status: { $in: validOrderStatuses } },

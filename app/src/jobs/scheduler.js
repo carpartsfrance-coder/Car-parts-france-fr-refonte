@@ -3,6 +3,7 @@ const cron = require('node-cron');
 const { detectAbandonedCarts } = require('./detectAbandonedCarts');
 const { sendAbandonedCartReminders } = require('./sendAbandonedCartReminders');
 const { expireDraftOrders } = require('./expireDraftOrders');
+const { purgeTrashedOrders } = require('./purgeTrashedOrders');
 const { checkOrderAlerts } = require('./checkOrderAlerts');
 const { sendConsigneReminders } = require('./sendConsigneReminders');
 const { checkSavSlaEscalation, runSavDailyReminders, runSavAutomations } = require('./savCronJobs');
@@ -36,6 +37,16 @@ function startScheduler() {
       await expireDraftOrders();
     } catch (err) {
       console.error('[scheduler] Erreur expiration brouillons:', err.message || err);
+    }
+  });
+
+  // Purge automatique corbeille J+30 (quotidien à 03:37)
+  cron.schedule('37 3 * * *', async () => {
+    console.log('[scheduler] Purge corbeille J+30...');
+    try {
+      await purgeTrashedOrders();
+    } catch (err) {
+      console.error('[scheduler] Erreur purge corbeille:', err.message || err);
     }
   });
 
@@ -106,6 +117,7 @@ function startScheduler() {
   console.log('[scheduler] CRON relances consigne programmé (09:00 quotidien)');
   console.log('[scheduler] CRON expiration brouillons programmé (03:00 quotidien)');
   console.log('[scheduler] CRON réconciliation Scalapay programmé (toutes les 15 min)');
+  console.log('[scheduler] CRON purge corbeille J+30 programmé (03:37 quotidien)');
 }
 
 module.exports = { startScheduler };

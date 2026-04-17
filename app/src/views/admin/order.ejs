@@ -62,18 +62,65 @@
         </button>
 
         <% if (order && order.id) { %>
-          <form action="/admin/commandes/<%= order.id %>/retour" method="POST">
-            <button class="btn btn-secondary" type="submit">
-              <span class="material-symbols-outlined mr-2 text-base">assignment_return</span>
-              Créer un retour
-            </button>
-          </form>
-          <form action="/admin/commandes/<%= order.id %>/supprimer" method="POST" onsubmit="return confirm('Supprimer définitivement cette commande ? Cette action est irréversible.')">
-            <button class="btn btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200" type="submit">
-              <span class="material-symbols-outlined mr-2 text-base">delete</span>
-              Supprimer
-            </button>
-          </form>
+          <% if (!order.deletedAtRaw) { %>
+            <form action="/admin/commandes/<%= order.id %>/retour" method="POST">
+              <button class="btn btn-secondary" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">assignment_return</span>
+                Créer un retour
+              </button>
+            </form>
+          <% } %>
+
+          <% const _detailReturn = '/admin/commandes/' + order.id; %>
+          <% if (order.deletedAtRaw) { %>
+            <%/* Commande dans la corbeille : Restaurer + Supprimer définitivement */ %>
+            <form action="/admin/commandes/<%= order.id %>/restaurer" method="POST">
+              <input type="hidden" name="returnTo" value="<%= _detailReturn %>" />
+              <button class="btn btn-secondary" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">restore</span>
+                Restaurer
+              </button>
+            </form>
+            <form action="/admin/commandes/<%= order.id %>/supprimer-definitivement" method="POST" onsubmit="return confirm('Supprimer définitivement cette commande ? Cette action est irréversible.')">
+              <%/* Pas de returnTo ici : la commande n'existera plus, le handler redirige vers la corbeille */ %>
+              <button class="btn btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">delete_forever</span>
+                Supprimer définitivement
+              </button>
+            </form>
+          <% } else if (order.archived) { %>
+            <%/* Commande archivée : Désarchiver + Corbeille */ %>
+            <form action="/admin/commandes/<%= order.id %>/desarchiver" method="POST">
+              <input type="hidden" name="returnTo" value="<%= _detailReturn %>" />
+              <button class="btn btn-secondary" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">unarchive</span>
+                Désarchiver
+              </button>
+            </form>
+            <form action="/admin/commandes/<%= order.id %>/supprimer" method="POST" onsubmit="return confirm('Envoyer cette commande à la corbeille ?')">
+              <input type="hidden" name="returnTo" value="<%= _detailReturn %>" />
+              <button class="btn btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">delete</span>
+                Mettre à la corbeille
+              </button>
+            </form>
+          <% } else { %>
+            <%/* Commande active : Archiver + Corbeille */ %>
+            <form action="/admin/commandes/<%= order.id %>/archiver" method="POST">
+              <input type="hidden" name="returnTo" value="<%= _detailReturn %>" />
+              <button class="btn btn-secondary" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">inventory_2</span>
+                Archiver
+              </button>
+            </form>
+            <form action="/admin/commandes/<%= order.id %>/supprimer" method="POST" onsubmit="return confirm('Envoyer cette commande à la corbeille ?')">
+              <input type="hidden" name="returnTo" value="<%= _detailReturn %>" />
+              <button class="btn btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200" type="submit">
+                <span class="material-symbols-outlined mr-2 text-base">delete</span>
+                Mettre à la corbeille
+              </button>
+            </form>
+          <% } %>
         <% } %>
 
         <% if (order && order.statusBadge) { %>
@@ -93,6 +140,35 @@
       <div class="mt-6 rounded-xl border border-green-200 bg-green-50 p-4 text-green-900">
         <div class="font-bold">OK</div>
         <div class="mt-1 text-sm"><%= successMessage %></div>
+      </div>
+    <% } %>
+
+    <% if (order && order.deletedAtRaw) { %>
+      <div class="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-outlined">delete</span>
+          <div class="flex-1">
+            <div class="font-bold">Commande dans la corbeille</div>
+            <div class="mt-1 text-sm">
+              Envoyée à la corbeille le <strong><%= order.deletedAt %></strong><% if (order.deletedBy) { %> par <%= order.deletedBy %><% } %>.
+              <% if (order.deleteReason) { %><br/>Motif : <em><%= order.deleteReason %></em><% } %>
+              <br/>Cette commande n'apparaît plus dans les listes ni les statistiques. Elle sera purgée automatiquement dans 30 jours (sauf commande payée).
+            </div>
+          </div>
+        </div>
+      </div>
+    <% } else if (order && order.archived) { %>
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-outlined">inventory_2</span>
+          <div class="flex-1">
+            <div class="font-bold">Commande archivée</div>
+            <div class="mt-1 text-sm">
+              Archivée le <strong><%= order.archivedAt %></strong><% if (order.archivedBy) { %> par <%= order.archivedBy %><% } %>.
+              Exclue de la liste principale et des statistiques. Réversible à tout moment.
+            </div>
+          </div>
+        </div>
       </div>
     <% } %>
 

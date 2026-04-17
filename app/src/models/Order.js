@@ -202,6 +202,13 @@ const orderSchema = new mongoose.Schema(
       returnInspectedAt: { type: Date, default: null },
     },
     statusHistory: { type: [statusHistorySchema], default: [] },
+    // ── Archivage & corbeille (soft delete) ─────────────────────────────
+    archived: { type: Boolean, default: false },
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: String, default: '', trim: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: String, default: '', trim: true },
+    deleteReason: { type: String, default: '', trim: true },
     accountType: { type: String, enum: ['particulier', 'pro'], required: true },
     paymentProvider: { type: String, default: 'mollie', trim: true },
     paymentStatus: { type: String, default: 'pending', trim: true },
@@ -413,5 +420,10 @@ orderSchema.pre('save', function (next) {
 
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ userId: 1, status: 1, createdAt: -1 });
+orderSchema.index({ archived: 1, createdAt: -1 });
+orderSchema.index(
+  { deletedAt: 1 },
+  { partialFilterExpression: { deletedAt: { $type: 'date' } } }
+);
 
 module.exports = mongoose.model('Order', orderSchema);

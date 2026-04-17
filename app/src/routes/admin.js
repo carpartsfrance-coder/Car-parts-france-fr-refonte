@@ -172,6 +172,10 @@ router.get('/commandes/:orderId/documents/:docId/view', requireAdminAuth, adminC
 router.get('/commandes/:orderId/documents/:docId/download', requireAdminAuth, adminController.getAdminOrderDocumentDownload);
 router.post('/commandes/:orderId/documents/:docId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrderDocument);
 router.post('/commandes/:orderId/supprimer', requireAdminAuth, adminController.postAdminDeleteOrder);
+router.post('/commandes/:orderId/supprimer-definitivement', requireAdminAuth, adminController.postAdminHardDeleteOrder);
+router.post('/commandes/:orderId/restaurer', requireAdminAuth, adminController.postAdminRestoreOrder);
+router.post('/commandes/:orderId/archiver', requireAdminAuth, adminController.postAdminArchiveOrder);
+router.post('/commandes/:orderId/desarchiver', requireAdminAuth, adminController.postAdminUnarchiveOrder);
 router.post('/commandes/:orderId/scalapay/recapture', requireAdminAuth, adminController.postAdminRecaptureScalapayOrder);
 router.post('/commandes/:orderId/retour', requireAdminAuth, adminController.postAdminCreateReturnFromOrder);
 router.get('/commandes/:orderId/email/preview/:type', requireAdminAuth, orderEmailAdminController.getEmailPreview);

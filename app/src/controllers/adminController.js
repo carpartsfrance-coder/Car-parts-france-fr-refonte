@@ -1918,7 +1918,18 @@ async function getAdminDashboard(req, res, next) {
     startMonth.setDate(1);
     startMonth.setHours(0, 0, 0, 0);
 
-    const excludeCancelled = { status: { $nin: ['cancelled', 'draft', 'refunded'] } };
+    const excludeCancelled = { status: { $nin: ['cancelled', 'draft', 'refunded'] }, archived: { $ne: true }, deletedAt: null };
+
+    /*
+     * Filtre "CA encaissé" : ne compte QUE les commandes dont le paiement est confirmé
+     * (Mollie/Scalapay OK ou marquée payée manuellement), jusqu'aux statuts post-paiement.
+     * Exclut volontairement pending_payment (checkout validé mais paiement non abouti).
+     */
+    const paidOnly = {
+      status: { $in: ['paid', 'processing', 'shipped', 'delivered', 'completed'] },
+      archived: { $ne: true },
+      deletedAt: null,
+    };
 
     /* ── KPIs financiers (owner uniquement) ── */
     let revenueTodayCents = 0;
@@ -1933,12 +1944,13 @@ async function getAdminDashboard(req, res, next) {
     let monthValues = [];
 
     if (showFinancials) {
+      // CA encaissé strict : statuts payés uniquement (exclut pending_payment)
       const revenueTodayAgg = await Order.aggregate([
-        { $match: { createdAt: { $gte: startToday }, ...excludeCancelled } },
+        { $match: { createdAt: { $gte: startToday }, ...paidOnly } },
         { $group: { _id: null, total: { $sum: '$totalCents' } } },
       ]);
       const revenueMonthAgg = await Order.aggregate([
-        { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
+        { $match: { createdAt: { $gte: startMonth }, ...paidOnly } },
         { $group: { _id: null, total: { $sum: '$totalCents' } } },
       ]);
 
@@ -1953,7 +1965,7 @@ async function getAdminDashboard(req, res, next) {
       prevWeekStart.setDate(prevWeekStart.getDate() - 7);
 
       const dailyRevenueAgg = await Order.aggregate([
-        { $match: { createdAt: { $gte: prevWeekStart }, ...excludeCancelled } },
+        { $match: { createdAt: { $gte: prevWeekStart }, ...paidOnly } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Europe/Paris' } },
@@ -1987,7 +1999,7 @@ async function getAdminDashboard(req, res, next) {
       sixMonthsAgo.setHours(0, 0, 0, 0);
 
       const monthlyRevenueAgg = await Order.aggregate([
-        { $match: { createdAt: { $gte: sixMonthsAgo }, ...excludeCancelled } },
+        { $match: { createdAt: { $gte: sixMonthsAgo }, ...paidOnly } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m', date: '$createdAt', timezone: 'Europe/Paris' } },
@@ -2011,12 +2023,12 @@ async function getAdminDashboard(req, res, next) {
         monthValues.push(Math.round((entry ? entry.total : 0) / 100));
       }
 
-      /* ── Average basket + top products ── */
-      ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth }, ...excludeCancelled });
+      /* ── Average basket + top products (basés sur commandes payées) ── */
+      ordersThisMonth = await Order.countDocuments({ createdAt: { $gte: startMonth }, ...paidOnly });
       averageBasketCents = ordersThisMonth > 0 ? Math.round(revenueMonthCents / ordersThisMonth) : 0;
 
       const topProductsAgg = await Order.aggregate([
-        { $match: { createdAt: { $gte: startMonth }, ...excludeCancelled } },
+        { $match: { createdAt: { $gte: startMonth }, ...paidOnly } },
         { $unwind: '$items' },
         {
           $group: {
@@ -2036,10 +2048,10 @@ async function getAdminDashboard(req, res, next) {
     }
 
     /* ── KPIs opérationnels (tous les admins) ── */
-    const pendingOrdersCount = await Order.countDocuments({ status: 'pending_payment' });
+    const pendingOrdersCount = await Order.countDocuments({ status: 'pending_payment', archived: { $ne: true }, deletedAt: null });
     const stockAlertsCount = await Product.countDocuments({ stockQty: { $ne: null, $lte: 2 } });
 
-    const latestOrders = await Order.find({})
+    const latestOrders = await Order.find({ archived: { $ne: true }, deletedAt: null })
       .sort({ createdAt: -1 })
       .limit(8)
       .select('_id number userId accountType totalCents createdAt status')
@@ -2129,8 +2141,14 @@ async function getAdminOrdersPage(req, res, next) {
     const rawPage = typeof req.query.page !== 'undefined' ? String(req.query.page) : '';
     const requestedPage = Math.max(1, Number.parseInt(rawPage, 10) || 1);
 
+    /* Vue active : 'active' (défaut), 'archived' (archivées), 'trash' (corbeille) */
+    const viewRaw = typeof req.query.view === 'string' ? req.query.view.trim() : '';
+    const view = ['archived', 'trash'].includes(viewRaw) ? viewRaw : 'active';
+
     /* Count drafts for the tab badge */
     let draftsCount = 0;
+    let archivedCount = 0;
+    let trashCount = 0;
 
     if (!dbConnected) {
       return res.render('admin/orders', {
@@ -2138,12 +2156,17 @@ async function getAdminOrdersPage(req, res, next) {
         dbConnected,
         orders: [],
         draftsCount: 0,
+        archivedCount: 0,
+        trashCount: 0,
+        view,
         filters: { q, status, type, period, source: sourceFilter, orderType: orderTypeFilter, cloningStatus: cloningStatusFilter, returnFilter },
         pagination: { page: 1, perPage, totalItems: 0, totalPages: 1, from: 0, to: 0, hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1 },
       });
     }
 
-    draftsCount = await Order.countDocuments({ status: 'draft' });
+    draftsCount = await Order.countDocuments({ status: 'draft', archived: { $ne: true }, deletedAt: null });
+    archivedCount = await Order.countDocuments({ archived: true, deletedAt: null });
+    trashCount = await Order.countDocuments({ deletedAt: { $ne: null } });
 
     // Compute alerts for the banner
     let orderAlerts = { overdueReturns: 0, failedClonings: 0, pieceWaiting: 0, cloningLong: 0, readyToShip: 0 };
@@ -2152,6 +2175,17 @@ async function getAdminOrdersPage(req, res, next) {
     } catch (_) { /* ignore */ }
 
     const query = {};
+
+    /* ── Filtre archive/corbeille selon la vue ── */
+    if (view === 'trash') {
+      query.deletedAt = { $ne: null };
+    } else if (view === 'archived') {
+      query.archived = true;
+      query.deletedAt = null;
+    } else {
+      query.archived = { $ne: true };
+      query.deletedAt = null;
+    }
 
     const allowedStatus = new Set(getOrderStatusOptionsWithDraft().map((o) => o.key));
     if (status === 'draft') {
@@ -2300,6 +2334,13 @@ async function getAdminOrdersPage(req, res, next) {
         id: String(o._id),
         number: o.number,
         date: formatDateTimeFR(o.createdAt),
+        archived: !!o.archived,
+        archivedAt: o.archivedAt ? formatDateTimeFR(o.archivedAt) : '',
+        archivedBy: o.archivedBy || '',
+        deletedAt: o.deletedAt ? formatDateTimeFR(o.deletedAt) : '',
+        deletedAtRaw: o.deletedAt || null,
+        deletedBy: o.deletedBy || '',
+        deleteReason: o.deleteReason || '',
         customer,
         customerEmail: u && u.email ? u.email : '',
         accountType: o.accountType,
@@ -2376,6 +2417,9 @@ async function getAdminOrdersPage(req, res, next) {
       dbConnected,
       orders: viewOrders,
       draftsCount,
+      archivedCount,
+      trashCount,
+      view,
       orderAlerts,
       filters: { q, status, type, period, source: sourceFilter, orderType: orderTypeFilter, cloningStatus: cloningStatusFilter, returnFilter, sort: activeSortField, order: activeSortDir === 1 ? 'asc' : 'desc', limit: perPage },
       pagination,
@@ -2661,6 +2705,13 @@ async function getAdminOrderDetailPage(req, res, next) {
         id: String(orderDoc._id),
         number: orderDoc.number,
         dateTime: formatDateTimeFR(orderDoc.createdAt),
+        archived: !!orderDoc.archived,
+        archivedAt: orderDoc.archivedAt ? formatDateTimeFR(orderDoc.archivedAt) : '',
+        archivedBy: orderDoc.archivedBy || '',
+        deletedAt: orderDoc.deletedAt ? formatDateTimeFR(orderDoc.deletedAt) : '',
+        deletedAtRaw: orderDoc.deletedAt || null,
+        deletedBy: orderDoc.deletedBy || '',
+        deleteReason: orderDoc.deleteReason || '',
         statusKey: orderDoc.status,
         statusBadge: getOrderStatusBadge(orderDoc.status),
         orderType: orderDoc.orderType || 'standard',
@@ -3613,23 +3664,116 @@ async function postAdminDeleteOrderDocument(req, res, next) {
   }
 }
 
+function getAdminActorLabel(req) {
+  if (req && req.session && req.session.admin && typeof req.session.admin.email === 'string' && req.session.admin.email) {
+    return String(req.session.admin.email);
+  }
+  const id = getAdminUserIdFromRequest(req);
+  return id ? String(id) : 'admin';
+}
+
+/**
+ * Retourne l'URL de redirection après une action sur une commande.
+ * Priorité : body.returnTo → header Referer → fallback.
+ * N'autorise que les URL commençant par /admin pour éviter les open redirects.
+ */
+function getOrderActionReturnTo(req, fallback = '/admin/commandes') {
+  const fromBody = getSafeAdminReturnTo(req.body && req.body.returnTo, '');
+  if (fromBody) return fromBody;
+  const ref = req && typeof req.get === 'function' ? req.get('Referer') || '' : '';
+  if (ref) {
+    try {
+      const u = new URL(ref);
+      const path = u.pathname + (u.search || '');
+      const safe = getSafeAdminReturnTo(path, '');
+      if (safe) return safe;
+    } catch (_) { /* ignore */ }
+  }
+  return fallback;
+}
+
+/**
+ * Soft-delete : envoie la commande à la corbeille.
+ * Réversible via postAdminRestoreOrder pendant 30 jours,
+ * purgée automatiquement par le cron purgeTrashedOrders.
+ */
 async function postAdminDeleteOrder(req, res, next) {
   try {
     const { orderId } = req.params;
+    const returnTo = getOrderActionReturnTo(req, '/admin/commandes');
+
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return res.redirect('/admin/commandes');
+      return res.redirect(returnTo);
     }
 
-    const order = await Order.findById(orderId).select('documents number').lean();
+    const order = await Order.findById(orderId).select('number deletedAt').lean();
     if (!order) {
       req.session.adminOrderError = 'Commande introuvable.';
-      return res.redirect('/admin/commandes');
+      return res.redirect(returnTo);
     }
 
-    // Delete associated document files from disk
+    if (order.deletedAt) {
+      req.session.adminOrderError = 'Commande déjà dans la corbeille.';
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, message: 'Commande déjà dans la corbeille.' });
+      return res.redirect(returnTo);
+    }
+
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        deletedAt: new Date(),
+        deletedBy: getAdminActorLabel(req),
+        deleteReason: typeof req.body.reason === 'string' ? req.body.reason.trim().slice(0, 500) : '',
+        // Une commande dans la corbeille ne peut plus être "archivée" en parallèle
+        archived: false,
+        archivedAt: null,
+      },
+    });
+
+    req.session.adminOrderSuccess = `Commande ${order.number || ''} envoyée à la corbeille (purge automatique dans 30 jours).`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Commande envoyée à la corbeille.' });
+    return res.redirect(returnTo);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Hard-delete : suppression définitive en BDD, IRRÉVERSIBLE.
+ * N'est autorisée que sur les commandes déjà dans la corbeille (deletedAt set).
+ */
+async function postAdminHardDeleteOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
+    // Fallback corbeille : la page détail n'existera plus après la suppression.
+    const requestedReturnTo = getOrderActionReturnTo(req, '/admin/commandes?view=trash');
+    // Si le referer pointe vers le détail de la commande qu'on vient de supprimer,
+    // on retourne à la corbeille (page inaccessible).
+    const returnTo = requestedReturnTo.includes(`/admin/commandes/${orderId}`)
+      ? '/admin/commandes?view=trash'
+      : requestedReturnTo;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.redirect(returnTo);
+    }
+
+    const order = await Order.findById(orderId).select('documents number deletedAt').lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect(returnTo);
+    }
+
+    if (!order.deletedAt) {
+      req.session.adminOrderError = 'La commande doit être envoyée à la corbeille avant suppression définitive.';
+      if (wantsJsonResponse(req)) {
+        return res.status(400).json({ ok: false, message: 'Envoyez la commande à la corbeille avant suppression définitive.' });
+      }
+      return res.redirect(requestedReturnTo);
+    }
+
+    // Nettoyage des fichiers documents attachés sur le disque
     if (Array.isArray(order.documents)) {
       for (const doc of order.documents) {
-        if (doc.storedPath && fs.existsSync(doc.storedPath)) {
+        if (doc && doc.storedPath && fs.existsSync(doc.storedPath)) {
           try {
             fs.unlinkSync(doc.storedPath);
           } catch (unlinkErr) {
@@ -3641,9 +3785,137 @@ async function postAdminDeleteOrder(req, res, next) {
 
     await Order.findByIdAndDelete(orderId);
 
-    req.session.adminOrderSuccess = `Commande ${order.number || ''} supprimée.`;
-    if (wantsJsonResponse(req)) return res.json({ ok: true, message: `Commande supprimée.` });
-    return res.redirect('/admin/commandes');
+    console.log(`[admin] Hard delete commande ${order.number || orderId} par ${getAdminActorLabel(req)}`);
+
+    req.session.adminOrderSuccess = `Commande ${order.number || ''} supprimée définitivement.`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Commande supprimée définitivement.' });
+    return res.redirect(returnTo);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Restaure une commande depuis la corbeille.
+ */
+async function postAdminRestoreOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
+    const returnTo = getOrderActionReturnTo(req, '/admin/commandes?view=trash');
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.redirect(returnTo);
+    }
+
+    const order = await Order.findById(orderId).select('number deletedAt').lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect(returnTo);
+    }
+
+    if (!order.deletedAt) {
+      req.session.adminOrderError = 'Cette commande n\'est pas dans la corbeille.';
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, message: 'Commande non supprimée.' });
+      return res.redirect(returnTo);
+    }
+
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        deletedAt: null,
+        deletedBy: '',
+        deleteReason: '',
+      },
+    });
+
+    req.session.adminOrderSuccess = `Commande ${order.number || ''} restaurée.`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Commande restaurée.' });
+    return res.redirect(returnTo);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Archive une commande : la masque de la liste principale et l'exclut des statistiques.
+ */
+async function postAdminArchiveOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
+    const returnTo = getOrderActionReturnTo(req, '/admin/commandes');
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.redirect(returnTo);
+    }
+
+    const order = await Order.findById(orderId).select('number archived deletedAt').lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect(returnTo);
+    }
+
+    if (order.deletedAt) {
+      req.session.adminOrderError = 'Impossible d\'archiver une commande qui est dans la corbeille.';
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, message: 'Commande dans la corbeille.' });
+      return res.redirect(returnTo);
+    }
+
+    if (order.archived) {
+      req.session.adminOrderError = 'Commande déjà archivée.';
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, message: 'Commande déjà archivée.' });
+      return res.redirect(returnTo);
+    }
+
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        archived: true,
+        archivedAt: new Date(),
+        archivedBy: getAdminActorLabel(req),
+      },
+    });
+
+    req.session.adminOrderSuccess = `Commande ${order.number || ''} archivée.`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Commande archivée.' });
+    return res.redirect(returnTo);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Désarchive une commande.
+ */
+async function postAdminUnarchiveOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
+    const returnTo = getOrderActionReturnTo(req, '/admin/commandes?view=archived');
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.redirect(returnTo);
+    }
+
+    const order = await Order.findById(orderId).select('number archived').lean();
+    if (!order) {
+      req.session.adminOrderError = 'Commande introuvable.';
+      return res.redirect(returnTo);
+    }
+
+    if (!order.archived) {
+      req.session.adminOrderError = 'Cette commande n\'est pas archivée.';
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, message: 'Commande non archivée.' });
+      return res.redirect(returnTo);
+    }
+
+    await Order.findByIdAndUpdate(orderId, {
+      $set: {
+        archived: false,
+        archivedAt: null,
+        archivedBy: '',
+      },
+    });
+
+    req.session.adminOrderSuccess = `Commande ${order.number || ''} désarchivée.`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: 'Commande désarchivée.' });
+    return res.redirect(returnTo);
   } catch (err) {
     return next(err);
   }
@@ -7014,7 +7286,7 @@ async function getAdminClientsPage(req, res, next) {
     if (clientUserOids.length) {
       try {
         const overdueAgg = await Order.aggregate([
-          { $match: { userId: { $in: clientUserOids }, orderType: 'exchange', returnStatus: 'overdue', status: { $nin: ['cancelled', 'refunded', 'draft'] } } },
+          { $match: { userId: { $in: clientUserOids }, orderType: 'exchange', returnStatus: 'overdue', status: { $nin: ['cancelled', 'refunded', 'draft'] }, archived: { $ne: true }, deletedAt: null } },
           { $group: { _id: '$userId', count: { $sum: 1 }, oldestDue: { $min: '$returnDates.returnDueDate' } } },
         ]);
         for (const r of overdueAgg) {
@@ -7113,7 +7385,7 @@ async function getAdminClientDetailPage(req, res, next) {
       });
     }
 
-    const baseOrderQuery = { userId: user._id };
+    const baseOrderQuery = { userId: user._id, archived: { $ne: true }, deletedAt: null };
     const ordersCountAll = await Order.countDocuments(baseOrderQuery);
 
     const filteredOrderQuery = { ...baseOrderQuery };
@@ -8643,7 +8915,7 @@ async function computeOrderAlerts() {
   const twoDaysAgo = new Date(now);
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
-  const activeFilter = { status: { $nin: ['cancelled', 'refunded', 'draft'] } };
+  const activeFilter = { status: { $nin: ['cancelled', 'refunded', 'draft'] }, archived: { $ne: true }, deletedAt: null };
 
   const [overdueReturns, failedClonings, pieceWaiting, cloningLong, readyToShip] = await Promise.all([
     // Retours en retard (exchange uniquement, PAS exchange_cloning)
@@ -8655,14 +8927,14 @@ async function computeOrderAlerts() {
     // Clonage en cours > 5 jours
     Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'cloning_in_progress', 'cloningDates.cloningStartedAt': { $lt: fiveDaysAgo }, ...activeFilter }),
     // Prêtes à expédier (clonage terminé, pas encore shipped)
-    Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'cloning_done', status: { $nin: ['shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'draft'] } }),
+    Order.countDocuments({ orderType: 'exchange_cloning', cloningStatus: 'cloning_done', status: { $nin: ['shipped', 'delivered', 'completed', 'cancelled', 'refunded', 'draft'] }, archived: { $ne: true }, deletedAt: null }),
   ]);
 
   return { overdueReturns, failedClonings, pieceWaiting, cloningLong, readyToShip };
 }
 
 async function computePipelineCounts() {
-  const activeFilter = { orderType: 'exchange_cloning', status: { $nin: ['cancelled', 'refunded', 'draft'] } };
+  const activeFilter = { orderType: 'exchange_cloning', status: { $nin: ['cancelled', 'refunded', 'draft'] }, archived: { $ne: true }, deletedAt: null };
 
   const [pendingLabel, labelSent, pieceInTransit, pieceReceived, cloningInProgress, cloningDone, cloningFailed] = await Promise.all([
     Order.countDocuments({ ...activeFilter, cloningStatus: 'pending_label' }),
@@ -9206,6 +9478,10 @@ module.exports = {
   postAdminDeleteOrderDocument,
   postAdminDeleteOrderShipment,
   postAdminDeleteOrder,
+  postAdminHardDeleteOrder,
+  postAdminRestoreOrder,
+  postAdminArchiveOrder,
+  postAdminUnarchiveOrder,
   postAdminCreateReturnFromOrder,
   postAdminRecaptureScalapayOrder,
   getAdminCatalogPage,

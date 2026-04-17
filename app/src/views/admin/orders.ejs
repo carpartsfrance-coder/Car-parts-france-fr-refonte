@@ -143,12 +143,18 @@
       </div>
     <% } %>
 
-    <!-- Drafts tab -->
-    <% const isDraftView = filters && filters.status === 'draft'; %>
+    <!-- Vue tabs : Actives / Brouillons / Archivées / Corbeille -->
+    <% const _view = typeof view !== 'undefined' ? view : 'active'; %>
+    <% const isDraftView = filters && filters.status === 'draft' && _view === 'active'; %>
+    <% const isArchivedView = _view === 'archived'; %>
+    <% const isTrashView = _view === 'trash'; %>
+    <% const isActiveView = _view === 'active' && !isDraftView; %>
     <% const _draftsCount = typeof draftsCount !== 'undefined' ? draftsCount : 0; %>
-    <div class="mt-6 flex items-center gap-3">
-      <a href="/admin/commandes" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors <%= !isDraftView ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
-        Toutes les commandes
+    <% const _archivedCount = typeof archivedCount !== 'undefined' ? archivedCount : 0; %>
+    <% const _trashCount = typeof trashCount !== 'undefined' ? trashCount : 0; %>
+    <div class="mt-6 flex items-center gap-3 flex-wrap">
+      <a href="/admin/commandes" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors <%= isActiveView ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
+        Commandes actives
       </a>
       <a href="/admin/commandes?status=draft" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 <%= isDraftView ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
         Brouillons
@@ -156,7 +162,43 @@
           <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold <%= isDraftView ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700' %>"><%= _draftsCount %></span>
         <% } %>
       </a>
+      <a href="/admin/commandes?view=archived" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 <%= isArchivedView ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
+        <span class="material-symbols-outlined text-base">inventory_2</span>
+        Archivées
+        <% if (_archivedCount > 0) { %>
+          <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold <%= isArchivedView ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700' %>"><%= _archivedCount %></span>
+        <% } %>
+      </a>
+      <a href="/admin/commandes?view=trash" class="px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 <%= isTrashView ? 'bg-red-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50' %>">
+        <span class="material-symbols-outlined text-base">delete</span>
+        Corbeille
+        <% if (_trashCount > 0) { %>
+          <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold <%= isTrashView ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700' %>"><%= _trashCount %></span>
+        <% } %>
+      </a>
     </div>
+
+    <% if (isTrashView) { %>
+      <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-outlined">schedule</span>
+          <div>
+            <div class="font-bold">Corbeille — purge automatique à J+30</div>
+            <div class="mt-1">Les commandes non payées y séjournent 30 jours avant suppression définitive automatique. Les commandes payées ne sont <strong>jamais purgées automatiquement</strong> (obligation comptable).</div>
+          </div>
+        </div>
+      </div>
+    <% } else if (isArchivedView) { %>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-outlined">info</span>
+          <div>
+            <div class="font-bold">Commandes archivées</div>
+            <div class="mt-1">Ces commandes sont masquées de la liste principale et <strong>exclues des statistiques</strong> (CA, nombre de commandes). Réversible à tout moment.</div>
+          </div>
+        </div>
+      </div>
+    <% } %>
 
     <div class="mt-4 bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between">
@@ -409,12 +451,71 @@
                     <% } %>
                   </td>
                   <td class="px-6 py-4 text-right">
-                    <div class="flex items-center justify-end gap-1">
-                      <% if (o.lastShippingLabelUrl) { %>
+                    <div class="flex items-center justify-end gap-1 flex-wrap">
+                      <% if (!isTrashView && o.lastShippingLabelUrl) { %>
                         <button type="button" class="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 transition" title="Imprimer l'étiquette" onclick="(function(){ var w = window.open('<%= o.lastShippingLabelUrl %>', '_blank', 'width=800,height=600'); if(w){ w.addEventListener('load', function(){ setTimeout(function(){ w.print(); }, 500); }); } })()">
                           <span class="material-symbols-outlined text-lg text-slate-500">print</span>
                         </button>
                       <% } %>
+
+                      <%
+                        // URL courante pour revenir au même endroit après l'action
+                        var _currentUrl = '/admin/commandes';
+                        var _qp = [];
+                        if (_view === 'archived') _qp.push('view=archived');
+                        else if (_view === 'trash') _qp.push('view=trash');
+                        if (filters.q) _qp.push('q=' + encodeURIComponent(filters.q));
+                        if (filters.status) _qp.push('status=' + encodeURIComponent(filters.status));
+                        if (filters.type) _qp.push('type=' + encodeURIComponent(filters.type));
+                        if (filters.orderType) _qp.push('orderType=' + encodeURIComponent(filters.orderType));
+                        if (filters.cloningStatus) _qp.push('cloningStatus=' + encodeURIComponent(filters.cloningStatus));
+                        if (filters.returnFilter) _qp.push('returnFilter=' + encodeURIComponent(filters.returnFilter));
+                        if (filters.source) _qp.push('source=' + encodeURIComponent(filters.source));
+                        if (filters.period) _qp.push('period=' + encodeURIComponent(filters.period));
+                        if (filters.sort) _qp.push('sort=' + encodeURIComponent(filters.sort));
+                        if (filters.order) _qp.push('order=' + encodeURIComponent(filters.order));
+                        if (filters.limit && filters.limit !== 20) _qp.push('limit=' + encodeURIComponent(filters.limit));
+                        if (typeof pagination !== 'undefined' && pagination && pagination.page && pagination.page > 1) _qp.push('page=' + encodeURIComponent(pagination.page));
+                        if (_qp.length) _currentUrl += '?' + _qp.join('&');
+                      %>
+                      <% if (o.id && isTrashView) { %>
+                        <form action="/admin/commandes/<%= o.id %>/restaurer" method="POST" class="inline">
+                          <input type="hidden" name="returnTo" value="<%= _currentUrl %>" />
+                          <button type="submit" class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-100 transition" title="Restaurer la commande">
+                            <span class="material-symbols-outlined text-base">restore</span>
+                            Restaurer
+                          </button>
+                        </form>
+                        <form action="/admin/commandes/<%= o.id %>/supprimer-definitivement" method="POST" class="inline" onsubmit="return confirm('Supprimer définitivement la commande <%= o.number %> ? Cette action est irréversible.')">
+                          <input type="hidden" name="returnTo" value="<%= _currentUrl %>" />
+                          <button type="submit" class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition" title="Supprimer définitivement">
+                            <span class="material-symbols-outlined text-base">delete_forever</span>
+                            Supprimer
+                          </button>
+                        </form>
+                      <% } else if (o.id && isArchivedView) { %>
+                        <form action="/admin/commandes/<%= o.id %>/desarchiver" method="POST" class="inline">
+                          <input type="hidden" name="returnTo" value="<%= _currentUrl %>" />
+                          <button type="submit" class="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-100 transition" title="Désarchiver">
+                            <span class="material-symbols-outlined text-base">unarchive</span>
+                            Désarchiver
+                          </button>
+                        </form>
+                      <% } else if (o.id) { %>
+                        <form action="/admin/commandes/<%= o.id %>/archiver" method="POST" class="inline">
+                          <input type="hidden" name="returnTo" value="<%= _currentUrl %>" />
+                          <button type="submit" class="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 transition" title="Archiver la commande">
+                            <span class="material-symbols-outlined text-lg text-slate-500">inventory_2</span>
+                          </button>
+                        </form>
+                        <form action="/admin/commandes/<%= o.id %>/supprimer" method="POST" class="inline" onsubmit="return confirm('Envoyer la commande <%= o.number %> à la corbeille ?')">
+                          <input type="hidden" name="returnTo" value="<%= _currentUrl %>" />
+                          <button type="submit" class="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-red-50 transition" title="Mettre à la corbeille">
+                            <span class="material-symbols-outlined text-lg text-red-500">delete</span>
+                          </button>
+                        </form>
+                      <% } %>
+
                       <% if (o.id) { %>
                         <a class="btn btn-ghost" href="/admin/commandes/<%= o.id %>">
                           <span class="material-symbols-outlined mr-2 text-base">visibility</span>
