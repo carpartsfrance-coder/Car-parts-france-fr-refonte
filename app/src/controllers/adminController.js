@@ -1921,14 +1921,20 @@ async function getAdminDashboard(req, res, next) {
     const excludeCancelled = { status: { $nin: ['cancelled', 'draft', 'refunded'] }, archived: { $ne: true }, deletedAt: null };
 
     /*
-     * Filtre "CA encaissé" : ne compte QUE les commandes dont le paiement est confirmé
-     * (Mollie/Scalapay OK ou marquée payée manuellement), jusqu'aux statuts post-paiement.
-     * Exclut volontairement pending_payment (checkout validé mais paiement non abouti).
+     * Filtre "CA encaissé" : ne compte QUE les commandes dont le paiement est confirmé.
+     * Robuste aux données legacy : accepte soit un status post-paiement, soit un
+     * paymentStatus confirmé (Mollie/Scalapay "paid"/"captured"/"completed").
+     * Exclut explicitement les statuts non payés ou annulés pour couvrir les statuts
+     * legacy éventuels ("pending", "canceled", "pending_payment"…).
      */
     const paidOnly = {
-      status: { $in: ['paid', 'processing', 'shipped', 'delivered', 'completed'] },
       archived: { $ne: true },
       deletedAt: null,
+      status: { $nin: ['draft', 'pending_payment', 'pending', 'cancelled', 'canceled', 'refunded'] },
+      $or: [
+        { paymentStatus: { $in: ['paid', 'captured', 'completed'] } },
+        { status: { $in: ['paid', 'processing', 'shipped', 'delivered', 'completed'] } },
+      ],
     };
 
     /* ── KPIs financiers (owner uniquement) ── */
