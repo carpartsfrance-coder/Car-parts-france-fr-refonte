@@ -1,16 +1,14 @@
 /*
  * SAV — Génération du rapport d'analyse PDF
- * Sortie : /uploads/sav-reports/{numero}.pdf
- * Retourne l'URL publique relative.
+ * Stocké en MongoDB (GridFS) via savFileStorage. Retourne l'URL `/sav-files/<id>`.
  */
 
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 
 const PDFDocument = require('pdfkit');
+const savFileStorage = require('./savFileStorage');
 let QRCode = null;
 try { QRCode = require('qrcode'); } catch (_) { /* optionnel */ }
 
@@ -26,18 +24,12 @@ async function buildQrDataUrl(text) {
   catch (_) { return null; }
 }
 
-const REPORTS_DIR = path.join(__dirname, '..', '..', '..', 'uploads', 'sav-reports');
-
 const CONCLUSION_LABELS = {
   defaut_produit: 'DÉFAUT PRODUIT — pris en charge sous garantie',
   mauvais_montage: 'MAUVAIS MONTAGE — facturation 149€',
   usure_normale: 'USURE NORMALE — facturation 149€',
   non_defectueux: 'NON DÉFECTUEUX — facturation 149€',
 };
-
-function ensureDir() {
-  try { if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true }); } catch (_) {}
-}
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -126,15 +118,18 @@ function getTemplateSummary(template) {
 
 async function generateAnalysisReport(ticket, options = {}) {
   if (!ticket || !ticket.numero) throw new Error('Ticket invalide');
-  ensureDir();
   const template = TEMPLATES[options.template] ? options.template : 'client';
   const tpl = TEMPLATES[template];
   const fileName = template === 'client' ? `${ticket.numero}.pdf` : `${ticket.numero}-${template}.pdf`;
-  const fullPath = path.join(REPORTS_DIR, fileName);
 
   const doc = new PDFDocument({ size: 'A4', margin: 48 });
-  const stream = fs.createWriteStream(fullPath);
-  doc.pipe(stream);
+  // Bufferise le PDF en mémoire puis l'envoie en GridFS (pas de fichier disque)
+  const chunks = [];
+  const bufferPromise = new Promise((resolve, reject) => {
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
 
   // ----- Header -----
   doc.fillColor('#ec1313').fontSize(20).font('Helvetica-Bold').text('CarParts France');
@@ -315,12 +310,32 @@ async function generateAnalysisReport(ticket, options = {}) {
 
   doc.end();
 
-  await new Promise((resolve, reject) => {
-    stream.on('finish', resolve);
-    stream.on('error', reject);
-  });
+  const buffer = await bufferPromise;
 
-  return `/uploads/sav-reports/${fileName}`;
+  // Supprime l'ancienne version (même ticket + même template) pour éviter les doublons
+  try {
+    const existing = await savFileStorage.findByMetadata({
+      'metadata.ticketNumero': ticket.numero,
+      'metadata.kind': 'rapport_pdf',
+      'metadata.template': template,
+    });
+    for (const f of existing || []) {
+      try { await savFileStorage.deleteFile(f._id); } catch (_) {}
+    }
+  } catch (_) {}
+
+  const stored = await savFileStorage.saveBuffer({
+    buffer,
+    filename: fileName,
+    mime: 'application/pdf',
+    metadata: {
+      ticketNumero: ticket.numero,
+      kind: 'rapport_pdf',
+      template,
+      uploadedBy: 'system',
+    },
+  });
+  return stored.url;
 }
 
 module.exports = { generateAnalysisReport, getTemplateSummary, TEMPLATES, reportSignature };

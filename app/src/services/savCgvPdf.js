@@ -3,20 +3,13 @@
  * - Reproduit le texte des CGV SAV (ou un résumé)
  * - Encart "Signature électronique" avec : numéro ticket, client, version CGV,
  *   horodatage UTC, IP, user-agent, hash SHA-256 des métadonnées
- * - Sortie : /uploads/sav-cgv/{numero}.pdf + helper getCgvAcceptanceBuffer
- *   pour pièce jointe email.
+ * - Sortie : stocké en MongoDB (GridFS) via savFileStorage, URL `/sav-files/<id>`.
+ *   Helper getCgvAcceptanceBuffer pour pièce jointe email.
  */
 
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
-
-const UPLOAD_DIR = path.join(__dirname, '..', '..', '..', 'uploads', 'sav-cgv');
-
-function ensureDir() {
-  try { if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (_) {}
-}
+const savFileStorage = require('./savFileStorage');
 
 function metaHash(ticket) {
   const cgv = (ticket && ticket.cgvAcceptance) || {};
@@ -124,20 +117,44 @@ function buildPdfBuffer(ticket) {
 }
 
 async function generateCgvAcceptance(ticket) {
-  ensureDir();
   const buf = await buildPdfBuffer(ticket);
   const filename = `${ticket.numero || 'SAV-NOUMERO'}.pdf`;
-  const fullPath = path.join(UPLOAD_DIR, filename);
-  fs.writeFileSync(fullPath, buf);
-  return `/uploads/sav-cgv/${filename}`;
+
+  // Si un PDF existe déjà pour ce ticket, on le supprime pour éviter les doublons
+  try {
+    const existing = await savFileStorage.findByMetadata({
+      'metadata.ticketNumero': ticket.numero,
+      'metadata.kind': 'cgv_pdf',
+    });
+    for (const f of existing || []) {
+      try { await savFileStorage.deleteFile(f._id); } catch (_) {}
+    }
+  } catch (_) {}
+
+  const stored = await savFileStorage.saveBuffer({
+    buffer: buf,
+    filename,
+    mime: 'application/pdf',
+    metadata: {
+      ticketNumero: ticket.numero,
+      kind: 'cgv_pdf',
+      uploadedBy: 'system',
+    },
+  });
+  return stored.url;
 }
 
 async function getCgvAcceptanceBuffer(ticket) {
-  // Si déjà généré sur disque, le relit, sinon le génère.
-  ensureDir();
-  const filename = `${ticket.numero || 'SAV-NOUMERO'}.pdf`;
-  const fullPath = path.join(UPLOAD_DIR, filename);
-  if (fs.existsSync(fullPath)) return fs.readFileSync(fullPath);
+  // Cherche d'abord en GridFS (PDF déjà généré), sinon génère à la volée.
+  try {
+    const existing = await savFileStorage.findByMetadata({
+      'metadata.ticketNumero': ticket.numero,
+      'metadata.kind': 'cgv_pdf',
+    });
+    if (existing && existing[0]) {
+      return await savFileStorage.readBuffer(existing[0]._id);
+    }
+  } catch (_) {}
   return buildPdfBuffer(ticket);
 }
 

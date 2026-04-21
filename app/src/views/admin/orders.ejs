@@ -223,6 +223,14 @@
       <% } %>
 
       <% if (orders && orders.length) { %>
+        <form id="bulkOrdersForm" action="/admin/commandes/supprimer-multi" method="POST" data-ajax="true">
+        <div class="px-6 py-3 bg-white border-b border-slate-100 flex flex-wrap items-center gap-3">
+          <button id="bulkDeleteOrdersBtn" class="btn btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200 disabled:opacity-50" type="submit" disabled>
+            <span class="material-symbols-outlined mr-2 text-base">delete</span>
+            Supprimer la sélection
+          </button>
+          <div id="selectedOrdersCount" class="text-xs font-bold text-slate-500">0 sélectionné</div>
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left admin-table">
             <%
@@ -249,6 +257,9 @@
             %>
             <thead>
               <tr class="text-xs font-semibold text-slate-400 uppercase tracking-widest bg-white">
+                <th class="px-6 py-4 w-10">
+                  <input id="selectAllOrders" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+                </th>
                 <th class="px-6 py-4">Commande</th>
                 <th class="px-6 py-4 th-sortable <%= oSort === 'date' ? 'sort-active' : '' %>">
                   <a href="<%= oSortUrl('date') %>" style="color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:2px;">
@@ -279,7 +290,10 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               <% orders.forEach((o) => { %>
-                <tr class="<%= o.statusBadge && o.statusBadge.label === 'Brouillon' ? 'bg-slate-50/70' : '' %>">
+                <tr data-row-id="<%= o.id %>" class="<%= o.statusBadge && o.statusBadge.label === 'Brouillon' ? 'bg-slate-50/70' : '' %>">
+                  <td class="px-6 py-4">
+                    <input class="rowSelectOrder h-4 w-4 rounded border-slate-300" type="checkbox" name="orderIds" value="<%= o.id %>" />
+                  </td>
                   <td class="px-6 py-4 font-semibold text-slate-900">
                     <div class="flex items-center gap-1.5">
                       <%= o.number %>
@@ -420,6 +434,11 @@
                           <span class="material-symbols-outlined mr-2 text-base">visibility</span>
                           Détails
                         </a>
+                        <form data-ajax="true" data-confirm="Supprimer définitivement la commande <%= o.number %> ? Cette action est irréversible." action="/admin/commandes/<%= o.id %>/supprimer" method="POST" class="inline">
+                          <button class="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-red-50 transition" type="submit" title="Supprimer la commande">
+                            <span class="material-symbols-outlined text-lg text-red-500">delete</span>
+                          </button>
+                        </form>
                       <% } %>
                     </div>
                   </td>
@@ -434,6 +453,7 @@
             <%- include('./partials/pagination', { pb: ordersPb }) %>
           </div>
         <% } %>
+        </form>
       <% } else if (!dbConnected) { %>
         <div class="px-6 py-4 space-y-3">
           <% for (let i = 0; i < 5; i++) { %>
@@ -486,6 +506,40 @@
       }
       otSelect.addEventListener('change', toggleCloningFilter);
     }
+
+    // Bulk select for orders
+    var selectAllOrders = document.getElementById('selectAllOrders');
+    var bulkDeleteOrdersBtn = document.getElementById('bulkDeleteOrdersBtn');
+    var selectedOrdersCount = document.getElementById('selectedOrdersCount');
+    var orderCheckboxes = Array.prototype.slice.call(document.querySelectorAll('.rowSelectOrder'));
+
+    if (bulkDeleteOrdersBtn) {
+      bulkDeleteOrdersBtn.setAttribute('data-confirm', 'Supprimer définitivement les commandes sélectionnées ? Cette action est irréversible.');
+    }
+
+    function updateOrdersSelectionState() {
+      var count = orderCheckboxes.filter(function (c) { return c && c.checked; }).length;
+      if (selectedOrdersCount) selectedOrdersCount.textContent = count + ' sélectionné' + (count > 1 ? 's' : '');
+      if (bulkDeleteOrdersBtn) bulkDeleteOrdersBtn.disabled = count === 0;
+      if (selectAllOrders) {
+        selectAllOrders.checked = count > 0 && count === orderCheckboxes.length;
+        selectAllOrders.indeterminate = count > 0 && count < orderCheckboxes.length;
+      }
+    }
+
+    if (selectAllOrders) {
+      selectAllOrders.addEventListener('change', function () {
+        var isChecked = !!selectAllOrders.checked;
+        orderCheckboxes.forEach(function (c) { c.checked = isChecked; });
+        updateOrdersSelectionState();
+      });
+    }
+
+    orderCheckboxes.forEach(function (c) {
+      c.addEventListener('change', updateOrdersSelectionState);
+    });
+
+    updateOrdersSelectionState();
   })();
 </script>
 

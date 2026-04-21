@@ -3620,7 +3620,59 @@ async function postAdminDeleteOrder(req, res, next) {
     await Order.findByIdAndDelete(orderId);
 
     req.session.adminOrderSuccess = `Commande ${order.number || ''} supprimée.`;
-    if (wantsJsonResponse(req)) return res.json({ ok: true, message: `Commande supprimée.` });
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: `Commande supprimée.`, data: { deletedIds: [String(orderId)] } });
+    return res.redirect('/admin/commandes');
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function postAdminBulkDeleteOrders(req, res, next) {
+  try {
+    const rawIds = req.body && req.body.orderIds;
+    const ids = Array.isArray(rawIds) ? rawIds : (rawIds ? [rawIds] : []);
+    const uniqueIds = Array.from(new Set(ids.map((v) => String(v).trim()).filter(Boolean)));
+
+    if (!uniqueIds.length) {
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, error: 'Aucune commande sélectionnée.' });
+      req.session.adminOrderError = 'Aucune commande sélectionnée.';
+      return res.redirect('/admin/commandes');
+    }
+
+    const validIds = uniqueIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (!validIds.length) {
+      if (wantsJsonResponse(req)) return res.status(400).json({ ok: false, error: 'Sélection invalide.' });
+      req.session.adminOrderError = 'Sélection invalide.';
+      return res.redirect('/admin/commandes');
+    }
+
+    const orders = await Order.find({ _id: { $in: validIds } }).select('_id documents').lean();
+
+    if (!orders.length) {
+      if (wantsJsonResponse(req)) return res.status(404).json({ ok: false, error: 'Aucune commande trouvée.' });
+      req.session.adminOrderError = 'Aucune commande trouvée.';
+      return res.redirect('/admin/commandes');
+    }
+
+    for (const order of orders) {
+      if (!Array.isArray(order.documents)) continue;
+      for (const doc of order.documents) {
+        if (doc && doc.storedPath && fs.existsSync(doc.storedPath)) {
+          try {
+            fs.unlinkSync(doc.storedPath);
+          } catch (unlinkErr) {
+            console.warn('Failed to delete order document file:', unlinkErr && unlinkErr.message ? unlinkErr.message : unlinkErr);
+          }
+        }
+      }
+    }
+
+    const deletedIds = orders.map((o) => String(o._id));
+    const result = await Order.deleteMany({ _id: { $in: deletedIds } });
+    const deletedCount = Number.isFinite(result && result.deletedCount) ? result.deletedCount : 0;
+
+    req.session.adminOrderSuccess = `${deletedCount} commande(s) supprimée(s).`;
+    if (wantsJsonResponse(req)) return res.json({ ok: true, message: `${deletedCount} commande(s) supprimée(s).`, data: { deletedIds, deletedCount } });
     return res.redirect('/admin/commandes');
   } catch (err) {
     return next(err);
@@ -9132,6 +9184,7 @@ module.exports = {
   postAdminDeleteOrderDocument,
   postAdminDeleteOrderShipment,
   postAdminDeleteOrder,
+  postAdminBulkDeleteOrders,
   postAdminCreateReturnFromOrder,
   getAdminCatalogPage,
   getAdminCategoriesPage,

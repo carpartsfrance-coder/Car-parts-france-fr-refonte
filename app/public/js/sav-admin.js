@@ -286,41 +286,59 @@
         });
       });
 
-      // Chart.js
-      if (window.Chart && d.chart) {
+      // Chart.js — attend que la lib soit chargée si elle ne l'est pas encore
+      if (d.chart) {
         var ctx = document.getElementById('sav-chart');
         if (ctx) {
-          new window.Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: d.chart.labels,
-              datasets: [
-                {
-                  label: 'Ouverts',
-                  data: d.chart.ouverts,
-                  borderColor: '#0ea5e9',
-                  backgroundColor: 'rgba(14,165,233,0.10)',
-                  tension: 0.3,
-                  fill: true,
+          var renderChart = function () {
+            try {
+              new window.Chart(ctx, {
+                type: 'line',
+                data: {
+                  labels: d.chart.labels,
+                  datasets: [
+                    {
+                      label: 'Ouverts',
+                      data: d.chart.ouverts,
+                      borderColor: '#0ea5e9',
+                      backgroundColor: 'rgba(14,165,233,0.10)',
+                      tension: 0.3,
+                      fill: true,
+                    },
+                    {
+                      label: 'Clos',
+                      data: d.chart.clos,
+                      borderColor: '#10b981',
+                      backgroundColor: 'rgba(16,185,129,0.10)',
+                      tension: 0.3,
+                      fill: true,
+                    },
+                  ],
                 },
-                {
-                  label: 'Clos',
-                  data: d.chart.clos,
-                  borderColor: '#10b981',
-                  backgroundColor: 'rgba(16,185,129,0.10)',
-                  tension: 0.3,
-                  fill: true,
+                options: {
+                  responsive: true,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
                 },
-              ],
-            },
-            options: {
-              responsive: true,
-              plugins: { legend: { display: false } },
-              scales: {
-                y: { beginAtZero: true, ticks: { precision: 0 } },
-              },
-            },
-          });
+              });
+            } catch (e) {
+              console.error('[sav-dashboard] Chart render failed:', e);
+            }
+          };
+          if (window.Chart) {
+            renderChart();
+          } else {
+            // Chart.js pas encore prêt — on poll jusqu'à 5s
+            var tries = 0;
+            var iv = setInterval(function () {
+              tries++;
+              if (window.Chart) { clearInterval(iv); renderChart(); }
+              else if (tries > 50) {
+                clearInterval(iv);
+                console.error('[sav-dashboard] Chart.js non chargé (CDN bloqué ?)');
+              }
+            }, 100);
+          }
         }
       }
     });
@@ -366,16 +384,17 @@
         }
         if (bk) bk.textContent = (k.totals && k.totals.openNow != null) ? k.totals.openNow : '—';
 
-        // Pyramide d'âges
+        // Pyramide d'âges (l'API renvoie backlogAging ; on accepte aussi aging pour compat)
         var aging = document.getElementById('sav-perf-aging');
-        if (aging && k.aging) {
+        var agingData = k.backlogAging || k.aging;
+        if (aging && agingData) {
           var order = [['lt1','<1j'],['1-3','1-3j'],['3-7','3-7j'],['7-14','7-14j'],['14plus','>14j']];
           var colors = ['bg-emerald-400','bg-sky-400','bg-amber-400','bg-orange-500','bg-red-500'];
           var max = 0;
-          order.forEach(function (o) { if ((k.aging[o[0]] || 0) > max) max = k.aging[o[0]]; });
+          order.forEach(function (o) { if ((agingData[o[0]] || 0) > max) max = agingData[o[0]]; });
           if (max < 1) max = 1;
           aging.innerHTML = order.map(function (o, i) {
-            var val = k.aging[o[0]] || 0;
+            var val = agingData[o[0]] || 0;
             var pct = Math.round((val / max) * 100);
             return '<div class="flex-1 flex flex-col items-center justify-end gap-1">' +
               '<div class="text-[10px] font-bold text-slate-700">' + val + '</div>' +
@@ -444,7 +463,7 @@
         var data = res.j.data;
         var list = data.tickets || [];
         if (!list.length) {
-          tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Aucun ticket.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="10" class="px-4 py-10 text-center text-slate-500">Aucun ticket.</td></tr>';
           updatePagination(data);
           return;
         }
@@ -525,6 +544,11 @@
               (t.sla && t.sla.dateOuverture ? ' data-sla-start="' + escapeHtml(t.sla.dateOuverture) + '"' : '') +
               '>' + sla.label + '</span></td>' +
             '<td class="px-3 py-2 text-xs text-slate-500">' + new Date(t.createdAt).toLocaleDateString('fr-FR') + '</td>' +
+            '<td class="px-3 py-2 text-right">' +
+              '<button type="button" class="sav-row-delete inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-red-50 text-red-500" data-numero="' + escapeHtml(t.numero) + '" title="Supprimer le ticket ' + escapeHtml(t.numero) + '">' +
+                '<span class="material-symbols-outlined text-base">delete</span>' +
+              '</button>' +
+            '</td>' +
           '</tr>';
         }).join('');
         updatePagination(data);
@@ -566,6 +590,27 @@
           var n = cb.getAttribute('data-numero');
           if (cb.checked) selected.add(n); else selected.delete(n);
           updateBulkBar();
+        });
+      });
+      tbody.querySelectorAll('.sav-row-delete').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var n = btn.getAttribute('data-numero');
+          if (!n) return;
+          if (!confirm('Supprimer définitivement le ticket ' + n + ' ? Cette action est irréversible.')) return;
+          btn.disabled = true;
+          api('/tickets/' + encodeURIComponent(n), { method: 'DELETE' }).then(function (res) {
+            if (!res.ok || !res.j || !res.j.success) {
+              btn.disabled = false;
+              toast((res.j && res.j.error) || 'Suppression échouée', 'error');
+              return;
+            }
+            selected.delete(n);
+            var row = btn.closest('tr');
+            if (row && row.parentNode) row.parentNode.removeChild(row);
+            updateBulkBar();
+            toast('Ticket ' + n + ' supprimé', 'success');
+          });
         });
       });
     }
@@ -628,6 +673,28 @@
     document.getElementById('sav-bulk-export').addEventListener('click', function () {
       // Export = juste un CSV des sélectionnés (en pratique on filtre côté csv)
       window.open('/admin/api/sav/tickets.csv?' + buildQs().toString(), '_blank');
+    });
+    var bulkDeleteBtn = document.getElementById('sav-bulk-delete');
+    if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', function () {
+      if (!selected.size) return;
+      if (!confirm('Supprimer définitivement ' + selected.size + ' ticket(s) ? Cette action est irréversible.')) return;
+      var arr = Array.from(selected);
+      bulkDeleteBtn.disabled = true;
+      api('/tickets/bulk-delete', { method: 'POST', body: JSON.stringify({ numeros: arr }) }).then(function (res) {
+        bulkDeleteBtn.disabled = false;
+        if (!res.ok || !res.j || !res.j.success) {
+          toast((res.j && res.j.error) || 'Suppression échouée', 'error');
+          return;
+        }
+        var deleted = (res.j.data && res.j.data.deletedNumeros) || arr;
+        deleted.forEach(function (n) {
+          selected.delete(n);
+          var row = tbody.querySelector('tr[data-numero="' + n.replace(/"/g, '\\"') + '"]');
+          if (row && row.parentNode) row.parentNode.removeChild(row);
+        });
+        updateBulkBar();
+        toast(((res.j.data && res.j.data.deletedCount) || deleted.length) + ' ticket(s) supprimé(s)', 'success');
+      });
     });
 
     // Recherche debounce + suggestions (locale, basée sur l'API)
@@ -2560,9 +2627,9 @@
       if (/^Ticket (assigné|désassigné|pris en charge)/i.test(contenu)) return { kind: 'assign', text: contenu };
       // Remboursement Mollie
       if (/^Remboursement Mollie/i.test(contenu)) return { kind: 'refund', text: contenu };
-      // Message client/admin (email, whatsapp, tel, interne)
+      // Message client/admin (inapp, email[legacy], whatsapp, tel, interne)
       var isIntern = canal === 'interne' || canal === 'note';
-      if (canal === 'email' || canal === 'whatsapp' || canal === 'tel' || canal === 'phone' || isIntern) {
+      if (canal === 'inapp' || canal === 'email' || canal === 'whatsapp' || canal === 'tel' || canal === 'phone' || isIntern) {
         return { kind: 'message', canal: canal || 'note', isIntern: isIntern, isClient: (m.auteur === 'client'), html: m.html, text: contenu, sujet: m.sujet };
       }
       // Fallback
@@ -3408,6 +3475,14 @@
       var isEmail = canal === 'email';
       if (subjectInput) subjectInput.classList.toggle('is-hidden', !isEmail);
       if (emailPreviewWrap) emailPreviewWrap.classList.toggle('hidden', !isEmail);
+      // Adapte le placeholder de l'éditeur selon le canal
+      var ed = document.getElementById('sav-msg-editor');
+      if (ed) {
+        var ph = canal === 'inapp' ? 'Message visible dans l\'espace client (sans email)…'
+               : canal === 'interne' ? 'Note interne (visible uniquement par l\'équipe)…'
+               : 'Tapez votre réponse…';
+        ed.setAttribute('data-placeholder', ph);
+      }
     }
 
     document.querySelectorAll('.sav-canal-pill').forEach(function (p) {
@@ -3424,8 +3499,8 @@
       });
     });
 
-    // Init canal UI on page load
-    updateCanalUI(canalInput ? canalInput.value : 'email');
+    // Init canal UI on page load (défaut = inapp)
+    updateCanalUI(canalInput ? canalInput.value : 'inapp');
 
     // -------- Brouillon localStorage --------
     var DRAFT_KEY = 'sav-draft-' + numero;
@@ -3446,7 +3521,7 @@
         var payload = {
           html: editor ? editor.innerHTML : '',
           sujet: (document.querySelector('[name="sujet"]') || {}).value || '',
-          canal: canalInput ? canalInput.value : 'email',
+          canal: canalInput ? canalInput.value : 'inapp',
           ts: Date.now(),
         };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
@@ -3595,7 +3670,7 @@
     }
 
     function doSend(action, nextStatut) {
-      var canal = (canalInput && canalInput.value) || 'email';
+      var canal = (canalInput && canalInput.value) || 'inapp';
       var sujet = (document.querySelector('[name="sujet"]') || {}).value || '';
       var contenu = interpolate(document.getElementById('sav-msg-contenu').value || '');
       var html = interpolate(document.getElementById('sav-msg-html').value || '');

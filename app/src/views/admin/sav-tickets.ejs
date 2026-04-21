@@ -195,6 +195,10 @@
       <select id="sav-bulk-assign" class="rounded-lg border border-slate-300 px-2 py-1 text-xs"></select>
       <button type="button" id="sav-bulk-assign-apply" class="rounded-lg bg-slate-900 text-white px-3 py-1 text-xs font-semibold">Assigner</button>
       <button type="button" id="sav-bulk-export" class="ml-auto rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold">Exporter sélection</button>
+      <button type="button" id="sav-bulk-delete" class="rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 px-3 py-1 text-xs font-semibold inline-flex items-center gap-1">
+        <span class="material-symbols-outlined text-base">delete</span>
+        Supprimer la sélection
+      </button>
     </div>
 
     <div id="sav-tickets-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 mb-3"></div>
@@ -214,10 +218,11 @@
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none sav-col-sticky-r2" data-sort="statut">Statut</th>
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none sav-col-sticky-r" data-sort="sla">SLA</th>
             <th class="px-3 py-3 font-semibold text-slate-600 cursor-pointer select-none" data-sort="createdAt">Ouvert le</th>
+            <th class="px-3 py-3 font-semibold text-slate-600 text-right">Actions</th>
           </tr>
         </thead>
         <tbody id="sav-tickets-tbody" class="divide-y divide-slate-100">
-          <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Chargement…</td></tr>
+          <tr><td colspan="10" class="px-4 py-10 text-center text-slate-500">Chargement…</td></tr>
         </tbody>
       </table>
       </div>
@@ -333,5 +338,5 @@
 </div>
 
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=17" defer></script>
+<script src="/js/sav-admin.js?v=18" defer></script>
 <%- include('./partials/footer') %>

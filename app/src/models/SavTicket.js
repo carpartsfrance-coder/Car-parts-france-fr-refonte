@@ -70,7 +70,7 @@ const messageSchema = new mongoose.Schema(
     auteur: { type: String, required: true },
     canal: {
       type: String,
-      enum: ['email', 'whatsapp', 'tel', 'interne'],
+      enum: ['email', 'whatsapp', 'tel', 'interne', 'inapp'],
       required: true,
     },
     contenu: { type: String, required: true },

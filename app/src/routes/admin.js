@@ -159,6 +159,7 @@ router.get('/analytics', requireAdminAuth, analyticsController.getAnalyticsDashb
 router.post('/analytics/synonyme', requireAdminAuth, analyticsController.postAddSynonym);
 
 router.get('/commandes', requireAdminAuth, adminController.getAdminOrdersPage);
+router.post('/commandes/supprimer-multi', requireAdminAuth, adminController.postAdminBulkDeleteOrders);
 router.get('/commandes/nouvelle', requireAdminAuth, adminController.getAdminNewOrderPage);
 router.get('/commandes/:orderId', requireAdminAuth, adminController.getAdminOrderDetailPage);
 router.post('/commandes/:orderId/statut', requireAdminAuth, adminController.postAdminUpdateOrderStatus);
