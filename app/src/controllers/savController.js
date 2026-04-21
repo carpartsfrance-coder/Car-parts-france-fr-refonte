@@ -210,21 +210,25 @@ exports.postSimpleForm = async (req, res) => {
     ticket.addMessage('client', 'interne', `Ticket créé via formulaire court (motif : ${motif.title})`);
     await ticket.save();
 
-    // Sauvegarde des pièces jointes (photos colis, justificatifs…)
+    // Sauvegarde des pièces jointes en MongoDB (GridFS) — aucun fichier sur disque
     if (Array.isArray(req.files) && req.files.length) {
       try {
-        const fs = require('fs');
-        const path = require('path');
-        const dir = path.join(process.cwd(), 'uploads', 'sav', ticket.numero);
-        fs.mkdirSync(dir, { recursive: true });
+        const savFileStorage = require('../services/savFileStorage');
         ticket.documentsList = ticket.documentsList || [];
         for (const f of req.files) {
-          const safe = (f.originalname || 'fichier').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
-          const filename = Date.now() + '-' + safe;
-          fs.writeFileSync(path.join(dir, filename), f.buffer);
+          const stored = await savFileStorage.saveBuffer({
+            buffer: f.buffer,
+            filename: f.originalname,
+            mime: f.mimetype,
+            metadata: {
+              ticketNumero: ticket.numero,
+              kind: 'client_upload',
+              uploadedBy: 'client',
+            },
+          });
           ticket.documentsList.push({
             kind: 'client_upload',
-            url: '/uploads/sav/' + ticket.numero + '/' + filename,
+            url: stored.url,
             originalName: f.originalname,
             size: f.size,
             mime: f.mimetype,

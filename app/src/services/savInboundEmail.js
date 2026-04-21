@@ -136,57 +136,71 @@ function verifyWebhookSignature(req) {
 }
 
 // ============================================================
-// Attachment saving
-// ============================================================
-
-function saveAttachments(ticket, attachments) {
-  if (!Array.isArray(attachments) || !attachments.length) return [];
-
-  const uploadDir = path.join(__dirname, '..', '..', '..', 'uploads', 'sav', ticket.numero);
-  try { fs.mkdirSync(uploadDir, { recursive: true }); } catch (_) {}
-
-  const saved = [];
-
-  for (const att of attachments) {
-    try {
-      if (!att) continue;
-      const content = att.content || att.data || att.base64;
-      const filename = att.filename || att.name || `attachment_${Date.now()}`;
-      if (!content) continue;
-
-      const safeName = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const fullPath = path.join(uploadDir, safeName);
-
-      // Content may be base64-encoded or raw
-      const buffer = Buffer.isBuffer(content)
-        ? content
-        : Buffer.from(content, 'base64');
-      fs.writeFileSync(fullPath, buffer);
-
-      const url = `/uploads/sav/${ticket.numero}/${safeName}`;
-      const entry = {
-        kind: 'email_attachment',
-        url,
-        originalName: filename,
-        size: buffer.length,
-        mime: att.type || att.content_type || att.mimetype || 'application/octet-stream',
-        uploadedAt: new Date(),
-      };
-
-      if (!ticket.documentsList) ticket.documentsList = [];
-      ticket.documentsList.push(entry);
-      saved.push(entry);
-    } catch (err) {
-      log(`ERROR saving attachment for ${ticket.numero}: ${err.message}`);
-    }
-  }
-
-  return saved;
-}
-
-// ============================================================
 // Main webhook handler
 // ============================================================
+
+/**
+ * Doctrine : aucune réponse client par email n'est acceptée. Toute conversation SAV
+ * doit passer par l'espace client (`/compte/sav` connecté) ou l'espace de suivi invité
+ * (`/sav/suivi/<numero>` avec magic link).
+ *
+ * Ce handler reçoit toujours les emails entrants (webhook MailerSend) mais :
+ *  1. Ne persiste PAS le contenu de l'email comme message du ticket.
+ *  2. Note dans le ticket (en interne) qu'un email a été reçu et auto-reply envoyé.
+ *  3. Renvoie au client un email d'auto-reply expliquant qu'il faut utiliser l'espace SAV
+ *     (avec son magic link ré-utilisable).
+ *  4. Anti-boucle : on garde un cooldown par expéditeur (Map en mémoire) pour éviter
+ *     d'auto-reply en rafale si le client renvoie plusieurs emails.
+ */
+
+// Anti-boucle : pas plus d'1 auto-reply par 30 min par adresse
+const AUTOREPLY_COOLDOWN_MS = 30 * 60 * 1000;
+const lastAutoReplyByAddr = new Map();
+
+function shouldSendAutoReply(senderEmailLower) {
+  const last = lastAutoReplyByAddr.get(senderEmailLower);
+  if (last && Date.now() - last < AUTOREPLY_COOLDOWN_MS) return false;
+  lastAutoReplyByAddr.set(senderEmailLower, Date.now());
+  return true;
+}
+
+async function sendAutoReply(ticket, senderEmail) {
+  try {
+    const { sendEmail } = require('./emailService');
+    const { buildGuestLink } = require('../controllers/savGuestController');
+    const guestLink = buildGuestLink(ticket) || `${process.env.SITE_URL || 'https://carpartsfrance.fr'}/sav/suivi`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a;">
+        <h2 style="margin:0 0 12px 0;font-size:18px;">Votre message n'a pas été ajouté au dossier</h2>
+        <p style="font-size:14px;line-height:1.6;color:#334155;">
+          Merci pour votre réponse concernant le dossier SAV <strong>${ticket.numero}</strong>.
+        </p>
+        <p style="font-size:14px;line-height:1.6;color:#334155;">
+          Pour des raisons de sécurité et de traçabilité, nous ne traitons pas les réponses envoyées par email.
+          L'intégralité de votre conversation SAV se déroule dans votre espace personnel.
+        </p>
+        <p style="margin:24px 0;text-align:center;">
+          <a href="${guestLink}" style="display:inline-block;padding:14px 28px;background:#ec1313;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;">
+            Accéder à mon espace SAV
+          </a>
+        </p>
+        <p style="font-size:13px;color:#64748b;text-align:center;">
+          Ce lien est personnel et vous donne un accès direct à votre dossier sans création de compte.
+          Vous pourrez y consulter l'historique, ajouter des pièces jointes et répondre à notre équipe.
+        </p>
+      </div>
+    `;
+    return await sendEmail({
+      toEmail: senderEmail,
+      subject: `Action requise — utilisez votre espace SAV (${ticket.numero})`,
+      html,
+      text: `Bonjour,\n\nNous ne traitons pas les réponses par email. Merci de répondre directement dans votre espace SAV : ${guestLink}\n\nL'équipe SAV CarParts France.`,
+    });
+  } catch (e) {
+    log(`ERROR sending auto-reply: ${e.message}`);
+    return { ok: false, error: e.message };
+  }
+}
 
 async function processInboundEmail(req) {
   const body = req.body || {};
@@ -198,29 +212,23 @@ async function processInboundEmail(req) {
   }
 
   // 2. Extract data from the webhook payload
-  // MailerSend inbound webhook format varies; handle common shapes
   const data = body.data || body;
 
-  // Sender info
   const senderEmail = extractSenderEmail(data);
   if (!senderEmail) {
     log('WARN no sender email found in payload');
     return { ok: false, reason: 'no_sender' };
   }
 
-  // Recipients (to/cc)
   const recipients = extractRecipients(data);
   const subject = data.subject || data.headers?.subject || '';
 
   // 3. Find ticket number from recipients or subject
   let ticketNumero = null;
-
   for (const addr of recipients) {
     ticketNumero = extractTicketNumero(addr);
     if (ticketNumero) break;
   }
-
-  // Fallback: extract from subject line (e.g. "Re: [SAV-2026-0042] ...")
   if (!ticketNumero && subject) {
     const subjectMatch = subject.match(/(SAV-\d{4}-\d{4,})/i);
     if (subjectMatch) ticketNumero = subjectMatch[1].toUpperCase();
@@ -231,122 +239,42 @@ async function processInboundEmail(req) {
     return { ok: false, reason: 'no_ticket_numero' };
   }
 
-  // 4. Find ticket in MongoDB
   const ticket = await SavTicket.findOne({ numero: ticketNumero });
   if (!ticket) {
     log(`WARN ticket not found: ${ticketNumero}`);
     return { ok: false, reason: 'ticket_not_found', numero: ticketNumero };
   }
 
-  // 5. Verify sender matches client email
-  const clientEmail = (ticket.client && ticket.client.email || '').toLowerCase().trim();
   const senderLower = senderEmail.toLowerCase().trim();
-  const senderMismatch = clientEmail && senderLower !== clientEmail;
-  if (senderMismatch) {
-    log(`WARN sender mismatch for ${ticketNumero}: expected=${clientEmail} got=${senderLower} (accepting anyway)`);
-  }
 
-  // 6. Extract and clean body
-  const rawText = data.text || data.text_body || data.body || '';
-  const rawHtml = data.html || data.html_body || '';
-  let cleanBody = stripEmailQuotes(rawText);
-
-  // If text body is empty but HTML exists, do a rough strip
-  if (!cleanBody && rawHtml) {
-    cleanBody = stripEmailQuotes(
-      rawHtml.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-    );
-  }
-
-  // 7. Dedup: check if we already have a message with the same content within the last 5 minutes
-  if (cleanBody) {
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const isDuplicate = (ticket.messages || []).some((m) =>
-      m.canal === 'email' &&
-      m.auteur === 'client' &&
-      m.date > fiveMinAgo &&
-      m.contenu === cleanBody
-    );
-    if (isDuplicate) {
-      log(`DEDUP skipping duplicate message for ${ticketNumero}`);
-      return { ok: true, reason: 'duplicate', numero: ticketNumero };
-    }
-  }
-
-  // 8. Handle empty body
-  if (!cleanBody) {
-    // Check if there are attachments — if so, note it
-    const attachments = extractAttachments(data);
-    if (!attachments.length) {
-      log(`WARN empty body and no attachments for ${ticketNumero}`);
-      cleanBody = '(Message vide reçu par email)';
-    } else {
-      cleanBody = '(Pièces jointes reçues par email)';
-    }
-  }
-
-  // 9. Handle closed tickets: reopen to pre_qualification
-  const CLOSED_STATUTS = ['clos', 'clos_sans_reponse', 'refuse', 'resolu_garantie', 'resolu_facture'];
-  if (CLOSED_STATUTS.includes(ticket.statut)) {
-    const previousStatut = ticket.statut;
-    ticket.statut = 'pre_qualification';
-    ticket.addMessage('systeme', 'interne', `Ticket rouvert automatiquement (était ${previousStatut}) suite à un email client.`);
-    log(`REOPEN ${ticketNumero} from ${previousStatut} to pre_qualification`);
-  }
-
-  // 10. Save attachments BEFORE adding message (so we can reference them)
-  const attachments = extractAttachments(data);
-  const savedAttachments = saveAttachments(ticket, attachments);
-
-  // 11. Build message content with attachments inline
-  let messageContent = cleanBody;
-  if (savedAttachments.length) {
-    const pjLines = savedAttachments.map((a) =>
-      `📎 ${a.originalName} (${formatSize(a.size)}) — ${a.url}`
-    );
-    if (messageContent) {
-      messageContent += '\n\n--- Pièces jointes ---\n' + pjLines.join('\n');
-    } else {
-      messageContent = pjLines.join('\n');
-    }
-  }
-
-  // 12. Add main message to ticket
-  const auteurLabel = senderMismatch ? `client (${senderLower})` : 'client';
-  ticket.addMessage(auteurLabel, 'email', messageContent);
-
-  // 13. Add system events for each attachment (for timeline / "Tout" view)
-  for (const att of savedAttachments) {
-    ticket.addMessage('client', 'interne',
-      `Document uploadé (email_attachment) : ${att.originalName} (${att.size} octets)`
-    );
-  }
-
-  // 14. Update lastClientMessageAt
-  ticket.lastClientMessageAt = new Date();
-
-  // 15. Save ticket
+  // 4. Note interne dans le ticket : on garde la trace de la tentative
+  const senderInfo = ticket.client && ticket.client.email && ticket.client.email.toLowerCase() === senderLower
+    ? `client (${senderLower})`
+    : `expéditeur externe (${senderLower})`;
+  ticket.addMessage(
+    'systeme',
+    'interne',
+    `Email reçu de ${senderInfo} — non ingéré (doctrine in-app). Auto-reply envoyé pour rediriger vers l'espace SAV.`
+  );
   await ticket.save();
 
-  log(`OK ${ticketNumero} from=${senderLower} body=${cleanBody.length}chars attachments=${savedAttachments.length}${senderMismatch ? ' SENDER_MISMATCH' : ''}`);
+  // 5. Auto-reply (avec cooldown anti-boucle)
+  let autoReplyResult = null;
+  if (shouldSendAutoReply(senderLower)) {
+    autoReplyResult = await sendAutoReply(ticket, senderEmail);
+  } else {
+    log(`COOLDOWN auto-reply skipped for ${senderLower} (sent within last 30min)`);
+    autoReplyResult = { ok: false, reason: 'cooldown' };
+  }
+
+  log(`REJECTED-INGESTION ${ticketNumero} from=${senderLower} autoReply=${autoReplyResult && autoReplyResult.ok ? 'sent' : (autoReplyResult && autoReplyResult.reason) || 'failed'}`);
 
   return {
     ok: true,
     numero: ticketNumero,
-    messageLength: cleanBody.length,
-    attachments: savedAttachments.length,
-    senderMismatch,
+    ingested: false,
+    autoReplySent: !!(autoReplyResult && autoReplyResult.ok),
   };
-}
-
-// ============================================================
-// Size formatting
-// ============================================================
-
-function formatSize(bytes) {
-  if (!bytes || bytes < 1024) return (bytes || 0) + ' o';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' Ko';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
 }
 
 // ============================================================
@@ -412,12 +340,6 @@ function extractRecipients(data) {
   }
 
   return addrs;
-}
-
-function extractAttachments(data) {
-  if (Array.isArray(data.attachments)) return data.attachments;
-  if (Array.isArray(data.files)) return data.files;
-  return [];
 }
 
 // ============================================================

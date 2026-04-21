@@ -9,6 +9,7 @@ const Order = require('../../models/Order');
 const SavProcedure = require('../../models/SavProcedure');
 const AuditLog = require('../../models/AuditLog');
 const audit = require('../../services/auditLogger');
+const savFileStorage = require('../../services/savFileStorage');
 
 const router = express.Router();
 
@@ -313,15 +314,19 @@ publicRouter.post(
       if (!ticket) return fail(res, 'Ticket introuvable', 404);
       if (!req.file) return fail(res, 'Aucun fichier fourni');
 
-      // Stockage minimal disque (placeholder — à remplacer par S3 / media service)
-      const uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', ticket.numero);
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const safeName = `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const fullPath = path.join(uploadDir, safeName);
-      fs.writeFileSync(fullPath, req.file.buffer);
-      const url = `/uploads/sav/${ticket.numero}/${safeName}`;
-
       const kind = (req.body.kind || 'autre').trim();
+      // Persistance MongoDB (GridFS) — plus aucun fichier sur disque local
+      const stored = await savFileStorage.saveBuffer({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mime: req.file.mimetype,
+        metadata: {
+          ticketNumero: ticket.numero,
+          kind,
+          uploadedBy: 'client',
+        },
+      });
+      const url = stored.url;
       if (!ticket.documents) ticket.documents = {};
       if (kind === 'factureMontage') ticket.documents.factureMontage = url;
       else if (kind === 'photoObd') {
@@ -783,70 +788,74 @@ adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5
   try {
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
-    const { canal, sujet, contenu, html, isReturnLabel } = req.body || {};
-    if (!canal || !contenu) return fail(res, 'canal et contenu requis');
+    const { canal: canalRaw, sujet, contenu, html, isReturnLabel } = req.body || {};
+    if (!canalRaw || !contenu) return fail(res, 'canal et contenu requis');
+    // Compatibilité ascendante : ancien canal "email" est désormais traité comme "inapp"
+    // (toute communication client passe par l'app — l'email n'est utilisé que pour notifier)
+    const canal = canalRaw === 'email' ? 'inapp' : canalRaw;
+    const ALLOWED_CANAUX = ['inapp', 'interne', 'whatsapp', 'tel'];
+    if (!ALLOWED_CANAUX.includes(canal)) return fail(res, `canal invalide (attendu : ${ALLOWED_CANAUX.join('|')})`, 400);
 
-    // Persister les PJ sur disque (et dans documentsList du ticket)
+    // Persister les PJ en MongoDB (GridFS) — aucun fichier sur disque.
+    // Les PJ sont consultables via l'espace client (jamais envoyées par email puisque la
+    // doctrine impose que toute conversation se passe in-app).
     const savedAttachments = [];
-    const emailAttachments = [];
     if (Array.isArray(req.files) && req.files.length) {
-      const uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', ticket.numero);
-      fs.mkdirSync(uploadDir, { recursive: true });
       for (const f of req.files) {
-        const safeName = Date.now() + '_' + (f.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-        const fullPath = path.join(uploadDir, safeName);
-        fs.writeFileSync(fullPath, f.buffer);
-        const url = `/uploads/sav/${ticket.numero}/${safeName}`;
+        const kind = isReturnLabel ? 'etiquette_retour' : 'admin_message';
+        const stored = await savFileStorage.saveBuffer({
+          buffer: f.buffer,
+          filename: f.originalname,
+          mime: f.mimetype,
+          metadata: {
+            ticketNumero: ticket.numero,
+            kind,
+            uploadedBy: 'admin',
+          },
+        });
+        const url = stored.url;
         ticket.documentsList = ticket.documentsList || [];
         ticket.documentsList.push({
-          kind: isReturnLabel ? 'etiquette_retour' : 'piece_jointe_email',
+          kind,
           url,
           originalName: f.originalname,
           size: f.size,
           mime: f.mimetype,
         });
         savedAttachments.push({ url, name: f.originalname });
-        emailAttachments.push({
-          filename: f.originalname,
-          content: f.buffer.toString('base64'),
-          disposition: 'attachment',
-        });
       }
     }
 
-    let emailResult = null;
-    if (canal === 'email') {
+    // Pour le canal "inapp" : on persiste le message dans le ticket (visible dans l'espace
+    // client/invité) puis on envoie une notification email COURTE — sans le contenu — pour
+    // signaler au client qu'il a une nouvelle réponse à consulter dans son espace SAV.
+    // L'email sert uniquement de notification (pas de canal de conversation).
+    let notificationResult = null;
+    if (canal === 'inapp') {
       try {
         const { sendEmail } = require('../../services/emailService');
         const { buildGuestLink } = require('../../controllers/savGuestController');
         const ejs = require('ejs');
         const guestLink = buildGuestLink(ticket) || `${process.env.SITE_URL || 'https://carpartsfrance.fr'}/sav/suivi`;
         const tplPath = path.join(__dirname, '..', '..', 'views', 'emails', 'sav', 'reponse_agent.ejs');
-        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu, guestLink });
+        // contenu n'est PAS passé au template (notification only)
+        const emailHtml = await ejs.renderFile(tplPath, { ticket, guestLink });
         const stripped = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        emailResult = await sendEmail({
+        notificationResult = await sendEmail({
           toEmail: ticket.client && ticket.client.email,
-          subject: sujet || `Réponse SAV — ${ticket.numero}`,
+          subject: `Nouvelle réponse SAV — ${ticket.numero}`,
           html: emailHtml,
           text: stripped,
-          attachments: emailAttachments.length ? emailAttachments : undefined,
+          // Pas de PJ dans la notification : elles sont consultables dans l'espace SAV
         });
       } catch (e) {
-        console.error('[sav-comm email]', e.message);
-        emailResult = { ok: false, reason: 'exception', message: e.message };
+        console.error('[sav-comm notif]', e.message);
+        notificationResult = { ok: false, reason: 'exception', message: e.message };
       }
-      if (!emailResult || emailResult.ok !== true) {
-        const reason = emailResult && emailResult.reason || 'unknown';
-        const hint = reason === 'missing_api_key'
-          ? 'MAILERSEND_API_KEY absent dans l\'environnement serveur — ajoute-le dans app/.env'
-          : reason === 'missing_from_email'
-          ? 'MAIL_FROM_EMAIL absent dans l\'environnement serveur'
-          : reason === 'missing_to_email'
-          ? 'Le ticket n\'a pas d\'email client'
-          : reason === 'mailersend_error'
-          ? 'MailerSend a refusé l\'envoi (voir logs serveur)'
-          : 'Erreur inconnue (voir logs serveur)';
-        return fail(res, 'Email non envoyé : ' + hint, 502);
+      // L'échec de la notification ne bloque PAS la persistance du message :
+      // on log mais on continue (le client verra le message en se connectant manuellement).
+      if (!notificationResult || notificationResult.ok !== true) {
+        console.warn(`[sav-comm] notification email non envoyée pour ${ticket.numero}: ${notificationResult && notificationResult.reason}`);
       }
     }
 
@@ -1154,6 +1163,41 @@ adminRouter.patch('/tickets/:numero/statut', async (req, res) => {
   }
 });
 
+// POST /admin/api/sav/tickets/bulk-delete — supprimer plusieurs tickets
+adminRouter.post('/tickets/bulk-delete', async (req, res) => {
+  try {
+    const raw = (req.body && req.body.numeros) || [];
+    const list = Array.isArray(raw) ? raw : [raw];
+    const unique = Array.from(new Set(list.map((v) => String(v).trim()).filter(Boolean)));
+    if (!unique.length) return fail(res, 'Aucun ticket sélectionné.');
+
+    const tickets = await SavTicket.find({ numero: { $in: unique } }).select('numero').lean();
+    if (!tickets.length) return fail(res, 'Aucun ticket trouvé.', 404);
+
+    const found = tickets.map((t) => t.numero);
+    const result = await SavTicket.deleteMany({ numero: { $in: found } });
+    const deletedCount = Number.isFinite(result && result.deletedCount) ? result.deletedCount : 0;
+
+    audit.log({ req, action: 'sav.bulk_delete', entityType: 'sav_ticket', entityId: found.join(','), before: { count: found.length }, after: { deletedCount } });
+    return ok(res, { deletedCount, deletedNumeros: found });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// DELETE /admin/api/sav/tickets/:numero — supprimer un ticket
+adminRouter.delete('/tickets/:numero', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero }).select('numero');
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    await SavTicket.deleteOne({ _id: ticket._id });
+    audit.log({ req, action: 'sav.delete', entityType: 'sav_ticket', entityId: ticket.numero, before: { numero: ticket.numero }, after: null });
+    return ok(res, { numero: ticket.numero });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
 // GET /admin/api/sav/tickets/:numero/playbook
 // Retourne le playbook sérialisé pour le ticket (stepper + macros + templates).
 adminRouter.get('/tickets/:numero/playbook', async (req, res) => {
@@ -1414,25 +1458,29 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
   try {
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
-    const { auteur, canal, contenu } = req.body || {};
-    if (!canal || !contenu) return fail(res, 'canal et contenu requis');
+    const { auteur, canal: canalRaw, contenu } = req.body || {};
+    if (!canalRaw || !contenu) return fail(res, 'canal et contenu requis');
+    // Doctrine : tout passe par l'app — l'ancien canal "email" est traité comme "inapp".
+    const canal = canalRaw === 'email' ? 'inapp' : canalRaw;
     ticket.addMessage(auteur || 'admin', canal, contenu);
     await ticket.save();
 
-    // Notifie le client par email à chaque réponse publique de l'admin (pas quand c'est le client lui-même)
+    // Notifie le client par email à chaque message public d'un agent (notification only,
+    // sans le contenu — il doit consulter son espace SAV pour voir la réponse).
     const messageAuteur = auteur || 'admin';
-    if (canal === 'email' && messageAuteur !== 'client' && ticket.client && ticket.client.email) {
+    if (canal === 'inapp' && messageAuteur !== 'client' && ticket.client && ticket.client.email) {
       try {
         const { sendEmail } = require('../../services/emailService');
         const { buildGuestLink } = require('../../controllers/savGuestController');
         const ejs = require('ejs');
         const guestLink = buildGuestLink(ticket) || `${process.env.SITE_URL || 'https://carpartsfrance.fr'}/sav/suivi`;
         const tplPath = path.join(__dirname, '..', '..', 'views', 'emails', 'sav', 'reponse_agent.ejs');
-        const emailHtml = await ejs.renderFile(tplPath, { ticket, contenu, guestLink });
+        // contenu absent : notification only
+        const emailHtml = await ejs.renderFile(tplPath, { ticket, guestLink });
         const stripped = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         sendEmail({
           toEmail: ticket.client.email,
-          subject: `Réponse de notre équipe SAV — ${ticket.numero}`,
+          subject: `Nouvelle réponse SAV — ${ticket.numero}`,
           html: emailHtml,
           text: stripped,
         }).catch(() => {});
@@ -1655,21 +1703,23 @@ adminRouter.post('/tickets/:numero/upload', upload.single('file'), async (req, r
     const ticket = await SavTicket.findOne({ numero: req.params.numero });
     if (!ticket) return fail(res, 'Ticket introuvable', 404);
     if (!req.file) return fail(res, 'Aucun fichier fourni');
-    const uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', ticket.numero);
-    fs.mkdirSync(uploadDir, { recursive: true });
-    const safeName = `${Date.now()}_${(req.file.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const fullPath = path.join(uploadDir, safeName);
-    fs.writeFileSync(fullPath, req.file.buffer);
-    const url = `/uploads/sav/${ticket.numero}/${safeName}`;
+    const kind = req.body.kind || 'autre';
+    const stored = await savFileStorage.saveBuffer({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mime: req.file.mimetype,
+      metadata: { ticketNumero: ticket.numero, kind, uploadedBy: 'admin' },
+    });
+    const url = stored.url;
     ticket.documentsList = ticket.documentsList || [];
     ticket.documentsList.push({
-      kind: req.body.kind || 'autre',
+      kind,
       url,
       originalName: req.file.originalname,
       size: req.file.size,
       mime: req.file.mimetype,
     });
-    ticket.addMessage('admin', 'interne', `Document ajouté (${req.body.kind || 'autre'}) : ${url}`);
+    ticket.addMessage('admin', 'interne', `Document ajouté (${kind}) : ${url}`);
     await ticket.save();
     return ok(res, { url });
   } catch (err) {
@@ -1699,11 +1749,17 @@ adminRouter.post('/procedures', upload.single('file'), async (req, res) => {
     if (!req.file) return fail(res, 'Aucun fichier fourni');
     var title = (req.body && req.body.title || '').trim();
     if (!title) return fail(res, 'Titre requis');
-    var uploadDir = path.join(__dirname, '..', '..', '..', '..', 'uploads', 'sav', '_procedures');
-    fs.mkdirSync(uploadDir, { recursive: true });
-    var safeName = Date.now() + '_' + (req.file.originalname || 'procedure.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
-    fs.writeFileSync(path.join(uploadDir, safeName), req.file.buffer);
-    var url = '/uploads/sav/_procedures/' + safeName;
+    var stored = await savFileStorage.saveBuffer({
+      buffer: req.file.buffer,
+      filename: req.file.originalname || 'procedure.pdf',
+      mime: req.file.mimetype,
+      metadata: {
+        ticketNumero: null,
+        kind: 'procedure',
+        uploadedBy: 'admin',
+      },
+    });
+    var url = stored.url;
     var tags = (req.body.tags || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
     var doc = await SavProcedure.create({
       title: title,
@@ -1726,8 +1782,8 @@ adminRouter.delete('/procedures/:id', async (req, res) => {
     var doc = await SavProcedure.findById(req.params.id);
     if (!doc) return fail(res, 'Procédure introuvable', 404);
     try {
-      var filePath = path.join(__dirname, '..', '..', '..', '..', doc.fileUrl.replace(/^\//, ''));
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      var fileId = savFileStorage.extractIdFromUrl(doc.fileUrl);
+      if (fileId) await savFileStorage.deleteFile(fileId);
     } catch (_) {}
     await doc.deleteOne();
     audit.log({ req, action: 'sav.procedure.delete', entityType: 'sav_procedure', entityId: String(doc._id), before: { title: doc.title } });
@@ -1752,16 +1808,28 @@ adminRouter.post('/tickets/:numero/send-procedure', async (req, res) => {
       || ('Bonjour,\n\nVeuillez trouver ci-joint la procédure « ' + proc.title + ' » concernant votre dossier SAV ' + ticket.numero + '.\n\nN\'hésitez pas à nous contacter en cas de question.\n\nCordialement,\nL\'équipe Car Parts France');
     var html = '<p>' + bodyText.replace(/\n/g, '<br>') + '</p>';
 
-    var filePath = path.join(__dirname, '..', '..', '..', '..', proc.fileUrl.replace(/^\//, ''));
     var attachments = [];
     try {
-      if (fs.existsSync(filePath)) {
-        var buf = fs.readFileSync(filePath);
-        attachments.push({
-          filename: proc.originalName || 'procedure.pdf',
-          content: buf.toString('base64'),
-          disposition: 'attachment',
-        });
+      var fileId = savFileStorage.extractIdFromUrl(proc.fileUrl);
+      if (fileId) {
+        var buf = await savFileStorage.readBuffer(fileId);
+        if (buf && buf.length) {
+          attachments.push({
+            filename: proc.originalName || 'procedure.pdf',
+            content: buf.toString('base64'),
+            disposition: 'attachment',
+          });
+        }
+      } else {
+        // Legacy : fichier encore sur disque (avant migration)
+        var legacyPath = path.join(__dirname, '..', '..', '..', '..', proc.fileUrl.replace(/^\//, ''));
+        if (fs.existsSync(legacyPath)) {
+          attachments.push({
+            filename: proc.originalName || 'procedure.pdf',
+            content: fs.readFileSync(legacyPath).toString('base64'),
+            disposition: 'attachment',
+          });
+        }
       }
     } catch (_) {}
 

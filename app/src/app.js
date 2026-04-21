@@ -410,6 +410,9 @@ app.post('/api/analytics/track', analyticsController.postTrackEvent);
 app.use('/api/sav', savApi.publicRouter);
 app.use('/admin/api/sav', savApi.adminRouter);
 
+// SAV — fichiers stockés en MongoDB (GridFS), avec auth contextuelle
+app.use('/sav-files', require('./routes/savFiles'));
+
 // i18n SAV : injecte tSav() et savLocale dans toutes les vues
 const i18nSav = require('./services/i18nSav');
 app.use(i18nSav.middleware());

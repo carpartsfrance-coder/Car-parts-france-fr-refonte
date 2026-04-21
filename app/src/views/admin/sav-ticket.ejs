@@ -1,5 +1,5 @@
 <%- include('./partials/head') %>
-<link rel="stylesheet" href="/css/sav.css?v=28">
+<link rel="stylesheet" href="/css/sav.css?v=29">
 <%- include('./partials/sidebar', { active: 'sav' }) %>
 
 <main class="flex-1 sav-module" data-sav-token="<%= savApiToken %>" data-sav-numero="<%= numero %>" data-current-statut="" data-current-user-id="<%= (typeof currentAdmin !== 'undefined' && currentAdmin && currentAdmin.adminUserId) || '' %>">
@@ -144,14 +144,14 @@
               <!-- Row 1: Canal pills + template chips -->
               <div class="sav-composer__topbar">
                 <div id="sav-canal-pills" class="flex gap-1" role="radiogroup" aria-label="Canal">
-                  <button type="button" data-canal="email" class="sav-canal-pill sav-canal-pill--email is-active" role="radio" aria-checked="true">
-                    <span class="material-symbols-outlined" style="font-size:13px;">mail</span><span>Email client</span>
+                  <button type="button" data-canal="inapp" class="sav-canal-pill sav-canal-pill--inapp is-active" role="radio" aria-checked="true" title="Réponse visible dans l'espace SAV du client. Une notification email lui est envoyée pour le prévenir.">
+                    <span class="material-symbols-outlined" style="font-size:13px;">forum</span><span>Espace client</span>
                   </button>
-                  <button type="button" data-canal="interne" class="sav-canal-pill sav-canal-pill--interne" role="radio" aria-checked="false">
+                  <button type="button" data-canal="interne" class="sav-canal-pill sav-canal-pill--interne" role="radio" aria-checked="false" title="Note privée visible uniquement par l'équipe SAV. Aucun email envoyé.">
                     <span class="material-symbols-outlined" style="font-size:13px;">lock</span><span>Note interne</span>
                   </button>
                 </div>
-                <input type="hidden" name="canal" id="sav-canal-input" value="email">
+                <input type="hidden" name="canal" id="sav-canal-input" value="inapp">
                 <div id="sav-templates-chips" class="flex gap-1 flex-wrap">
                   <% const _tpls = [
                     ['reception','Piece recue','inventory'],
@@ -181,8 +181,9 @@
                 <option value="rdv"></option>
               </select>
 
-              <!-- Subject — hidden by default, shown via JS when email canal active -->
-              <input type="text" name="sujet" id="sav-msg-subject" placeholder="Sujet (email)" class="sav-composer__subject">
+              <!-- Sujet retiré : toute conversation passe par l'espace SAV (in-app), seules
+                   des notifications courtes sont envoyées par email. Pas de champ sujet utile. -->
+              <input type="hidden" name="sujet" id="sav-msg-subject" value="">
 
               <!-- Editor area -->
               <div id="sav-msg-editor" contenteditable="true" class="sav-composer__editor" data-placeholder="Tapez votre réponse..."></div>
@@ -941,5 +942,5 @@
 
 <div class="sav-toast-root" id="sav-toast-root" aria-live="polite"></div>
 <script src="/js/sav-labels.js?v=3" defer></script>
-<script src="/js/sav-admin.js?v=30" defer></script>
+<script src="/js/sav-admin.js?v=32" defer></script>
 <%- include('./partials/footer') %>

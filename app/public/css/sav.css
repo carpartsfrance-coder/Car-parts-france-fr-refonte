@@ -870,6 +870,7 @@
 .sav-canal-pill--whatsapp.is-active  { background: var(--sav-emerald-500); border-color: var(--sav-emerald-500); }
 .sav-canal-pill--tel.is-active       { background: var(--sav-slate-500); border-color: var(--sav-slate-500); }
 .sav-canal-pill--interne.is-active   { background: var(--sav-amber-500); border-color: var(--sav-amber-500); }
+.sav-canal-pill--inapp.is-active     { background: #6366f1; border-color: #6366f1; }
 
 .sav-tpl-chip {
   display: inline-flex;
