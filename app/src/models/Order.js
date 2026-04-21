@@ -400,6 +400,8 @@ orderSchema.pre('save', function (next) {
       && (lastEntry.returnStatus || null) === (order.returnStatus || null);
 
     if (!isSame) {
+      // Garde défensive : les vieilles commandes peuvent ne pas avoir le champ statusHistory
+      if (!Array.isArray(order.statusHistory)) order.statusHistory = [];
       order.statusHistory.push({
         status: order.status,
         cloningStatus: order.cloningStatus || null,

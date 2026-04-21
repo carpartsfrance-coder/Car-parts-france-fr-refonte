@@ -3333,24 +3333,38 @@ async function postAdminAddOrderShipment(req, res, next) {
       }
     }
 
-    // ─── Auto-advance to 'shipped' when adding "Envoi" on a cloning_done order ───
+    // ─── Auto-advance to 'shipped' when adding a shipment ───
+    // - Pour les commandes clonage : uniquement si label "Envoi"/"Envoi partiel" + cloningStatus='cloning_done'
+    // - Pour les commandes standard : tout ajout de suivi (sauf "Récupération clonage") déclenche le passage à 'shipped'
     let autoShipped = false;
     const isEnvoiLabel = label === 'Envoi' || label === 'Envoi partiel';
-    if (isEnvoiLabel && !isRecupClonage) {
+    if (!isRecupClonage) {
       try {
         const orderForShip = await Order.findById(orderId);
-        if (orderForShip && orderForShip.orderType === 'exchange_cloning' && orderForShip.cloningStatus === 'cloning_done'
-            && orderForShip.status !== 'shipped' && orderForShip.status !== 'delivered' && orderForShip.status !== 'completed') {
-          orderForShip.status = 'shipped';
-          if (!orderForShip.cloningDates) orderForShip.cloningDates = {};
-          orderForShip.cloningDates.shippedToClientAt = new Date();
-          orderForShip._statusChangedBy = adminEmail;
-          orderForShip._statusChangeNote = 'Expédition ajoutée — statut mis à jour automatiquement';
-          await orderForShip.save();
-          autoShipped = true;
+        if (orderForShip
+            && orderForShip.status !== 'shipped'
+            && orderForShip.status !== 'delivered'
+            && orderForShip.status !== 'completed'
+            && orderForShip.status !== 'cancelled'
+            && orderForShip.status !== 'refunded') {
+          const isClonage = orderForShip.orderType === 'exchange_cloning';
+          const clonageReady = isClonage && orderForShip.cloningStatus === 'cloning_done' && isEnvoiLabel;
+          const standardReady = !isClonage && (orderForShip.status === 'paid' || orderForShip.status === 'processing');
+
+          if (clonageReady || standardReady) {
+            orderForShip.status = 'shipped';
+            if (clonageReady) {
+              if (!orderForShip.cloningDates) orderForShip.cloningDates = {};
+              orderForShip.cloningDates.shippedToClientAt = new Date();
+            }
+            orderForShip._statusChangedBy = adminEmail;
+            orderForShip._statusChangeNote = 'Expédition ajoutée — statut mis à jour automatiquement';
+            await orderForShip.save();
+            autoShipped = true;
+          }
         }
       } catch (shipErr) {
-        console.error('[clonage-ship] Erreur auto-ship:', shipErr && shipErr.message ? shipErr.message : shipErr);
+        console.error('[auto-ship] Erreur auto-ship:', shipErr && shipErr.message ? shipErr.message : shipErr);
       }
     }
 
