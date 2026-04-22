@@ -765,9 +765,7 @@
 .sav-composer {
   border-top: 1px solid #e2e8f0;
   background: #fff;
-  flex-shrink: 1;
-  min-height: 0;
-  overflow-y: auto;
+  flex: 0 0 auto; /* prend sa hauteur naturelle, ne scroll pas — l'éditeur a son propre max-height */
 }
 .sav-composer__body {
   display: flex;
@@ -825,10 +823,7 @@
   gap: 0.5rem;
   padding: 0.375rem 0.75rem;
   border-top: 1px solid #f1f5f9;
-  position: sticky;
-  bottom: 0;
   background: #fff;
-  z-index: 2;
 }
 .sav-composer__icon-btn {
   display: inline-flex;
