@@ -98,6 +98,19 @@ var publicMsgs = (ticket.messages || []).filter(function(m){ return m.canal !== 
                 <%= isClient ? 'Vous' : 'CarParts France' %> · <%= new Date(m.date).toLocaleString('fr-FR') %>
               </div>
               <div class="whitespace-pre-wrap"><%= m.contenu %></div>
+              <% if (Array.isArray(m.attachments) && m.attachments.length) { %>
+                <div class="mt-2 pt-2 border-t <%= isClient ? 'border-white/30' : 'border-slate-300' %> space-y-1">
+                  <% m.attachments.forEach(function(a) {
+                       var name = a.originalName || 'pièce jointe';
+                       var sizeKb = a.size ? Math.round(a.size / 1024) : 0; %>
+                    <div class="flex items-center gap-1.5 text-xs <%= isClient ? 'text-white/90 hover:text-white' : 'text-slate-700 hover:text-slate-900' %>">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.93 8.8l-8.58 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                      <a href="<%= a.url %>" target="_blank" rel="noopener" class="underline truncate max-w-[200px]" title="<%= name %>"><%= name %></a>
+                      <% if (sizeKb) { %><span class="opacity-70">(<%= sizeKb %> Ko)</span><% } %>
+                    </div>
+                  <% }) %>
+                </div>
+              <% } %>
             </div>
           </div>
         <% } %>

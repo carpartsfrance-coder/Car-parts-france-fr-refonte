@@ -159,9 +159,10 @@
             <% if (needsPhotos) { %>Photos (recommandé)<% } else { %>Pièces jointes (optionnel)<% } %>
             — JPG/PNG/WEBP/PDF, 5 fichiers max, 10 Mo chacun
           </label>
-          <input type="file" name="attachments" multiple accept="image/jpeg,image/png,image/webp,application/pdf"
+          <input type="file" name="attachments" id="sav-files-input" multiple accept="image/jpeg,image/png,image/webp,application/pdf"
             class="block w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-semibold hover:file:bg-primary/20">
-          <div id="sav-files-list" class="mt-1 text-[11px] text-slate-500"></div>
+          <p class="mt-1 text-[11px] text-slate-400">Astuce : recliquez sur « Choisir les fichiers » pour en ajouter d'autres ; les précédents sont conservés.</p>
+          <ul id="sav-files-list" class="mt-2 space-y-1 text-[11px] text-slate-600"></ul>
         </div>
       </section>
 
@@ -196,6 +197,87 @@
   if (!form) return;
   var errBox = document.getElementById('sav-simple-error');
   var submit = document.getElementById('sav-simple-submit');
+
+  // ----- Gestion cumulative des pièces jointes -----
+  var fileInput = document.getElementById('sav-files-input');
+  var filesList = document.getElementById('sav-files-list');
+  var MAX_FILES = 5;
+  var MAX_SIZE = 10 * 1024 * 1024;
+
+  function fileKey(f) { return f.name + ':' + f.size + ':' + (f.lastModified || ''); }
+
+  function syncInputFromDT(dt) {
+    if (typeof DataTransfer === 'undefined') return;
+    fileInput.files = dt.files;
+  }
+
+  function buildDT() {
+    var dt = new DataTransfer();
+    if (fileInput.files) {
+      for (var i = 0; i < fileInput.files.length; i++) dt.items.add(fileInput.files[i]);
+    }
+    return dt;
+  }
+
+  function renderList() {
+    filesList.innerHTML = '';
+    if (!fileInput.files || !fileInput.files.length) return;
+    Array.prototype.forEach.call(fileInput.files, function (f, idx) {
+      var li = document.createElement('li');
+      li.className = 'flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1';
+      var sizeKb = Math.round(f.size / 1024);
+      li.innerHTML = '<span class="material-symbols-rounded text-[14px] text-slate-400" aria-hidden="true">attach_file</span>' +
+        '<span class="flex-1 truncate">' + (f.name || 'fichier').replace(/[<>&"]/g, '') + '</span>' +
+        '<span class="text-slate-400">' + sizeKb + ' Ko</span>' +
+        '<button type="button" data-idx="' + idx + '" aria-label="Retirer" class="text-red-500 hover:text-red-700"><span class="material-symbols-rounded text-[16px]" aria-hidden="true">close</span></button>';
+      li.querySelector('button').addEventListener('click', function () {
+        var dt = new DataTransfer();
+        Array.prototype.forEach.call(fileInput.files, function (ff, j) {
+          if (j !== idx) dt.items.add(ff);
+        });
+        syncInputFromDT(dt);
+        renderList();
+      });
+      filesList.appendChild(li);
+    });
+  }
+
+  if (fileInput && filesList && typeof DataTransfer !== 'undefined') {
+    fileInput.addEventListener('change', function (e) {
+      var picked = Array.from(e.target.files || []);
+      // On reconstruit la liste cumulative en repartant du DataTransfer existant.
+      // Astuce : on lit d'abord les fichiers déjà présents (avant remplacement par le navigateur).
+      // Comme `change` se déclenche après remplacement, on a perdu les anciens.
+      // On contourne en stockant les anciens dans un attribut data avant le clic.
+      var existing = window.__savExistingFiles || [];
+      var merged = existing.slice();
+      var seen = new Set(merged.map(fileKey));
+      var rejected = [];
+      picked.forEach(function (f) {
+        if (f.size > MAX_SIZE) { rejected.push(f.name + ' (>10 Mo)'); return; }
+        if (seen.has(fileKey(f))) return;
+        if (merged.length >= MAX_FILES) { rejected.push(f.name + ' (max ' + MAX_FILES + ')'); return; }
+        merged.push(f);
+        seen.add(fileKey(f));
+      });
+      var dt = new DataTransfer();
+      merged.forEach(function (f) { dt.items.add(f); });
+      syncInputFromDT(dt);
+      window.__savExistingFiles = merged;
+      renderList();
+      if (rejected.length) {
+        errBox.textContent = 'Fichier(s) ignoré(s) : ' + rejected.join(', ');
+        errBox.classList.remove('hidden');
+      } else {
+        errBox.classList.add('hidden');
+      }
+    });
+    // Avant chaque ouverture du sélecteur, on mémorise les fichiers déjà sélectionnés
+    fileInput.addEventListener('click', function () {
+      window.__savExistingFiles = Array.from(fileInput.files || []);
+    });
+  }
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     errBox.classList.add('hidden');

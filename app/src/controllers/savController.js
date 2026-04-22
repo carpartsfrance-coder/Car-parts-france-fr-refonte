@@ -207,10 +207,11 @@ exports.postSimpleForm = async (req, res) => {
     ticket.statut = cfg.statut;
     ticket.workflow = { track: 'retour_systematique', etape: cfg.statut };
 
-    ticket.addMessage('client', 'interne', `Ticket créé via formulaire court (motif : ${motif.title})`);
-    await ticket.save();
+    // Note interne technique (audit) — invisible côté client
+    ticket.addMessage('systeme', 'interne', `Ticket créé via formulaire court (motif : ${motif.title})`);
 
-    // Sauvegarde des pièces jointes en MongoDB (GridFS) — aucun fichier sur disque
+    // Upload des pièces jointes en MongoDB (GridFS) — aucun fichier sur disque
+    const clientAttachments = [];
     if (Array.isArray(req.files) && req.files.length) {
       try {
         const savFileStorage = require('../services/savFileStorage');
@@ -226,19 +227,25 @@ exports.postSimpleForm = async (req, res) => {
               uploadedBy: 'client',
             },
           });
-          ticket.documentsList.push({
+          const att = {
             kind: 'client_upload',
             url: stored.url,
             originalName: f.originalname,
             size: f.size,
             mime: f.mimetype,
-          });
+          };
+          ticket.documentsList.push(att);
+          clientAttachments.push(att);
         }
-        await ticket.save();
       } catch (e) {
         console.error('[sav] simple upload error', e && e.message);
       }
     }
+
+    // Message client visible dans la conversation (motif + PJ rattachées)
+    ticket.addMessage('client', 'inapp', description, clientAttachments);
+
+    await ticket.save();
 
     try { require('../services/slackNotifier').notifyTicketCreated(ticket); } catch (_) {}
     try {
