@@ -86,6 +86,9 @@ const messageSchema = new mongoose.Schema(
     },
     contenu: { type: String, required: true },
     attachments: { type: [messageAttachmentSchema], default: [] },
+    // Modification admin (champs absents = jamais édité)
+    editedAt: { type: Date },
+    editedBy: { type: String },
   },
   { _id: true }
 );

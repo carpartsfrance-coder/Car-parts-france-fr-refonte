@@ -1584,6 +1584,97 @@ adminRouter.post('/tickets/:numero/messages', async (req, res) => {
   }
 });
 
+// PATCH /admin/api/sav/tickets/:numero/messages/:messageId — modifier le contenu d'un message
+adminRouter.patch('/tickets/:numero/messages/:messageId', express.json({ limit: '64kb' }), async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const msg = ticket.messages.id(req.params.messageId);
+    if (!msg) return fail(res, 'Message introuvable', 404);
+    const newContenu = (req.body && typeof req.body.contenu === 'string') ? req.body.contenu.trim() : '';
+    if (!newContenu) return fail(res, 'Contenu vide', 400);
+    if (newContenu.length > 20000) return fail(res, 'Contenu trop long (>20000 caractères)', 400);
+
+    const before = { contenu: msg.contenu, editedAt: msg.editedAt || null };
+    const editor = (req.headers['x-admin-user'] || 'admin').toString().slice(0, 80);
+    msg.contenu = newContenu;
+    msg.editedAt = new Date();
+    msg.editedBy = editor;
+    await ticket.save();
+
+    audit.log({
+      req,
+      action: 'sav.message.edit',
+      entityType: 'sav_ticket',
+      entityId: ticket.numero,
+      before,
+      after: { contenu: msg.contenu, editedAt: msg.editedAt, editedBy: msg.editedBy, messageId: String(msg._id) },
+    });
+
+    return ok(res, {
+      messageId: String(msg._id),
+      contenu: msg.contenu,
+      editedAt: msg.editedAt,
+      editedBy: msg.editedBy,
+    });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// DELETE /admin/api/sav/tickets/:numero/messages/:messageId — supprimer définitivement un message
+adminRouter.delete('/tickets/:numero/messages/:messageId', async (req, res) => {
+  try {
+    const ticket = await SavTicket.findOne({ numero: req.params.numero });
+    if (!ticket) return fail(res, 'Ticket introuvable', 404);
+    const msg = ticket.messages.id(req.params.messageId);
+    if (!msg) return fail(res, 'Message introuvable', 404);
+
+    const snapshot = {
+      messageId: String(msg._id),
+      auteur: msg.auteur,
+      canal: msg.canal,
+      contenu: msg.contenu,
+      date: msg.date,
+      attachments: (msg.attachments || []).map((a) => ({
+        url: a.url, originalName: a.originalName, size: a.size, mime: a.mime, kind: a.kind,
+      })),
+    };
+
+    // Nettoie les pièces jointes en GridFS
+    const attachmentIds = (msg.attachments || [])
+      .map((a) => savFileStorage.extractIdFromUrl(a && a.url))
+      .filter(Boolean);
+    for (const id of attachmentIds) {
+      try { await savFileStorage.deleteFile(id); } catch (e) {
+        console.error('[sav-msg-delete] gridfs', id, e.message);
+      }
+    }
+
+    // Supprime aussi les références correspondantes dans documentsList du ticket
+    if (Array.isArray(ticket.documentsList) && ticket.documentsList.length) {
+      const urlsToRemove = new Set((msg.attachments || []).map((a) => a && a.url).filter(Boolean));
+      ticket.documentsList = ticket.documentsList.filter((d) => !urlsToRemove.has(d && d.url));
+    }
+
+    msg.deleteOne();
+    await ticket.save();
+
+    audit.log({
+      req,
+      action: 'sav.message.delete',
+      entityType: 'sav_ticket',
+      entityId: ticket.numero,
+      before: snapshot,
+      after: null,
+    });
+
+    return ok(res, { messageId: snapshot.messageId, count: ticket.messages.length });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
 // POST /admin/api/sav/tickets/:numero/facturer-149
 adminRouter.post('/tickets/:numero/facturer-149', async (req, res) => {
   try {
