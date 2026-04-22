@@ -2630,7 +2630,7 @@
       // Message client/admin (inapp, email[legacy], whatsapp, tel, interne)
       var isIntern = canal === 'interne' || canal === 'note';
       if (canal === 'inapp' || canal === 'email' || canal === 'whatsapp' || canal === 'tel' || canal === 'phone' || isIntern) {
-        return { kind: 'message', canal: canal || 'note', isIntern: isIntern, isClient: (m.auteur === 'client'), html: m.html, text: contenu, sujet: m.sujet };
+        return { kind: 'message', canal: canal || 'note', isIntern: isIntern, isClient: (m.auteur === 'client'), html: m.html, text: contenu, sujet: m.sujet, attachments: Array.isArray(m.attachments) ? m.attachments : [] };
       }
       // Fallback
       return { kind: 'systeme', text: contenu };
@@ -2967,6 +2967,21 @@
           });
           pjHtml += '</div>';
           fullBody += pjHtml;
+        }
+
+        // Nouveau format : attachments structurés sur le message (m.attachments[])
+        if (Array.isArray(p.attachments) && p.attachments.length) {
+          var attHtml = '<div class="sav-bubble__attachments">';
+          p.attachments.forEach(function(a) {
+            if (!a || !a.url) return;
+            var name = fixMojibake(a.originalName || 'pièce jointe');
+            var sz = fmtSizeShort(a.size);
+            attHtml += '<a href="' + escapeHtml(a.url) + '" target="_blank" rel="noopener" class="sav-bubble__pj" title="' + escapeHtml(name) + '">' +
+              '<span class="material-symbols-outlined" style="font-size:14px;">attach_file</span>' +
+              '<span>' + escapeHtml(name) + (sz ? ' (' + sz + ')' : '') + '</span></a>';
+          });
+          attHtml += '</div>';
+          fullBody += attHtml;
         }
         var plainText = (p.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         var isLong = plainText.length > 300 || (p.html && p.html.length > 500);
@@ -3465,6 +3480,87 @@
         composerWrap.classList.add('hidden');
       });
     }
+
+    // ── Reformulation IA (OpenAI) ──
+    (function setupReformulate() {
+      var btn = document.getElementById('sav-reformulate-btn');
+      var panel = document.getElementById('sav-reformulate-panel');
+      var textBox = document.getElementById('sav-reformulate-text');
+      var modelLbl = document.getElementById('sav-reformulate-model');
+      var btnApply = document.getElementById('sav-reformulate-apply');
+      var btnCancel = document.getElementById('sav-reformulate-cancel');
+      var btnClose = document.getElementById('sav-reformulate-close');
+      var editor = document.getElementById('sav-msg-editor');
+      if (!btn || !panel || !textBox || !btnApply || !btnCancel || !editor) return;
+
+      function hidePanel() {
+        panel.classList.add('hidden');
+        textBox.textContent = '';
+        if (modelLbl) modelLbl.textContent = '';
+      }
+      function showPanel(text, model) {
+        textBox.textContent = text;
+        if (modelLbl) modelLbl.textContent = model ? '· ' + model : '';
+        panel.classList.remove('hidden');
+        panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      btn.addEventListener('click', function () {
+        var draft = (editor.innerText || '').trim();
+        if (!draft) {
+          toast('Tapez d\'abord un brouillon à reformuler.', 'error');
+          editor.focus();
+          return;
+        }
+        if (draft.length > 5000) {
+          toast('Brouillon trop long (max 5000 caractères).', 'error');
+          return;
+        }
+        // Animation de chargement sur le bouton
+        var prev = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;animation:spin 1s linear infinite;">progress_activity</span>';
+        api('/tickets/' + encodeURIComponent(numero) + '/reformulate', {
+          method: 'POST',
+          body: JSON.stringify({ draft: draft }),
+        }).then(function (res) {
+          btn.disabled = false;
+          btn.innerHTML = prev;
+          if (!res.ok || !res.j || !res.j.success) {
+            var msg = (res.j && res.j.error) || 'Erreur reformulation';
+            toast(msg, 'error');
+            return;
+          }
+          var d = res.j.data || {};
+          if (!d.reformulated) {
+            toast('Reformulation vide', 'error');
+            return;
+          }
+          showPanel(d.reformulated, d.model || '');
+        }).catch(function (e) {
+          btn.disabled = false;
+          btn.innerHTML = prev;
+          toast('Erreur réseau : ' + (e && e.message ? e.message : 'inconnue'), 'error');
+        });
+      });
+
+      btnApply.addEventListener('click', function () {
+        var t = textBox.textContent || '';
+        if (!t.trim()) { hidePanel(); return; }
+        // Remplace l'éditeur par la version reformulée (texte brut, sauts de ligne préservés)
+        editor.innerText = t;
+        // Met à jour les hidden inputs de la même manière que la frappe utilisateur
+        var contenuField = document.getElementById('sav-msg-contenu');
+        var htmlField = document.getElementById('sav-msg-html');
+        if (contenuField) contenuField.value = t;
+        if (htmlField) htmlField.value = editor.innerHTML;
+        hidePanel();
+        toast('Reformulation appliquée', 'success');
+        editor.focus();
+      });
+      btnCancel.addEventListener('click', hidePanel);
+      if (btnClose) btnClose.addEventListener('click', hidePanel);
+    })();
 
     // Pills toggle canaux + show/hide subject & preview
     var canalInput = document.getElementById('sav-canal-input');

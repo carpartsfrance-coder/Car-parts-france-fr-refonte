@@ -236,7 +236,17 @@ publicRouter.post('/tickets', async (req, res) => {
       statut: 'pre_qualification',
       workflow: { track: body.track || 'retour_systematique', etape: 'pre_qualification' },
     });
-    ticket.addMessage('client', 'interne', 'Ticket créé via formulaire public');
+    // Note interne technique (audit) — invisible côté client
+    ticket.addMessage('systeme', 'interne', 'Ticket créé via formulaire public (wizard)');
+    // Message client visible dans la conversation (description = demande initiale)
+    const initialDescription = (body.diagnostic && typeof body.diagnostic.description === 'string')
+      ? body.diagnostic.description.trim()
+      : '';
+    ticket.addMessage(
+      'client',
+      'inapp',
+      initialDescription || 'Demande SAV créée via le formulaire en ligne.',
+    );
     await ticket.save();
 
     // 4.3 Slack : nouveau ticket
@@ -349,7 +359,23 @@ publicRouter.post(
         uploadedAt: new Date(),
       });
 
-      ticket.addMessage('client', 'interne', `Document uploadé (${kind}) : ${req.file.originalname} (${req.file.size} octets)`);
+      // Rattacher la PJ au premier message client inapp (la "demande initiale")
+      // pour qu'elle apparaisse dans la conversation. Si aucun message client
+      // n'existe encore (rétro-compat), on log en interne.
+      const attachment = {
+        url,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mime: req.file.mimetype,
+        kind,
+      };
+      const initialClientMsg = (ticket.messages || []).find((m) => m.auteur === 'client' && m.canal === 'inapp');
+      if (initialClientMsg) {
+        if (!Array.isArray(initialClientMsg.attachments)) initialClientMsg.attachments = [];
+        initialClientMsg.attachments.push(attachment);
+      } else {
+        ticket.addMessage('systeme', 'interne', `Document uploadé (${kind}) : ${req.file.originalname} (${req.file.size} octets)`);
+      }
       await ticket.save();
       return ok(res, { url, kind });
     } catch (err) {
@@ -869,6 +895,70 @@ adminRouter.post('/tickets/:numero/communication', upload.array('attachments', 5
     return ok(res, { numero: ticket.numero, attachments: savedAttachments });
   } catch (err) {
     return fail(res, err.message, 500);
+  }
+});
+
+// ----------------------------------------------------------------------
+// POST /admin/api/sav/tickets/:numero/reformulate
+// Reformule un brouillon de réponse SAV via OpenAI (ton CarParts France).
+// Body: { draft: string, audience?: 'client'|'interne' }
+// Réponse: { reformulated: string, model: string }
+// Rate-limit : 60 reformulations / heure / token admin (en mémoire process).
+// ----------------------------------------------------------------------
+const REFORMULATE_RATE_MAX = 60;
+const REFORMULATE_RATE_WINDOW_MS = 60 * 60 * 1000;
+const reformulateUsage = new Map(); // key (token) -> { count, windowStart }
+
+function checkReformulateRate(key) {
+  const now = Date.now();
+  const cur = reformulateUsage.get(key);
+  if (!cur || now - cur.windowStart > REFORMULATE_RATE_WINDOW_MS) {
+    reformulateUsage.set(key, { count: 1, windowStart: now });
+    return { allowed: true, remaining: REFORMULATE_RATE_MAX - 1 };
+  }
+  if (cur.count >= REFORMULATE_RATE_MAX) {
+    const resetIn = Math.ceil((REFORMULATE_RATE_WINDOW_MS - (now - cur.windowStart)) / 1000);
+    return { allowed: false, remaining: 0, resetIn };
+  }
+  cur.count += 1;
+  return { allowed: true, remaining: REFORMULATE_RATE_MAX - cur.count };
+}
+
+adminRouter.post('/tickets/:numero/reformulate', express.json({ limit: '32kb' }), async (req, res) => {
+  try {
+    const reformulator = require('../../services/openaiSavReformulate');
+    const draft = (req.body && typeof req.body.draft === 'string') ? req.body.draft : '';
+    if (!draft.trim()) return fail(res, 'draft requis', 400);
+    if (draft.length > reformulator.MAX_INPUT_CHARS) {
+      return fail(res, `Brouillon trop long (max ${reformulator.MAX_INPUT_CHARS} caractères)`, 413);
+    }
+
+    // Rate-limit par token admin (le token Bearer fait office d'identifiant)
+    const rateKey = (req.headers.authorization || '').slice(0, 80) || req.ip || 'anon';
+    const rate = checkReformulateRate(rateKey);
+    if (!rate.allowed) {
+      res.set('Retry-After', String(rate.resetIn));
+      return fail(res, `Quota de reformulation atteint (${REFORMULATE_RATE_MAX}/h). Réessayez dans ${rate.resetIn}s.`, 429);
+    }
+
+    // Contexte : nom client + numéro ticket pour personnalisation
+    const ticket = await SavTicket
+      .findOne({ numero: req.params.numero })
+      .select('numero client.nom')
+      .lean();
+    const opts = {};
+    if (ticket && ticket.client && ticket.client.nom) opts.clientName = ticket.client.nom;
+    if (ticket) opts.ticketNumero = ticket.numero;
+
+    const result = await reformulator.reformulate(draft, opts);
+    res.set('X-RateLimit-Remaining', String(rate.remaining));
+    return ok(res, { reformulated: result.reformulated, model: result.model });
+  } catch (err) {
+    const status = err.code === 'OPENAI_KEY_MISSING' ? 503
+      : err.code === 'INPUT_TOO_LONG' ? 413
+      : err.code === 'EMPTY_DRAFT' ? 400
+      : 500;
+    return fail(res, err.message || 'Erreur reformulation', status);
   }
 });
 

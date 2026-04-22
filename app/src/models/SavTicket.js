@@ -64,6 +64,17 @@ const STATUTS = [
   'refuse',
 ];
 
+const messageAttachmentSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    originalName: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+    mime: { type: String, default: '' },
+    kind: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
 const messageSchema = new mongoose.Schema(
   {
     date: { type: Date, default: Date.now },
@@ -74,6 +85,7 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
     contenu: { type: String, required: true },
+    attachments: { type: [messageAttachmentSchema], default: [] },
   },
   { _id: true }
 );
@@ -486,9 +498,21 @@ savTicketSchema.pre('save', async function preSave(next) {
 
 // ---------- Methods ----------
 
-savTicketSchema.methods.addMessage = function addMessage(auteur, canal, contenu) {
+savTicketSchema.methods.addMessage = function addMessage(auteur, canal, contenu, attachments) {
   const date = new Date();
-  this.messages.push({ auteur, canal, contenu, date });
+  const msg = { auteur, canal, contenu, date };
+  if (Array.isArray(attachments) && attachments.length) {
+    msg.attachments = attachments
+      .filter((a) => a && a.url)
+      .map((a) => ({
+        url: String(a.url),
+        originalName: a.originalName || a.filename || '',
+        size: Number(a.size) || 0,
+        mime: a.mime || a.mimeType || '',
+        kind: a.kind || '',
+      }));
+  }
+  this.messages.push(msg);
   if (auteur === 'client') this.lastClientMessageAt = date;
   else if (auteur && auteur !== 'systeme' && canal !== 'interne') this.lastAdminMessageAt = date;
   return this;
