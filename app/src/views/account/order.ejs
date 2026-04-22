@@ -537,49 +537,6 @@
     transaction_id: '<%= order.number %>'
   });
 
-  // === 2. Fallback gtag.js DIRECT — envoie la conversion Google Ads ===
-  // meme si GTM est bloque par un adblocker ou le navigateur
-  // Calcul CA HT = value - tax - shipping (meme formule que la variable GTM "CA HT hors FP")
-  var totalValue = <%= (order.totalCents / 100).toFixed(2) %>;
-  var taxValue = <%= (order.vatCents / 100).toFixed(2) %>;
-  var shippingValue = <%= (order.shippingCostCents / 100).toFixed(2) %>;
-  var caHT = Math.round((totalValue - taxValue - shippingValue) * 100) / 100;
-
-  // Charger gtag.js si pas deja present (evite conflit si GTM l'a deja charge)
-  if (typeof gtag !== 'function') {
-    var gtagScript = document.createElement('script');
-    gtagScript.async = true;
-    gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=AW-16778404215';
-    document.head.appendChild(gtagScript);
-
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function() { dataLayer.push(arguments); };
-    gtag('js', new Date());
-    gtag('config', 'AW-16778404215', { 'send_page_view': false });
-  }
-
-  // Attendre que gtag soit pret puis envoyer la conversion
-  function sendGadsConversion() {
-    gtag('event', 'conversion', {
-      'send_to': 'AW-16778404215/W7R-COzWtsYaEPfCyMA-',
-      'value': caHT,
-      'currency': 'EUR',
-      'transaction_id': '<%= order.number %>'
-    });
-  }
-
-  // Si le script est deja charge, envoyer tout de suite, sinon attendre
-  if (typeof gtag === 'function' && document.querySelector('script[src*="gtag/js?id=AW-"]')) {
-    sendGadsConversion();
-  } else {
-    var checkGtag = setInterval(function() {
-      if (typeof gtag === 'function') {
-        clearInterval(checkGtag);
-        sendGadsConversion();
-      }
-    }, 100);
-    setTimeout(function() { clearInterval(checkGtag); }, 5000);
-  }
 })();
 </script>
 <% } %>
