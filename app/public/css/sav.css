@@ -759,6 +759,10 @@
   gap: 0.5rem;
   padding: 0.375rem 0.75rem;
   border-top: 1px solid #f1f5f9;
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  z-index: 2;
 }
 .sav-composer__icon-btn {
   display: inline-flex;
