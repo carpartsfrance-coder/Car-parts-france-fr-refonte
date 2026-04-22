@@ -95,7 +95,7 @@ var publicMsgs = (ticket.messages || []).filter(function(m){ return m.canal !== 
           <div class="flex <%= isClient ? 'justify-end' : 'justify-start' %>">
             <div class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm <%= isClient ? 'bg-primary text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm' %>">
               <div class="text-[10px] opacity-70 mb-0.5">
-                <%= isClient ? 'Vous' : 'CarParts France' %> · <%= new Date(m.date).toLocaleString('fr-FR') %>
+                <%= isClient ? 'Vous' : 'CarParts France' %> · <%= new Date(m.date).toLocaleString('fr-FR') %><% if (m.editedAt) { %> · <span class="italic" title="Modifié le <%= new Date(m.editedAt).toLocaleString('fr-FR') %>">(modifié)</span><% } %>
               </div>
               <div class="whitespace-pre-wrap"><%= m.contenu %></div>
               <% if (Array.isArray(m.attachments) && m.attachments.length) { %>

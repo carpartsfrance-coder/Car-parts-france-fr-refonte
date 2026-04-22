@@ -3003,28 +3003,42 @@
           (isIntern ? '<div class="sav-bubble__body" style="font-style:italic;">' + fullBody + '</div>' : bodyHtml) +
         '</div>';
 
+        // Indicateur "(modifié)" si le message a été édité par un admin
+        var editedHint = m.editedAt ? ' &middot; <span class="sav-chat-meta__edited" title="Modifié le ' + escapeHtml(new Date(m.editedAt).toLocaleString('fr-FR')) + (m.editedBy ? ' par ' + escapeHtml(m.editedBy) : '') + '">(modifié)</span>' : '';
+
         // Meta line
         var metaHtml;
         if (isIntern) {
           metaHtml = '<div class="sav-chat-meta sav-chat-meta--intern">' +
-            '<span>NOTE INTERNE</span> &middot; <span>' + timeStr + '</span>' +
+            '<span>NOTE INTERNE</span> &middot; <span>' + timeStr + '</span>' + editedHint +
           '</div>';
         } else if (isClient) {
           metaHtml = '<div class="sav-chat-meta sav-chat-meta--client">' +
-            '<span>' + timeStr + '</span> &middot; <span>' + escapeHtml(authorLabel) + '</span>' +
+            '<span>' + timeStr + '</span> &middot; <span>' + escapeHtml(authorLabel) + '</span>' + editedHint +
           '</div>';
         } else {
           metaHtml = '<div class="sav-chat-meta sav-chat-meta--admin">' +
-            '<span>' + timeStr + '</span> &middot; <span>' + escapeHtml(authorLabel) + '</span>' +
+            '<span>' + timeStr + '</span> &middot; <span>' + escapeHtml(authorLabel) + '</span>' + editedHint +
           '</div>';
         }
 
-        // Reply button (not for internal notes)
-        var replyHtml = !isIntern ? '<div class="sav-bubble__actions">' +
-            '<button type="button" class="sav-bubble__reply" data-reply-idx="' + idx + '">' +
-              '<span class="material-symbols-outlined" style="font-size:13px;">reply</span> Répondre' +
-            '</button>' +
-          '</div>' : '';
+        // Actions : Répondre (sauf notes internes) + Modifier + Supprimer (admin only, sur tous les messages)
+        var msgIdAttr = m._id ? String(m._id) : '';
+        var actionButtons = '';
+        if (!isIntern) {
+          actionButtons += '<button type="button" class="sav-bubble__reply" data-reply-idx="' + idx + '">' +
+            '<span class="material-symbols-outlined" style="font-size:13px;">reply</span> Répondre' +
+          '</button>';
+        }
+        if (msgIdAttr) {
+          actionButtons += '<button type="button" class="sav-bubble__edit" data-edit-mid="' + escapeHtml(msgIdAttr) + '" data-edit-idx="' + idx + '" title="Modifier ce message">' +
+            '<span class="material-symbols-outlined" style="font-size:13px;">edit</span> Modifier' +
+          '</button>';
+          actionButtons += '<button type="button" class="sav-bubble__delete" data-delete-mid="' + escapeHtml(msgIdAttr) + '" title="Supprimer définitivement">' +
+            '<span class="material-symbols-outlined" style="font-size:13px;">delete</span> Supprimer' +
+          '</button>';
+        }
+        var replyHtml = actionButtons ? '<div class="sav-bubble__actions">' + actionButtons + '</div>' : '';
 
         // Avatar element
         var avatarHtml = '<div class="sav-chat-avatar sav-chat-avatar--' + side + '">' +
@@ -3088,6 +3102,85 @@
           // Scroll to chat (no more tabs)
           var chatEl = document.getElementById('sav-messages');
           if (chatEl) chatEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      // Wire edit buttons (admin uniquement) — édition inline
+      box.querySelectorAll('[data-edit-mid]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var mid = b.getAttribute('data-edit-mid');
+          var idx = Number(b.getAttribute('data-edit-idx'));
+          var m = (ticket.messages || [])[idx];
+          if (!m || !mid) return;
+          var row = b.closest('.sav-chat-row');
+          var bubble = row && row.querySelector('.sav-bubble');
+          if (!bubble) return;
+          if (bubble.querySelector('.sav-bubble__edit-form')) return; // déjà en édition
+          var bodyEl = bubble.querySelector('.sav-bubble__body');
+          var prevBodyHtml = bodyEl ? bodyEl.innerHTML : '';
+          var currentText = String(m.contenu || '').replace(/<[^>]+>/g, '');
+          var form = document.createElement('div');
+          form.className = 'sav-bubble__edit-form';
+          form.innerHTML =
+            '<textarea class="sav-bubble__edit-textarea" rows="4">' + escapeHtml(currentText) + '</textarea>' +
+            '<div class="sav-bubble__edit-actions">' +
+              '<button type="button" class="sav-bubble__edit-cancel">Annuler</button>' +
+              '<button type="button" class="sav-bubble__edit-save">Enregistrer</button>' +
+            '</div>';
+          if (bodyEl) bodyEl.style.display = 'none';
+          bubble.appendChild(form);
+          var ta = form.querySelector('textarea');
+          ta.focus();
+          form.querySelector('.sav-bubble__edit-cancel').addEventListener('click', function () {
+            form.remove();
+            if (bodyEl) bodyEl.style.display = '';
+          });
+          form.querySelector('.sav-bubble__edit-save').addEventListener('click', function () {
+            var newVal = (ta.value || '').trim();
+            if (!newVal) { toast('Contenu vide', 'error'); return; }
+            if (newVal === currentText) { form.remove(); if (bodyEl) bodyEl.style.display = ''; return; }
+            var saveBtn = form.querySelector('.sav-bubble__edit-save');
+            saveBtn.disabled = true; saveBtn.textContent = 'Enregistrement…';
+            api('/tickets/' + encodeURIComponent(numero) + '/messages/' + encodeURIComponent(mid), {
+              method: 'PATCH',
+              body: JSON.stringify({ contenu: newVal }),
+            }).then(function (res) {
+              if (res.ok && res.j && res.j.success) {
+                toast('Message modifié');
+                loadTicket();
+              } else {
+                toast((res.j && res.j.error) || 'Erreur lors de la modification', 'error');
+                saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+              }
+            }).catch(function () {
+              toast('Erreur réseau', 'error');
+              saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+            });
+          });
+        });
+      });
+
+      // Wire delete buttons (admin uniquement) — hard delete + GridFS cleanup
+      box.querySelectorAll('[data-delete-mid]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var mid = b.getAttribute('data-delete-mid');
+          if (!mid) return;
+          if (!window.confirm('Supprimer définitivement ce message ?\nCette action est irréversible et supprimera également les pièces jointes associées.')) return;
+          b.disabled = true;
+          api('/tickets/' + encodeURIComponent(numero) + '/messages/' + encodeURIComponent(mid), {
+            method: 'DELETE',
+          }).then(function (res) {
+            if (res.ok && res.j && res.j.success) {
+              toast('Message supprimé');
+              loadTicket();
+            } else {
+              toast((res.j && res.j.error) || 'Erreur lors de la suppression', 'error');
+              b.disabled = false;
+            }
+          }).catch(function () {
+            toast('Erreur réseau', 'error');
+            b.disabled = false;
+          });
         });
       });
 
