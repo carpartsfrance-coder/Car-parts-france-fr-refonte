@@ -5991,6 +5991,7 @@ async function postAdminCreateProduct(req, res, next) {
       badgeTopLeft: getTrimmedString(req.body.badgeTopLeft),
       badgeCondition: getTrimmedString(req.body.badgeCondition),
       galleryUrls: getTrimmedString(req.body.galleryUrls),
+      galleryTypes: getTrimmedString(req.body.galleryTypes),
       shortDescription: getTrimmedString(req.body.shortDescription),
       description: getTrimmedString(req.body.description),
       keyPoints: getTrimmedString(req.body.keyPoints),
@@ -6154,6 +6155,7 @@ async function postAdminCreateProduct(req, res, next) {
     const inStock = stockQty !== null ? stockQty > 0 : form.inStock;
 
     const galleryUrlsFromForm = parseLinesToArray(form.galleryUrls);
+    const galleryTypesFromForm = parseLinesToArray(form.galleryTypes);
     const keyPoints = parseLinesToArray(form.keyPoints);
     const specs = parsePairsFromLines(form.specs);
     if (Object.prototype.hasOwnProperty.call(req.body, 'specType')) {
@@ -6220,11 +6222,28 @@ async function postAdminCreateProduct(req, res, next) {
       savedUploads.push(saved);
     }
 
-    const uploadedImageUrl = savedUploads.length ? savedUploads[0].url : '';
+    // Sélectionne la première IMAGE uploadée pour l'image principale (jamais une vidéo).
+    let mainUploadIdx = -1;
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const f = uploadedFiles[i];
+      if (f && f.mimetype && f.mimetype.startsWith('image/')) {
+        mainUploadIdx = i;
+        break;
+      }
+    }
+    const uploadedImageUrl = (mainUploadIdx >= 0 && savedUploads[mainUploadIdx]) ? savedUploads[mainUploadIdx].url : '';
     const imageUrl = uploadedImageUrl || form.imageUrl;
 
-    const extraGalleryUrls = savedUploads.slice(1).map((s) => s.url);
+    // Tous les uploads sauf l'image principale vont dans la galerie.
+    const extraGalleryUrls = savedUploads
+      .filter((_, i) => i !== mainUploadIdx)
+      .map((s) => s.url);
+    const extraGalleryTypes = uploadedFiles
+      .filter((_, i) => i !== mainUploadIdx)
+      .map((f) => (f && f.mimetype && f.mimetype.startsWith('video/')) ? 'video' : 'image');
     const galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
+    const galleryTypes = galleryUrlsFromForm.map((_, i) => (galleryTypesFromForm[i] === 'video' ? 'video' : 'image'))
+      .concat(extraGalleryTypes);
 
     const createData = {
       name: form.name,
@@ -6252,6 +6271,7 @@ async function postAdminCreateProduct(req, res, next) {
         condition: form.badgeCondition,
       },
       galleryUrls,
+      galleryTypes,
       shortDescription: form.shortDescription,
       description: form.description,
       keyPoints,
@@ -6397,6 +6417,13 @@ async function getAdminEditProductPage(req, res, next) {
         badgeTopLeft: product.badges && product.badges.topLeft ? product.badges.topLeft : '',
         badgeCondition: product.badges && product.badges.condition ? product.badges.condition : '',
         galleryUrls: Array.isArray(product.galleryUrls) ? product.galleryUrls.filter(Boolean).join('\n') : '',
+        // Tableau parallèle aligné sur galleryUrls (image|video). Reconstitue '' pour les indices manquants
+        // (anciens produits sans galleryTypes) — le client mappera 'image' par défaut.
+        galleryTypes: (function () {
+          var urls = Array.isArray(product.galleryUrls) ? product.galleryUrls.filter(Boolean) : [];
+          var types = Array.isArray(product.galleryTypes) ? product.galleryTypes : [];
+          return urls.map(function (_, i) { return types[i] === 'video' ? 'video' : 'image'; }).join('\n');
+        })(),
         shortDescription: product.shortDescription || '',
         description: product.description || '',
         keyPoints: Array.isArray(product.keyPoints) ? product.keyPoints.filter(Boolean).join('\n') : '',
@@ -6521,6 +6548,7 @@ async function postAdminUpdateProduct(req, res, next) {
       badgeTopLeft: getTrimmedString(req.body.badgeTopLeft),
       badgeCondition: getTrimmedString(req.body.badgeCondition),
       galleryUrls: getTrimmedString(req.body.galleryUrls),
+      galleryTypes: getTrimmedString(req.body.galleryTypes),
       shortDescription: getTrimmedString(req.body.shortDescription),
       description: getTrimmedString(req.body.description),
       keyPoints: getTrimmedString(req.body.keyPoints),
@@ -6647,11 +6675,17 @@ async function postAdminUpdateProduct(req, res, next) {
       || req.file
     );
 
-    /* ── When removing the main image, auto-promote first gallery image ── */
+    /* ── When removing the main image, auto-promote first gallery IMAGE (not video) ── */
     const galleryUrlsForCheck = parseLinesToArray(form.galleryUrls);
+    const galleryTypesForCheck = parseLinesToArray(form.galleryTypes);
     let autoPromotedMainFromGallery = '';
     if (!hasMainImage && removeMainImage && galleryUrlsForCheck.length > 0) {
-      autoPromotedMainFromGallery = galleryUrlsForCheck[0];
+      for (let i = 0; i < galleryUrlsForCheck.length; i++) {
+        if (galleryTypesForCheck[i] !== 'video') {
+          autoPromotedMainFromGallery = galleryUrlsForCheck[i];
+          break;
+        }
+      }
     }
     const effectiveHasMainImage = hasMainImage || !!autoPromotedMainFromGallery;
 
@@ -6732,7 +6766,17 @@ async function postAdminUpdateProduct(req, res, next) {
       savedUploads.push(saved);
     }
 
-    const uploadedImageUrl = savedUploads.length ? savedUploads[0].url : '';
+    // Sélectionne la première IMAGE uploadée pour l'image principale (jamais une vidéo).
+    // Les vidéos restent dans la galerie. Si aucune image n'est uploadée, garde l'image existante.
+    let mainUploadIdx = -1;
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const f = uploadedFiles[i];
+      if (f && f.mimetype && f.mimetype.startsWith('image/')) {
+        mainUploadIdx = i;
+        break;
+      }
+    }
+    const uploadedImageUrl = (mainUploadIdx >= 0 && savedUploads[mainUploadIdx]) ? savedUploads[mainUploadIdx].url : '';
     const shouldRemoveMain = removeMainImage && !uploadedImageUrl;
     let nextImageUrl = uploadedImageUrl || (shouldRemoveMain ? '' : (form.imageUrl || existing.imageUrl || ''));
 
@@ -6745,12 +6789,28 @@ async function postAdminUpdateProduct(req, res, next) {
     const inStock = stockQty !== null ? stockQty > 0 : form.inStock;
 
     const galleryUrlsFromForm = parseLinesToArray(form.galleryUrls);
-    const extraGalleryUrls = savedUploads.slice(1).map((s) => s.url);
+    const galleryTypesFromForm = parseLinesToArray(form.galleryTypes);
+    // Tous les uploads sauf celui promu en image principale vont dans la galerie.
+    // Les vidéos sont taggées 'video' via leur mimetype.
+    const extraGalleryUrls = savedUploads
+      .filter((_, i) => i !== mainUploadIdx)
+      .map((s) => s.url);
+    const extraGalleryTypes = uploadedFiles
+      .filter((_, i) => i !== mainUploadIdx)
+      .map((f) => (f && f.mimetype && f.mimetype.startsWith('video/')) ? 'video' : 'image');
     let galleryUrls = [...galleryUrlsFromForm, ...extraGalleryUrls];
+    // Construit galleryTypes parallèlement, en respectant l'ordre du formulaire et en complétant
+    // par les nouveaux uploads. Toute valeur manquante = 'image' (rétrocompat).
+    let galleryTypes = galleryUrlsFromForm.map((_, i) => (galleryTypesFromForm[i] === 'video' ? 'video' : 'image'))
+      .concat(extraGalleryTypes);
 
     /* Remove promoted image from gallery to avoid duplicate */
     if (autoPromotedMainFromGallery && nextImageUrl === autoPromotedMainFromGallery) {
-      galleryUrls = galleryUrls.filter((u) => u !== autoPromotedMainFromGallery);
+      const removeIdx = galleryUrls.indexOf(autoPromotedMainFromGallery);
+      if (removeIdx >= 0) {
+        galleryUrls.splice(removeIdx, 1);
+        galleryTypes.splice(removeIdx, 1);
+      }
     }
     const keyPoints = hasKeyPoints ? parseLinesToArray(form.keyPoints) : null;
     const specs = hasSpecs ? parsePairsFromLines(form.specs) : null;
@@ -6854,6 +6914,7 @@ async function postAdminUpdateProduct(req, res, next) {
             condition: form.badgeCondition,
           },
           galleryUrls,
+          galleryTypes,
           shortDescription: form.shortDescription,
           description: form.description,
           reconditioningSteps,

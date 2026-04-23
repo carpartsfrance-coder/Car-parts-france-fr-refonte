@@ -32,6 +32,9 @@ const productSchema = new mongoose.Schema(
     },
 
     galleryUrls: { type: [String], default: [] },
+    // Type de chaque entrée galleryUrls (parallèle, même indice). Valeurs : 'image' | 'video'.
+    // Vide ou undefined = 'image' par défaut (rétrocompat).
+    galleryTypes: { type: [String], default: [] },
 
     shortDescription: { type: String, default: '', trim: true },
     description: { type: String, default: '', trim: true },

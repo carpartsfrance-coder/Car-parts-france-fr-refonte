@@ -28,6 +28,26 @@
     margin-left: 0.5rem;
     vertical-align: middle;
   }
+
+  /* Drag-and-drop visual feedback on the media grid */
+  #mediaGrid.is-dropzone-active {
+    outline: 2px dashed rgb(59 130 246);
+    outline-offset: 4px;
+    background-color: rgba(59, 130, 246, 0.06);
+    border-radius: 0.75rem;
+  }
+  .media-tile.sortable-ghost {
+    opacity: 0.4;
+  }
+  .media-tile.sortable-chosen {
+    cursor: grabbing !important;
+  }
+  .media-tile [data-action="drag-handle"] {
+    cursor: grab;
+  }
+  .media-tile.sortable-drag {
+    cursor: grabbing !important;
+  }
 </style>
 
 <main class="flex-1 relative">
@@ -439,10 +459,25 @@
               </div>
             <% } %>
 
-            <% (form && form.galleryUrls ? String(form.galleryUrls).split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : []).forEach((u) => { %>
-              <div class="relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white" data-kind="gallery" data-url="<%= u %>">
-                <img alt="Product" class="w-full h-full object-cover" src="<%= u %>" />
+            <%
+              const __galleryUrlsArr = (form && form.galleryUrls) ? String(form.galleryUrls).split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : [];
+              const __galleryTypesArr = (form && form.galleryTypes) ? String(form.galleryTypes).split(/\r?\n/).map((s) => s.trim().toLowerCase()) : [];
+              __galleryUrlsArr.forEach((u, __i) => {
+                const __t = (__galleryTypesArr[__i] === 'video') ? 'video' : 'image';
+            %>
+              <div class="relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white media-tile" data-kind="gallery" data-url="<%= u %>" data-type="<%= __t %>">
+                <% if (__t === 'video') { %>
+                  <video class="w-full h-full object-cover" muted playsinline preload="metadata">
+                    <source src="<%= u %>" />
+                  </video>
+                  <span class="absolute top-1 left-1 bg-black/70 text-white text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[10px] leading-none">play_circle</span>VIDÉO
+                  </span>
+                <% } else { %>
+                  <img alt="Product" class="w-full h-full object-cover" src="<%= u %>" />
+                <% } %>
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button class="p-1.5 bg-white text-slate-900 rounded-full cursor-grab" type="button" data-action="drag-handle" title="Glisser pour réordonner"><span class="material-symbols-outlined text-sm">drag_indicator</span></button>
                   <button class="p-1.5 bg-white text-slate-900 rounded-full" type="button" data-action="move-left" title="Déplacer à gauche"><span class="material-symbols-outlined text-sm">arrow_back</span></button>
                   <button class="p-1.5 bg-white text-slate-900 rounded-full" type="button" data-action="move-right" title="Déplacer à droite"><span class="material-symbols-outlined text-sm">arrow_forward</span></button>
                   <button class="p-1.5 bg-white text-slate-900 rounded-full" type="button" data-action="remove"><span class="material-symbols-outlined text-sm">delete</span></button>
@@ -456,12 +491,13 @@
             </button>
           </div>
 
-          <div class="mt-4 text-xs text-slate-500">Champ obligatoire : ajoutez au moins une image principale. Vous pouvez aussi réagencer les autres images avec les flèches gauche/droite.</div>
+          <div class="mt-4 text-xs text-slate-500">Glissez-déposez vos fichiers (images ou vidéos) sur la grille, ou cliquez sur « Ajouter ». Vous pouvez réordonner par glisser-déposer ou avec les flèches. Vidéos : MP4 / WEBM / MOV (50 Mo max). Images : 5 Mo max.</div>
 
-          <input id="image" name="image" accept="image/*" type="file" multiple class="hidden" />
+          <input id="image" name="image" accept="image/*,video/mp4,video/webm,video/quicktime" type="file" multiple class="hidden" />
           <input id="imageUrl" name="imageUrl" type="hidden" value="<%= form && form.imageUrl ? form.imageUrl : '' %>" />
           <input id="removeMainImage" name="removeMainImage" type="hidden" value="false" />
           <textarea id="galleryUrls" name="galleryUrls" class="hidden"><%= form && form.galleryUrls ? form.galleryUrls : '' %></textarea>
+          <textarea id="galleryTypes" name="galleryTypes" class="hidden"><%= form && form.galleryTypes ? form.galleryTypes : '' %></textarea>
         </div>
       </section>
 
@@ -884,6 +920,8 @@
       productId: productId ? String(productId) : 'ID',
     }) %></script>
 
+    <script src="/js/sortable.min.js"></script>
+
     <script>
       (function () {
         /* Local aliases — btn-loading.js is loaded in footer */
@@ -895,18 +933,29 @@
         const uploadBtn = document.getElementById('mediaUploadBtn');
         const grid = document.getElementById('mediaGrid');
         const galleryField = document.getElementById('galleryUrls');
-        const canUseMedia = !!(fileInput && addNewBtn && uploadBtn && grid && galleryField);
+        const galleryTypesField = document.getElementById('galleryTypes');
+        const canUseMedia = !!(fileInput && addNewBtn && uploadBtn && grid && galleryField && galleryTypesField);
 
         const selected = [];
+
+        const VIDEO_MIMES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+        const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+        const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+        const isVideoFile = (f) => !!(f && f.type && VIDEO_MIMES.has(String(f.type).toLowerCase()));
+        const isImageFile = (f) => !!(f && f.type && String(f.type).toLowerCase().startsWith('image/'));
+        const isAcceptedFile = (f) => isImageFile(f) || isVideoFile(f);
 
         const sameFile = (a, b) => a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
         const getMediaTiles = () => Array.from(grid.querySelectorAll('[data-kind]')).filter((el) => el && !el.id);
         const syncGalleryFieldFromGrid = () => {
-          const orderedGalleryUrls = getMediaTiles()
-            .filter((el) => el.getAttribute('data-kind') === 'gallery')
+          const galleryTiles = getMediaTiles().filter((el) => el.getAttribute('data-kind') === 'gallery');
+          const orderedGalleryUrls = galleryTiles
             .map((el) => String(el.getAttribute('data-url') || '').trim())
             .filter(Boolean);
+          const orderedGalleryTypes = galleryTiles
+            .map((el) => (el.getAttribute('data-type') === 'video' ? 'video' : 'image'));
           galleryField.value = orderedGalleryUrls.join('\n');
+          galleryTypesField.value = orderedGalleryTypes.join('\n');
           refreshFieldReviewPanel();
         };
         const syncPreviewOrderFromGrid = () => {
@@ -1012,36 +1061,55 @@
           });
         }
 
-        if (canUseMedia) fileInput.addEventListener('change', () => {
-          const removeMainImageField = document.getElementById('removeMainImage');
-          if (removeMainImageField) removeMainImageField.value = 'false';
-
-          const files = Array.from(fileInput.files || []);
-          files.forEach((f) => {
-            if (selected.some((x) => sameFile(x, f))) return;
-            selected.push(f);
-          });
-          syncInputFiles();
-
+        const renderPreviewTiles = () => {
           Array.from(grid.querySelectorAll('[data-preview="true"]')).forEach((el) => el.remove());
 
           const beforeNode = uploadBtn;
           selected.forEach((f, idx) => {
             const url = URL.createObjectURL(f);
+            const isVid = isVideoFile(f);
             const wrapper = document.createElement('div');
-            wrapper.className = 'relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white';
+            wrapper.className = 'relative group aspect-square rounded-lg border border-border-light dark:border-border-dark overflow-hidden bg-white media-tile';
             wrapper.setAttribute('data-kind', 'preview');
             wrapper.setAttribute('data-preview', 'true');
             wrapper.setAttribute('data-preview-idx', String(idx));
             wrapper.setAttribute('data-url', url);
+            wrapper.setAttribute('data-type', isVid ? 'video' : 'image');
 
-            const img = document.createElement('img');
-            img.alt = 'Product';
-            img.className = 'w-full h-full object-cover';
-            img.src = url;
+            let thumb;
+            if (isVid) {
+              thumb = document.createElement('video');
+              thumb.className = 'w-full h-full object-cover';
+              thumb.muted = true;
+              thumb.playsInline = true;
+              thumb.preload = 'metadata';
+              const src = document.createElement('source');
+              src.src = url;
+              src.type = f.type || '';
+              thumb.appendChild(src);
+
+              const badge = document.createElement('span');
+              badge.className = 'absolute top-1 left-1 bg-black/70 text-white text-[8px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1';
+              badge.innerHTML = '<span class="material-symbols-outlined text-[10px] leading-none">play_circle</span>VIDÉO';
+              wrapper.appendChild(thumb);
+              wrapper.appendChild(badge);
+            } else {
+              thumb = document.createElement('img');
+              thumb.alt = 'Product';
+              thumb.className = 'w-full h-full object-cover';
+              thumb.src = url;
+              wrapper.appendChild(thumb);
+            }
 
             const overlay = document.createElement('div');
             overlay.className = 'absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2';
+
+            const handleBtn = document.createElement('button');
+            handleBtn.type = 'button';
+            handleBtn.className = 'p-1.5 bg-white text-slate-900 rounded-full cursor-grab';
+            handleBtn.setAttribute('data-action', 'drag-handle');
+            handleBtn.setAttribute('title', 'Glisser pour réordonner');
+            handleBtn.innerHTML = '<span class="material-symbols-outlined text-sm">drag_indicator</span>';
 
             const moveLeftBtn = document.createElement('button');
             moveLeftBtn.type = 'button';
@@ -1063,16 +1131,118 @@
             delBtn.setAttribute('data-action', 'remove');
             delBtn.innerHTML = '<span class="material-symbols-outlined text-sm">delete</span>';
 
+            overlay.appendChild(handleBtn);
             overlay.appendChild(moveLeftBtn);
             overlay.appendChild(moveRightBtn);
             overlay.appendChild(delBtn);
-            wrapper.appendChild(img);
             wrapper.appendChild(overlay);
             grid.insertBefore(wrapper, beforeNode);
           });
+        };
 
+        const ingestFiles = (incoming) => {
+          if (!incoming || !incoming.length) return;
+          const removeMainImageField = document.getElementById('removeMainImage');
+          if (removeMainImageField) removeMainImageField.value = 'false';
+
+          const errors = [];
+          Array.from(incoming).forEach((f) => {
+            if (!f) return;
+            if (!isAcceptedFile(f)) {
+              errors.push(`Fichier non supporté : ${f.name || ''}`);
+              return;
+            }
+            if (isImageFile(f) && f.size > MAX_IMAGE_BYTES) {
+              errors.push(`Image trop volumineuse : ${f.name} (${Math.round(f.size / 1024 / 1024)} Mo, max 5 Mo).`);
+              return;
+            }
+            if (isVideoFile(f) && f.size > MAX_VIDEO_BYTES) {
+              errors.push(`Vidéo trop volumineuse : ${f.name} (${Math.round(f.size / 1024 / 1024)} Mo, max 50 Mo).`);
+              return;
+            }
+            if (selected.some((x) => sameFile(x, f))) return;
+            selected.push(f);
+          });
+
+          if (errors.length) {
+            try { alert(errors.join('\n')); } catch (_) {}
+          }
+
+          syncInputFiles();
+          renderPreviewTiles();
           syncMediaOrder();
+        };
+
+        if (canUseMedia) fileInput.addEventListener('change', () => {
+          ingestFiles(fileInput.files);
         });
+
+        // Drag-and-drop dropzone on the media grid
+        if (canUseMedia) {
+          let dragDepth = 0;
+          const isFileDrag = (e) => {
+            if (!e || !e.dataTransfer) return false;
+            const types = e.dataTransfer.types;
+            if (!types) return false;
+            for (let i = 0; i < types.length; i++) {
+              if (types[i] === 'Files') return true;
+            }
+            return false;
+          };
+
+          grid.addEventListener('dragenter', (e) => {
+            if (!isFileDrag(e)) return;
+            e.preventDefault();
+            dragDepth++;
+            grid.classList.add('is-dropzone-active');
+          });
+          grid.addEventListener('dragover', (e) => {
+            if (!isFileDrag(e)) return;
+            e.preventDefault();
+            try { e.dataTransfer.dropEffect = 'copy'; } catch (_) {}
+          });
+          grid.addEventListener('dragleave', (e) => {
+            if (!isFileDrag(e)) return;
+            dragDepth = Math.max(0, dragDepth - 1);
+            if (dragDepth === 0) grid.classList.remove('is-dropzone-active');
+          });
+          grid.addEventListener('drop', (e) => {
+            if (!isFileDrag(e)) return;
+            e.preventDefault();
+            dragDepth = 0;
+            grid.classList.remove('is-dropzone-active');
+            const dropped = e.dataTransfer && e.dataTransfer.files;
+            if (dropped && dropped.length) ingestFiles(dropped);
+          });
+        }
+
+        // SortableJS for drag-to-reorder (excludes main image and upload button)
+        if (canUseMedia && typeof Sortable !== 'undefined') {
+          try {
+            new Sortable(grid, {
+              animation: 150,
+              draggable: '.media-tile',
+              filter: '[data-kind="main"]',
+              preventOnFilter: false,
+              ghostClass: 'sortable-ghost',
+              chosenClass: 'sortable-chosen',
+              dragClass: 'sortable-drag',
+              onMove: (evt) => {
+                // Block dropping before the main image (must stay first) or after the upload button
+                if (evt.related && evt.related.id === 'mediaUploadBtn') return false;
+                if (evt.related && evt.related.getAttribute && evt.related.getAttribute('data-kind') === 'main') return false;
+                return true;
+              },
+              onEnd: () => {
+                // Ensure upload button stays last
+                if (uploadBtn && uploadBtn.parentNode === grid) {
+                  grid.appendChild(uploadBtn);
+                }
+                syncMediaOrder();
+              },
+            });
+          } catch (_) { /* noop */ }
+        }
 
         const stepsGrid = document.getElementById('stepsGrid');
         const stepsField = document.getElementById('reconditioningSteps');

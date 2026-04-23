@@ -24,12 +24,25 @@
       </div>
     <% } else { %>
       <% const ref = product.sku || String(product._id).slice(-10).toUpperCase(); %>
-      <% const rawImages = []; %>
-      <% if (product.imageUrl) rawImages.push(product.imageUrl); %>
-      <% (product.galleryUrls || []).forEach((u) => { if (u) rawImages.push(u); }); %>
-      <% const images = Array.from(new Set(rawImages.filter(Boolean))); %>
+      <% const rawMedia = []; %>
+      <% if (product.imageUrl) rawMedia.push({ url: product.imageUrl, type: 'image' }); %>
+      <% (product.galleryUrls || []).forEach((u, i) => {
+        if (!u) return;
+        const gt = Array.isArray(product.galleryTypes) ? product.galleryTypes[i] : '';
+        const t = (gt === 'video') ? 'video' : 'image';
+        rawMedia.push({ url: u, type: t });
+      }); %>
+      <% const seenMediaUrls = new Set(); %>
+      <% const mediaItems = rawMedia.filter((m) => {
+        if (!m || !m.url || seenMediaUrls.has(m.url)) return false;
+        seenMediaUrls.add(m.url);
+        return true;
+      }); %>
+      <% const images = mediaItems.map((m) => m.url); %>
       <% const mainImage = images[0] || ''; %>
+      <% const mainMediaItem = mediaItems[0] || null; %>
       <% const thumbImages = images; %>
+      <% const thumbMediaItems = mediaItems; %>
       <% const hasVideo = !!(product.sections && product.sections.showVideo && product.media && product.media.videoUrl); %>
       <% const topLeftBadge = product.badges && product.badges.topLeft ? product.badges.topLeft : ''; %>
       <% const conditionBadge = product.badges && product.badges.condition ? product.badges.condition : ''; %>
@@ -104,6 +117,8 @@
       <% const heroBadge = keyEtat || conditionBadge || topLeftBadge || 'Reconditionnement Professionnel'; %>
       <% const visibleThumbImages = thumbImages.slice(0, 4); %>
       <% const hiddenThumbImages = thumbImages.slice(4); %>
+      <% const visibleThumbItems = thumbMediaItems.slice(0, 4); %>
+      <% const hiddenThumbItems = thumbMediaItems.slice(4); %>
       <% const compatibilityPrefillMessage = [
         'Bonjour,',
         '',
@@ -166,8 +181,10 @@
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start lg:items-stretch">
         <div class="lg:col-span-7 flex flex-col gap-4 h-full">
           <div class="relative w-full aspect-video rounded-xl bg-slate-100 dark:bg-slate-900 overflow-hidden border border-slate-200 dark:border-slate-800 refined-shadow">
-            <% if (mainImage) { %>
-              <img alt="<%= product.name %> — photo principale" class="w-full h-full object-cover" data-main-image decoding="async" loading="eager" fetchpriority="high" width="800" height="450" src="<%= mainImage %>" />
+            <% if (mainMediaItem) { %>
+              <% const _isMainVideo = mainMediaItem.type === 'video'; %>
+              <img alt="<%= product.name %> — photo principale" class="w-full h-full object-cover<%= _isMainVideo ? ' hidden' : '' %>" data-main-image decoding="async" loading="eager" fetchpriority="high" width="800" height="450" <% if (!_isMainVideo) { %>src="<%= mainImage %>"<% } %> />
+              <video class="w-full h-full object-cover<%= _isMainVideo ? '' : ' hidden' %>" data-main-video controls preload="metadata" playsinline<% if (_isMainVideo) { %> src="<%= mainImage %>"<% } %>></video>
             <% } else { %>
               <div class="w-full h-full flex items-center justify-center text-slate-400">
                 <span class="material-symbols-outlined text-6xl">inventory_2</span>
@@ -184,22 +201,32 @@
             <% } %>
           </div>
 
-          <% if (visibleThumbImages.length) { %>
+          <% if (visibleThumbItems.length) { %>
             <div class="grid grid-cols-4 gap-4">
-              <% visibleThumbImages.forEach((img, idx) => { %>
-                <% const remainingImages = thumbImages.length - 4; %>
-                <button aria-label="Voir l'image <%= idx + 1 %>" class="relative aspect-square rounded-lg overflow-hidden cursor-pointer border bg-white dark:bg-slate-900 refined-shadow transition-all <%= idx === 0 ? 'border-primary/20 ring-2 ring-primary' : 'border-slate-200 dark:border-slate-700 hover:border-primary' %>" data-thumb data-index="<%= idx %>" data-src="<%= img %>" type="button">
-                  <img alt="<%= product.name %> — vue <%= idx + 1 %>" class="w-full h-full object-cover" decoding="async" loading="lazy" width="200" height="200" src="<%= img %>" />
-                  <% if (idx === 3 && remainingImages > 0) { %>
-                    <span class="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white text-xs font-bold uppercase tracking-wider">+<%= remainingImages %> de plus</span>
+              <% visibleThumbItems.forEach((item, idx) => { %>
+                <% const remainingItems = thumbMediaItems.length - 4; %>
+                <% const _isThumbVideo = item.type === 'video'; %>
+                <button aria-label="Voir <%= _isThumbVideo ? 'la vidéo' : 'l\'image' %> <%= idx + 1 %>" class="relative aspect-square rounded-lg overflow-hidden cursor-pointer border bg-white dark:bg-slate-900 refined-shadow transition-all <%= idx === 0 ? 'border-primary/20 ring-2 ring-primary' : 'border-slate-200 dark:border-slate-700 hover:border-primary' %>" data-thumb data-index="<%= idx %>" data-src="<%= item.url %>" data-type="<%= item.type %>" type="button">
+                  <% if (_isThumbVideo) { %>
+                    <video class="w-full h-full object-cover" muted playsinline preload="metadata">
+                      <source src="<%= item.url %>" />
+                    </video>
+                    <span class="absolute bottom-1 left-1 bg-black/70 text-white rounded-full p-1 flex items-center justify-center">
+                      <span class="material-symbols-outlined text-sm leading-none">play_arrow</span>
+                    </span>
+                  <% } else { %>
+                    <img alt="<%= product.name %> — vue <%= idx + 1 %>" class="w-full h-full object-cover" decoding="async" loading="lazy" width="200" height="200" src="<%= item.url %>" />
+                  <% } %>
+                  <% if (idx === 3 && remainingItems > 0) { %>
+                    <span class="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white text-xs font-bold uppercase tracking-wider">+<%= remainingItems %> de plus</span>
                   <% } %>
                 </button>
               <% }) %>
             </div>
           <% } %>
 
-          <% hiddenThumbImages.forEach((img, idx) => { %>
-            <button class="hidden" data-thumb data-index="<%= idx + 4 %>" data-src="<%= img %>" type="button"></button>
+          <% hiddenThumbItems.forEach((item, idx) => { %>
+            <button class="hidden" data-thumb data-index="<%= idx + 4 %>" data-src="<%= item.url %>" data-type="<%= item.type %>" type="button"></button>
           <% }) %>
 
           <div class="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-4 mt-1">
@@ -735,6 +762,7 @@
       <script>
         (function () {
           var mainImg = document.querySelector('[data-main-image]');
+          var mainVid = document.querySelector('[data-main-video]');
           var thumbs = Array.prototype.slice.call(document.querySelectorAll('[data-thumb]') || []);
           var prevBtn = document.querySelector('[data-gallery-prev]');
           var nextBtn = document.querySelector('[data-gallery-next]');
@@ -902,7 +930,7 @@
           }
 
           function setIndex(nextIndex) {
-            if (!mainImg || !thumbs || !thumbs.length) return;
+            if ((!mainImg && !mainVid) || !thumbs || !thumbs.length) return;
             var max = thumbs.length;
             var idx = nextIndex % max;
             if (idx < 0) idx = max + idx;
@@ -910,7 +938,32 @@
             var btn = thumbs[idx];
             if (!btn) return;
             var src = btn.getAttribute('data-src');
-            if (src) mainImg.setAttribute('src', src);
+            var type = btn.getAttribute('data-type') || 'image';
+            if (!src) return;
+
+            if (type === 'video') {
+              if (mainImg) {
+                mainImg.classList.add('hidden');
+                mainImg.removeAttribute('src');
+              }
+              if (mainVid) {
+                mainVid.classList.remove('hidden');
+                try { mainVid.pause(); } catch (e) {}
+                mainVid.setAttribute('src', src);
+                try { mainVid.load(); } catch (e) {}
+              }
+            } else {
+              if (mainVid) {
+                try { mainVid.pause(); } catch (e) {}
+                mainVid.classList.add('hidden');
+                mainVid.removeAttribute('src');
+              }
+              if (mainImg) {
+                mainImg.classList.remove('hidden');
+                mainImg.setAttribute('src', src);
+              }
+            }
+
             currentIndex = idx;
             setActiveThumb(currentIndex);
           }
