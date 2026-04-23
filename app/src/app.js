@@ -217,7 +217,10 @@ app.use('/admin', (req, res, next) => {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "img-src 'self' data: https:",
+      // blob: nécessaire pour les previews d'upload via URL.createObjectURL
+      // (drag & drop d'images et vidéos sur la page produit admin).
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob: https:",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "script-src 'self' 'unsafe-inline'",
